@@ -1,0 +1,194 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[accessibility]
+
+general/updates_per_second=30
+
+[application]
+
+config/name="SlimeDesktopPetEditor"
+config/version="0.1.2"
+run/main_scene="res://scenes/desktop_shell.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+run/max_fps=30
+boot_splash/bg_color=Color(0.13725491, 0.13725491, 0.13725491, 0)
+boot_splash/image="uid://cncxab11bp6ng"
+config/icon="res://SDPE_icon.png"
+
+[autoload]
+
+DesktopShellState="*res://scripts/autoload/desktop_shell_state.gd"
+
+[display]
+
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+window/size/mode=3
+window/size/initial_position_type=0
+window/size/borderless=true
+window/size/always_on_top=true
+window/size/transparent=true
+window/size/no_focus=true
+window/size/sharp_corners=true
+window/subwindows/embed_subwindows=false
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+window/per_pixel_transparency/allowed=true
+window/vsync/vsync_mode=0
+
+[internationalization]
+
+locale/translations=PackedStringArray("res://translations/ui_strings.zh_TW.translation", "res://translations/ui_strings.en.translation")
+locale/fallback="zh_TW"
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+
+[rendering]
+
+rendering_device/driver.windows="d3d12"
+gl_compatibility/driver.windows="opengl3_angle"
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+environment/defaults/default_clear_color=Color(0, 0, 0, 0)
+viewport/transparent_background=true
+
+[shader_globals]
+
+lit_light_data={
+"filter": "nearest",
+"repeat": "disable",
+"type": "sampler2D",
+"value": ""
+}
+lit_light_count={
+"type": "int",
+"value": 0
+}
+lit_viewport_size={
+"type": "vec2",
+"value": Vector2(0, 0)
+}
+lit_canvas_scale={
+"type": "float",
+"value": 1.0
+}
+lit_world_sdf={
+"filter": "linear",
+"repeat": "disable",
+"type": "sampler2D",
+"value": ""
+}
+lit_wsdf_basis={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+lit_wsdf_origin={
+"type": "vec2",
+"value": Vector2(0, 0)
+}
+lit_ambient_color={
+"type": "color",
+"value": Color(1, 1, 1, 1)
+}
+lit_ambient_energy={
+"type": "float",
+"value": 1.0
+}
+lit_shadow_steps_max={
+"type": "int",
+"value": 64
+}
+lit_shadow_step_scaling={
+"type": "bool",
+"value": false
+}
+lit_tile_size={
+"type": "int",
+"value": 64
+}
+lit_tile_grid={
+"type": "ivec2",
+"value": Vector2i(0, 0)
+}
+lit_directional_count={
+"type": "int",
+"value": 0
+}
+lit_lighting_model={
+"type": "int",
+"value": 0
+}
+lit_tile_headers={
+"filter": "nearest",
+"repeat": "disable",
+"type": "sampler2D",
+"value": ""
+}
+lit_tile_indices={
+"filter": "nearest",
+"repeat": "disable",
+"type": "sampler2D",
+"value": ""
+}
+lit_cookie_atlas={
+"filter": "linear",
+"repeat": "disable",
+"type": "sampler2D",
+"value": ""
+}
+lit_ysort_enabled={
+"type": "bool",
+"value": false
+}
+lit_ysort_band={
+"type": "float",
+"value": 12.0
+}
+lit_occ_data={
+"filter": "nearest",
+"repeat": "disable",
+"type": "sampler2D",
+"value": ""
+}
+lit_occ_headers={
+"filter": "nearest",
+"repeat": "disable",
+"type": "sampler2D",
+"value": ""
+}
+lit_occ_indices={
+"filter": "nearest",
+"repeat": "disable",
+"type": "sampler2D",
+"value": ""
+}
+lit_gx_count={
+"type": "int",
+"value": 0
+}
+lit_gx_rect0={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+lit_gx_rect1={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+lit_gx_rect2={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+lit_gx_rect3={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}

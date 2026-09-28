@@ -19,3 +19,16 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+Scope note (non-normative — see CONTENT-POLICY.md for details):
+This license applies to the engine's source code only — the Godot project
+(GDScript, scenes, resources) and the HTML/Blockly block-logic editor. It does
+NOT apply to character packages (.pet files) or any other content created
+with this software by its users (artwork, character design, dialogue text,
+voice, or other creative assets). Such user-generated content is copyrighted
+by its respective creator and is All Rights Reserved by default unless that
+creator states otherwise. See CONTENT-POLICY.md and THIRD_PARTY_LICENSES.txt
+for the full picture, including third-party components embedded in this
+software (Godot Engine, Blockly) and their own licenses.

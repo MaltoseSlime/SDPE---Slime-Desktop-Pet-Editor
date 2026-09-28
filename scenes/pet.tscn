@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://dwxe2v82nt6sd"]
+
+[ext_resource type="Script" uid="uid://bgtl3nt2b5hx0" path="res://scripts/pet/pet.gd" id="1_pet"]
+
+[node name="Pet" type="CharacterBody2D" unique_id=1442322981]
+script = ExtResource("1_pet")
+
+[node name="VisualRoot" type="Node2D" parent="." unique_id=1990495700]
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="VisualRoot" unique_id=192654367]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1131456217]

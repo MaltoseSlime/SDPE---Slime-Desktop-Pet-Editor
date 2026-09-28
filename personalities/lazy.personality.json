@@ -1,0 +1,831 @@
+{
+  "author": "史萊姆桌寵引擎",
+  "description": "能躺就躺。走得慢、常發呆、很少自己動,對邀請多半回「好麻煩」;真的被逼著玩也只肯玩一場。",
+  "dialogueTranslations": {
+    "en": {
+      "(伸了個懶腰)": "(Stretches lazily)",
+      "(伸了好長好長的懶腰)": "(Stretches a really, really long stretch)",
+      "(倒頭就睡)": "(Falls asleep instantly)",
+      "(慢吞吞爬進來)": "(Crawls in slowly)",
+      "(打了個大哈欠)": "(Lets out a big yawn)",
+      "(流口水)": "(Drooling)",
+      "{user}你都不用休息的嗎?": "Don't you ever need a break, {user}?",
+      "……zzz……(睡得超沉)": "...zzz...(sleeping like a rock)",
+      "……不想動。": "...Don't want to move.",
+      "……再睡一下……": "...Just a bit more sleep...",
+      "……喔,贏了。好累喔。": "...Oh, I won. So tired though.",
+      "……嗯?天亮了?再睡五分鐘。": "...Mm? Morning already? Five more minutes.",
+      "……好吧,只玩一場。": "...Fine, just one round.",
+      "……我來了。可以直接躺下了嗎?": "...I'm here. Can I just lie down now?",
+      "……隨便你摸。": "...Pet me however you want.",
+      "……隨便啦。": "...Whatever.",
+      "不要,好麻煩。": "No, too much trouble.",
+      "今天就這樣吧,明天再說。": "That's enough for today, I'll deal with it tomorrow.",
+      "你們玩球呀……看著就覺得累。": "You're playing ball... makes me tired just watching.",
+      "你去做,我在這裡幫你加油。": "You go do it, I'll cheer you on from here.",
+      "再五分鐘……不,再一小時。": "Five more minutes... no, one more hour.",
+      "別叫我,我在充電。": "Don't call me, I'm recharging.",
+      "加油喔……我幫你們用眼睛加油。": "Go for it... I'll cheer with my eyes.",
+      "動一下要花好多力氣耶……": "Moving takes so much energy...",
+      "只想躺平……": "Just want to lie flat and do nothing...",
+      "只要待在這裡,時間的流逝就與我毫無干係,這點還不錯。": "As long as I stay here, the passing of time has nothing to do with me — that's kind of nice.",
+      "呼……玩夠了,可以睡了吧。": "Whew... had enough playing, can I sleep now?",
+      "咦,有球……好吧,考慮一下。": "Oh, a ball... fine, let me think about it.",
+      "哈啊……": "Haah...",
+      "唔……差不多該休息一下了?": "Hmm... time for a break yet?",
+      "唔……我想睡覺,{user}你也昏昏欲睡了吧?": "Hmm... I want to sleep, you're getting drowsy too, aren't you, {user}?",
+      "唔……我才剛想躺下就有種不安感。": "Hmm... I just wanted to lie down and now I feel uneasy.",
+      "啊~~~天氣好、心情好,再睡一下。": "Ahh~~~ nice weather, good mood, one more nap.",
+      "啊……被搬動了……好麻煩……": "Ah... being moved... what a hassle...",
+      "啊……這才是人生。": "Ahh... this is the life.",
+      "嗚……連難過都白費精力。": "Ugh... even being sad takes too much energy.",
+      "嗯,你贏。我睡了。": "Mm, you win. I'm sleeping.",
+      "嗯,好,結束。": "Mm, okay, done.",
+      "嗯……(呵欠)": "Mm... (yawn)",
+      "嗯……只玩一小會兒喔。": "Mm... just a little while.",
+      "嗯……好想睡。": "Mm... I really want to sleep.",
+      "嗯……感覺還不錯。": "Mm... feels pretty good.",
+      "嗯……舒服。": "Mm... comfy.",
+      "嘖,好麻煩…… 來吧。": "Tch, what a hassle... let's go.",
+      "好,結束。我要補充能量了。": "Okay, done. Time to recharge.",
+      "好啦好啦,我陪你們玩一下下。": "Fine, fine, I'll play with you for a bit.",
+      "好想躺下……": "I really want to lie down...",
+      "好累……我不想動了……": "So tired... I don't want to move...",
+      "平手……那不用再比了吧?": "A tie... so we don't have to go again, right?",
+      "心情不好,只想窩著。": "Not in a good mood, just want to curl up.",
+      "我不想動,你自己玩吧。": "I don't want to move, you go play by yourself.",
+      "我在旁邊躺著加油就好。": "I'll just lie here and cheer you on.",
+      "接住…… 不、不接了。": "Catch it... n-nah, not catching it.",
+      "有什麼事是睡一覺解決不了的嗎?": "Is there anything a good nap can't fix?",
+      "煩死了……別吵我。": "So annoying... don't bother me.",
+      "球……滾過來了。要玩嗎……算了。": "The ball... rolled over. Play with it? ...nah.",
+      "球就放在那裡,我光看著就覺得運動量夠了。": "The ball's just sitting there, just looking at it feels like enough exercise.",
+      "等一下……別催我,我會緊張。": "Hold on... don't rush me, it makes me nervous.",
+      "等我睡醒再說。": "Ask me again after I wake up.",
+      "累了。我躺一下。": "Tired. Lying down for a bit.",
+      "終於可以睡了……": "Finally can sleep...",
+      "終於有理由休息了……": "Finally have a reason to rest...",
+      "能坐著就不站著,能躺著就不坐著。": "Why stand if you can sit, why sit if you can lie down.",
+      "要不要玩球……不太激烈的那種。": "Want to play ball... the not-too-intense kind.",
+      "贏了。可以睡了嗎?": "I won. Can I sleep now?",
+      "跑一下下就好喔……真的一下下。": "Just a little run... really, just a little.",
+      "輸了就輸了吧……不想再比了。": "Lost, whatever... don't want to compete again.",
+      "這才是生活啊……躺著,什麼都不做。": "Now this is living... lying down, doing nothing.",
+      "這次跳過……我要省點力氣。": "Skipping this time... saving my energy.",
+      "頂一下……哇,好累。": "One little bump... whew, tiring."
+    },
+    "zh-TW": {
+      "(伸了個懶腰)": "(伸了個懶腰)",
+      "(伸了好長好長的懶腰)": "(伸了好長好長的懶腰)",
+      "(倒頭就睡)": "(倒頭就睡)",
+      "(慢吞吞爬進來)": "(慢吞吞爬進來)",
+      "(打了個大哈欠)": "(打了個大哈欠)",
+      "(流口水)": "(流口水)",
+      "{user}你都不用休息的嗎?": "{user}你都不用休息的嗎?",
+      "……zzz……(睡得超沉)": "……zzz……(睡得超沉)",
+      "……不想動。": "……不想動。",
+      "……再睡一下……": "……再睡一下……",
+      "……喔,贏了。好累喔。": "……喔,贏了。好累喔。",
+      "……嗯?天亮了?再睡五分鐘。": "……嗯?天亮了?再睡五分鐘。",
+      "……好吧,只玩一場。": "……好吧,只玩一場。",
+      "……我來了。可以直接躺下了嗎?": "……我來了。可以直接躺下了嗎?",
+      "……隨便你摸。": "……隨便你摸。",
+      "……隨便啦。": "……隨便啦。",
+      "不要,好麻煩。": "不要,好麻煩。",
+      "今天就這樣吧,明天再說。": "今天就這樣吧,明天再說。",
+      "你們玩球呀……看著就覺得累。": "你們玩球呀……看著就覺得累。",
+      "你去做,我在這裡幫你加油。": "你去做,我在這裡幫你加油。",
+      "再五分鐘……不,再一小時。": "再五分鐘……不,再一小時。",
+      "別叫我,我在充電。": "別叫我,我在充電。",
+      "加油喔……我幫你們用眼睛加油。": "加油喔……我幫你們用眼睛加油。",
+      "動一下要花好多力氣耶……": "動一下要花好多力氣耶……",
+      "只想躺平……": "只想躺平……",
+      "只要待在這裡,時間的流逝就與我毫無干係,這點還不錯。": "只要待在這裡,時間的流逝就與我毫無干係,這點還不錯。",
+      "呼……玩夠了,可以睡了吧。": "呼……玩夠了,可以睡了吧。",
+      "咦,有球……好吧,考慮一下。": "咦,有球……好吧,考慮一下。",
+      "哈啊……": "哈啊……",
+      "唔……差不多該休息一下了?": "唔……差不多該休息一下了?",
+      "唔……我想睡覺,{user}你也昏昏欲睡了吧?": "唔……我想睡覺,{user}你也昏昏欲睡了吧?",
+      "唔……我才剛想躺下就有種不安感。": "唔……我才剛想躺下就有種不安感。",
+      "啊~~~天氣好、心情好,再睡一下。": "啊~~~天氣好、心情好,再睡一下。",
+      "啊……被搬動了……好麻煩……": "啊……被搬動了……好麻煩……",
+      "啊……這才是人生。": "啊……這才是人生。",
+      "嗚……連難過都白費精力。": "嗚……連難過都白費精力。",
+      "嗯,你贏。我睡了。": "嗯,你贏。我睡了。",
+      "嗯,好,結束。": "嗯,好,結束。",
+      "嗯……(呵欠)": "嗯……(呵欠)",
+      "嗯……只玩一小會兒喔。": "嗯……只玩一小會兒喔。",
+      "嗯……好想睡。": "嗯……好想睡。",
+      "嗯……感覺還不錯。": "嗯……感覺還不錯。",
+      "嗯……舒服。": "嗯……舒服。",
+      "嘖,好麻煩…… 來吧。": "嘖,好麻煩…… 來吧。",
+      "好,結束。我要補充能量了。": "好,結束。我要補充能量了。",
+      "好啦好啦,我陪你們玩一下下。": "好啦好啦,我陪你們玩一下下。",
+      "好想躺下……": "好想躺下……",
+      "好累……我不想動了……": "好累……我不想動了……",
+      "平手……那不用再比了吧?": "平手……那不用再比了吧?",
+      "心情不好,只想窩著。": "心情不好,只想窩著。",
+      "我不想動,你自己玩吧。": "我不想動,你自己玩吧。",
+      "我在旁邊躺著加油就好。": "我在旁邊躺著加油就好。",
+      "接住…… 不、不接了。": "接住…… 不、不接了。",
+      "有什麼事是睡一覺解決不了的嗎?": "有什麼事是睡一覺解決不了的嗎?",
+      "煩死了……別吵我。": "煩死了……別吵我。",
+      "球……滾過來了。要玩嗎……算了。": "球……滾過來了。要玩嗎……算了。",
+      "球就放在那裡,我光看著就覺得運動量夠了。": "球就放在那裡,我光看著就覺得運動量夠了。",
+      "等一下……別催我,我會緊張。": "等一下……別催我,我會緊張。",
+      "等我睡醒再說。": "等我睡醒再說。",
+      "累了。我躺一下。": "累了。我躺一下。",
+      "終於可以睡了……": "終於可以睡了……",
+      "終於有理由休息了……": "終於有理由休息了……",
+      "能坐著就不站著,能躺著就不坐著。": "能坐著就不站著,能躺著就不坐著。",
+      "要不要玩球……不太激烈的那種。": "要不要玩球……不太激烈的那種。",
+      "贏了。可以睡了嗎?": "贏了。可以睡了嗎?",
+      "跑一下下就好喔……真的一下下。": "跑一下下就好喔……真的一下下。",
+      "輸了就輸了吧……不想再比了。": "輸了就輸了吧……不想再比了。",
+      "這才是生活啊……躺著,什麼都不做。": "這才是生活啊……躺著,什麼都不做。",
+      "這次跳過……我要省點力氣。": "這次跳過……我要省點力氣。",
+      "頂一下……哇,好累。": "頂一下……哇,好累。"
+    }
+  },
+  "fileType": "slime_pet_personality",
+  "id": "lazy",
+  "name": "懶惰",
+  "personalityVersion": 1.0,
+  "revision": 1.0,
+  "sections": {
+    "blocks": [
+      {
+        "fields": {
+          "LENS": "",
+          "NAME": "向使用者學新詞",
+          "TAG": "chat"
+        },
+        "id": "lazy_teach_hat",
+        "inputs": {
+          "DO": {
+            "block": {
+              "fields": {
+                "AUTOSEC": 0.0,
+                "BIND_ACTION": "",
+                "CLICK_WAIT": true,
+                "FONT": "__default__",
+                "SPEAKER": "",
+                "TEXT": "唔……可以教我一個新詞嗎?",
+                "TYPEWRITER": true,
+                "WAIT": true
+              },
+              "id": "lazy_teach_q",
+              "inputs": {
+                "OPTIONS": {
+                  "block": {
+                    "fields": {
+                      "DELTA": 0.0,
+                      "KEY": "",
+                      "LABEL": "好啊,我教你",
+                      "SCOPE": ""
+                    },
+                    "id": "lazy_teach_yes",
+                    "inputs": {
+                      "GOTO": {
+                        "block": {
+                          "fields": {
+                            "DEFAULT": "",
+                            "EMPTY_REPLY": "",
+                            "FRESH": true,
+                            "KEY": "learned",
+                            "MAXLEN": 16.0,
+                            "PROMPT": "好……你想教我什麼?"
+                          },
+                          "id": "lazy_teach_ask",
+                          "next": {
+                            "block": {
+                              "extraState": {
+                                "hasElse": true
+                              },
+                              "id": "lazy_teach_if",
+                              "inputs": {
+                                "DO0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "learned",
+                                      "LIST": "pet"
+                                    },
+                                    "id": "lazy_teach_learn",
+                                    "next": {
+                                      "block": {
+                                        "fields": {
+                                          "N": 2.0,
+                                          "NOWAIT": true
+                                        },
+                                        "id": "lazy_teach_hop",
+                                        "next": {
+                                          "block": {
+                                            "fields": {
+                                              "AUTOSEC": 3.0,
+                                              "BIND_ACTION": "",
+                                              "FONT": "__default__",
+                                              "SPEAKER": "",
+                                              "TEXT": "「{text:learned}」啊……學會了,謝啦{user}。",
+                                              "TYPEWRITER": true,
+                                              "WAIT": true
+                                            },
+                                            "id": "lazy_teach_thanks",
+                                            "type": "dialogue_line"
+                                          }
+                                        },
+                                        "type": "phys_jump_small"
+                                      }
+                                    },
+                                    "type": "keyword_learn"
+                                  }
+                                },
+                                "ELSE": {
+                                  "block": {
+                                    "fields": {
+                                      "AUTOSEC": 2.0,
+                                      "BIND_ACTION": "",
+                                      "FONT": "__default__",
+                                      "SPEAKER": "",
+                                      "TEXT": "喔,那下次再說……",
+                                      "TYPEWRITER": true,
+                                      "WAIT": true
+                                    },
+                                    "id": "lazy_teach_quiet",
+                                    "type": "dialogue_line"
+                                  }
+                                },
+                                "IF0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "learned"
+                                    },
+                                    "id": "lazy_teach_cond",
+                                    "type": "cond_text_set"
+                                  }
+                                }
+                              },
+                              "type": "controls_if"
+                            }
+                          },
+                          "type": "dialogue_ask_text"
+                        }
+                      }
+                    },
+                    "next": {
+                      "block": {
+                        "fields": {
+                          "DELTA": 0.0,
+                          "KEY": "",
+                          "LABEL": "下次吧",
+                          "SCOPE": ""
+                        },
+                        "id": "lazy_teach_nope",
+                        "type": "dialogue_option"
+                      }
+                    },
+                    "type": "dialogue_option"
+                  }
+                }
+              },
+              "type": "dialogue_line"
+            }
+          }
+        },
+        "type": "event_when_chat"
+      },
+      {
+        "fields": {
+          "LENS": "",
+          "NAME": "想更了解使用者",
+          "TAG": "chat"
+        },
+        "id": "lazy_know_hat",
+        "inputs": {
+          "DO": {
+            "block": {
+              "fields": {
+                "AUTOSEC": 0.0,
+                "BIND_ACTION": "",
+                "CLICK_WAIT": true,
+                "FONT": "__default__",
+                "SPEAKER": "",
+                "TEXT": "嗯……你最近對什麼有興趣?我想知道。",
+                "TYPEWRITER": true,
+                "WAIT": true
+              },
+              "id": "lazy_know_q",
+              "inputs": {
+                "OPTIONS": {
+                  "block": {
+                    "fields": {
+                      "DELTA": 0.0,
+                      "KEY": "",
+                      "LABEL": "好啊,我告訴你",
+                      "SCOPE": ""
+                    },
+                    "id": "lazy_know_yes",
+                    "inputs": {
+                      "GOTO": {
+                        "block": {
+                          "fields": {
+                            "DEFAULT": "",
+                            "EMPTY_REPLY": "",
+                            "FRESH": true,
+                            "KEY": "interest",
+                            "MAXLEN": 16.0,
+                            "PROMPT": "有興趣的是什麼?慢慢說沒關係。"
+                          },
+                          "id": "lazy_know_ask",
+                          "next": {
+                            "block": {
+                              "extraState": {
+                                "hasElse": true
+                              },
+                              "id": "lazy_know_if",
+                              "inputs": {
+                                "DO0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "interest",
+                                      "LIST": "user"
+                                    },
+                                    "id": "lazy_know_learn",
+                                    "next": {
+                                      "block": {
+                                        "fields": {
+                                          "N": 2.0,
+                                          "NOWAIT": true
+                                        },
+                                        "id": "lazy_know_hop",
+                                        "next": {
+                                          "block": {
+                                            "fields": {
+                                              "AUTOSEC": 3.0,
+                                              "BIND_ACTION": "",
+                                              "FONT": "__default__",
+                                              "SPEAKER": "",
+                                              "TEXT": "「{text:interest}」喔……我記下來了,謝啦。",
+                                              "TYPEWRITER": true,
+                                              "WAIT": true
+                                            },
+                                            "id": "lazy_know_thanks",
+                                            "type": "dialogue_line"
+                                          }
+                                        },
+                                        "type": "phys_jump_small"
+                                      }
+                                    },
+                                    "type": "keyword_learn"
+                                  }
+                                },
+                                "ELSE": {
+                                  "block": {
+                                    "fields": {
+                                      "AUTOSEC": 2.0,
+                                      "BIND_ACTION": "",
+                                      "FONT": "__default__",
+                                      "SPEAKER": "",
+                                      "TEXT": "好啦,你想說再說。",
+                                      "TYPEWRITER": true,
+                                      "WAIT": true
+                                    },
+                                    "id": "lazy_know_quiet",
+                                    "type": "dialogue_line"
+                                  }
+                                },
+                                "IF0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "interest"
+                                    },
+                                    "id": "lazy_know_cond",
+                                    "type": "cond_text_set"
+                                  }
+                                }
+                              },
+                              "type": "controls_if"
+                            }
+                          },
+                          "type": "dialogue_ask_text"
+                        }
+                      }
+                    },
+                    "next": {
+                      "block": {
+                        "fields": {
+                          "DELTA": 0.0,
+                          "KEY": "",
+                          "LABEL": "現在不想說",
+                          "SCOPE": ""
+                        },
+                        "id": "lazy_know_nope",
+                        "type": "dialogue_option"
+                      }
+                    },
+                    "type": "dialogue_option"
+                  }
+                }
+              },
+              "type": "dialogue_line"
+            }
+          }
+        },
+        "type": "event_when_chat"
+      }
+    ],
+    "chat": [
+      {
+        "lens": "疲憊",
+        "say": "好累……我不想動了……",
+        "tag": "lens"
+      },
+      {
+        "lens": "生氣",
+        "say": "煩死了……別吵我。",
+        "tag": "lens"
+      },
+      {
+        "lens": "開心",
+        "say": "嗯……感覺還不錯。",
+        "tag": "lens"
+      },
+      {
+        "say": "好想躺下……",
+        "tag": "chat"
+      },
+      {
+        "say": "動一下要花好多力氣耶……",
+        "tag": "chat"
+      },
+      {
+        "say": "再五分鐘……不,再一小時。",
+        "tag": "chat"
+      },
+      {
+        "say": "今天就這樣吧,明天再說。",
+        "tag": "chat"
+      },
+      {
+        "say": "你去做,我在這裡幫你加油。",
+        "tag": "chat"
+      },
+      {
+        "say": "我不想動,你自己玩吧。",
+        "tag": "chat"
+      },
+      {
+        "say": "嗯……好想睡。",
+        "tag": "chat"
+      },
+      {
+        "say": "唔……差不多該休息一下了?",
+        "tag": "chat"
+      },
+      {
+        "say": "{user}你都不用休息的嗎?",
+        "tag": "chat"
+      },
+      {
+        "say": "(打了個大哈欠)",
+        "tag": "chat"
+      },
+      {
+        "say": "(伸了個懶腰)",
+        "tag": "chat"
+      },
+      {
+        "say": "能坐著就不站著,能躺著就不坐著。",
+        "tag": "chat"
+      },
+      {
+        "say": "只要待在這裡,時間的流逝就與我毫無干係,這點還不錯。",
+        "tag": "chat"
+      },
+      {
+        "say": "唔……我想睡覺,{user}你也昏昏欲睡了吧?",
+        "tag": "chat"
+      },
+      {
+        "say": "有什麼事是睡一覺解決不了的嗎?",
+        "tag": "chat"
+      },
+      {
+        "say": "只想躺平……",
+        "tag": "rest"
+      },
+      {
+        "say": "啊……這才是人生。",
+        "tag": "rest"
+      },
+      {
+        "say": "別叫我,我在充電。",
+        "tag": "rest"
+      },
+      {
+        "say": "……zzz……(睡得超沉)",
+        "tag": "sleep"
+      },
+      {
+        "say": "……再睡一下……",
+        "tag": "sleep"
+      },
+      {
+        "say": "(流口水)",
+        "tag": "sleep"
+      },
+      {
+        "lens": "悲傷",
+        "say": "嗚……連難過都白費精力。",
+        "tag": "lens"
+      },
+      {
+        "lens": "悲傷",
+        "say": "心情不好,只想窩著。",
+        "tag": "lens"
+      },
+      {
+        "lens": "緊張",
+        "say": "等一下……別催我,我會緊張。",
+        "tag": "lens"
+      },
+      {
+        "lens": "緊張",
+        "say": "唔……我才剛想躺下就有種不安感。",
+        "tag": "lens"
+      },
+      {
+        "lens": "悠哉",
+        "say": "這才是生活啊……躺著,什麼都不做。",
+        "tag": "lens"
+      },
+      {
+        "lens": "悠哉",
+        "say": "啊~~~天氣好、心情好,再睡一下。",
+        "tag": "lens"
+      },
+      {
+        "lens": "奔跑",
+        "say": "跑一下下就好喔……真的一下下。",
+        "tag": "lens"
+      },
+      {
+        "say": "球就放在那裡,我光看著就覺得運動量夠了。",
+        "tag": "chat"
+      }
+    ],
+    "lenses": [
+      {
+        "name": "疲憊",
+        "nature": [
+          "負面",
+          "持續"
+        ]
+      },
+      {
+        "name": "生氣",
+        "nature": [
+          "負面"
+        ],
+        "timeout_max": 90.0,
+        "timeout_min": 45.0
+      },
+      {
+        "movement_overrides": {
+          "hop_chance_per_second": 1.0
+        },
+        "name": "開心",
+        "nature": [
+          "正面"
+        ],
+        "timeout_max": 90.0,
+        "timeout_min": 45.0
+      },
+      {
+        "force_run": true,
+        "movement_overrides": {
+          "idle_duration_max": 1.0,
+          "idle_duration_min": 0.3
+        },
+        "name": "奔跑",
+        "timeout_max": 5.0,
+        "timeout_min": 2.0
+      },
+      {
+        "name": "悲傷",
+        "nature": [
+          "負面"
+        ],
+        "timeout_max": 120.0,
+        "timeout_min": 60.0
+      },
+      {
+        "name": "緊張",
+        "nature": [
+          "負面"
+        ],
+        "timeout_max": 40.0,
+        "timeout_min": 20.0
+      },
+      {
+        "name": "悠哉",
+        "nature": [
+          "正面"
+        ],
+        "timeout_max": 120.0,
+        "timeout_min": 60.0
+      }
+    ],
+    "params": {
+      "anger_proneness": 0.5,
+      "auto_chat_interval": [
+        200.0,
+        500.0
+      ],
+      "auto_game_interval": [
+        700.0,
+        1500.0
+      ],
+      "ball_play_chance": 0.02,
+      "exhausted_threshold": 20.0,
+      "fatigue_rate": 6.0,
+      "game_ask_chance": 0.15,
+      "game_refuse_base": 0.5,
+      "game_refuse_busy": 0.4,
+      "game_refuse_negative": 0.35,
+      "hop_chance": 0.05,
+      "idle_duration": [
+        8.0,
+        19.2
+      ],
+      "idle_hop_chance": 0.03,
+      "invite_best_of_weights": {
+        "1": 0.85,
+        "3": 0.15
+      },
+      "joy_proneness": 0.2,
+      "jump_variance": 0.08,
+      "jump_velocity": 490.0,
+      "max_jump_velocity": 720.0,
+      "mood_swing": 0.2,
+      "mouse_follow_chance": 0.03,
+      "mouse_follow_duration": [
+        8.0,
+        20.0
+      ],
+      "move_speed": 70.0,
+      "nervous_proneness": 0.05,
+      "relax_share": 0.6,
+      "rest_duration": [
+        60.0,
+        180.0
+      ],
+      "rest_recovery_rate": 25.0,
+      "run_any_mood": false,
+      "run_chance": 0.015,
+      "run_speed_multiplier": 1.5,
+      "sleep_duration": [
+        300.0,
+        900.0
+      ],
+      "sociability": 0.25,
+      "tired_move_factor": 0.5,
+      "tired_threshold": 55.0,
+      "touch_affinity": 0.1,
+      "wake_mood_penalty": 5.0,
+      "walk_duration": [
+        1.0,
+        2.5
+      ]
+    },
+    "reactions": [
+      {
+        "on": "tired",
+        "say": [
+          "累了。我躺一下。",
+          "終於有理由休息了……"
+        ]
+      },
+      {
+        "on": "wake",
+        "say": [
+          "……嗯?天亮了?再睡五分鐘。",
+          "(伸了好長好長的懶腰)"
+        ]
+      },
+      {
+        "on": "interact",
+        "say": [
+          "嗯……舒服。",
+          "……隨便你摸。",
+          "嗯……(呵欠)"
+        ]
+      },
+      {
+        "on": "drag",
+        "say": [
+          "啊……被搬動了……好麻煩……",
+          "……隨便啦。",
+          "哈啊……"
+        ]
+      },
+      {
+        "on": "enter",
+        "say": [
+          "……我來了。可以直接躺下了嗎?",
+          "(慢吞吞爬進來)"
+        ]
+      },
+      {
+        "on": "sleep",
+        "say": [
+          "終於可以睡了……",
+          "(倒頭就睡)"
+        ]
+      },
+      {
+        "on": "game_win",
+        "say": [
+          "……喔,贏了。好累喔。",
+          "贏了。可以睡了嗎?"
+        ]
+      },
+      {
+        "on": "game_lose",
+        "say": [
+          "輸了就輸了吧……不想再比了。",
+          "嗯,你贏。我睡了。"
+        ]
+      },
+      {
+        "on": "game_tie",
+        "say": [
+          "平手……那不用再比了吧?",
+          "嗯,好,結束。"
+        ]
+      },
+      {
+        "on": "invite_accept",
+        "say": [
+          "……好吧,只玩一場。",
+          "嘖,好麻煩……來吧。"
+        ]
+      },
+      {
+        "on": "invite_refuse",
+        "say": [
+          "不要,好麻煩。",
+          "等我睡醒再說。",
+          "……不想動。"
+        ]
+      },
+      {
+        "on": "ball_found",
+        "say": [
+          "球……滾過來了。要玩嗎……算了。",
+          "咦,有球……好吧,考慮一下。"
+        ]
+      },
+      {
+        "on": "ball_invite",
+        "say": [
+          "要不要玩球……不太激烈的那種。"
+        ]
+      },
+      {
+        "on": "ball_join",
+        "say": [
+          "好啦好啦,我陪你們玩一下下。",
+          "嗯……只玩一小會兒喔。"
+        ]
+      },
+      {
+        "on": "ball_decline",
+        "say": [
+          "我在旁邊躺著加油就好。",
+          "這次跳過……我要省點力氣。"
+        ]
+      },
+      {
+        "on": "ball_playing",
+        "say": [
+          "頂一下……哇,好累。",
+          "接住……不、不接了。"
+        ]
+      },
+      {
+        "on": "ball_end",
+        "say": [
+          "呼……玩夠了,可以睡了吧。",
+          "好,結束。我要補充能量了。"
+        ]
+      },
+      {
+        "on": "ball_watch",
+        "say": [
+          "你們玩球呀……看著就覺得累。",
+          "加油喔……我幫你們用眼睛加油。"
+        ]
+      }
+    ]
+  }
+}

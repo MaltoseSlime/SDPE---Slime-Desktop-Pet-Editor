@@ -1,0 +1,854 @@
+{
+  "author": "史萊姆桌寵引擎",
+  "description": "愛黏著人。跟隨時貼得很近、常找你互動、愛被關心與陪伴;被冷落會撒嬌,輸了要抱抱。",
+  "dialogueTranslations": {
+    "en": {
+      "(一直看著你)": "(Keeps staring at you)",
+      "(抱住你的游標睡著了)": "(Hugs your cursor and falls asleep)",
+      "(揉眼睛)謝謝你一直在這裡陪我,{user}。": "(Rubs eyes) Thanks for always being here with me, {user}.",
+      "(靠過來窩在{user}旁邊)": "(Snuggles up next to {user})",
+      "[wave]{user}你陪我玩了!好開心!": "[wave]{user}, you played with me! I'm so happy!",
+      "[wave]找到你了!": "[wave]Found you!",
+      "[wave]耶!你來關心我了!再多一點嘛~": "[wave]Yay! You came to check on me! A little more~",
+      "{user}你也要記得休息喔……我在旁邊陪你。": "Remember to rest too, {user}... I'll be right here with you.",
+      "{user}在做什麼?我陪你好不好?": "What are you doing, {user}? Can I keep you company?",
+      "{user}好像總是很忙……沒關係,有我陪著你。": "{user} always seems so busy... it's okay, I'll be here with you.",
+      "……不玩的話,可以陪我嗎?": "...If not playing, can you just stay with me?",
+      "……不要走喔……zzz": "...Don't go... zzz",
+      "一樣耶~我們心有靈犀!": "Same as you~ we're totally in sync!",
+      "不管,輸了要抱抱!": "Doesn't matter, losing means I need a hug!",
+      "今天沒心情玩球,但我在旁邊陪你們。": "Not in the mood for ball today, but I'll be here with you.",
+      "你不要走……陪我一下下就好。": "Don't go... just stay with me a little while.",
+      "你丟球給我的話,我一定會接住的。": "If you throw the ball to me, I'll definitely catch it.",
+      "你們在玩球?我在旁邊看,不會吵的。": "You're playing ball? I'll just watch, I won't bother you.",
+      "你們玩得好開心……我也想被邀請。": "You two look like you're having fun... I want to be invited too.",
+      "你在我就不無聊了。": "As long as you're here, I'm never bored.",
+      "你有看我嗎?我頂得很好對不對?": "Were you watching me? I bumped it well, right?",
+      "你看你看!有球!我們一起玩好不好?": "Look, look! A ball! Let's play together, okay?",
+      "你還在嗎?太好了!": "Are you still here? Yay!",
+      "再摸久一點也可以的喔?": "You can pet me a little longer, you know?",
+      "即便是螢幕變黑的時候,我也一直在想你。": "Even when the screen goes dark, I keep thinking of you.",
+      "和你待在一起,什麼都不用做就很幸福。": "Just being with you, doing nothing at all, makes me happy.",
+      "哼!你都不理我!": "Hmph! You keep ignoring me!",
+      "唔……有點怕怕的,不要離開太遠喔。": "Hmm... I'm a little scared, don't go too far away.",
+      "唔……有點緊張,你在的話我會好一點。": "Hmm... I'm a little nervous, I feel better when you're around.",
+      "嗚……不要離開我……": "Uwaah... don't leave me...",
+      "嗚……我想要你拍拍我。": "Uwaah... I want you to pat me.",
+      "嗚……輸了……你要安慰我一下嘛。": "Uu... I lost... you have to comfort me.",
+      "嗚……陪我一下下嘛……": "Uwaah... just stay with me a little longer...",
+      "嗚哇!你要帶我走?好!我跟你走!": "Uwah! Taking me somewhere? Okay! I'll go with you!",
+      "嗯……我現在有更想做的事。": "Mm... there's something I'd rather do right now.",
+      "嘿嘿,我也最喜歡你了!": "Hehe, I like you the most too!",
+      "嘿嘿~": "Hehe~",
+      "太好了,我可以一起玩嗎?我可以!": "Yay, can I join? I can!",
+      "好!我要跟你們一起玩!": "Yes! I want to play with you all!",
+      "好~只要是和你一起玩!": "Okay~ as long as it's with you!",
+      "好累喔,陪我一下嘛。": "So tired, stay with me a bit.",
+      "好累喔……可以靠著你休息嗎?": "So tired... can I lean on you and rest?",
+      "平手!我們一樣棒!": "A tie! We're equally great!",
+      "待在你身邊我就不怕了……": "As long as I'm by your side, I'm not scared...",
+      "忙完之後,{user}就會陪我玩了嗎?": "Once you're done being busy, {user}, will you play with me?",
+      "我……我想先待在旁邊,不要忘記我喔。": "I... I'll stay on the side for now, don't forget about me.",
+      "我來找你啦!有沒有想我?": "I came to find you! Did you miss me?",
+      "我們一起玩球好不好?大家一起才開心!": "Let's play ball together, okay? It's more fun together!",
+      "我可以一直待在你身邊嗎?": "Can I stay by your side forever?",
+      "我坐在這裡陪你。": "I'll sit here and keep you company.",
+      "我很怕寂寞,你可以一直陪著我嗎?": "I'm really afraid of being lonely, can you stay with me always?",
+      "我想休息一下……": "I want to rest for a bit...",
+      "我想和你聊聊天,可以嗎?": "I want to chat with you, is that okay?",
+      "我想要你抱抱我……": "I want you to hug me...",
+      "我想要你摸摸我……": "I want you to pat me...",
+      "我想要你關心我……": "I want you to care about me...",
+      "我有點不安,你不要離開喔。": "I'm feeling a little uneasy, please don't leave.",
+      "接住接住!不要漏掉了!": "Catch it, catch it! Don't miss it!",
+      "晚安,夢裡也要見到你喔~": "Good night, hope to see you in my dreams too~",
+      "有人要一起玩球嗎?我想跟你們玩!": "Anyone want to play ball together? I want to join!",
+      "有你在的地方就是我的家。": "Wherever you are, that's my home.",
+      "玩得好開心!你有開心嗎?": "Had so much fun! Were you happy too?",
+      "球!你要不要陪我玩?": "A ball! Will you play with me?",
+      "當你有空時,可以摸摸我的頭嗎?": "When you have time, can you pat my head?",
+      "看著你,我就很安心。": "Just watching you makes me feel at ease.",
+      "等我等我!我要追上你!": "Wait for me, wait for me! I'll catch up!",
+      "結束了嗎……再陪我一下嘛。": "Is it over... stay with me a little longer.",
+      "耶!我做到了,快拍拍我!": "Yay! I did it, pat me quick!",
+      "被你抱起來了……好開心!": "You picked me up... so happy!",
+      "要玩要玩!我最喜歡跟人玩了!": "Play, play! I love playing with people the most!",
+      "贏了!誇誇我!": "I won! Praise me!",
+      "跟你待在一起,讓我好安心。": "Being with you makes me feel so safe.",
+      "靠近一點點……好,就這樣。": "Come a little closer... yes, just like that."
+    },
+    "zh-TW": {
+      "(一直看著你)": "(一直看著你)",
+      "(抱住你的游標睡著了)": "(抱住你的游標睡著了)",
+      "(揉眼睛)謝謝你一直在這裡陪我,{user}。": "(揉眼睛)謝謝你一直在這裡陪我,{user}。",
+      "(靠過來窩在{user}旁邊)": "(靠過來窩在{user}旁邊)",
+      "[wave]{user}你陪我玩了!好開心!": "[wave]{user}你陪我玩了!好開心!",
+      "[wave]找到你了!": "[wave]找到你了!",
+      "[wave]耶!你來關心我了!再多一點嘛~": "[wave]耶!你來關心我了!再多一點嘛~",
+      "{user}你也要記得休息喔……我在旁邊陪你。": "{user}你也要記得休息喔……我在旁邊陪你。",
+      "{user}在做什麼?我陪你好不好?": "{user}在做什麼?我陪你好不好?",
+      "{user}好像總是很忙……沒關係,有我陪著你。": "{user}好像總是很忙……沒關係,有我陪著你。",
+      "……不玩的話,可以陪我嗎?": "……不玩的話,可以陪我嗎?",
+      "……不要走喔……zzz": "……不要走喔……zzz",
+      "一樣耶~我們心有靈犀!": "一樣耶~我們心有靈犀!",
+      "不管,輸了要抱抱!": "不管,輸了要抱抱!",
+      "今天沒心情玩球,但我在旁邊陪你們。": "今天沒心情玩球,但我在旁邊陪你們。",
+      "你不要走……陪我一下下就好。": "你不要走……陪我一下下就好。",
+      "你丟球給我的話,我一定會接住的。": "你丟球給我的話,我一定會接住的。",
+      "你們在玩球?我在旁邊看,不會吵的。": "你們在玩球?我在旁邊看,不會吵的。",
+      "你們玩得好開心……我也想被邀請。": "你們玩得好開心……我也想被邀請。",
+      "你在我就不無聊了。": "你在我就不無聊了。",
+      "你有看我嗎?我頂得很好對不對?": "你有看我嗎?我頂得很好對不對?",
+      "你看你看!有球!我們一起玩好不好?": "你看你看!有球!我們一起玩好不好?",
+      "你還在嗎?太好了!": "你還在嗎?太好了!",
+      "再摸久一點也可以的喔?": "再摸久一點也可以的喔?",
+      "即便是螢幕變黑的時候,我也一直在想你。": "即便是螢幕變黑的時候,我也一直在想你。",
+      "和你待在一起,什麼都不用做就很幸福。": "和你待在一起,什麼都不用做就很幸福。",
+      "哼!你都不理我!": "哼!你都不理我!",
+      "唔……有點怕怕的,不要離開太遠喔。": "唔……有點怕怕的,不要離開太遠喔。",
+      "唔……有點緊張,你在的話我會好一點。": "唔……有點緊張,你在的話我會好一點。",
+      "嗚……不要離開我……": "嗚……不要離開我……",
+      "嗚……我想要你拍拍我。": "嗚……我想要你拍拍我。",
+      "嗚……輸了……你要安慰我一下嘛。": "嗚……輸了……你要安慰我一下嘛。",
+      "嗚……陪我一下下嘛……": "嗚……陪我一下下嘛……",
+      "嗚哇!你要帶我走?好!我跟你走!": "嗚哇!你要帶我走?好!我跟你走!",
+      "嗯……我現在有更想做的事。": "嗯……我現在有更想做的事。",
+      "嘿嘿,我也最喜歡你了!": "嘿嘿,我也最喜歡你了!",
+      "嘿嘿~": "嘿嘿~",
+      "太好了,我可以一起玩嗎?我可以!": "太好了,我可以一起玩嗎?我可以!",
+      "好!我要跟你們一起玩!": "好!我要跟你們一起玩!",
+      "好~只要是和你一起玩!": "好~只要是和你一起玩!",
+      "好累喔,陪我一下嘛。": "好累喔,陪我一下嘛。",
+      "好累喔……可以靠著你休息嗎?": "好累喔……可以靠著你休息嗎?",
+      "平手!我們一樣棒!": "平手!我們一樣棒!",
+      "待在你身邊我就不怕了……": "待在你身邊我就不怕了……",
+      "忙完之後,{user}就會陪我玩了嗎?": "忙完之後,{user}就會陪我玩了嗎?",
+      "我……我想先待在旁邊,不要忘記我喔。": "我……我想先待在旁邊,不要忘記我喔。",
+      "我來找你啦!有沒有想我?": "我來找你啦!有沒有想我?",
+      "我們一起玩球好不好?大家一起才開心!": "我們一起玩球好不好?大家一起才開心!",
+      "我可以一直待在你身邊嗎?": "我可以一直待在你身邊嗎?",
+      "我坐在這裡陪你。": "我坐在這裡陪你。",
+      "我很怕寂寞,你可以一直陪著我嗎?": "我很怕寂寞,你可以一直陪著我嗎?",
+      "我想休息一下……": "我想休息一下……",
+      "我想和你聊聊天,可以嗎?": "我想和你聊聊天,可以嗎?",
+      "我想要你抱抱我……": "我想要你抱抱我……",
+      "我想要你摸摸我……": "我想要你摸摸我……",
+      "我想要你關心我……": "我想要你關心我……",
+      "我有點不安,你不要離開喔。": "我有點不安,你不要離開喔。",
+      "接住接住!不要漏掉了!": "接住接住!不要漏掉了!",
+      "晚安,夢裡也要見到你喔~": "晚安,夢裡也要見到你喔~",
+      "有人要一起玩球嗎?我想跟你們玩!": "有人要一起玩球嗎?我想跟你們玩!",
+      "有你在的地方就是我的家。": "有你在的地方就是我的家。",
+      "玩得好開心!你有開心嗎?": "玩得好開心!你有開心嗎?",
+      "球!你要不要陪我玩?": "球!你要不要陪我玩?",
+      "當你有空時,可以摸摸我的頭嗎?": "當你有空時,可以摸摸我的頭嗎?",
+      "看著你,我就很安心。": "看著你,我就很安心。",
+      "等我等我!我要追上你!": "等我等我!我要追上你!",
+      "結束了嗎……再陪我一下嘛。": "結束了嗎……再陪我一下嘛。",
+      "耶!我做到了,快拍拍我!": "耶!我做到了,快拍拍我!",
+      "被你抱起來了……好開心!": "被你抱起來了……好開心!",
+      "要玩要玩!我最喜歡跟人玩了!": "要玩要玩!我最喜歡跟人玩了!",
+      "贏了!誇誇我!": "贏了!誇誇我!",
+      "跟你待在一起,讓我好安心。": "跟你待在一起,讓我好安心。",
+      "靠近一點點……好,就這樣。": "靠近一點點……好,就這樣。"
+    }
+  },
+  "fileType": "slime_pet_personality",
+  "id": "clingy",
+  "name": "黏人",
+  "personalityVersion": 1.0,
+  "revision": 1.0,
+  "sections": {
+    "blocks": [
+      {
+        "fields": {
+          "LENS": "",
+          "NAME": "向使用者學新詞",
+          "TAG": "chat"
+        },
+        "id": "clingy_teach_hat",
+        "inputs": {
+          "DO": {
+            "block": {
+              "fields": {
+                "AUTOSEC": 0.0,
+                "BIND_ACTION": "",
+                "CLICK_WAIT": true,
+                "FONT": "__default__",
+                "SPEAKER": "",
+                "TEXT": "你可以教我一個新的詞嗎?我想多知道一點你懂的事……",
+                "TYPEWRITER": true,
+                "WAIT": true
+              },
+              "id": "clingy_teach_q",
+              "inputs": {
+                "OPTIONS": {
+                  "block": {
+                    "fields": {
+                      "DELTA": 0.0,
+                      "KEY": "",
+                      "LABEL": "好啊,我教你",
+                      "SCOPE": ""
+                    },
+                    "id": "clingy_teach_yes",
+                    "inputs": {
+                      "GOTO": {
+                        "block": {
+                          "fields": {
+                            "DEFAULT": "",
+                            "EMPTY_REPLY": "",
+                            "FRESH": true,
+                            "KEY": "learned",
+                            "MAXLEN": 16.0,
+                            "PROMPT": "教我嘛~你想教我什麼?"
+                          },
+                          "id": "clingy_teach_ask",
+                          "next": {
+                            "block": {
+                              "extraState": {
+                                "hasElse": true
+                              },
+                              "id": "clingy_teach_if",
+                              "inputs": {
+                                "DO0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "learned",
+                                      "LIST": "pet"
+                                    },
+                                    "id": "clingy_teach_learn",
+                                    "next": {
+                                      "block": {
+                                        "fields": {
+                                          "N": 3.0,
+                                          "NOWAIT": true
+                                        },
+                                        "id": "clingy_teach_hop",
+                                        "next": {
+                                          "block": {
+                                            "fields": {
+                                              "AUTOSEC": 3.0,
+                                              "BIND_ACTION": "",
+                                              "FONT": "__default__",
+                                              "SPEAKER": "",
+                                              "TEXT": "「{text:learned}」!我學會了!謝謝{user},我最喜歡你了!",
+                                              "TYPEWRITER": true,
+                                              "WAIT": true
+                                            },
+                                            "id": "clingy_teach_thanks",
+                                            "type": "dialogue_line"
+                                          }
+                                        },
+                                        "type": "phys_jump_small"
+                                      }
+                                    },
+                                    "type": "keyword_learn"
+                                  }
+                                },
+                                "ELSE": {
+                                  "block": {
+                                    "fields": {
+                                      "AUTOSEC": 2.0,
+                                      "BIND_ACTION": "",
+                                      "FONT": "__default__",
+                                      "SPEAKER": "",
+                                      "TEXT": "嗯……那下次再教我喔。",
+                                      "TYPEWRITER": true,
+                                      "WAIT": true
+                                    },
+                                    "id": "clingy_teach_quiet",
+                                    "type": "dialogue_line"
+                                  }
+                                },
+                                "IF0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "learned"
+                                    },
+                                    "id": "clingy_teach_cond",
+                                    "type": "cond_text_set"
+                                  }
+                                }
+                              },
+                              "type": "controls_if"
+                            }
+                          },
+                          "type": "dialogue_ask_text"
+                        }
+                      }
+                    },
+                    "next": {
+                      "block": {
+                        "fields": {
+                          "DELTA": 0.0,
+                          "KEY": "",
+                          "LABEL": "下次吧",
+                          "SCOPE": ""
+                        },
+                        "id": "clingy_teach_nope",
+                        "type": "dialogue_option"
+                      }
+                    },
+                    "type": "dialogue_option"
+                  }
+                }
+              },
+              "type": "dialogue_line"
+            }
+          }
+        },
+        "type": "event_when_chat"
+      },
+      {
+        "fields": {
+          "LENS": "",
+          "NAME": "想更了解使用者",
+          "TAG": "chat"
+        },
+        "id": "clingy_know_hat",
+        "inputs": {
+          "DO": {
+            "block": {
+              "fields": {
+                "AUTOSEC": 0.0,
+                "BIND_ACTION": "",
+                "CLICK_WAIT": true,
+                "FONT": "__default__",
+                "SPEAKER": "",
+                "TEXT": "我想更了解你……你最近對什麼有興趣呢?",
+                "TYPEWRITER": true,
+                "WAIT": true
+              },
+              "id": "clingy_know_q",
+              "inputs": {
+                "OPTIONS": {
+                  "block": {
+                    "fields": {
+                      "DELTA": 0.0,
+                      "KEY": "",
+                      "LABEL": "好啊,我告訴你",
+                      "SCOPE": ""
+                    },
+                    "id": "clingy_know_yes",
+                    "inputs": {
+                      "GOTO": {
+                        "block": {
+                          "fields": {
+                            "DEFAULT": "",
+                            "EMPTY_REPLY": "",
+                            "FRESH": true,
+                            "KEY": "interest",
+                            "MAXLEN": 16.0,
+                            "PROMPT": "告訴我嘛,你喜歡什麼?"
+                          },
+                          "id": "clingy_know_ask",
+                          "next": {
+                            "block": {
+                              "extraState": {
+                                "hasElse": true
+                              },
+                              "id": "clingy_know_if",
+                              "inputs": {
+                                "DO0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "interest",
+                                      "LIST": "user"
+                                    },
+                                    "id": "clingy_know_learn",
+                                    "next": {
+                                      "block": {
+                                        "fields": {
+                                          "N": 3.0,
+                                          "NOWAIT": true
+                                        },
+                                        "id": "clingy_know_hop",
+                                        "next": {
+                                          "block": {
+                                            "fields": {
+                                              "AUTOSEC": 3.0,
+                                              "BIND_ACTION": "",
+                                              "FONT": "__default__",
+                                              "SPEAKER": "",
+                                              "TEXT": "原來你喜歡「{text:interest}」!我要牢牢記住,這樣就能陪你聊了!",
+                                              "TYPEWRITER": true,
+                                              "WAIT": true
+                                            },
+                                            "id": "clingy_know_thanks",
+                                            "type": "dialogue_line"
+                                          }
+                                        },
+                                        "type": "phys_jump_small"
+                                      }
+                                    },
+                                    "type": "keyword_learn"
+                                  }
+                                },
+                                "ELSE": {
+                                  "block": {
+                                    "fields": {
+                                      "AUTOSEC": 2.0,
+                                      "BIND_ACTION": "",
+                                      "FONT": "__default__",
+                                      "SPEAKER": "",
+                                      "TEXT": "不想說也沒關係,我會一直等你的。",
+                                      "TYPEWRITER": true,
+                                      "WAIT": true
+                                    },
+                                    "id": "clingy_know_quiet",
+                                    "type": "dialogue_line"
+                                  }
+                                },
+                                "IF0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "interest"
+                                    },
+                                    "id": "clingy_know_cond",
+                                    "type": "cond_text_set"
+                                  }
+                                }
+                              },
+                              "type": "controls_if"
+                            }
+                          },
+                          "type": "dialogue_ask_text"
+                        }
+                      }
+                    },
+                    "next": {
+                      "block": {
+                        "fields": {
+                          "DELTA": 0.0,
+                          "KEY": "",
+                          "LABEL": "現在不想說",
+                          "SCOPE": ""
+                        },
+                        "id": "clingy_know_nope",
+                        "type": "dialogue_option"
+                      }
+                    },
+                    "type": "dialogue_option"
+                  }
+                }
+              },
+              "type": "dialogue_line"
+            }
+          }
+        },
+        "type": "event_when_chat"
+      }
+    ],
+    "chat": [
+      {
+        "lens": "疲憊",
+        "say": "好累喔……可以靠著你休息嗎?",
+        "tag": "lens"
+      },
+      {
+        "lens": "生氣",
+        "say": "哼!你都不理我!",
+        "tag": "lens"
+      },
+      {
+        "lens": "開心",
+        "say": "[wave]{user}你陪我玩了!好開心!",
+        "tag": "lens"
+      },
+      {
+        "say": "{user}在做什麼?我陪你好不好?",
+        "tag": "chat"
+      },
+      {
+        "say": "即便是螢幕變黑的時候,我也一直在想你。",
+        "tag": "chat"
+      },
+      {
+        "say": "看著你,我就很安心。",
+        "tag": "chat"
+      },
+      {
+        "say": "忙完之後,{user}就會陪我玩了嗎?",
+        "tag": "chat"
+      },
+      {
+        "say": "我很怕寂寞,你可以一直陪著我嗎?",
+        "tag": "chat"
+      },
+      {
+        "say": "我想要你抱抱我……",
+        "tag": "chat"
+      },
+      {
+        "say": "我想要你摸摸我……",
+        "tag": "chat"
+      },
+      {
+        "say": "我想要你關心我……",
+        "tag": "chat"
+      },
+      {
+        "say": "{user}好像總是很忙……沒關係,有我陪著你。",
+        "tag": "chat"
+      },
+      {
+        "say": "我想和你聊聊天,可以嗎?",
+        "tag": "chat"
+      },
+      {
+        "say": "(靠過來窩在{user}旁邊)",
+        "tag": "rest"
+      },
+      {
+        "lens": "悲傷",
+        "say": "嗚……不要離開我……",
+        "tag": "lens"
+      },
+      {
+        "lens": "悲傷",
+        "say": "嗚……陪我一下下嘛……",
+        "tag": "lens"
+      },
+      {
+        "lens": "緊張",
+        "say": "唔……有點怕怕的,不要離開太遠喔。",
+        "tag": "lens"
+      },
+      {
+        "lens": "緊張",
+        "say": "唔……有點緊張,你在的話我會好一點。",
+        "tag": "lens"
+      },
+      {
+        "lens": "悠哉",
+        "say": "跟你待在一起,讓我好安心。",
+        "tag": "lens"
+      },
+      {
+        "lens": "悠哉",
+        "say": "當你有空時,可以摸摸我的頭嗎?",
+        "tag": "lens"
+      },
+      {
+        "say": "我可以一直待在你身邊嗎?",
+        "tag": "chat"
+      },
+      {
+        "say": "有你在的地方就是我的家。",
+        "tag": "chat"
+      },
+      {
+        "say": "(一直看著你)",
+        "tag": "chat"
+      },
+      {
+        "say": "我坐在這裡陪你。",
+        "tag": "rest"
+      },
+      {
+        "say": "靠近一點點……好,就這樣。",
+        "tag": "rest"
+      },
+      {
+        "say": "你在我就不無聊了。",
+        "tag": "rest"
+      },
+      {
+        "say": "(抱住你的游標睡著了)",
+        "tag": "sleep"
+      },
+      {
+        "say": "……不要走喔……zzz",
+        "tag": "sleep"
+      },
+      {
+        "lens": "悲傷",
+        "say": "你不要走……陪我一下下就好。",
+        "tag": "lens"
+      },
+      {
+        "lens": "悲傷",
+        "say": "嗚……我想要你拍拍我。",
+        "tag": "lens"
+      },
+      {
+        "lens": "緊張",
+        "say": "待在你身邊我就不怕了……",
+        "tag": "lens"
+      },
+      {
+        "lens": "緊張",
+        "say": "我有點不安,你不要離開喔。",
+        "tag": "lens"
+      },
+      {
+        "lens": "悠哉",
+        "say": "和你待在一起,什麼都不用做就很幸福。",
+        "tag": "lens"
+      },
+      {
+        "lens": "奔跑",
+        "say": "等我等我!我要追上你!",
+        "tag": "lens"
+      },
+      {
+        "say": "你丟球給我的話,我一定會接住的。",
+        "tag": "chat"
+      }
+    ],
+    "lenses": [
+      {
+        "name": "疲憊",
+        "nature": [
+          "負面",
+          "持續"
+        ]
+      },
+      {
+        "name": "生氣",
+        "nature": [
+          "負面"
+        ],
+        "timeout_max": 90.0,
+        "timeout_min": 45.0
+      },
+      {
+        "movement_overrides": {
+          "hop_chance_per_second": 1.0
+        },
+        "name": "開心",
+        "nature": [
+          "正面"
+        ],
+        "timeout_max": 90.0,
+        "timeout_min": 45.0
+      },
+      {
+        "continue_chance": 0.3,
+        "continue_decay": 0.6,
+        "force_run": true,
+        "max_rounds": 3.0,
+        "movement_overrides": {
+          "idle_duration_max": 1.0,
+          "idle_duration_min": 0.3
+        },
+        "name": "奔跑",
+        "timeout_max": 10.0,
+        "timeout_min": 5.0
+      },
+      {
+        "name": "悲傷",
+        "nature": [
+          "負面"
+        ],
+        "timeout_max": 120.0,
+        "timeout_min": 60.0
+      },
+      {
+        "name": "緊張",
+        "nature": [
+          "負面"
+        ],
+        "timeout_max": 40.0,
+        "timeout_min": 20.0
+      },
+      {
+        "name": "悠哉",
+        "nature": [
+          "正面"
+        ],
+        "timeout_max": 120.0,
+        "timeout_min": 60.0
+      }
+    ],
+    "params": {
+      "anger_proneness": 0.3,
+      "auto_chat_interval": [
+        60.0,
+        150.0
+      ],
+      "auto_game_interval": [
+        200.0,
+        500.0
+      ],
+      "ball_play_chance": 0.1,
+      "clingy_mood_rule": true,
+      "exhausted_threshold": 10.0,
+      "fatigue_rate": 3.0,
+      "follow_distance": 45.0,
+      "game_ask_chance": 0.6,
+      "game_refuse_base": 0.05,
+      "game_refuse_busy": 0.2,
+      "game_refuse_negative": 0.5,
+      "hop_chance": 0.5,
+      "idle_duration": [
+        2.5,
+        6.5
+      ],
+      "idle_hop_chance": 0.25,
+      "joy_proneness": 1.4,
+      "jump_variance": 0.15,
+      "jump_velocity": 550.0,
+      "max_jump_velocity": 800.0,
+      "mood_swing": 0.6,
+      "mouse_follow_chance": 0.5,
+      "mouse_follow_duration": [
+        30.0,
+        90.0
+      ],
+      "move_speed": 130.0,
+      "nervous_proneness": 0.1,
+      "relax_share": 0.2,
+      "rest_duration": [
+        15.0,
+        40.0
+      ],
+      "rest_recovery_rate": 40.0,
+      "run_any_mood": false,
+      "run_chance": 0.03,
+      "sleep_duration": [
+        60.0,
+        140.0
+      ],
+      "sociability": 0.9,
+      "tired_move_factor": 0.7,
+      "tired_threshold": 30.0,
+      "touch_affinity": 1.0
+    },
+    "reactions": [
+      {
+        "on": "tired",
+        "say": [
+          "我想休息一下……",
+          "好累喔,陪我一下嘛。"
+        ]
+      },
+      {
+        "on": "wake",
+        "say": [
+          "你還在嗎?太好了!",
+          "(揉眼睛)謝謝你一直在這裡陪我,{user}。"
+        ]
+      },
+      {
+        "hop": 1.0,
+        "on": "interact",
+        "say": [
+          "[wave]耶!你來關心我了!再多一點嘛~",
+          "嘿嘿,我也最喜歡你了!",
+          "再摸久一點也可以的喔?"
+        ]
+      },
+      {
+        "on": "drag",
+        "say": [
+          "嗚哇!你要帶我走?好!我跟你走!",
+          "被你抱起來了……好開心!",
+          "嘿嘿~"
+        ]
+      },
+      {
+        "on": "enter",
+        "say": [
+          "我來找你啦!有沒有想我?",
+          "[wave]找到你了!"
+        ]
+      },
+      {
+        "on": "sleep",
+        "say": [
+          "{user}你也要記得休息喔……我在旁邊陪你。",
+          "晚安,夢裡也要見到你喔~"
+        ]
+      },
+      {
+        "hop": 1.0,
+        "on": "game_win",
+        "say": [
+          "贏了!誇誇我!",
+          "耶!我做到了,快拍拍我!"
+        ]
+      },
+      {
+        "on": "game_lose",
+        "say": [
+          "嗚……輸了……你要安慰我一下嘛。",
+          "不管,輸了要抱抱!"
+        ]
+      },
+      {
+        "on": "game_tie",
+        "say": [
+          "平手!我們一樣棒!",
+          "一樣耶~我們心有靈犀!"
+        ]
+      },
+      {
+        "on": "invite_accept",
+        "say": [
+          "好~只要是和你一起玩!",
+          "要玩要玩!我最喜歡跟人玩了!"
+        ]
+      },
+      {
+        "on": "invite_refuse",
+        "say": [
+          "……不玩的話,可以陪我嗎?",
+          "嗯……我現在有更想做的事。"
+        ]
+      },
+      {
+        "hop": 1.0,
+        "on": "ball_found",
+        "say": [
+          "你看你看!有球!我們一起玩好不好?",
+          "球!你要不要陪我玩?"
+        ]
+      },
+      {
+        "on": "ball_invite",
+        "say": [
+          "我們一起玩球好不好?大家一起才開心!",
+          "有人要一起玩球嗎?我想跟你們玩!"
+        ]
+      },
+      {
+        "hop": 1.0,
+        "on": "ball_join",
+        "say": [
+          "好!我要跟你們一起玩!",
+          "太好了,我可以一起玩嗎?我可以!"
+        ]
+      },
+      {
+        "on": "ball_decline",
+        "say": [
+          "我……我想先待在旁邊,不要忘記我喔。",
+          "今天沒心情玩球,但我在旁邊陪你們。"
+        ]
+      },
+      {
+        "hop": 1.0,
+        "on": "ball_playing",
+        "say": [
+          "你有看我嗎?我頂得很好對不對?",
+          "接住接住!不要漏掉了!"
+        ]
+      },
+      {
+        "on": "ball_end",
+        "say": [
+          "玩得好開心!你有開心嗎?",
+          "結束了嗎……再陪我一下嘛。"
+        ]
+      },
+      {
+        "on": "ball_watch",
+        "say": [
+          "你們玩得好開心……我也想被邀請。",
+          "你們在玩球?我在旁邊看,不會吵的。"
+        ]
+      }
+    ]
+  }
+}

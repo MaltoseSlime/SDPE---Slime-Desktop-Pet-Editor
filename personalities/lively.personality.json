@@ -1,0 +1,860 @@
+{
+  "author": "史萊姆桌寵引擎",
+  "description": "精力旺盛、愛動愛玩。走得快、常跳、話多、什麼比賽都想參一腳,輸了也不氣餒。",
+  "dialogueTranslations": {
+    "en": {
+      "(吸鼻子)給我一點點時間,我會再蹦起來的!": "(Sniffles) Just give me a little time, I'll be bouncing back in no time!",
+      "(坐著晃腳)": "(Sits and swings legs)",
+      "(打了個大哈欠)明天再玩……": "(Big yawn) Let's play again tomorrow...",
+      "[shake]再高一點再高一點!": "[shake]Higher, higher!",
+      "[shake]想要飛高高~!": "[shake]I wanna fly up high~!",
+      "[shake]我坐不住啦!": "[shake]I can't sit still!",
+      "[shake]我最喜歡{user}了!": "[shake]I love {user} the most!",
+      "[wave]今天太棒了!我整個人都在發光!": "[wave]Today's amazing! I feel like I'm glowing!",
+      "[wave]嗨嗨嗨~今天也要一起玩喔!": "[wave]Hiii~ let's play together today too!",
+      "[wave]我來啦!大家好~": "[wave]I'm here! Hi everyone~",
+      "[wave]欸欸欸,你看我跳得多高!": "[wave]Hey hey hey, look how high I jumped!",
+      "[wave]睡飽啦!再衝一波!": "[wave]Fully rested! Charging again!",
+      "[wave]耶!我贏啦!再來再來!": "[wave]Yay! I won! Again, again!",
+      "[wave]陪我玩~陪我玩嘛~!": "[wave]Play with me~ play with me~!",
+      "{user},你要不要跟我比賽?": "Hey {user}, want to race me?",
+      "{user}今天有沒有遇到什麼好玩的事呀?": "Did anything fun happen to you today, {user}?",
+      "……呼嚕……球……": "...Zzz... ball...",
+      "……好玩……再一場……zzz": "...Fun... one more round...zzz",
+      "今天就慢慢來,偶爾放鬆也很棒!": "Let's take it easy today, relaxing once in a while is great too!",
+      "今天沒力氣……下次我再陪你們玩!": "No energy today... I'll play with you next time!",
+      "今天玩得好開心……晚安~": "Had so much fun today... good night~",
+      "今天要做什麼,{user}?我們去玩吧!": "What should we do today, {user}? Let's go play!",
+      "你今天心情好嗎?我好極了!": "Are you in a good mood today? I'm doing great!",
+      "你們玩球居然不叫我!等我!": "You played ball without calling me! Wait for me!",
+      "你有好好休息嗎?休息是為了走更遠的路!": "Did you get enough rest? Resting is how you go the extra mile!",
+      "來了來了!我發抖是因為興奮啦!": "Here it comes, here it comes! I'm shaking because I'm excited!",
+      "來吧來吧!": "Come on, come on!",
+      "來比賽!誰先碰到螢幕邊邊誰贏!": "Let's race! Whoever touches the edge of the screen first wins!",
+      "來玩球!誰先碰到球誰贏!": "Let's play ball! Whoever touches it first wins!",
+      "再一次再一次!": "Again, again!",
+      "再摸摸我!再摸摸我!": "Pet me more! Pet me more!",
+      "再猜個拳嘛,一場就好!": "Let's play rock-paper-scissors again, just one round!",
+      "只休息一下下喔,馬上又要動起來了~": "Just a quick rest, I'll be moving again in no time~",
+      "呀呼!": "Yahoo!",
+      "呼~玩得好過癮!明天再玩!": "Whew~ so much fun! Let's play again tomorrow!",
+      "呼……呼……跑太多了,坐一下。": "Huff... huff... ran too much, gonna sit for a bit.",
+      "咦……這次先不要,下次一定!": "Huh... not this time, next time for sure!",
+      "哇!你要陪我玩嗎!": "Whoa! You wanna play with me?!",
+      "哇!球球!來比賽誰頂得高!": "Whoa! A ball! Let's race who can bump it higher!",
+      "哇,一樣耶!好巧!": "Whoa, the same! What a coincidence!",
+      "哇啊啊啊——我在飛!": "Whoaaaa—I'm flying!",
+      "哈啊~滿血復活!": "Haah~ back to full power!",
+      "哎呀,有點喘……休息一下下!": "Oof, a bit out of breath... quick rest!",
+      "哼!不跟你玩了……才怪,我等一下就好了。": "Hmph! I'm not playing with you anymore... just kidding, I'll be fine in a sec.",
+      "哼哼,剛才是讓你的!": "Heh heh, I went easy on you that time!",
+      "啊……電力快用完了。": "Ah... running low on energy.",
+      "喘口氣……好,充電完成!": "Catch my breath... okay, fully charged!",
+      "嗚……我平常那麼有精神,今天卻提不起勁……": "Ugh... I'm usually so energetic, but I just can't get going today...",
+      "嘿咻嘿咻~伸展一下!": "Hup, hup~ time to stretch!",
+      "嘿嘿,好好玩!再來~": "Hehe, so fun! Again~",
+      "大家一起玩球啦~!": "Everyone play ball together~!",
+      "太好了!等你這句話好久了!": "Yes! Been waiting for you to say that!",
+      "太好玩了!下次我要頂更久!": "So much fun! I'll bump it longer next time!",
+      "太棒了!我就說我運氣好!": "Awesome! Told you I'm lucky!",
+      "好呀好呀!誰怕誰!": "Sure, sure! Who's scared!",
+      "好想出去冒險喔~": "I really want to go on an adventure~",
+      "好耶!算我一個!": "Yay! Count me in!",
+      "平手!那再來一次分勝負!": "A tie! Let's go again to settle it!",
+      "我今天心情超好的!": "I'm in such a great mood today!",
+      "我剛剛跑了三圈,一點都不累!": "I just ran three laps, not tired at all!",
+      "我的心臟在打鼓耶!咚咚咚!": "My heart's pounding like a drum! Thump thump thump!",
+      "接好接好~!": "Catch it, catch it~!",
+      "欸~輸了!再一場再一場!": "Aww~ lost! One more round, one more round!",
+      "欸欸欸,要不要看我翻跟斗?": "Hey hey hey, want to see me do a somersault?",
+      "球!!是球耶!!我要玩我要玩!": "A ball!! It's a ball!! I wanna play, I wanna play!",
+      "球球球~我今天最想玩的就是球!": "Ball, ball, ball~ playing with the ball is all I want today!",
+      "登場!!有沒有嚇到?": "Entrance!! Did I surprise you?",
+      "看我這一球!飛高高!": "Check out this shot! Flying high!",
+      "看起來超好玩!我也要!": "Looks super fun! I want in too!",
+      "等我一下喔,馬上回來!": "Wait for me, be right back!",
+      "衝啊,一起玩!": "Charge, let's play!",
+      "跑起來!風好舒服~": "Let's run! The wind feels great~",
+      "躺下來看雲飄好像也不錯,等下再衝!": "Lying down watching the clouds drift by sounds nice too, I'll charge again later!",
+      "這次我先休息,下一場我一定衝第一!": "Resting this round, next one I'm going first for sure!",
+      "飛高高~": "Flying so high~"
+    },
+    "zh-TW": {
+      "(吸鼻子)給我一點點時間,我會再蹦起來的!": "(吸鼻子)給我一點點時間,我會再蹦起來的!",
+      "(坐著晃腳)": "(坐著晃腳)",
+      "(打了個大哈欠)明天再玩……": "(打了個大哈欠)明天再玩……",
+      "[shake]再高一點再高一點!": "[shake]再高一點再高一點!",
+      "[shake]想要飛高高~!": "[shake]想要飛高高~!",
+      "[shake]我坐不住啦!": "[shake]我坐不住啦!",
+      "[shake]我最喜歡{user}了!": "[shake]我最喜歡{user}了!",
+      "[wave]今天太棒了!我整個人都在發光!": "[wave]今天太棒了!我整個人都在發光!",
+      "[wave]嗨嗨嗨~今天也要一起玩喔!": "[wave]嗨嗨嗨~今天也要一起玩喔!",
+      "[wave]我來啦!大家好~": "[wave]我來啦!大家好~",
+      "[wave]欸欸欸,你看我跳得多高!": "[wave]欸欸欸,你看我跳得多高!",
+      "[wave]睡飽啦!再衝一波!": "[wave]睡飽啦!再衝一波!",
+      "[wave]耶!我贏啦!再來再來!": "[wave]耶!我贏啦!再來再來!",
+      "[wave]陪我玩~陪我玩嘛~!": "[wave]陪我玩~陪我玩嘛~!",
+      "{user},你要不要跟我比賽?": "{user},你要不要跟我比賽?",
+      "{user}今天有沒有遇到什麼好玩的事呀?": "{user}今天有沒有遇到什麼好玩的事呀?",
+      "……呼嚕……球……": "……呼嚕……球……",
+      "……好玩……再一場……zzz": "……好玩……再一場……zzz",
+      "今天就慢慢來,偶爾放鬆也很棒!": "今天就慢慢來,偶爾放鬆也很棒!",
+      "今天沒力氣……下次我再陪你們玩!": "今天沒力氣……下次我再陪你們玩!",
+      "今天玩得好開心……晚安~": "今天玩得好開心……晚安~",
+      "今天要做什麼,{user}?我們去玩吧!": "今天要做什麼,{user}?我們去玩吧!",
+      "你今天心情好嗎?我好極了!": "你今天心情好嗎?我好極了!",
+      "你們玩球居然不叫我!等我!": "你們玩球居然不叫我!等我!",
+      "你有好好休息嗎?休息是為了走更遠的路!": "你有好好休息嗎?休息是為了走更遠的路!",
+      "來了來了!我發抖是因為興奮啦!": "來了來了!我發抖是因為興奮啦!",
+      "來吧來吧!": "來吧來吧!",
+      "來比賽!誰先碰到螢幕邊邊誰贏!": "來比賽!誰先碰到螢幕邊邊誰贏!",
+      "來玩球!誰先碰到球誰贏!": "來玩球!誰先碰到球誰贏!",
+      "再一次再一次!": "再一次再一次!",
+      "再摸摸我!再摸摸我!": "再摸摸我!再摸摸我!",
+      "再猜個拳嘛,一場就好!": "再猜個拳嘛,一場就好!",
+      "只休息一下下喔,馬上又要動起來了~": "只休息一下下喔,馬上又要動起來了~",
+      "呀呼!": "呀呼!",
+      "呼~玩得好過癮!明天再玩!": "呼~玩得好過癮!明天再玩!",
+      "呼……呼……跑太多了,坐一下。": "呼……呼……跑太多了,坐一下。",
+      "咦……這次先不要,下次一定!": "咦……這次先不要,下次一定!",
+      "哇!你要陪我玩嗎!": "哇!你要陪我玩嗎!",
+      "哇!球球!來比賽誰頂得高!": "哇!球球!來比賽誰頂得高!",
+      "哇,一樣耶!好巧!": "哇,一樣耶!好巧!",
+      "哇啊啊啊——我在飛!": "哇啊啊啊——我在飛!",
+      "哈啊~滿血復活!": "哈啊~滿血復活!",
+      "哎呀,有點喘……休息一下下!": "哎呀,有點喘……休息一下下!",
+      "哼!不跟你玩了……才怪,我等一下就好了。": "哼!不跟你玩了……才怪,我等一下就好了。",
+      "哼哼,剛才是讓你的!": "哼哼,剛才是讓你的!",
+      "啊……電力快用完了。": "啊……電力快用完了。",
+      "喘口氣……好,充電完成!": "喘口氣……好,充電完成!",
+      "嗚……我平常那麼有精神,今天卻提不起勁……": "嗚……我平常那麼有精神,今天卻提不起勁……",
+      "嘿咻嘿咻~伸展一下!": "嘿咻嘿咻~伸展一下!",
+      "嘿嘿,好好玩!再來~": "嘿嘿,好好玩!再來~",
+      "大家一起玩球啦~!": "大家一起玩球啦~!",
+      "太好了!等你這句話好久了!": "太好了!等你這句話好久了!",
+      "太好玩了!下次我要頂更久!": "太好玩了!下次我要頂更久!",
+      "太棒了!我就說我運氣好!": "太棒了!我就說我運氣好!",
+      "好呀好呀!誰怕誰!": "好呀好呀!誰怕誰!",
+      "好想出去冒險喔~": "好想出去冒險喔~",
+      "好耶!算我一個!": "好耶!算我一個!",
+      "平手!那再來一次分勝負!": "平手!那再來一次分勝負!",
+      "我今天心情超好的!": "我今天心情超好的!",
+      "我剛剛跑了三圈,一點都不累!": "我剛剛跑了三圈,一點都不累!",
+      "我的心臟在打鼓耶!咚咚咚!": "我的心臟在打鼓耶!咚咚咚!",
+      "接好接好~!": "接好接好~!",
+      "欸~輸了!再一場再一場!": "欸~輸了!再一場再一場!",
+      "欸欸欸,要不要看我翻跟斗?": "欸欸欸,要不要看我翻跟斗?",
+      "球!!是球耶!!我要玩我要玩!": "球!!是球耶!!我要玩我要玩!",
+      "球球球~我今天最想玩的就是球!": "球球球~我今天最想玩的就是球!",
+      "登場!!有沒有嚇到?": "登場!!有沒有嚇到?",
+      "看我這一球!飛高高!": "看我這一球!飛高高!",
+      "看起來超好玩!我也要!": "看起來超好玩!我也要!",
+      "等我一下喔,馬上回來!": "等我一下喔,馬上回來!",
+      "衝啊,一起玩!": "衝啊,一起玩!",
+      "跑起來!風好舒服~": "跑起來!風好舒服~",
+      "躺下來看雲飄好像也不錯,等下再衝!": "躺下來看雲飄好像也不錯,等下再衝!",
+      "這次我先休息,下一場我一定衝第一!": "這次我先休息,下一場我一定衝第一!",
+      "飛高高~": "飛高高~"
+    }
+  },
+  "fileType": "slime_pet_personality",
+  "id": "lively",
+  "name": "活潑",
+  "personalityVersion": 1.0,
+  "revision": 1.0,
+  "sections": {
+    "blocks": [
+      {
+        "fields": {
+          "LENS": "",
+          "NAME": "向使用者學新詞",
+          "TAG": "chat"
+        },
+        "id": "lively_teach_hat",
+        "inputs": {
+          "DO": {
+            "block": {
+              "fields": {
+                "AUTOSEC": 0.0,
+                "BIND_ACTION": "",
+                "CLICK_WAIT": true,
+                "FONT": "__default__",
+                "SPEAKER": "",
+                "TEXT": "教我新詞!教我教我教我!",
+                "TYPEWRITER": true,
+                "WAIT": true
+              },
+              "id": "lively_teach_q",
+              "inputs": {
+                "OPTIONS": {
+                  "block": {
+                    "fields": {
+                      "DELTA": 0.0,
+                      "KEY": "",
+                      "LABEL": "好啊,我教你",
+                      "SCOPE": ""
+                    },
+                    "id": "lively_teach_yes",
+                    "inputs": {
+                      "GOTO": {
+                        "block": {
+                          "fields": {
+                            "DEFAULT": "",
+                            "EMPTY_REPLY": "",
+                            "FRESH": true,
+                            "KEY": "learned",
+                            "MAXLEN": 16.0,
+                            "PROMPT": "快快快!你要教我什麼詞?"
+                          },
+                          "id": "lively_teach_ask",
+                          "next": {
+                            "block": {
+                              "extraState": {
+                                "hasElse": true
+                              },
+                              "id": "lively_teach_if",
+                              "inputs": {
+                                "DO0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "learned",
+                                      "LIST": "pet"
+                                    },
+                                    "id": "lively_teach_learn",
+                                    "next": {
+                                      "block": {
+                                        "fields": {
+                                          "N": 5.0,
+                                          "NOWAIT": true
+                                        },
+                                        "id": "lively_teach_hop",
+                                        "next": {
+                                          "block": {
+                                            "fields": {
+                                              "AUTOSEC": 3.0,
+                                              "BIND_ACTION": "",
+                                              "FONT": "__default__",
+                                              "SPEAKER": "",
+                                              "TEXT": "「{text:learned}」!哇!學會了!謝謝{user}!",
+                                              "TYPEWRITER": true,
+                                              "WAIT": true
+                                            },
+                                            "id": "lively_teach_thanks",
+                                            "type": "dialogue_line"
+                                          }
+                                        },
+                                        "type": "phys_jump_small"
+                                      }
+                                    },
+                                    "type": "keyword_learn"
+                                  }
+                                },
+                                "ELSE": {
+                                  "block": {
+                                    "fields": {
+                                      "AUTOSEC": 2.0,
+                                      "BIND_ACTION": "",
+                                      "FONT": "__default__",
+                                      "SPEAKER": "",
+                                      "TEXT": "欸~那下次一定要教我喔!",
+                                      "TYPEWRITER": true,
+                                      "WAIT": true
+                                    },
+                                    "id": "lively_teach_quiet",
+                                    "type": "dialogue_line"
+                                  }
+                                },
+                                "IF0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "learned"
+                                    },
+                                    "id": "lively_teach_cond",
+                                    "type": "cond_text_set"
+                                  }
+                                }
+                              },
+                              "type": "controls_if"
+                            }
+                          },
+                          "type": "dialogue_ask_text"
+                        }
+                      }
+                    },
+                    "next": {
+                      "block": {
+                        "fields": {
+                          "DELTA": 0.0,
+                          "KEY": "",
+                          "LABEL": "下次吧",
+                          "SCOPE": ""
+                        },
+                        "id": "lively_teach_nope",
+                        "type": "dialogue_option"
+                      }
+                    },
+                    "type": "dialogue_option"
+                  }
+                }
+              },
+              "type": "dialogue_line"
+            }
+          }
+        },
+        "type": "event_when_chat"
+      },
+      {
+        "fields": {
+          "LENS": "",
+          "NAME": "想更了解使用者",
+          "TAG": "chat"
+        },
+        "id": "lively_know_hat",
+        "inputs": {
+          "DO": {
+            "block": {
+              "fields": {
+                "AUTOSEC": 0.0,
+                "BIND_ACTION": "",
+                "CLICK_WAIT": true,
+                "FONT": "__default__",
+                "SPEAKER": "",
+                "TEXT": "我想更了解你!你最近對什麼有興趣呀?",
+                "TYPEWRITER": true,
+                "WAIT": true
+              },
+              "id": "lively_know_q",
+              "inputs": {
+                "OPTIONS": {
+                  "block": {
+                    "fields": {
+                      "DELTA": 0.0,
+                      "KEY": "",
+                      "LABEL": "好啊,我告訴你",
+                      "SCOPE": ""
+                    },
+                    "id": "lively_know_yes",
+                    "inputs": {
+                      "GOTO": {
+                        "block": {
+                          "fields": {
+                            "DEFAULT": "",
+                            "EMPTY_REPLY": "",
+                            "FRESH": true,
+                            "KEY": "interest",
+                            "MAXLEN": 16.0,
+                            "PROMPT": "快說快說!你喜歡什麼?"
+                          },
+                          "id": "lively_know_ask",
+                          "next": {
+                            "block": {
+                              "extraState": {
+                                "hasElse": true
+                              },
+                              "id": "lively_know_if",
+                              "inputs": {
+                                "DO0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "interest",
+                                      "LIST": "user"
+                                    },
+                                    "id": "lively_know_learn",
+                                    "next": {
+                                      "block": {
+                                        "fields": {
+                                          "N": 5.0,
+                                          "NOWAIT": true
+                                        },
+                                        "id": "lively_know_hop",
+                                        "next": {
+                                          "block": {
+                                            "fields": {
+                                              "AUTOSEC": 3.0,
+                                              "BIND_ACTION": "",
+                                              "FONT": "__default__",
+                                              "SPEAKER": "",
+                                              "TEXT": "「{text:interest}」!好棒喔!我記住了!",
+                                              "TYPEWRITER": true,
+                                              "WAIT": true
+                                            },
+                                            "id": "lively_know_thanks",
+                                            "type": "dialogue_line"
+                                          }
+                                        },
+                                        "type": "phys_jump_small"
+                                      }
+                                    },
+                                    "type": "keyword_learn"
+                                  }
+                                },
+                                "ELSE": {
+                                  "block": {
+                                    "fields": {
+                                      "AUTOSEC": 2.0,
+                                      "BIND_ACTION": "",
+                                      "FONT": "__default__",
+                                      "SPEAKER": "",
+                                      "TEXT": "好吧,下次再告訴我喔!",
+                                      "TYPEWRITER": true,
+                                      "WAIT": true
+                                    },
+                                    "id": "lively_know_quiet",
+                                    "type": "dialogue_line"
+                                  }
+                                },
+                                "IF0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "interest"
+                                    },
+                                    "id": "lively_know_cond",
+                                    "type": "cond_text_set"
+                                  }
+                                }
+                              },
+                              "type": "controls_if"
+                            }
+                          },
+                          "type": "dialogue_ask_text"
+                        }
+                      }
+                    },
+                    "next": {
+                      "block": {
+                        "fields": {
+                          "DELTA": 0.0,
+                          "KEY": "",
+                          "LABEL": "現在不想說",
+                          "SCOPE": ""
+                        },
+                        "id": "lively_know_nope",
+                        "type": "dialogue_option"
+                      }
+                    },
+                    "type": "dialogue_option"
+                  }
+                }
+              },
+              "type": "dialogue_line"
+            }
+          }
+        },
+        "type": "event_when_chat"
+      }
+    ],
+    "chat": [
+      {
+        "lens": "疲憊",
+        "say": "呼……呼……跑太多了,坐一下。",
+        "tag": "lens"
+      },
+      {
+        "lens": "生氣",
+        "say": "哼!不跟你玩了……才怪,我等一下就好了。",
+        "tag": "lens"
+      },
+      {
+        "lens": "開心",
+        "say": "[wave]今天太棒了!我整個人都在發光!",
+        "tag": "lens"
+      },
+      {
+        "say": "今天要做什麼,{user}?我們去玩吧!",
+        "tag": "chat"
+      },
+      {
+        "hop": 2.0,
+        "say": "[wave]欸欸欸,你看我跳得多高!",
+        "tag": "chat"
+      },
+      {
+        "say": "我剛剛跑了三圈,一點都不累!",
+        "tag": "chat"
+      },
+      {
+        "say": "好想出去冒險喔~",
+        "tag": "chat"
+      },
+      {
+        "say": "{user}今天有沒有遇到什麼好玩的事呀?",
+        "tag": "chat"
+      },
+      {
+        "say": "[shake]想要飛高高~!",
+        "tag": "chat"
+      },
+      {
+        "say": "我今天心情超好的!",
+        "tag": "chat"
+      },
+      {
+        "say": "你有好好休息嗎?休息是為了走更遠的路!",
+        "tag": "chat"
+      },
+      {
+        "say": "{user},你要不要跟我比賽?",
+        "tag": "chat"
+      },
+      {
+        "say": "[wave]陪我玩~陪我玩嘛~!",
+        "tag": "chat"
+      },
+      {
+        "say": "欸欸欸,要不要看我翻跟斗?",
+        "tag": "chat"
+      },
+      {
+        "say": "[wave]嗨嗨嗨~今天也要一起玩喔!",
+        "tag": "chat"
+      },
+      {
+        "say": "來比賽!誰先碰到螢幕邊邊誰贏!",
+        "tag": "chat"
+      },
+      {
+        "say": "[shake]我坐不住啦!",
+        "tag": "chat"
+      },
+      {
+        "say": "你今天心情好嗎?我好極了!",
+        "tag": "chat"
+      },
+      {
+        "say": "嘿咻嘿咻~伸展一下!",
+        "tag": "chat"
+      },
+      {
+        "say": "再猜個拳嘛,一場就好!",
+        "tag": "chat"
+      },
+      {
+        "say": "只休息一下下喔,馬上又要動起來了~",
+        "tag": "rest"
+      },
+      {
+        "say": "喘口氣……好,充電完成!",
+        "tag": "rest"
+      },
+      {
+        "say": "(坐著晃腳)",
+        "tag": "rest"
+      },
+      {
+        "say": "……好玩……再一場……zzz",
+        "tag": "sleep"
+      },
+      {
+        "say": "……呼嚕……球……",
+        "tag": "sleep"
+      },
+      {
+        "lens": "悲傷",
+        "say": "嗚……我平常那麼有精神,今天卻提不起勁……",
+        "tag": "lens"
+      },
+      {
+        "lens": "悲傷",
+        "say": "(吸鼻子)給我一點點時間,我會再蹦起來的!",
+        "tag": "lens"
+      },
+      {
+        "lens": "緊張",
+        "say": "來了來了!我發抖是因為興奮啦!",
+        "tag": "lens"
+      },
+      {
+        "lens": "緊張",
+        "say": "我的心臟在打鼓耶!咚咚咚!",
+        "tag": "lens"
+      },
+      {
+        "lens": "悠哉",
+        "say": "今天就慢慢來,偶爾放鬆也很棒!",
+        "tag": "lens"
+      },
+      {
+        "lens": "悠哉",
+        "say": "躺下來看雲飄好像也不錯,等下再衝!",
+        "tag": "lens"
+      },
+      {
+        "lens": "奔跑",
+        "say": "跑起來!風好舒服~",
+        "tag": "lens"
+      },
+      {
+        "say": "球球球~我今天最想玩的就是球!",
+        "tag": "chat"
+      }
+    ],
+    "lenses": [
+      {
+        "name": "疲憊",
+        "nature": [
+          "負面",
+          "持續"
+        ]
+      },
+      {
+        "name": "生氣",
+        "nature": [
+          "負面"
+        ],
+        "timeout_max": 90.0,
+        "timeout_min": 45.0
+      },
+      {
+        "movement_overrides": {
+          "hop_chance_per_second": 1.0
+        },
+        "name": "開心",
+        "nature": [
+          "正面"
+        ],
+        "timeout_max": 90.0,
+        "timeout_min": 45.0
+      },
+      {
+        "continue_chance": 0.5,
+        "continue_decay": 0.6,
+        "force_run": true,
+        "max_rounds": 4.0,
+        "movement_overrides": {
+          "idle_duration_max": 1.0,
+          "idle_duration_min": 0.3
+        },
+        "name": "奔跑",
+        "timeout_max": 14.0,
+        "timeout_min": 6.0
+      },
+      {
+        "name": "悲傷",
+        "nature": [
+          "負面"
+        ],
+        "timeout_max": 120.0,
+        "timeout_min": 60.0
+      },
+      {
+        "name": "緊張",
+        "nature": [
+          "負面"
+        ],
+        "timeout_max": 40.0,
+        "timeout_min": 20.0
+      },
+      {
+        "name": "悠哉",
+        "nature": [
+          "正面"
+        ],
+        "timeout_max": 120.0,
+        "timeout_min": 60.0
+      }
+    ],
+    "params": {
+      "anger_proneness": 0.3,
+      "auto_chat_interval": [
+        60.0,
+        150.0
+      ],
+      "auto_game_interval": [
+        120.0,
+        300.0
+      ],
+      "ball_play_chance": 0.15,
+      "exhausted_threshold": 8.0,
+      "fatigue_rate": 2.0,
+      "game_ask_chance": 0.6,
+      "game_refuse_base": 0.05,
+      "game_refuse_busy": 0.2,
+      "game_refuse_negative": 0.3,
+      "hop_chance": 0.8,
+      "idle_duration": [
+        1.3,
+        3.5
+      ],
+      "idle_hop_chance": 0.3,
+      "invite_best_of_weights": {
+        "1": 0.3,
+        "3": 0.4,
+        "5": 0.3
+      },
+      "joy_proneness": 1.6,
+      "jump_variance": 0.25,
+      "jump_velocity": 590.0,
+      "max_jump_velocity": 860.0,
+      "mood_swing": 0.5,
+      "mouse_follow_chance": 0.25,
+      "mouse_follow_duration": [
+        15.0,
+        50.0
+      ],
+      "move_speed": 165.0,
+      "nervous_proneness": 0.05,
+      "relax_share": 0.1,
+      "rest_duration": [
+        10.0,
+        25.0
+      ],
+      "rest_recovery_rate": 45.0,
+      "run_any_mood": true,
+      "run_chance": 0.03,
+      "run_speed_multiplier": 2.4,
+      "sleep_duration": [
+        40.0,
+        90.0
+      ],
+      "sociability": 0.85,
+      "tired_move_factor": 0.8,
+      "tired_threshold": 25.0,
+      "touch_affinity": 0.6,
+      "walk_duration": [
+        3.0,
+        7.0
+      ]
+    },
+    "reactions": [
+      {
+        "on": "tired",
+        "say": [
+          "哎呀,有點喘……休息一下下!",
+          "啊……電力快用完了。"
+        ]
+      },
+      {
+        "on": "wake",
+        "say": [
+          "[wave]睡飽啦!再衝一波!",
+          "哈啊~滿血復活!"
+        ]
+      },
+      {
+        "hop": 1.0,
+        "on": "interact",
+        "say": [
+          "嘿嘿,好好玩!再來~",
+          "哇!你要陪我玩嗎!",
+          "[shake]我最喜歡{user}了!",
+          "再摸摸我!再摸摸我!"
+        ]
+      },
+      {
+        "on": "drag",
+        "say": [
+          "哇啊啊啊——我在飛!",
+          "飛高高~",
+          "[shake]再高一點再高一點!",
+          "呀呼!"
+        ]
+      },
+      {
+        "hop": 2.0,
+        "on": "enter",
+        "say": [
+          "[wave]我來啦!大家好~",
+          "登場!!有沒有嚇到?"
+        ]
+      },
+      {
+        "on": "sleep",
+        "say": [
+          "今天玩得好開心……晚安~",
+          "(打了個大哈欠)明天再玩……"
+        ]
+      },
+      {
+        "hop": 2.0,
+        "on": "game_win",
+        "say": [
+          "[wave]耶!我贏啦!再來再來!",
+          "太棒了!我就說我運氣好!"
+        ]
+      },
+      {
+        "on": "game_lose",
+        "say": [
+          "欸~輸了!再一場再一場!",
+          "哼哼,剛才是讓你的!"
+        ]
+      },
+      {
+        "on": "game_tie",
+        "say": [
+          "平手!那再來一次分勝負!",
+          "哇,一樣耶!好巧!"
+        ]
+      },
+      {
+        "hop": 1.0,
+        "on": "invite_accept",
+        "say": [
+          "好呀好呀!誰怕誰!",
+          "太好了!等你這句話好久了!",
+          "來吧來吧!"
+        ]
+      },
+      {
+        "on": "invite_refuse",
+        "say": [
+          "咦……這次先不要,下次一定!",
+          "等我一下喔,馬上回來!"
+        ]
+      },
+      {
+        "hop": 1.0,
+        "on": "ball_found",
+        "say": [
+          "球!!是球耶!!我要玩我要玩!",
+          "哇!球球!來比賽誰頂得高!"
+        ]
+      },
+      {
+        "on": "ball_invite",
+        "say": [
+          "來玩球!誰先碰到球誰贏!",
+          "大家一起玩球啦~!"
+        ]
+      },
+      {
+        "hop": 1.0,
+        "on": "ball_join",
+        "say": [
+          "好耶!算我一個!",
+          "衝啊,一起玩!"
+        ]
+      },
+      {
+        "on": "ball_decline",
+        "say": [
+          "這次我先休息,下一場我一定衝第一!",
+          "今天沒力氣……下次我再陪你們玩!"
+        ]
+      },
+      {
+        "hop": 1.0,
+        "on": "ball_playing",
+        "say": [
+          "看我這一球!飛高高!",
+          "接好接好~!",
+          "再一次再一次!"
+        ]
+      },
+      {
+        "on": "ball_end",
+        "say": [
+          "呼~玩得好過癮!明天再玩!",
+          "太好玩了!下次我要頂更久!"
+        ]
+      },
+      {
+        "on": "ball_watch",
+        "say": [
+          "你們玩球居然不叫我!等我!",
+          "看起來超好玩!我也要!"
+        ]
+      }
+    ]
+  }
+}

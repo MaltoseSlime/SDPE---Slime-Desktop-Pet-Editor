@@ -1,0 +1,883 @@
+{
+  "author": "史萊姆桌寵引擎",
+  "description": "話多、愛找人搭話。閒聊頻率最高、對話池最大,連輸贏都要分析一番;喜歡邊玩邊聊。",
+  "dialogueTranslations": {
+    "en": {
+      "(吸鼻子){user}……你陪我說說話好不好……?": "(Sniffles) {user}... will you talk with me for a bit...?",
+      "(夢話)……然後呀……晤……": "(Talking in sleep) ...and then... mmph...",
+      "(小聲)最後再說一句……": "(Quietly) Just one more thing...",
+      "[wave]我要告訴每一個人今天有多開心!": "[wave]I want to tell everyone how happy I am today!",
+      "{user}!來聊天吧!我什麼都可以聊!": "{user}! Let's chat! I can talk about anything!",
+      "{user}你每天盯著那些窗口,一定學到了很多有趣的事情吧?": "{user}, staring at those windows every day, you must learn all sorts of interesting things, right?",
+      "{user}早安!我有好多話想跟你說!": "Good morning, {user}! I have so much to tell you!",
+      "……什麼?你問我那件事的後續呀,就是啊——": "...What? You're asking what happened next? Well—",
+      "……聽我說……zzz": "...Listen to me... zzz",
+      "今天天氣這麼好,不說點話怎麼行!": "The weather's so nice today, how could I not say something!",
+      "今天的天氣……好吧,老實說我從這邊看不到窗外的景色。": "The weather today... well, honestly, I can't see outside from here.",
+      "休息一下,養足精神才好繼續!": "Resting up so I've got energy to keep talking!",
+      "休息也阻止不了我分享想法的腳步~": "Even resting can't stop me from sharing my thoughts~",
+      "你怎麼都不說話?那換我說!": "Why aren't you saying anything? Then I'll talk!",
+      "你有沒有想過,為什麼天空是藍的?我想了一整個早上!": "Have you ever wondered why the sky is blue? I thought about it all morning!",
+      "你知道嗎?同一張紙能被摺疊的次數是有限的……": "Did you know a single sheet of paper can only be folded so many times...",
+      "你知道嗎?我昨天做了一個超級奇怪的夢……": "You know what? I had the strangest dream last night...",
+      "你贏了!但我覺得剛才的判定有討論空間!": "You won! But I think that call is up for debate!",
+      "來了來了!論玩球我可最擅長啦!": "Coming, coming! I'm the best at this!",
+      "其實我偶爾也在想,你告訴過我的那些事情……": "Actually, sometimes I think about the things you've told me...",
+      "各位早安午安晚安!我有好多話想說!": "Good morning, afternoon, and evening everyone! I have so much to say!",
+      "呼~玩得好過癮!下次再來!": "Whew~ that was so much fun! Let's do it again!",
+      "咻~你覺得我能不能跑得比自己的聲音還快?": "Whoosh~ Do you think I could outrun my own voice?",
+      "哇!是球!誰放在這裡的?!": "Whoa! A ball! Who left this here?!",
+      "哇,一模一樣!這得聊聊!": "Wow, exactly the same! We gotta talk about this!",
+      "哇,你來找我玩了!說到玩,我想到一件事——": "Wow, you came to play with me! Speaking of which, I just thought of something—",
+      "哇你們玩得好熱鬧!我幫你們加油!": "Wow you two are having a blast! I'm cheering for you!",
+      "哇啊——": "Waaah—",
+      "哎呀~我今天想到了一個好故事,且聽我娓娓道來……": "Oh my~ I thought of a great story today, let me tell it to you slowly...",
+      "啊!這把火我可憋不住!{user}你聽我說——": "Ah! I can't hold this back! {user}, listen to me—",
+      "啊~突然好想喝茶。": "Ahh~ I suddenly really want some tea.",
+      "啊啊啊心跳好快!還是說點什麼好了,說話比較不緊張!": "Ahh my heart's racing! I'd better say something, talking helps me feel less nervous!",
+      "喔喔喔——我還沒說完啊!": "Ohhh—I wasn't done talking!",
+      "嗚……明明我平常口若懸河,傷心時的情緒卻難以溢於言表……": "Ugh... I'm usually so talkative, but when I'm sad the words just won't come out...",
+      "嗚哇啊,你要帶我去哪?": "Uwaah, where are you taking me?",
+      "嗯~今天沒什麼力氣,下次一定!": "Mm~ not much energy today, next time for sure!",
+      "嘿嘿,其實我一直找{user}說話是因為怕你寂寞……": "Hehe, actually I keep talking to you, {user}, because I'm afraid you'll get lonely...",
+      "嘿嘿,我說得對吧!{user}是最好的!": "Hehe, told you so! {user} is the best!",
+      "好呀好呀!算我一份!": "Yes yes! Count me in!",
+      "好啊!邊玩邊聊吧!": "Sure! Let's play and chat!",
+      "好啦我睡了,明天也要繼續跟我說話喔!": "Okay I'm sleeping now, keep talking to me tomorrow too!",
+      "好悠閒喔~我可以聊上一整天!": "So relaxing~ I could chat all day!",
+      "如果你錯過了我的前一句話,我可以為你再重複說好多次!": "If you missed what I just said, I can repeat it as many times as you like!",
+      "對了對了,我還沒講完!剛剛講到哪?": "Oh right, right, I wasn't finished! Where was I?",
+      "平手!這有多少機率你算過嗎?": "A tie! Have you calculated the odds of that?",
+      "我來啦!你們有沒有想我?我可想了一整天的話題!": "I'm here! Did you miss me? I've got a whole day's worth of topics!",
+      "我剛剛在想,如果我有一個分身,那我就可以跟自己聊天了!": "I was just thinking, if I had a clone, I could chat with myself!",
+      "我剛剛在想,如果我有一扇任意門,那就可以去好多地方玩了!": "I was just thinking, if I had a magic door, I could go play in so many places!",
+      "我剛剛在想,球為什麼不能越彈越高就好呢,你知道嗎?": "I was just thinking, why can't a ball just bounce higher and higher forever, you know?",
+      "我就喜歡找人閒話家常嘛。": "I just love chatting with people.",
+      "我現在只想聊天!": "I just want to talk right now!",
+      "我發現一件事:安靜的時候我會想說話。": "I've noticed something: when it's quiet, I want to talk.",
+      "我累了……但我還有好多想說的!": "I'm tired... but I still have so much to say!",
+      "我跟你說喔,這件事我只告訴{user}你一個人。": "Let me tell you, I'm only telling this to you, {user}.",
+      "接好囉~一二三!": "Catch this~ one two three!",
+      "摸摸頭,欸嘿~": "Pat pat on the head, ehehe~",
+      "有球有球!我要來玩玩看!": "A ball, a ball! I wanna try playing with it!",
+      "欸欸你知道嗎?我剛剛想到一件超有趣的事——": "Hey hey, guess what? I just thought of something super interesting—",
+      "欸欸欸!我剛剛想到一個超好笑的笑話,你想不想聽?": "Hey hey hey! I just thought of a hilarious joke, want to hear it?",
+      "欸欸欸,來玩球啦!人多才熱鬧!": "Hey hey hey, let's play ball! More the merrier!",
+      "沒有什麼能夠阻止我,把心裡的想法大聲告訴你~": "Nothing can stop me from telling you what's on my mind~",
+      "球球先休息,我們也休息一下~": "The ball's resting, let's rest too~",
+      "當然要!玩之前我先跟你說件事——": "Of course! But first let me tell you something—",
+      "看我這一下!漂亮吧!": "Check this out! Nice, right?",
+      "看起來好好玩喔~": "Looks like so much fun~",
+      "睡飽了!我做了一個超長的夢,聽我說喔——": "Slept great! I had the longest dream, let me tell you—",
+      "等等等等!我我我剛剛要說什麼來著?": "Wait wait wait! What-what was I about to say?",
+      "耶!你問我怎麼贏的?告訴你吧——": "Yay! Asking how I won? Let me tell you—",
+      "與你說了一整天話,好滿足~現在想休息一下~": "Talked with you all day, so satisfying~ time for a little rest~",
+      "話匣子一打開就停不下來~": "Once I get talking, I just can't stop~",
+      "誰要一起玩球?我先開球!": "Who wants to play ball with me? I'll kick it off!",
+      "贏了!我要分享一下我的致勝秘訣——": "I won! Let me share my winning secret—",
+      "輸了?那我要分析一下剛才那局——": "Lost? Then let me analyze that round—",
+      "這次先不玩,不如我們說說話吧?": "Not playing this time, how about we chat instead?",
+      "這次我先看戲,我在旁邊幫你們加油!": "I'll watch this time, cheering you on from the side!",
+      "邊玩邊聊最開心了!": "Playing and chatting at the same time is the best!"
+    },
+    "zh-TW": {
+      "(吸鼻子){user}……你陪我說說話好不好……?": "(吸鼻子){user}……你陪我說說話好不好……?",
+      "(夢話)……然後呀……晤……": "(夢話)……然後呀……晤……",
+      "(小聲)最後再說一句……": "(小聲)最後再說一句……",
+      "[wave]我要告訴每一個人今天有多開心!": "[wave]我要告訴每一個人今天有多開心!",
+      "{user}!來聊天吧!我什麼都可以聊!": "{user}!來聊天吧!我什麼都可以聊!",
+      "{user}你每天盯著那些窗口,一定學到了很多有趣的事情吧?": "{user}你每天盯著那些窗口,一定學到了很多有趣的事情吧?",
+      "{user}早安!我有好多話想跟你說!": "{user}早安!我有好多話想跟你說!",
+      "……什麼?你問我那件事的後續呀,就是啊——": "……什麼?你問我那件事的後續呀,就是啊——",
+      "……聽我說……zzz": "……聽我說……zzz",
+      "今天天氣這麼好,不說點話怎麼行!": "今天天氣這麼好,不說點話怎麼行!",
+      "今天的天氣……好吧,老實說我從這邊看不到窗外的景色。": "今天的天氣……好吧,老實說我從這邊看不到窗外的景色。",
+      "休息一下,養足精神才好繼續!": "休息一下,養足精神才好繼續!",
+      "休息也阻止不了我分享想法的腳步~": "休息也阻止不了我分享想法的腳步~",
+      "你怎麼都不說話?那換我說!": "你怎麼都不說話?那換我說!",
+      "你有沒有想過,為什麼天空是藍的?我想了一整個早上!": "你有沒有想過,為什麼天空是藍的?我想了一整個早上!",
+      "你知道嗎?同一張紙能被摺疊的次數是有限的……": "你知道嗎?同一張紙能被摺疊的次數是有限的……",
+      "你知道嗎?我昨天做了一個超級奇怪的夢……": "你知道嗎?我昨天做了一個超級奇怪的夢……",
+      "你贏了!但我覺得剛才的判定有討論空間!": "你贏了!但我覺得剛才的判定有討論空間!",
+      "來了來了!論玩球我可最擅長啦!": "來了來了!論玩球我可最擅長啦!",
+      "其實我偶爾也在想,你告訴過我的那些事情……": "其實我偶爾也在想,你告訴過我的那些事情……",
+      "各位早安午安晚安!我有好多話想說!": "各位早安午安晚安!我有好多話想說!",
+      "呼~玩得好過癮!下次再來!": "呼~玩得好過癮!下次再來!",
+      "咻~你覺得我能不能跑得比自己的聲音還快?": "咻~你覺得我能不能跑得比自己的聲音還快?",
+      "哇!是球!誰放在這裡的?!": "哇!是球!誰放在這裡的?!",
+      "哇,一模一樣!這得聊聊!": "哇,一模一樣!這得聊聊!",
+      "哇,你來找我玩了!說到玩,我想到一件事——": "哇,你來找我玩了!說到玩,我想到一件事——",
+      "哇你們玩得好熱鬧!我幫你們加油!": "哇你們玩得好熱鬧!我幫你們加油!",
+      "哇啊——": "哇啊——",
+      "哎呀~我今天想到了一個好故事,且聽我娓娓道來……": "哎呀~我今天想到了一個好故事,且聽我娓娓道來……",
+      "啊!這把火我可憋不住!{user}你聽我說——": "啊!這把火我可憋不住!{user}你聽我說——",
+      "啊~突然好想喝茶。": "啊~突然好想喝茶。",
+      "啊啊啊心跳好快!還是說點什麼好了,說話比較不緊張!": "啊啊啊心跳好快!還是說點什麼好了,說話比較不緊張!",
+      "喔喔喔——我還沒說完啊!": "喔喔喔——我還沒說完啊!",
+      "嗚……明明我平常口若懸河,傷心時的情緒卻難以溢於言表……": "嗚……明明我平常口若懸河,傷心時的情緒卻難以溢於言表……",
+      "嗚哇啊,你要帶我去哪?": "嗚哇啊,你要帶我去哪?",
+      "嗯~今天沒什麼力氣,下次一定!": "嗯~今天沒什麼力氣,下次一定!",
+      "嘿嘿,其實我一直找{user}說話是因為怕你寂寞……": "嘿嘿,其實我一直找{user}說話是因為怕你寂寞……",
+      "嘿嘿,我說得對吧!{user}是最好的!": "嘿嘿,我說得對吧!{user}是最好的!",
+      "好呀好呀!算我一份!": "好呀好呀!算我一份!",
+      "好啊!邊玩邊聊吧!": "好啊!邊玩邊聊吧!",
+      "好啦我睡了,明天也要繼續跟我說話喔!": "好啦我睡了,明天也要繼續跟我說話喔!",
+      "好悠閒喔~我可以聊上一整天!": "好悠閒喔~我可以聊上一整天!",
+      "如果你錯過了我的前一句話,我可以為你再重複說好多次!": "如果你錯過了我的前一句話,我可以為你再重複說好多次!",
+      "對了對了,我還沒講完!剛剛講到哪?": "對了對了,我還沒講完!剛剛講到哪?",
+      "平手!這有多少機率你算過嗎?": "平手!這有多少機率你算過嗎?",
+      "我來啦!你們有沒有想我?我可想了一整天的話題!": "我來啦!你們有沒有想我?我可想了一整天的話題!",
+      "我剛剛在想,如果我有一個分身,那我就可以跟自己聊天了!": "我剛剛在想,如果我有一個分身,那我就可以跟自己聊天了!",
+      "我剛剛在想,如果我有一扇任意門,那就可以去好多地方玩了!": "我剛剛在想,如果我有一扇任意門,那就可以去好多地方玩了!",
+      "我剛剛在想,球為什麼不能越彈越高就好呢,你知道嗎?": "我剛剛在想,球為什麼不能越彈越高就好呢,你知道嗎?",
+      "我就喜歡找人閒話家常嘛。": "我就喜歡找人閒話家常嘛。",
+      "我現在只想聊天!": "我現在只想聊天!",
+      "我發現一件事:安靜的時候我會想說話。": "我發現一件事:安靜的時候我會想說話。",
+      "我累了……但我還有好多想說的!": "我累了……但我還有好多想說的!",
+      "我跟你說喔,這件事我只告訴{user}你一個人。": "我跟你說喔,這件事我只告訴{user}你一個人。",
+      "接好囉~一二三!": "接好囉~一二三!",
+      "摸摸頭,欸嘿~": "摸摸頭,欸嘿~",
+      "有球有球!我要來玩玩看!": "有球有球!我要來玩玩看!",
+      "欸欸你知道嗎?我剛剛想到一件超有趣的事——": "欸欸你知道嗎?我剛剛想到一件超有趣的事——",
+      "欸欸欸!我剛剛想到一個超好笑的笑話,你想不想聽?": "欸欸欸!我剛剛想到一個超好笑的笑話,你想不想聽?",
+      "欸欸欸,來玩球啦!人多才熱鬧!": "欸欸欸,來玩球啦!人多才熱鬧!",
+      "沒有什麼能夠阻止我,把心裡的想法大聲告訴你~": "沒有什麼能夠阻止我,把心裡的想法大聲告訴你~",
+      "球球先休息,我們也休息一下~": "球球先休息,我們也休息一下~",
+      "當然要!玩之前我先跟你說件事——": "當然要!玩之前我先跟你說件事——",
+      "看我這一下!漂亮吧!": "看我這一下!漂亮吧!",
+      "看起來好好玩喔~": "看起來好好玩喔~",
+      "睡飽了!我做了一個超長的夢,聽我說喔——": "睡飽了!我做了一個超長的夢,聽我說喔——",
+      "等等等等!我我我剛剛要說什麼來著?": "等等等等!我我我剛剛要說什麼來著?",
+      "耶!你問我怎麼贏的?告訴你吧——": "耶!你問我怎麼贏的?告訴你吧——",
+      "與你說了一整天話,好滿足~現在想休息一下~": "與你說了一整天話,好滿足~現在想休息一下~",
+      "話匣子一打開就停不下來~": "話匣子一打開就停不下來~",
+      "誰要一起玩球?我先開球!": "誰要一起玩球?我先開球!",
+      "贏了!我要分享一下我的致勝秘訣——": "贏了!我要分享一下我的致勝秘訣——",
+      "輸了?那我要分析一下剛才那局——": "輸了?那我要分析一下剛才那局——",
+      "這次先不玩,不如我們說說話吧?": "這次先不玩,不如我們說說話吧?",
+      "這次我先看戲,我在旁邊幫你們加油!": "這次我先看戲,我在旁邊幫你們加油!",
+      "邊玩邊聊最開心了!": "邊玩邊聊最開心了!"
+    }
+  },
+  "fileType": "slime_pet_personality",
+  "id": "chatty",
+  "name": "健談",
+  "personalityVersion": 1.0,
+  "revision": 1.0,
+  "sections": {
+    "blocks": [
+      {
+        "fields": {
+          "LENS": "",
+          "NAME": "向使用者學新詞",
+          "TAG": "chat"
+        },
+        "id": "chatty_teach_hat",
+        "inputs": {
+          "DO": {
+            "block": {
+              "fields": {
+                "AUTOSEC": 0.0,
+                "BIND_ACTION": "",
+                "CLICK_WAIT": true,
+                "FONT": "__default__",
+                "SPEAKER": "",
+                "TEXT": "欸欸!教我一個新詞好不好?我最喜歡學新東西了!",
+                "TYPEWRITER": true,
+                "WAIT": true
+              },
+              "id": "chatty_teach_q",
+              "inputs": {
+                "OPTIONS": {
+                  "block": {
+                    "fields": {
+                      "DELTA": 0.0,
+                      "KEY": "",
+                      "LABEL": "好啊,我教你",
+                      "SCOPE": ""
+                    },
+                    "id": "chatty_teach_yes",
+                    "inputs": {
+                      "GOTO": {
+                        "block": {
+                          "fields": {
+                            "DEFAULT": "",
+                            "EMPTY_REPLY": "",
+                            "FRESH": true,
+                            "KEY": "learned",
+                            "MAXLEN": 16.0,
+                            "PROMPT": "快說快說!你要教我什麼?"
+                          },
+                          "id": "chatty_teach_ask",
+                          "next": {
+                            "block": {
+                              "extraState": {
+                                "hasElse": true
+                              },
+                              "id": "chatty_teach_if",
+                              "inputs": {
+                                "DO0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "learned",
+                                      "LIST": "pet"
+                                    },
+                                    "id": "chatty_teach_learn",
+                                    "next": {
+                                      "block": {
+                                        "fields": {
+                                          "N": 4.0,
+                                          "NOWAIT": true
+                                        },
+                                        "id": "chatty_teach_hop",
+                                        "next": {
+                                          "block": {
+                                            "fields": {
+                                              "AUTOSEC": 3.0,
+                                              "BIND_ACTION": "",
+                                              "FONT": "__default__",
+                                              "SPEAKER": "",
+                                              "TEXT": "哇!「{text:learned}」!我學會了,謝謝{user}!",
+                                              "TYPEWRITER": true,
+                                              "WAIT": true
+                                            },
+                                            "id": "chatty_teach_thanks",
+                                            "type": "dialogue_line"
+                                          }
+                                        },
+                                        "type": "phys_jump_small"
+                                      }
+                                    },
+                                    "type": "keyword_learn"
+                                  }
+                                },
+                                "ELSE": {
+                                  "block": {
+                                    "fields": {
+                                      "AUTOSEC": 2.0,
+                                      "BIND_ACTION": "",
+                                      "FONT": "__default__",
+                                      "SPEAKER": "",
+                                      "TEXT": "好吧……下次一定要教我喔~",
+                                      "TYPEWRITER": true,
+                                      "WAIT": true
+                                    },
+                                    "id": "chatty_teach_quiet",
+                                    "type": "dialogue_line"
+                                  }
+                                },
+                                "IF0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "learned"
+                                    },
+                                    "id": "chatty_teach_cond",
+                                    "type": "cond_text_set"
+                                  }
+                                }
+                              },
+                              "type": "controls_if"
+                            }
+                          },
+                          "type": "dialogue_ask_text"
+                        }
+                      }
+                    },
+                    "next": {
+                      "block": {
+                        "fields": {
+                          "DELTA": 0.0,
+                          "KEY": "",
+                          "LABEL": "下次吧",
+                          "SCOPE": ""
+                        },
+                        "id": "chatty_teach_nope",
+                        "type": "dialogue_option"
+                      }
+                    },
+                    "type": "dialogue_option"
+                  }
+                }
+              },
+              "type": "dialogue_line"
+            }
+          }
+        },
+        "type": "event_when_chat"
+      },
+      {
+        "fields": {
+          "LENS": "",
+          "NAME": "想更了解使用者",
+          "TAG": "chat"
+        },
+        "id": "chatty_know_hat",
+        "inputs": {
+          "DO": {
+            "block": {
+              "fields": {
+                "AUTOSEC": 0.0,
+                "BIND_ACTION": "",
+                "CLICK_WAIT": true,
+                "FONT": "__default__",
+                "SPEAKER": "",
+                "TEXT": "我想更了解你!你最近對什麼有興趣?快告訴我快告訴我!",
+                "TYPEWRITER": true,
+                "WAIT": true
+              },
+              "id": "chatty_know_q",
+              "inputs": {
+                "OPTIONS": {
+                  "block": {
+                    "fields": {
+                      "DELTA": 0.0,
+                      "KEY": "",
+                      "LABEL": "好啊,我告訴你",
+                      "SCOPE": ""
+                    },
+                    "id": "chatty_know_yes",
+                    "inputs": {
+                      "GOTO": {
+                        "block": {
+                          "fields": {
+                            "DEFAULT": "",
+                            "EMPTY_REPLY": "",
+                            "FRESH": true,
+                            "KEY": "interest",
+                            "MAXLEN": 16.0,
+                            "PROMPT": "你最有興趣的是什麼呀?"
+                          },
+                          "id": "chatty_know_ask",
+                          "next": {
+                            "block": {
+                              "extraState": {
+                                "hasElse": true
+                              },
+                              "id": "chatty_know_if",
+                              "inputs": {
+                                "DO0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "interest",
+                                      "LIST": "user"
+                                    },
+                                    "id": "chatty_know_learn",
+                                    "next": {
+                                      "block": {
+                                        "fields": {
+                                          "N": 4.0,
+                                          "NOWAIT": true
+                                        },
+                                        "id": "chatty_know_hop",
+                                        "next": {
+                                          "block": {
+                                            "fields": {
+                                              "AUTOSEC": 3.0,
+                                              "BIND_ACTION": "",
+                                              "FONT": "__default__",
+                                              "SPEAKER": "",
+                                              "TEXT": "「{text:interest}」!原來你喜歡這個!我要記起來!",
+                                              "TYPEWRITER": true,
+                                              "WAIT": true
+                                            },
+                                            "id": "chatty_know_thanks",
+                                            "type": "dialogue_line"
+                                          }
+                                        },
+                                        "type": "phys_jump_small"
+                                      }
+                                    },
+                                    "type": "keyword_learn"
+                                  }
+                                },
+                                "ELSE": {
+                                  "block": {
+                                    "fields": {
+                                      "AUTOSEC": 2.0,
+                                      "BIND_ACTION": "",
+                                      "FONT": "__default__",
+                                      "SPEAKER": "",
+                                      "TEXT": "哼,那下次換你多講一點喔!",
+                                      "TYPEWRITER": true,
+                                      "WAIT": true
+                                    },
+                                    "id": "chatty_know_quiet",
+                                    "type": "dialogue_line"
+                                  }
+                                },
+                                "IF0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "interest"
+                                    },
+                                    "id": "chatty_know_cond",
+                                    "type": "cond_text_set"
+                                  }
+                                }
+                              },
+                              "type": "controls_if"
+                            }
+                          },
+                          "type": "dialogue_ask_text"
+                        }
+                      }
+                    },
+                    "next": {
+                      "block": {
+                        "fields": {
+                          "DELTA": 0.0,
+                          "KEY": "",
+                          "LABEL": "現在不想說",
+                          "SCOPE": ""
+                        },
+                        "id": "chatty_know_nope",
+                        "type": "dialogue_option"
+                      }
+                    },
+                    "type": "dialogue_option"
+                  }
+                }
+              },
+              "type": "dialogue_line"
+            }
+          }
+        },
+        "type": "event_when_chat"
+      }
+    ],
+    "chat": [
+      {
+        "lens": "疲憊",
+        "say": "我累了……但我還有好多想說的!",
+        "tag": "lens"
+      },
+      {
+        "lens": "生氣",
+        "say": "啊!這把火我可憋不住!{user}你聽我說——",
+        "tag": "lens"
+      },
+      {
+        "lens": "開心",
+        "say": "[wave]我要告訴每一個人今天有多開心!",
+        "tag": "lens"
+      },
+      {
+        "say": "欸欸你知道嗎?我剛剛想到一件超有趣的事——",
+        "tag": "chat"
+      },
+      {
+        "say": "你知道嗎?同一張紙能被摺疊的次數是有限的……",
+        "tag": "chat"
+      },
+      {
+        "say": "其實我偶爾也在想,你告訴過我的那些事情……",
+        "tag": "chat"
+      },
+      {
+        "say": "沒有什麼能夠阻止我,把心裡的想法大聲告訴你~",
+        "tag": "chat"
+      },
+      {
+        "say": "啊~突然好想喝茶。",
+        "tag": "chat"
+      },
+      {
+        "say": "今天的天氣……好吧,老實說我從這邊看不到窗外的景色。",
+        "tag": "chat"
+      },
+      {
+        "say": "……什麼?你問我那件事的後續呀,就是啊——",
+        "tag": "chat"
+      },
+      {
+        "say": "如果你錯過了我的前一句話,我可以為你再重複說好多次!",
+        "tag": "chat"
+      },
+      {
+        "say": "{user}你每天盯著那些窗口,一定學到了很多有趣的事情吧?",
+        "tag": "chat"
+      },
+      {
+        "say": "{user}!來聊天吧!我什麼都可以聊!",
+        "tag": "chat"
+      },
+      {
+        "say": "話匣子一打開就停不下來~",
+        "tag": "chat"
+      },
+      {
+        "say": "今天天氣這麼好,不說點話怎麼行!",
+        "tag": "chat"
+      },
+      {
+        "say": "我跟你說喔,這件事我只告訴{user}你一個人。",
+        "tag": "chat"
+      },
+      {
+        "say": "你有沒有想過,為什麼天空是藍的?我想了一整個早上!",
+        "tag": "chat"
+      },
+      {
+        "say": "我剛剛在想,如果我有一個分身,那我就可以跟自己聊天了!",
+        "tag": "chat"
+      },
+      {
+        "say": "你知道嗎?我昨天做了一個超級奇怪的夢……",
+        "tag": "chat"
+      },
+      {
+        "say": "欸欸欸!我剛剛想到一個超好笑的笑話,你想不想聽?",
+        "tag": "chat"
+      },
+      {
+        "say": "我剛剛在想,如果我有一扇任意門,那就可以去好多地方玩了!",
+        "tag": "chat"
+      },
+      {
+        "say": "對了對了,我還沒講完!剛剛講到哪?",
+        "tag": "chat"
+      },
+      {
+        "say": "你怎麼都不說話?那換我說!",
+        "tag": "chat"
+      },
+      {
+        "say": "我發現一件事:安靜的時候我會想說話。",
+        "tag": "chat"
+      },
+      {
+        "say": "來聊天吧!我什麼都可以聊!",
+        "tag": "chat"
+      },
+      {
+        "say": "話匣子一打開就停不下來~",
+        "tag": "chat"
+      },
+      {
+        "seq": [
+          "欸,我問你喔。",
+          "如果可以擁有一種超能力,你會選什麼?",
+          "我先說,我想要——瞬間移動!"
+        ],
+        "tag": "chat"
+      },
+      {
+        "seq": [
+          "我昨天做了一個夢。",
+          "夢到我變成一顆超大的麻糬,把整個螢幕都佔滿了!",
+          "……然後{user}就把我關掉了。好過分喔~"
+        ],
+        "tag": "chat"
+      },
+      {
+        "say": "休息也阻止不了我分享想法的腳步~",
+        "tag": "rest"
+      },
+      {
+        "say": "我就喜歡找人閒話家常嘛。",
+        "tag": "rest"
+      },
+      {
+        "say": "嘿嘿,其實我一直找{user}說話是因為怕你寂寞……",
+        "tag": "rest"
+      },
+      {
+        "say": "(夢話)……然後呀……晤……",
+        "tag": "sleep"
+      },
+      {
+        "say": "……聽我說……zzz",
+        "tag": "sleep"
+      },
+      {
+        "lens": "悲傷",
+        "say": "嗚……明明我平常口若懸河,傷心時的情緒卻難以溢於言表……",
+        "tag": "lens"
+      },
+      {
+        "lens": "悲傷",
+        "say": "(吸鼻子){user}……你陪我說說話好不好……?",
+        "tag": "lens"
+      },
+      {
+        "lens": "緊張",
+        "say": "等等等等!我我我剛剛要說什麼來著?",
+        "tag": "lens"
+      },
+      {
+        "lens": "緊張",
+        "say": "啊啊啊心跳好快!還是說點什麼好了,說話比較不緊張!",
+        "tag": "lens"
+      },
+      {
+        "lens": "悠哉",
+        "say": "哎呀~我今天想到了一個好故事,且聽我娓娓道來……",
+        "tag": "lens"
+      },
+      {
+        "lens": "悠哉",
+        "say": "好悠閒喔~我可以聊上一整天!",
+        "tag": "lens"
+      },
+      {
+        "lens": "奔跑",
+        "say": "咻~你覺得我能不能跑得比自己的聲音還快?",
+        "tag": "lens"
+      },
+      {
+        "say": "我剛剛在想,球為什麼不能越彈越高就好呢,你知道嗎?",
+        "tag": "chat"
+      }
+    ],
+    "lenses": [
+      {
+        "name": "疲憊",
+        "nature": [
+          "負面",
+          "持續"
+        ]
+      },
+      {
+        "name": "生氣",
+        "nature": [
+          "負面"
+        ],
+        "timeout_max": 90.0,
+        "timeout_min": 45.0
+      },
+      {
+        "movement_overrides": {
+          "hop_chance_per_second": 1.0
+        },
+        "name": "開心",
+        "nature": [
+          "正面"
+        ],
+        "timeout_max": 90.0,
+        "timeout_min": 45.0
+      },
+      {
+        "continue_chance": 0.3,
+        "continue_decay": 0.6,
+        "force_run": true,
+        "max_rounds": 3.0,
+        "movement_overrides": {
+          "idle_duration_max": 1.0,
+          "idle_duration_min": 0.3
+        },
+        "name": "奔跑",
+        "timeout_max": 10.0,
+        "timeout_min": 5.0
+      },
+      {
+        "name": "悲傷",
+        "nature": [
+          "負面"
+        ],
+        "timeout_max": 120.0,
+        "timeout_min": 60.0
+      },
+      {
+        "name": "緊張",
+        "nature": [
+          "負面"
+        ],
+        "timeout_max": 40.0,
+        "timeout_min": 20.0
+      },
+      {
+        "name": "悠哉",
+        "nature": [
+          "正面"
+        ],
+        "timeout_max": 120.0,
+        "timeout_min": 60.0
+      }
+    ],
+    "params": {
+      "anger_proneness": 0.2,
+      "auto_chat_interval": [
+        30.0,
+        90.0
+      ],
+      "auto_game_interval": [
+        240.0,
+        600.0
+      ],
+      "ball_play_chance": 0.06,
+      "exhausted_threshold": 10.0,
+      "fatigue_rate": 2.5,
+      "follow_distance": 80.0,
+      "game_ask_chance": 0.5,
+      "game_refuse_base": 0.1,
+      "game_refuse_busy": 0.3,
+      "game_refuse_negative": 0.3,
+      "idle_duration": [
+        2.5,
+        6.5
+      ],
+      "idle_hop_chance": 0.15,
+      "joy_proneness": 1.0,
+      "jump_variance": 0.15,
+      "jump_velocity": 530.0,
+      "max_jump_velocity": 780.0,
+      "mood_swing": 0.4,
+      "mouse_follow_chance": 0.15,
+      "mouse_follow_duration": [
+        15.0,
+        40.0
+      ],
+      "nervous_proneness": 0.1,
+      "relax_share": 0.2,
+      "rest_duration": [
+        10.0,
+        30.0
+      ],
+      "rest_recovery_rate": 40.0,
+      "run_any_mood": false,
+      "run_chance": 0.03,
+      "sleep_duration": [
+        50.0,
+        110.0
+      ],
+      "sociability": 1.0,
+      "tired_move_factor": 0.75,
+      "tired_threshold": 30.0,
+      "touch_affinity": 0.4
+    },
+    "reactions": [
+      {
+        "on": "tired",
+        "say": [
+          "與你說了一整天話,好滿足~現在想休息一下~",
+          "休息一下,養足精神才好繼續!"
+        ]
+      },
+      {
+        "on": "wake",
+        "say": [
+          "睡飽了!我做了一個超長的夢,聽我說喔——",
+          "{user}早安!我有好多話想跟你說!"
+        ]
+      },
+      {
+        "on": "interact",
+        "say": [
+          "哇,你來找我玩了!說到玩,我想到一件事——",
+          "嘿嘿,我說得對吧!{user}是最好的!",
+          "摸摸頭,欸嘿~"
+        ]
+      },
+      {
+        "on": "drag",
+        "say": [
+          "嗚哇啊,你要帶我去哪?",
+          "喔喔喔——我還沒說完啊!",
+          "哇啊——"
+        ]
+      },
+      {
+        "on": "enter",
+        "say": [
+          "各位早安午安晚安!我有好多話想說!",
+          "我來啦!你們有沒有想我?我可想了一整天的話題!"
+        ]
+      },
+      {
+        "on": "sleep",
+        "say": [
+          "好啦我睡了,明天也要繼續跟我說話喔!",
+          "(小聲)最後再說一句……"
+        ]
+      },
+      {
+        "on": "game_win",
+        "say": [
+          "贏了!我要分享一下我的致勝秘訣——",
+          "耶!你問我怎麼贏的?告訴你吧——"
+        ]
+      },
+      {
+        "on": "game_lose",
+        "say": [
+          "輸了?那我要分析一下剛才那局——",
+          "你贏了!但我覺得剛才的判定有討論空間!"
+        ]
+      },
+      {
+        "on": "game_tie",
+        "say": [
+          "平手!這有多少機率你算過嗎?",
+          "哇,一模一樣!這得聊聊!"
+        ]
+      },
+      {
+        "on": "invite_accept",
+        "say": [
+          "好啊!邊玩邊聊吧!",
+          "當然要!玩之前我先跟你說件事——"
+        ]
+      },
+      {
+        "on": "invite_refuse",
+        "say": [
+          "這次先不玩,不如我們說說話吧?",
+          "我現在只想聊天!"
+        ]
+      },
+      {
+        "hop": 1.0,
+        "on": "ball_found",
+        "say": [
+          "哇!是球!誰放在這裡的?!",
+          "有球有球!我要來玩玩看!"
+        ]
+      },
+      {
+        "on": "ball_invite",
+        "say": [
+          "欸欸欸,來玩球啦!人多才熱鬧!",
+          "誰要一起玩球?我先開球!"
+        ]
+      },
+      {
+        "hop": 1.0,
+        "on": "ball_join",
+        "say": [
+          "好呀好呀!算我一份!",
+          "來了來了!論玩球我可最擅長啦!"
+        ]
+      },
+      {
+        "on": "ball_decline",
+        "say": [
+          "這次我先看戲,我在旁邊幫你們加油!",
+          "嗯~今天沒什麼力氣,下次一定!"
+        ]
+      },
+      {
+        "hop": 1.0,
+        "on": "ball_playing",
+        "say": [
+          "看我這一下!漂亮吧!",
+          "接好囉~一二三!",
+          "邊玩邊聊最開心了!"
+        ]
+      },
+      {
+        "on": "ball_end",
+        "say": [
+          "呼~玩得好過癮!下次再來!",
+          "球球先休息,我們也休息一下~"
+        ]
+      },
+      {
+        "on": "ball_watch",
+        "say": [
+          "哇你們玩得好熱鬧!我幫你們加油!",
+          "看起來好好玩喔~"
+        ]
+      }
+    ]
+  }
+}

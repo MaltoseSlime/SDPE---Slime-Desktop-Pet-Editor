@@ -1,0 +1,26 @@
+[gd_scene format=3 uid="uid://cdrnkk46hvvoe"]
+
+[ext_resource type="Script" uid="uid://dqbclbhmypiij" path="res://scripts/desktop_shell/desktop_shell.gd" id="1_shell"]
+[ext_resource type="Script" uid="uid://b0gbihpk5e6sb" path="res://scripts/desktop_shell/action_area.gd" id="2_area"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ground"]
+size = Vector2(100, 6)
+
+[node name="DesktopShell" type="Node2D" unique_id=1372286095]
+script = ExtResource("1_shell")
+sample_pet_move_mode = 0
+
+[node name="ActionArea" type="Node2D" parent="." unique_id=307690898]
+script = ExtResource("2_area")
+
+[node name="GroundBody" type="StaticBody2D" parent="ActionArea" unique_id=1397600125]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="ActionArea/GroundBody" unique_id=661065115]
+shape = SubResource("RectangleShape2D_ground")
+
+[node name="PetsLayer" type="Node2D" parent="ActionArea" unique_id=145334019]
+
+[node name="DebugPolygonLine" type="Line2D" parent="." unique_id=1182924688]
+z_index = 100
+width = 2.0
+default_color = Color(1, 0.2, 0.8, 1)

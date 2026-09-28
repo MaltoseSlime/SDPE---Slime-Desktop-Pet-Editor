@@ -1,0 +1,651 @@
+{
+  "author": "史萊姆桌寵引擎",
+  "description": "幾乎不說話,只會「……」或簡單的動作描寫。數值全部取最保守的預設值;該做的反應(跳、抖、點頭搖頭)還是會做,只是不開口。",
+  "dialogueTranslations": {
+    "en": {
+      "(zzz)": "(zzz)",
+      "(低著頭)……": "(head lowered)...",
+      "(嗯)": "(mm)",
+      "(安靜地坐著)": "(sits quietly)",
+      "(微微發抖)……": "(trembling slightly)...",
+      "(打了個呵欠)": "(Yawns)",
+      "(指了指球)……": "(points at the ball)...",
+      "(搖頭)": "(shakes head)",
+      "(比了個 V)": "(makes a V sign)",
+      "(滿足地嘆氣)……": "(sighs contentedly)...",
+      "(球在頭上晃)……": "(ball wobbles on head)...",
+      "(看了你一眼)": "(glances at you)",
+      "(看了看球)……": "(glances at the ball)...",
+      "(看著)……": "(watches)...",
+      "(瞇起眼睛)……": "(eyes narrowing)...",
+      "(走向球)……": "(walks toward the ball)...",
+      "(退後一步)……": "(steps back)...",
+      "(閉上眼睛)": "(closes eyes)",
+      "(點頭)": "(nods)",
+      "…": "...",
+      "……": "...",
+      "……!": "...!",
+      "……!(盯著球)": "...!(stares at the ball)",
+      "……(小跑步)": "...(trots off)",
+      "……(搖頭)": "...(shakes head)",
+      "……(放下球)": "...(sets the ball down)",
+      "……(眨眼)": "...(blinks)",
+      "……(輕輕一頂)": "...(gently taps it)",
+      "……(點頭)": "...(nods)",
+      "……(點點頭)": "...(nods)",
+      "……球。": "...ball."
+    },
+    "zh-TW": {
+      "(zzz)": "(zzz)",
+      "(低著頭)……": "(低著頭)……",
+      "(嗯)": "(嗯)",
+      "(安靜地坐著)": "(安靜地坐著)",
+      "(微微發抖)……": "(微微發抖)……",
+      "(打了個呵欠)": "(打了個呵欠)",
+      "(指了指球)……": "(指了指球)……",
+      "(搖頭)": "(搖頭)",
+      "(比了個 V)": "(比了個 V)",
+      "(滿足地嘆氣)……": "(滿足地嘆氣)……",
+      "(球在頭上晃)……": "(球在頭上晃)……",
+      "(看了你一眼)": "(看了你一眼)",
+      "(看了看球)……": "(看了看球)……",
+      "(看著)……": "(看著)……",
+      "(瞇起眼睛)……": "(瞇起眼睛)……",
+      "(走向球)……": "(走向球)……",
+      "(退後一步)……": "(退後一步)……",
+      "(閉上眼睛)": "(閉上眼睛)",
+      "(點頭)": "(點頭)",
+      "…": "…",
+      "……": "……",
+      "……!": "……!",
+      "……!(盯著球)": "……!(盯著球)",
+      "……(小跑步)": "……(小跑步)",
+      "……(搖頭)": "……(搖頭)",
+      "……(放下球)": "……(放下球)",
+      "……(眨眼)": "……(眨眼)",
+      "……(輕輕一頂)": "……(輕輕一頂)",
+      "……(點頭)": "……(點頭)",
+      "……(點點頭)": "……(點點頭)",
+      "……球。": "……球。"
+    }
+  },
+  "fileType": "slime_pet_personality",
+  "id": "silent",
+  "name": "無口",
+  "personalityVersion": 1.0,
+  "revision": 1.0,
+  "sections": {
+    "blocks": [
+      {
+        "fields": {
+          "LENS": "",
+          "NAME": "向使用者學新詞",
+          "TAG": "chat"
+        },
+        "id": "silent_teach_hat",
+        "inputs": {
+          "DO": {
+            "block": {
+              "fields": {
+                "AUTOSEC": 0.0,
+                "BIND_ACTION": "",
+                "CLICK_WAIT": true,
+                "FONT": "__default__",
+                "SPEAKER": "",
+                "TEXT": "……(看著你)可以教我一個詞嗎?",
+                "TYPEWRITER": true,
+                "WAIT": true
+              },
+              "id": "silent_teach_q",
+              "inputs": {
+                "OPTIONS": {
+                  "block": {
+                    "fields": {
+                      "DELTA": 0.0,
+                      "KEY": "",
+                      "LABEL": "好啊,我教你",
+                      "SCOPE": ""
+                    },
+                    "id": "silent_teach_yes",
+                    "inputs": {
+                      "GOTO": {
+                        "block": {
+                          "fields": {
+                            "DEFAULT": "",
+                            "EMPTY_REPLY": "",
+                            "FRESH": true,
+                            "KEY": "learned",
+                            "MAXLEN": 16.0,
+                            "PROMPT": "……(點頭)請說。"
+                          },
+                          "id": "silent_teach_ask",
+                          "next": {
+                            "block": {
+                              "extraState": {
+                                "hasElse": true
+                              },
+                              "id": "silent_teach_if",
+                              "inputs": {
+                                "DO0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "learned",
+                                      "LIST": "pet"
+                                    },
+                                    "id": "silent_teach_learn",
+                                    "next": {
+                                      "block": {
+                                        "fields": {
+                                          "N": 2.0,
+                                          "NOWAIT": true
+                                        },
+                                        "id": "silent_teach_hop",
+                                        "next": {
+                                          "block": {
+                                            "fields": {
+                                              "AUTOSEC": 3.0,
+                                              "BIND_ACTION": "",
+                                              "FONT": "__default__",
+                                              "SPEAKER": "",
+                                              "TEXT": "……「{text:learned}」。……學會了。謝謝{user}。",
+                                              "TYPEWRITER": true,
+                                              "WAIT": true
+                                            },
+                                            "id": "silent_teach_thanks",
+                                            "type": "dialogue_line"
+                                          }
+                                        },
+                                        "type": "phys_jump_small"
+                                      }
+                                    },
+                                    "type": "keyword_learn"
+                                  }
+                                },
+                                "ELSE": {
+                                  "block": {
+                                    "fields": {
+                                      "AUTOSEC": 2.0,
+                                      "BIND_ACTION": "",
+                                      "FONT": "__default__",
+                                      "SPEAKER": "",
+                                      "TEXT": "……(點點頭)好。",
+                                      "TYPEWRITER": true,
+                                      "WAIT": true
+                                    },
+                                    "id": "silent_teach_quiet",
+                                    "type": "dialogue_line"
+                                  }
+                                },
+                                "IF0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "learned"
+                                    },
+                                    "id": "silent_teach_cond",
+                                    "type": "cond_text_set"
+                                  }
+                                }
+                              },
+                              "type": "controls_if"
+                            }
+                          },
+                          "type": "dialogue_ask_text"
+                        }
+                      }
+                    },
+                    "next": {
+                      "block": {
+                        "fields": {
+                          "DELTA": 0.0,
+                          "KEY": "",
+                          "LABEL": "下次吧",
+                          "SCOPE": ""
+                        },
+                        "id": "silent_teach_nope",
+                        "type": "dialogue_option"
+                      }
+                    },
+                    "type": "dialogue_option"
+                  }
+                }
+              },
+              "type": "dialogue_line"
+            }
+          }
+        },
+        "type": "event_when_chat"
+      },
+      {
+        "fields": {
+          "LENS": "",
+          "NAME": "想更了解使用者",
+          "TAG": "chat"
+        },
+        "id": "silent_know_hat",
+        "inputs": {
+          "DO": {
+            "block": {
+              "fields": {
+                "AUTOSEC": 0.0,
+                "BIND_ACTION": "",
+                "CLICK_WAIT": true,
+                "FONT": "__default__",
+                "SPEAKER": "",
+                "TEXT": "……(看著你)你最近,對什麼有興趣?",
+                "TYPEWRITER": true,
+                "WAIT": true
+              },
+              "id": "silent_know_q",
+              "inputs": {
+                "OPTIONS": {
+                  "block": {
+                    "fields": {
+                      "DELTA": 0.0,
+                      "KEY": "",
+                      "LABEL": "好啊,我告訴你",
+                      "SCOPE": ""
+                    },
+                    "id": "silent_know_yes",
+                    "inputs": {
+                      "GOTO": {
+                        "block": {
+                          "fields": {
+                            "DEFAULT": "",
+                            "EMPTY_REPLY": "",
+                            "FRESH": true,
+                            "KEY": "interest",
+                            "MAXLEN": 16.0,
+                            "PROMPT": "……請說。"
+                          },
+                          "id": "silent_know_ask",
+                          "next": {
+                            "block": {
+                              "extraState": {
+                                "hasElse": true
+                              },
+                              "id": "silent_know_if",
+                              "inputs": {
+                                "DO0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "interest",
+                                      "LIST": "user"
+                                    },
+                                    "id": "silent_know_learn",
+                                    "next": {
+                                      "block": {
+                                        "fields": {
+                                          "N": 2.0,
+                                          "NOWAIT": true
+                                        },
+                                        "id": "silent_know_hop",
+                                        "next": {
+                                          "block": {
+                                            "fields": {
+                                              "AUTOSEC": 3.0,
+                                              "BIND_ACTION": "",
+                                              "FONT": "__default__",
+                                              "SPEAKER": "",
+                                              "TEXT": "……「{text:interest}」。……我記住了。",
+                                              "TYPEWRITER": true,
+                                              "WAIT": true
+                                            },
+                                            "id": "silent_know_thanks",
+                                            "type": "dialogue_line"
+                                          }
+                                        },
+                                        "type": "phys_jump_small"
+                                      }
+                                    },
+                                    "type": "keyword_learn"
+                                  }
+                                },
+                                "ELSE": {
+                                  "block": {
+                                    "fields": {
+                                      "AUTOSEC": 2.0,
+                                      "BIND_ACTION": "",
+                                      "FONT": "__default__",
+                                      "SPEAKER": "",
+                                      "TEXT": "……(點點頭)好。",
+                                      "TYPEWRITER": true,
+                                      "WAIT": true
+                                    },
+                                    "id": "silent_know_quiet",
+                                    "type": "dialogue_line"
+                                  }
+                                },
+                                "IF0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "interest"
+                                    },
+                                    "id": "silent_know_cond",
+                                    "type": "cond_text_set"
+                                  }
+                                }
+                              },
+                              "type": "controls_if"
+                            }
+                          },
+                          "type": "dialogue_ask_text"
+                        }
+                      }
+                    },
+                    "next": {
+                      "block": {
+                        "fields": {
+                          "DELTA": 0.0,
+                          "KEY": "",
+                          "LABEL": "現在不想說",
+                          "SCOPE": ""
+                        },
+                        "id": "silent_know_nope",
+                        "type": "dialogue_option"
+                      }
+                    },
+                    "type": "dialogue_option"
+                  }
+                }
+              },
+              "type": "dialogue_line"
+            }
+          }
+        },
+        "type": "event_when_chat"
+      }
+    ],
+    "chat": [
+      {
+        "say": "……",
+        "tag": "chat"
+      },
+      {
+        "say": "…",
+        "tag": "chat"
+      },
+      {
+        "say": "……(點頭)",
+        "tag": "chat"
+      },
+      {
+        "say": "(看了你一眼)",
+        "tag": "chat"
+      },
+      {
+        "say": "……(眨眼)",
+        "tag": "chat"
+      },
+      {
+        "say": "(嗯)",
+        "tag": "chat"
+      },
+      {
+        "say": "……",
+        "tag": "rest"
+      },
+      {
+        "say": "(安靜地坐著)",
+        "tag": "rest"
+      },
+      {
+        "say": "(zzz)",
+        "tag": "sleep"
+      },
+      {
+        "say": "……",
+        "tag": "sleep"
+      },
+      {
+        "lens": "悲傷",
+        "say": "……",
+        "tag": "lens"
+      },
+      {
+        "lens": "悲傷",
+        "say": "(低著頭)……",
+        "tag": "lens"
+      },
+      {
+        "lens": "緊張",
+        "say": "(微微發抖)……",
+        "tag": "lens"
+      },
+      {
+        "lens": "緊張",
+        "say": "……!",
+        "tag": "lens"
+      },
+      {
+        "lens": "悠哉",
+        "say": "(瞇起眼睛)……",
+        "tag": "lens"
+      },
+      {
+        "lens": "悠哉",
+        "say": "……(點頭)",
+        "tag": "lens"
+      },
+      {
+        "lens": "奔跑",
+        "say": "……(小跑步)",
+        "tag": "lens"
+      },
+      {
+        "say": "(看了看球)……",
+        "tag": "chat"
+      }
+    ],
+    "lenses": [
+      {
+        "name": "悲傷",
+        "nature": [
+          "負面"
+        ],
+        "timeout_max": 120.0,
+        "timeout_min": 60.0
+      },
+      {
+        "name": "緊張",
+        "nature": [
+          "負面"
+        ],
+        "timeout_max": 40.0,
+        "timeout_min": 20.0
+      },
+      {
+        "name": "悠哉",
+        "nature": [
+          "正面"
+        ],
+        "timeout_max": 120.0,
+        "timeout_min": 60.0
+      }
+    ],
+    "params": {
+      "anger_proneness": 0.0,
+      "auto_chat_interval": [
+        120.0,
+        300.0
+      ],
+      "auto_dance_enabled": true,
+      "auto_game_interval": [
+        240.0,
+        600.0
+      ],
+      "ball_play_chance": 0.0,
+      "exhausted_threshold": 12.0,
+      "fatigue_rate": 0.0,
+      "follow_distance": 90.0,
+      "game_ask_chance": 0.05,
+      "game_refuse_base": 0.15,
+      "game_refuse_busy": 0.4,
+      "game_refuse_negative": 0.35,
+      "hop_chance": 0.4,
+      "idle_duration": [
+        2.4,
+        6.4
+      ],
+      "idle_hop_chance": 0.1,
+      "invite_best_of_weights": {
+        "1": 0.5,
+        "3": 0.35,
+        "5": 0.15
+      },
+      "joy_proneness": 0.0,
+      "jump_variance": 0.1,
+      "jump_velocity": 520.0,
+      "max_jump_velocity": 760.0,
+      "mouse_follow_chance": 0.01,
+      "mouse_follow_duration": [
+        5.0,
+        15.0
+      ],
+      "move_speed": 120.0,
+      "nervous_proneness": 0.3,
+      "relax_share": 0.3,
+      "rest_duration": [
+        15.0,
+        40.0
+      ],
+      "rest_recovery_rate": 30.0,
+      "run_speed_multiplier": 2.0,
+      "sleep_duration": [
+        60.0,
+        120.0
+      ],
+      "sociability": 0.5,
+      "tired_move_factor": 0.6,
+      "tired_threshold": 35.0,
+      "touch_affinity": 0.0,
+      "walk_duration": [
+        2.0,
+        5.0
+      ]
+    },
+    "reactions": [
+      {
+        "chance": 30.0,
+        "on": "tired",
+        "say": [
+          "……"
+        ]
+      },
+      {
+        "on": "wake",
+        "say": [
+          "(打了個呵欠)"
+        ]
+      },
+      {
+        "chance": 50.0,
+        "hop": 1.0,
+        "on": "interact",
+        "say": [
+          "……"
+        ]
+      },
+      {
+        "chance": 30.0,
+        "on": "drag",
+        "say": [
+          "……"
+        ],
+        "shiver": 0.8
+      },
+      {
+        "on": "enter",
+        "say": [
+          "……(點頭)"
+        ]
+      },
+      {
+        "on": "sleep",
+        "say": [
+          "(閉上眼睛)"
+        ]
+      },
+      {
+        "hop": 1.0,
+        "on": "game_win",
+        "say": [
+          "(比了個 V)"
+        ]
+      },
+      {
+        "on": "game_lose",
+        "say": [
+          "……"
+        ],
+        "shiver": 1.0
+      },
+      {
+        "chance": 50.0,
+        "on": "game_tie",
+        "say": [
+          "……"
+        ]
+      },
+      {
+        "on": "invite_accept",
+        "say": [
+          "(點頭)"
+        ]
+      },
+      {
+        "on": "invite_refuse",
+        "say": [
+          "(搖頭)"
+        ]
+      },
+      {
+        "on": "ball_found",
+        "say": [
+          "……!(盯著球)",
+          "……球。"
+        ]
+      },
+      {
+        "on": "ball_invite",
+        "say": [
+          "(指了指球)……"
+        ]
+      },
+      {
+        "on": "ball_join",
+        "say": [
+          "……(點頭)",
+          "(走向球)……"
+        ]
+      },
+      {
+        "on": "ball_decline",
+        "say": [
+          "……(搖頭)",
+          "(退後一步)……"
+        ]
+      },
+      {
+        "on": "ball_playing",
+        "say": [
+          "……(輕輕一頂)",
+          "(球在頭上晃)……"
+        ]
+      },
+      {
+        "on": "ball_end",
+        "say": [
+          "……(放下球)",
+          "(滿足地嘆氣)……"
+        ]
+      },
+      {
+        "on": "ball_watch",
+        "say": [
+          "(看著)……",
+          "……(點點頭)"
+        ]
+      }
+    ]
+  }
+}

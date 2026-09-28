@@ -1,0 +1,772 @@
+{
+  "author": "史萊姆桌寵引擎",
+  "description": "安靜、怕生。不太主動開口,不愛被圍觀,和其他桌寵保持距離,獨處時最放鬆;多半會婉拒邀請。",
+  "dialogueTranslations": {
+    "en": {
+      "(低頭)沒關係……": "(Looks down) It's okay...",
+      "(偷偷看{user}一眼)": "(Sneaks a glance at {user})",
+      "(偷偷笑)今天……感覺不錯。": "(Smiles quietly) Today... feels pretty good.",
+      "(呼……)": "(Sighs...)",
+      "(小聲)大家好……": "(Quietly) Hello everyone...",
+      "(找個角落坐下)": "(Finds a corner to sit in)",
+      "(把自己抱成一小團)": "(Curls up into a small ball)",
+      "(揉揉眼睛)": "(Rubs eyes)",
+      "(搖頭)": "(Shakes head)",
+      "(縮了縮)……人、人有點多。": "(Shrinks back) ...T-there are a lot of people.",
+      "(躲進被子)": "(Hides under the blanket)",
+      "(鬆一口氣)": "(Sighs in relief)",
+      "{user},謝謝你讓我待在這裡。": "Thank you for letting me stay here, {user}.",
+      "……(縮在角落)": "...(Curls up in the corner)",
+      "……(臉紅)": "...(Blushes)",
+      "……(輕輕頂了一下)": "...(Gently taps it)",
+      "……zzz": "...zzz",
+      "……你們玩得很開心呢。": "...You all seem to be having fun.",
+      "……再、再一下下也可以。": "...J-just a little longer is okay.",
+      "……別靠近我。": "...Don't come near me.",
+      "……只是稍微動一動而已。": "...Just moving around a little.",
+      "……嗯。天亮了。": "...Mm. It's morning.",
+      "……好。只、只有這一次。": "...Okay. J-just this once.",
+      "……好。我陪你們玩一下。": "...Okay. I'll play with you for a bit.",
+      "……好多人在看……": "...So many people are watching...",
+      "……好累。我想一個人待著。": "...So tired. I want to be alone.",
+      "……如果只有我和球,好像也不錯。": "...If it's just me and a ball, that might be nice too.",
+      "……對不起,我不太想……": "...Sorry, I'd rather not...",
+      "……平手。": "...A tie.",
+      "……我剛剛想說話,但又忘了要說什麼。": "...I was about to say something, but I forgot what.",
+      "……我想一個人待一下。": "...I want to be alone for a bit.",
+      "……我還是在旁邊就好。": "...I'll just stay on the side.",
+      "……晚安。": "...Good night.",
+      "……有顆球。": "...There's a ball.",
+      "……有點累了。": "...A little tired.",
+      "……果然。": "...As expected.",
+      "……玩完了。還不錯。": "...Done playing. Not bad.",
+      "……要、要不要一起玩球?不想也沒關係。": "...W-want to play ball together? It's okay if not.",
+      "……讓我靜一下。": "...Let me have some quiet.",
+      "……贏了?(小小聲的耶)": "...I won? (A tiny \"yay\")",
+      "……那個……我來了。": "...Um... I'm here.",
+      "人好多……我還是待在這裡就好。": "So many people... I'll just stay here.",
+      "今天也沒什麼事,這樣就很好。": "Nothing much happening today, and that's just fine.",
+      "今天很平靜,不錯。": "Today's quiet. Nice.",
+      "呃、呃……好、好近……": "Uh, um... th-that's close...",
+      "呼……好,我回去了。": "Phew... okay, I'm going back.",
+      "咦……我贏了嗎?": "Huh... did I win?",
+      "咦……球?": "Huh... a ball?",
+      "咿嗚。": "Eep.",
+      "嗚!放、放我下來……": "Ah! P-put me down...",
+      "嗯……我試試看。": "Mm... I'll give it a try.",
+      "如果不用出門就好了……": "If only I didn't have to go out...",
+      "安靜的時候最舒服了。": "Quiet moments are the most comfortable.",
+      "我在旁邊看就很好了。": "I'm fine just watching from the side.",
+      "我沒事……只是心跳有點快。": "I'm fine... my heart's just beating a little fast.",
+      "有{user}你在的話,我比較不緊張。": "I feel less nervous when you're around, {user}.",
+      "沒關係的,我只是需要一點安靜。": "It's okay, I just need a bit of quiet.",
+      "被、被摸頭了……": "M-my head got patted...",
+      "謝謝你問我,不過我先不了。": "Thanks for asking, but I'll pass for now.",
+      "這樣……可以嗎?": "Like this... is that okay?",
+      "這樣安靜地待著,剛剛好。": "Sitting quietly like this is just right.",
+      "那個……我試試看。": "Um... I'll try."
+    },
+    "zh-TW": {
+      "(低頭)沒關係……": "(低頭)沒關係……",
+      "(偷偷看{user}一眼)": "(偷偷看{user}一眼)",
+      "(偷偷笑)今天……感覺不錯。": "(偷偷笑)今天……感覺不錯。",
+      "(呼……)": "(呼……)",
+      "(小聲)大家好……": "(小聲)大家好……",
+      "(找個角落坐下)": "(找個角落坐下)",
+      "(把自己抱成一小團)": "(把自己抱成一小團)",
+      "(揉揉眼睛)": "(揉揉眼睛)",
+      "(搖頭)": "(搖頭)",
+      "(縮了縮)……人、人有點多。": "(縮了縮)……人、人有點多。",
+      "(躲進被子)": "(躲進被子)",
+      "(鬆一口氣)": "(鬆一口氣)",
+      "{user},謝謝你讓我待在這裡。": "{user},謝謝你讓我待在這裡。",
+      "……(縮在角落)": "……(縮在角落)",
+      "……(臉紅)": "……(臉紅)",
+      "……(輕輕頂了一下)": "……(輕輕頂了一下)",
+      "……zzz": "……zzz",
+      "……你們玩得很開心呢。": "……你們玩得很開心呢。",
+      "……再、再一下下也可以。": "……再、再一下下也可以。",
+      "……別靠近我。": "……別靠近我。",
+      "……只是稍微動一動而已。": "……只是稍微動一動而已。",
+      "……嗯。天亮了。": "……嗯。天亮了。",
+      "……好。只、只有這一次。": "……好。只、只有這一次。",
+      "……好。我陪你們玩一下。": "……好。我陪你們玩一下。",
+      "……好多人在看……": "……好多人在看……",
+      "……好累。我想一個人待著。": "……好累。我想一個人待著。",
+      "……如果只有我和球,好像也不錯。": "……如果只有我和球,好像也不錯。",
+      "……對不起,我不太想……": "……對不起,我不太想……",
+      "……平手。": "……平手。",
+      "……我剛剛想說話,但又忘了要說什麼。": "……我剛剛想說話,但又忘了要說什麼。",
+      "……我想一個人待一下。": "……我想一個人待一下。",
+      "……我還是在旁邊就好。": "……我還是在旁邊就好。",
+      "……晚安。": "……晚安。",
+      "……有顆球。": "……有顆球。",
+      "……有點累了。": "……有點累了。",
+      "……果然。": "……果然。",
+      "……玩完了。還不錯。": "……玩完了。還不錯。",
+      "……要、要不要一起玩球?不想也沒關係。": "……要、要不要一起玩球?不想也沒關係。",
+      "……讓我靜一下。": "……讓我靜一下。",
+      "……贏了?(小小聲的耶)": "……贏了?(小小聲的耶)",
+      "……那個……我來了。": "……那個……我來了。",
+      "人好多……我還是待在這裡就好。": "人好多……我還是待在這裡就好。",
+      "今天也沒什麼事,這樣就很好。": "今天也沒什麼事,這樣就很好。",
+      "今天很平靜,不錯。": "今天很平靜,不錯。",
+      "呃、呃……好、好近……": "呃、呃……好、好近……",
+      "呼……好,我回去了。": "呼……好,我回去了。",
+      "咦……我贏了嗎?": "咦……我贏了嗎?",
+      "咦……球?": "咦……球?",
+      "咿嗚。": "咿嗚。",
+      "嗚!放、放我下來……": "嗚!放、放我下來……",
+      "嗯……我試試看。": "嗯……我試試看。",
+      "如果不用出門就好了……": "如果不用出門就好了……",
+      "安靜的時候最舒服了。": "安靜的時候最舒服了。",
+      "我在旁邊看就很好了。": "我在旁邊看就很好了。",
+      "我沒事……只是心跳有點快。": "我沒事……只是心跳有點快。",
+      "有{user}你在的話,我比較不緊張。": "有{user}你在的話,我比較不緊張。",
+      "沒關係的,我只是需要一點安靜。": "沒關係的,我只是需要一點安靜。",
+      "被、被摸頭了……": "被、被摸頭了……",
+      "謝謝你問我,不過我先不了。": "謝謝你問我,不過我先不了。",
+      "這樣……可以嗎?": "這樣……可以嗎?",
+      "這樣安靜地待著,剛剛好。": "這樣安靜地待著,剛剛好。",
+      "那個……我試試看。": "那個……我試試看。"
+    }
+  },
+  "fileType": "slime_pet_personality",
+  "id": "introvert",
+  "name": "內向",
+  "personalityVersion": 1.0,
+  "revision": 1.0,
+  "sections": {
+    "blocks": [
+      {
+        "fields": {
+          "LENS": "",
+          "NAME": "向使用者學新詞",
+          "TAG": "chat"
+        },
+        "id": "introvert_teach_hat",
+        "inputs": {
+          "DO": {
+            "block": {
+              "fields": {
+                "AUTOSEC": 0.0,
+                "BIND_ACTION": "",
+                "CLICK_WAIT": true,
+                "FONT": "__default__",
+                "SPEAKER": "",
+                "TEXT": "……你可以教我一個新的詞嗎?",
+                "TYPEWRITER": true,
+                "WAIT": true
+              },
+              "id": "introvert_teach_q",
+              "inputs": {
+                "OPTIONS": {
+                  "block": {
+                    "fields": {
+                      "DELTA": 0.0,
+                      "KEY": "",
+                      "LABEL": "好啊,我教你",
+                      "SCOPE": ""
+                    },
+                    "id": "introvert_teach_yes",
+                    "inputs": {
+                      "GOTO": {
+                        "block": {
+                          "fields": {
+                            "DEFAULT": "",
+                            "EMPTY_REPLY": "",
+                            "FRESH": true,
+                            "KEY": "learned",
+                            "MAXLEN": 16.0,
+                            "PROMPT": "……你想教我什麼?"
+                          },
+                          "id": "introvert_teach_ask",
+                          "next": {
+                            "block": {
+                              "extraState": {
+                                "hasElse": true
+                              },
+                              "id": "introvert_teach_if",
+                              "inputs": {
+                                "DO0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "learned",
+                                      "LIST": "pet"
+                                    },
+                                    "id": "introvert_teach_learn",
+                                    "next": {
+                                      "block": {
+                                        "fields": {
+                                          "N": 2.0,
+                                          "NOWAIT": true
+                                        },
+                                        "id": "introvert_teach_hop",
+                                        "next": {
+                                          "block": {
+                                            "fields": {
+                                              "AUTOSEC": 3.0,
+                                              "BIND_ACTION": "",
+                                              "FONT": "__default__",
+                                              "SPEAKER": "",
+                                              "TEXT": "……「{text:learned}」。我學會了,謝謝{user}。",
+                                              "TYPEWRITER": true,
+                                              "WAIT": true
+                                            },
+                                            "id": "introvert_teach_thanks",
+                                            "type": "dialogue_line"
+                                          }
+                                        },
+                                        "type": "phys_jump_small"
+                                      }
+                                    },
+                                    "type": "keyword_learn"
+                                  }
+                                },
+                                "ELSE": {
+                                  "block": {
+                                    "fields": {
+                                      "AUTOSEC": 2.0,
+                                      "BIND_ACTION": "",
+                                      "FONT": "__default__",
+                                      "SPEAKER": "",
+                                      "TEXT": "……沒關係,不急。",
+                                      "TYPEWRITER": true,
+                                      "WAIT": true
+                                    },
+                                    "id": "introvert_teach_quiet",
+                                    "type": "dialogue_line"
+                                  }
+                                },
+                                "IF0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "learned"
+                                    },
+                                    "id": "introvert_teach_cond",
+                                    "type": "cond_text_set"
+                                  }
+                                }
+                              },
+                              "type": "controls_if"
+                            }
+                          },
+                          "type": "dialogue_ask_text"
+                        }
+                      }
+                    },
+                    "next": {
+                      "block": {
+                        "fields": {
+                          "DELTA": 0.0,
+                          "KEY": "",
+                          "LABEL": "下次吧",
+                          "SCOPE": ""
+                        },
+                        "id": "introvert_teach_nope",
+                        "type": "dialogue_option"
+                      }
+                    },
+                    "type": "dialogue_option"
+                  }
+                }
+              },
+              "type": "dialogue_line"
+            }
+          }
+        },
+        "type": "event_when_chat"
+      },
+      {
+        "fields": {
+          "LENS": "",
+          "NAME": "想更了解使用者",
+          "TAG": "chat"
+        },
+        "id": "introvert_know_hat",
+        "inputs": {
+          "DO": {
+            "block": {
+              "fields": {
+                "AUTOSEC": 0.0,
+                "BIND_ACTION": "",
+                "CLICK_WAIT": true,
+                "FONT": "__default__",
+                "SPEAKER": "",
+                "TEXT": "……我想多了解你一點。你最近對什麼有興趣?",
+                "TYPEWRITER": true,
+                "WAIT": true
+              },
+              "id": "introvert_know_q",
+              "inputs": {
+                "OPTIONS": {
+                  "block": {
+                    "fields": {
+                      "DELTA": 0.0,
+                      "KEY": "",
+                      "LABEL": "好啊,我告訴你",
+                      "SCOPE": ""
+                    },
+                    "id": "introvert_know_yes",
+                    "inputs": {
+                      "GOTO": {
+                        "block": {
+                          "fields": {
+                            "DEFAULT": "",
+                            "EMPTY_REPLY": "",
+                            "FRESH": true,
+                            "KEY": "interest",
+                            "MAXLEN": 16.0,
+                            "PROMPT": "……你有興趣的是?"
+                          },
+                          "id": "introvert_know_ask",
+                          "next": {
+                            "block": {
+                              "extraState": {
+                                "hasElse": true
+                              },
+                              "id": "introvert_know_if",
+                              "inputs": {
+                                "DO0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "interest",
+                                      "LIST": "user"
+                                    },
+                                    "id": "introvert_know_learn",
+                                    "next": {
+                                      "block": {
+                                        "fields": {
+                                          "N": 2.0,
+                                          "NOWAIT": true
+                                        },
+                                        "id": "introvert_know_hop",
+                                        "next": {
+                                          "block": {
+                                            "fields": {
+                                              "AUTOSEC": 3.0,
+                                              "BIND_ACTION": "",
+                                              "FONT": "__default__",
+                                              "SPEAKER": "",
+                                              "TEXT": "……原來是「{text:interest}」。我記住了。",
+                                              "TYPEWRITER": true,
+                                              "WAIT": true
+                                            },
+                                            "id": "introvert_know_thanks",
+                                            "type": "dialogue_line"
+                                          }
+                                        },
+                                        "type": "phys_jump_small"
+                                      }
+                                    },
+                                    "type": "keyword_learn"
+                                  }
+                                },
+                                "ELSE": {
+                                  "block": {
+                                    "fields": {
+                                      "AUTOSEC": 2.0,
+                                      "BIND_ACTION": "",
+                                      "FONT": "__default__",
+                                      "SPEAKER": "",
+                                      "TEXT": "……好,等你想說的時候。",
+                                      "TYPEWRITER": true,
+                                      "WAIT": true
+                                    },
+                                    "id": "introvert_know_quiet",
+                                    "type": "dialogue_line"
+                                  }
+                                },
+                                "IF0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "interest"
+                                    },
+                                    "id": "introvert_know_cond",
+                                    "type": "cond_text_set"
+                                  }
+                                }
+                              },
+                              "type": "controls_if"
+                            }
+                          },
+                          "type": "dialogue_ask_text"
+                        }
+                      }
+                    },
+                    "next": {
+                      "block": {
+                        "fields": {
+                          "DELTA": 0.0,
+                          "KEY": "",
+                          "LABEL": "現在不想說",
+                          "SCOPE": ""
+                        },
+                        "id": "introvert_know_nope",
+                        "type": "dialogue_option"
+                      }
+                    },
+                    "type": "dialogue_option"
+                  }
+                }
+              },
+              "type": "dialogue_line"
+            }
+          }
+        },
+        "type": "event_when_chat"
+      }
+    ],
+    "chat": [
+      {
+        "lens": "疲憊",
+        "say": "……好累。我想一個人待著。",
+        "tag": "lens"
+      },
+      {
+        "lens": "生氣",
+        "say": "……別靠近我。",
+        "tag": "lens"
+      },
+      {
+        "lens": "開心",
+        "say": "(偷偷笑)今天……感覺不錯。",
+        "tag": "lens"
+      },
+      {
+        "say": "……(縮在角落)",
+        "tag": "chat"
+      },
+      {
+        "say": "人好多……我還是待在這裡就好。",
+        "tag": "chat"
+      },
+      {
+        "say": "有{user}你在的話,我比較不緊張。",
+        "tag": "chat"
+      },
+      {
+        "say": "今天也沒什麼事,這樣就很好。",
+        "tag": "chat"
+      },
+      {
+        "say": "……我剛剛想說話,但又忘了要說什麼。",
+        "tag": "chat"
+      },
+      {
+        "say": "如果不用出門就好了……",
+        "tag": "chat"
+      },
+      {
+        "say": "(偷偷看{user}一眼)",
+        "tag": "chat"
+      },
+      {
+        "say": "{user},謝謝你讓我待在這裡。",
+        "tag": "chat"
+      },
+      {
+        "say": "安靜的時候最舒服了。",
+        "tag": "rest"
+      },
+      {
+        "say": "(把自己抱成一小團)",
+        "tag": "rest"
+      },
+      {
+        "say": "……讓我靜一下。",
+        "tag": "rest"
+      },
+      {
+        "say": "(呼……)",
+        "tag": "sleep"
+      },
+      {
+        "say": "……zzz",
+        "tag": "sleep"
+      },
+      {
+        "lens": "悲傷",
+        "say": "……我想一個人待一下。",
+        "tag": "lens"
+      },
+      {
+        "lens": "悲傷",
+        "say": "沒關係的,我只是需要一點安靜。",
+        "tag": "lens"
+      },
+      {
+        "lens": "緊張",
+        "say": "(縮了縮)……人、人有點多。",
+        "tag": "lens"
+      },
+      {
+        "lens": "緊張",
+        "say": "我沒事……只是心跳有點快。",
+        "tag": "lens"
+      },
+      {
+        "lens": "悠哉",
+        "say": "這樣安靜地待著,剛剛好。",
+        "tag": "lens"
+      },
+      {
+        "lens": "悠哉",
+        "say": "今天很平靜,不錯。",
+        "tag": "lens"
+      },
+      {
+        "lens": "奔跑",
+        "say": "……只是稍微動一動而已。",
+        "tag": "lens"
+      },
+      {
+        "say": "……如果只有我和球,好像也不錯。",
+        "tag": "chat"
+      }
+    ],
+    "lenses": [
+      {
+        "name": "疲憊",
+        "nature": [
+          "負面",
+          "持續"
+        ]
+      },
+      {
+        "name": "生氣",
+        "nature": [
+          "負面"
+        ],
+        "timeout_max": 90.0,
+        "timeout_min": 45.0
+      },
+      {
+        "movement_overrides": {
+          "hop_chance_per_second": 1.0
+        },
+        "name": "開心",
+        "nature": [
+          "正面"
+        ],
+        "timeout_max": 90.0,
+        "timeout_min": 45.0
+      },
+      {
+        "name": "悲傷",
+        "nature": [
+          "負面"
+        ],
+        "timeout_max": 120.0,
+        "timeout_min": 60.0
+      },
+      {
+        "name": "緊張",
+        "nature": [
+          "負面"
+        ],
+        "timeout_max": 40.0,
+        "timeout_min": 20.0
+      },
+      {
+        "name": "悠哉",
+        "nature": [
+          "正面"
+        ],
+        "timeout_max": 120.0,
+        "timeout_min": 60.0
+      }
+    ],
+    "params": {
+      "anger_proneness": 0.4,
+      "auto_chat_interval": [
+        240.0,
+        600.0
+      ],
+      "auto_game_interval": [
+        900.0,
+        1800.0
+      ],
+      "ball_play_chance": 0.0,
+      "exhausted_threshold": 12.0,
+      "fatigue_rate": 4.0,
+      "follow_distance": 140.0,
+      "game_ask_chance": 0.08,
+      "game_refuse_base": 0.55,
+      "game_refuse_busy": 0.35,
+      "game_refuse_negative": 0.3,
+      "hop_chance": 0.15,
+      "idle_duration": [
+        4.8,
+        11.2
+      ],
+      "idle_hop_chance": 0.04,
+      "introvert_mood_rule": true,
+      "invite_best_of_weights": {
+        "1": 0.8,
+        "3": 0.2
+      },
+      "joy_proneness": 0.3,
+      "jump_variance": 0.1,
+      "jump_velocity": 500.0,
+      "max_jump_velocity": 740.0,
+      "mood_swing": 0.3,
+      "mouse_follow_chance": 0.02,
+      "mouse_follow_duration": [
+        8.0,
+        20.0
+      ],
+      "move_speed": 95.0,
+      "nervous_proneness": 0.5,
+      "relax_share": 0.3,
+      "rest_duration": [
+        25.0,
+        60.0
+      ],
+      "rest_recovery_rate": 30.0,
+      "sleep_duration": [
+        90.0,
+        200.0
+      ],
+      "sociability": 0.15,
+      "tired_move_factor": 0.6,
+      "tired_threshold": 40.0,
+      "touch_affinity": -0.4,
+      "walk_duration": [
+        1.5,
+        3.5
+      ]
+    },
+    "reactions": [
+      {
+        "on": "tired",
+        "say": [
+          "……有點累了。",
+          "(找個角落坐下)"
+        ]
+      },
+      {
+        "on": "wake",
+        "say": [
+          "……嗯。天亮了。",
+          "(揉揉眼睛)"
+        ]
+      },
+      {
+        "on": "interact",
+        "say": [
+          "……(臉紅)",
+          "呃、呃……好、好近……",
+          "……再、再一下下也可以。",
+          "被、被摸頭了……"
+        ]
+      },
+      {
+        "on": "drag",
+        "say": [
+          "嗚!放、放我下來……",
+          "……好多人在看……",
+          "咿嗚。"
+        ],
+        "shiver": 1.0
+      },
+      {
+        "on": "enter",
+        "say": [
+          "……那個……我來了。",
+          "(小聲)大家好……"
+        ]
+      },
+      {
+        "on": "sleep",
+        "say": [
+          "……晚安。",
+          "(躲進被子)"
+        ]
+      },
+      {
+        "on": "game_win",
+        "say": [
+          "……贏了?(小小聲的耶)",
+          "咦……我贏了嗎?"
+        ]
+      },
+      {
+        "on": "game_lose",
+        "say": [
+          "……果然。",
+          "(低頭)沒關係……"
+        ]
+      },
+      {
+        "on": "game_tie",
+        "say": [
+          "……平手。",
+          "(鬆一口氣)"
+        ]
+      },
+      {
+        "on": "invite_accept",
+        "say": [
+          "……好。只、只有這一次。",
+          "那個……我試試看。"
+        ]
+      },
+      {
+        "on": "invite_refuse",
+        "say": [
+          "……對不起,我不太想……",
+          "(搖頭)"
+        ]
+      },
+      {
+        "on": "ball_found",
+        "say": [
+          "……有顆球。",
+          "咦……球?"
+        ]
+      },
+      {
+        "on": "ball_invite",
+        "say": [
+          "……要、要不要一起玩球?不想也沒關係。"
+        ]
+      },
+      {
+        "on": "ball_join",
+        "say": [
+          "……好。我陪你們玩一下。",
+          "嗯……我試試看。"
+        ]
+      },
+      {
+        "on": "ball_decline",
+        "say": [
+          "……我還是在旁邊就好。",
+          "謝謝你問我,不過我先不了。"
+        ]
+      },
+      {
+        "on": "ball_playing",
+        "say": [
+          "……(輕輕頂了一下)",
+          "這樣……可以嗎?"
+        ]
+      },
+      {
+        "on": "ball_end",
+        "say": [
+          "……玩完了。還不錯。",
+          "呼……好,我回去了。"
+        ]
+      },
+      {
+        "on": "ball_watch",
+        "say": [
+          "……你們玩得很開心呢。",
+          "我在旁邊看就很好了。"
+        ]
+      }
+    ]
+  }
+}

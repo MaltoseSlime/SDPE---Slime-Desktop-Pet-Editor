@@ -1,0 +1,23 @@
+{
+	"values": [
+		{
+			"default_value": 0.0,
+			"display_mode": 0,
+			"display_name": "",
+			"gauge_reverse": false,
+			"icon_path": "",
+			"is_global": true,
+			"key": "通用金幣",
+			"max_value": 1000000000.0,
+			"min_value": 0.0,
+			"prefix": "",
+			"show_in_status": true,
+			"sort_weight": 2,
+			"source": "",
+			"source_hash": 0,
+			"step": 1.0,
+			"suffix": " G"
+		}
+	],
+	"version": 1
+}

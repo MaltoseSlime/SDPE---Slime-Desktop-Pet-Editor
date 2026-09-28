@@ -1,0 +1,170 @@
+{
+	"accessories": [],
+	"body": {
+		"art_flipped": false,
+		"bottom": false,
+		"breath": false,
+		"climb": false,
+		"drag_fixed": false,
+		"hitbox": [
+			0.0,
+			0.0,
+			0.0,
+			0.0
+		],
+		"land_for_props": true,
+		"scale": 1.83333333333333
+	},
+	"chat": {
+		"enabled": true,
+		"max": 300.0,
+		"min": 120.0
+	},
+	"dance": {
+		"chance": 0.08,
+		"enabled": true,
+		"follow": true
+	},
+	"dice": {
+		"always_refuse": false,
+		"auto_invite": true,
+		"best_of": 5,
+		"dc": 50,
+		"mod": 0,
+		"sides": 20
+	},
+	"effects": {
+		"all": true,
+		"auto": true,
+		"links": {},
+		"sleep_z": true,
+		"styles": {}
+	},
+	"interaction": {
+		"actions": {},
+		"characters": [],
+		"prefs": [],
+		"props": []
+	},
+	"keywords": [],
+	"lenses": [],
+	"mute": {
+		"auto_unmute": true
+	},
+	"personality": {
+		"applied": {},
+		"choices": {},
+		"ignore_own": {
+			"chat": false,
+			"reactions": false
+		},
+		"mood_lens": {
+			"high": "",
+			"low": ""
+		},
+		"own": {}
+	},
+	"status": {
+		"energy": false,
+		"mood": false
+	},
+	"timer": {
+		"sound": "coin"
+	},
+	"ui_style": {
+		"background": "#2B2B3AAA",
+		"border": "#FFD166FF",
+		"border_width": 2,
+		"corner_radius": 8,
+		"default_font": "黑體",
+		"option": "#EF476FFF",
+		"option_wait_seconds": 60.0,
+		"text": "#FFFFFFFF",
+		"thought_background": "#F3F5FFDD",
+		"thought_border": "#9AA6D0FF",
+		"thought_option": "#7C8BC9FF",
+		"thought_text": "#30344AFF",
+		"ui_scale": 100
+	},
+	"userKeywords": [],
+	"values": [
+		{
+			"default_value": 50.0,
+			"display_mode": 1,
+			"display_name": "",
+			"gauge_reverse": false,
+			"icon_path": "",
+			"is_global": false,
+			"key": "好感度",
+			"max_value": 100.0,
+			"min_value": 0.0,
+			"prefix": "",
+			"show_in_status": true,
+			"sort_weight": 0,
+			"source": "",
+			"source_hash": 0,
+			"step": 1.0,
+			"suffix": ""
+		},
+		{
+			"default_value": 80.0,
+			"display_mode": 1,
+			"display_name": "",
+			"gauge_reverse": false,
+			"icon_path": "",
+			"is_global": false,
+			"key": "飽食度",
+			"max_value": 100.0,
+			"min_value": 0.0,
+			"prefix": "",
+			"show_in_status": true,
+			"sort_weight": 1,
+			"source": "",
+			"source_hash": 0,
+			"step": 1.0,
+			"suffix": "%"
+		},
+		{
+			"default_value": 65.0,
+			"display_mode": 2,
+			"display_name": "",
+			"gauge_reverse": false,
+			"icon_path": "",
+			"is_global": false,
+			"key": "心情",
+			"max_value": 100.0,
+			"min_value": 0.0,
+			"prefix": "",
+			"show_in_status": true,
+			"sort_weight": 2,
+			"source": "",
+			"source_hash": 0,
+			"step": 1.0,
+			"suffix": ""
+		},
+		{
+			"default_value": 0.0,
+			"display_mode": 0,
+			"display_name": "",
+			"gauge_reverse": false,
+			"icon_path": "",
+			"is_global": false,
+			"key": "神秘彩蛋",
+			"max_value": 1.0,
+			"min_value": 0.0,
+			"prefix": "",
+			"show_in_status": false,
+			"sort_weight": 9,
+			"source": "",
+			"source_hash": 0,
+			"step": 1.0,
+			"suffix": ""
+		}
+	],
+	"version": 1,
+	"voice": {
+		"file": "",
+		"pitch": 1.0,
+		"volume": 1.0
+	}
+}

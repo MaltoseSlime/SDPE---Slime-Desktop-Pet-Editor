@@ -1,0 +1,839 @@
+{
+  "author": "史萊姆桌寵引擎",
+  "description": "想到就做、說變就變。行動突發,情緒起伏大(容易興奮也容易發火),愛主動挑戰而且偏好長賽制,輸了會不服氣。",
+  "dialogueTranslations": {
+    "en": {
+      "(坐不到三秒就開始抖腳)": "(Can't sit still for three seconds before the leg-shaking starts)",
+      "(眼眶紅了)才、才沒有哭!": "(Eyes welling up) I-I'm not crying!",
+      "(睡著了也很躁動的樣子)": "(Even asleep, looks restless)",
+      "[shake]什麼!不算不算!再來一場!!": "[shake]What! Doesn't count, doesn't count! One more round!!",
+      "[shake]哇!{user}!你突然找我做什麼呢!……感覺還不錯。": "[shake]Whoa! {user}! What's the sudden visit for!... actually feels pretty good.",
+      "[shake]哇哇哇——刺激!": "[shake]Whoaaa—so thrilling!",
+      "[shake]啊!氣死我了!!": "[shake]Argh! I'm so mad!!",
+      "[shake]我突然想到一件事——算了,我又忘了!": "[shake]I just thought of something—never mind, I forgot again!",
+      "[shake]有點無聊,來點刺激的吧!": "[shake]Kinda bored, let's do something exciting!",
+      "[shake]睡飽了!衝啊!": "[shake]Fully rested! Let's go!",
+      "[wave]哈哈哈!太爽了!再來!": "[wave]Hahaha! That was awesome! Again!",
+      "[wave]哈哈哈!我勢不可擋!!": "[wave]Hahaha! Nothing can stop me!!",
+      "[wave]哈哈哈!沒人能擋我!再來!": "[wave]Hahaha! Nobody can stop me! Again!",
+      "[wave]我!來!了!": "[wave]Here! I! Come!",
+      "[wave]有點無聊,來點刺激的吧!": "[wave]Kinda bored, let's do something exciting!",
+      "……我剛剛心情變了,不玩!": "...I changed my mind, not playing!",
+      "……衝啊……zzz": "...Charge...zzz",
+      "不想!現在不想!": "Don't want to! Not right now!",
+      "不管了!先做再說!": "Whatever! Act first, think later!",
+      "不行不行……腿軟了。": "No, no... my legs are giving out.",
+      "什麼!我居然沒電了?!": "What! I actually ran out of energy?!",
+      "休息?沒空!……好啦就停一下下。": "Rest? No time for that!... okay fine, just a quick stop.",
+      "你們居然不叫我!我也要玩!": "You didn't even call me! I want to play too!",
+      "來了來了來了!我我我準備好了!才怪!": "Here it comes, here it comes! I-I'm ready! Not!",
+      "再來再來!傳給我!": "Again, again! Pass it to me!",
+      "可惡!我要拿回來!現在!": "Argh! I'm taking it back! Right now!",
+      "呼呼呼……玩到我喘不過氣了!再來一場!": "Huff huff... playing till I'm out of breath! One more round!",
+      "咦?{user},我睡了多久?算了不重要!": "Huh? {user}, how long did I sleep? Whatever, doesn't matter!",
+      "咦?今天居然一點都不想衝……偶爾這樣也不錯!": "Huh? I don't feel like rushing at all today... guess that's okay once in a while!",
+      "唉呀~及時享樂嘛!": "Aw come on~ live in the moment!",
+      "啊!嚇我一跳!繼續繼續!": "Ah! Startled me! Keep going, keep going!",
+      "啊~睡覺!!明天一起床就衝!": "Ahh~ sleep!! Charging the second I wake up tomorrow!",
+      "喂!來玩球!誰先搶到誰贏!": "Hey! Let's play ball! Whoever grabs it first wins!",
+      "嗚……我剛剛還好好的,怎麼突然就……": "Ugh... I was totally fine a second ago, how did it suddenly...",
+      "嗚呼!": "Woohoo!",
+      "太高了啦!我接不到!": "Too high! Can't catch it!",
+      "好!今天就到這!……明天繼續!": "Okay! That's it for today!... continuing tomorrow!",
+      "好!就現在!來!": "Okay! Right now! Let's go!",
+      "好啊!誰怕誰!": "Sure! Who's scared!",
+      "好啦好啦我睡就是了……": "Fine, fine, I'll sleep...",
+      "好閒啊!我想做點什麼!": "So bored! I want to do something!",
+      "平手?!再一局!這次一定分出勝負!": "A tie?! One more round! This time it's decided for sure!",
+      "幹嘛幹嘛!放開我!……好吧你要帶我去哪?": "Hey hey! Let go of me!... fine, where are you taking me?",
+      "心臟要跳出來啦!": "My heart's about to jump out of my chest!",
+      "想到就要馬上去做,不然會憋死!": "If I think of it, I gotta do it right now, or I'll burst!",
+      "我先看你們玩,等一下我再衝進去!": "I'll watch you play first, then I'll charge in later!",
+      "我想要玩!……不,我想要吃!……不,我想要睡!……不,我想要玩!": "I want to play!... no, I want to eat!... no, I want to sleep!... no, I want to play!",
+      "我決定了!……又改主意了。": "I've decided!... changed my mind again.",
+      "我覺得球比什麼都好玩!……好啦,除了猜拳。": "I think balls are the most fun thing ever!... okay, except rock-paper-scissors.",
+      "早就等不及了!": "Couldn't wait any longer!",
+      "有人要來嗎?我要開球了!": "Anyone joining? I'm kicking off!",
+      "球!!是球!!我要踢!!": "A ball!! It's a ball!! I'm kicking it!!",
+      "登場!沒有預告的那種!": "Entrance! The no-warning kind!",
+      "看到球了!我先上!": "Spotted the ball! I'm going first!",
+      "看招!頂——!": "Take this! Bump—!",
+      "看起來超好玩的!等我!": "Looks super fun! Wait for me!",
+      "等等,我剛剛要幹嘛來著?": "Wait, what was I about to do again?",
+      "算我一個!我來了!": "Count me in! I'm coming!",
+      "累?我才不累!……好啦有一點。": "Tired? I'm not tired!... okay, maybe a little.",
+      "衝啊——!": "Chaaarge—!",
+      "誰來跟我比一場!現在!立刻!馬上!": "Somebody race me! Right now! This instant!",
+      "贏了贏了贏了!!": "I won, I won, I won!!",
+      "走吧!現在就出發!去哪?總之先走再說!": "Let's go! Right now! Where to? Doesn't matter, let's just move!",
+      "躺著看雲,什麼都不做!……好無聊喔,不過好舒服。": "Lying down watching clouds, doing nothing!... so boring, but so comfy.",
+      "這樣不痛快!重來!": "Not satisfying! Redo!",
+      "這次不玩!我要先做別的!……等一下再說!": "Not playing this time! Got other things to do!... maybe later!",
+      "這種感覺還不錯!": "This feeling's not bad!",
+      "隨機應變不是很有挑戰性嗎?對吧!{user}!": "Winging it is way more exciting, right? Right, {user}!"
+    },
+    "zh-TW": {
+      "(坐不到三秒就開始抖腳)": "(坐不到三秒就開始抖腳)",
+      "(眼眶紅了)才、才沒有哭!": "(眼眶紅了)才、才沒有哭!",
+      "(睡著了也很躁動的樣子)": "(睡著了也很躁動的樣子)",
+      "[shake]什麼!不算不算!再來一場!!": "[shake]什麼!不算不算!再來一場!!",
+      "[shake]哇!{user}!你突然找我做什麼呢!……感覺還不錯。": "[shake]哇!{user}!你突然找我做什麼呢!……感覺還不錯。",
+      "[shake]哇哇哇——刺激!": "[shake]哇哇哇——刺激!",
+      "[shake]啊!氣死我了!!": "[shake]啊!氣死我了!!",
+      "[shake]我突然想到一件事——算了,我又忘了!": "[shake]我突然想到一件事——算了,我又忘了!",
+      "[shake]有點無聊,來點刺激的吧!": "[shake]有點無聊,來點刺激的吧!",
+      "[shake]睡飽了!衝啊!": "[shake]睡飽了!衝啊!",
+      "[wave]哈哈哈!太爽了!再來!": "[wave]哈哈哈!太爽了!再來!",
+      "[wave]哈哈哈!我勢不可擋!!": "[wave]哈哈哈!我勢不可擋!!",
+      "[wave]哈哈哈!沒人能擋我!再來!": "[wave]哈哈哈!沒人能擋我!再來!",
+      "[wave]我!來!了!": "[wave]我!來!了!",
+      "[wave]有點無聊,來點刺激的吧!": "[wave]有點無聊,來點刺激的吧!",
+      "……我剛剛心情變了,不玩!": "……我剛剛心情變了,不玩!",
+      "……衝啊……zzz": "……衝啊……zzz",
+      "不想!現在不想!": "不想!現在不想!",
+      "不管了!先做再說!": "不管了!先做再說!",
+      "不行不行……腿軟了。": "不行不行……腿軟了。",
+      "什麼!我居然沒電了?!": "什麼!我居然沒電了?!",
+      "休息?沒空!……好啦就停一下下。": "休息?沒空!……好啦就停一下下。",
+      "你們居然不叫我!我也要玩!": "你們居然不叫我!我也要玩!",
+      "來了來了來了!我我我準備好了!才怪!": "來了來了來了!我我我準備好了!才怪!",
+      "再來再來!傳給我!": "再來再來!傳給我!",
+      "可惡!我要拿回來!現在!": "可惡!我要拿回來!現在!",
+      "呼呼呼……玩到我喘不過氣了!再來一場!": "呼呼呼……玩到我喘不過氣了!再來一場!",
+      "咦?{user},我睡了多久?算了不重要!": "咦?{user},我睡了多久?算了不重要!",
+      "咦?今天居然一點都不想衝……偶爾這樣也不錯!": "咦?今天居然一點都不想衝……偶爾這樣也不錯!",
+      "唉呀~及時享樂嘛!": "唉呀~及時享樂嘛!",
+      "啊!嚇我一跳!繼續繼續!": "啊!嚇我一跳!繼續繼續!",
+      "啊~睡覺!!明天一起床就衝!": "啊~睡覺!!明天一起床就衝!",
+      "喂!來玩球!誰先搶到誰贏!": "喂!來玩球!誰先搶到誰贏!",
+      "嗚……我剛剛還好好的,怎麼突然就……": "嗚……我剛剛還好好的,怎麼突然就……",
+      "嗚呼!": "嗚呼!",
+      "太高了啦!我接不到!": "太高了啦!我接不到!",
+      "好!今天就到這!……明天繼續!": "好!今天就到這!……明天繼續!",
+      "好!就現在!來!": "好!就現在!來!",
+      "好啊!誰怕誰!": "好啊!誰怕誰!",
+      "好啦好啦我睡就是了……": "好啦好啦我睡就是了……",
+      "好閒啊!我想做點什麼!": "好閒啊!我想做點什麼!",
+      "平手?!再一局!這次一定分出勝負!": "平手?!再一局!這次一定分出勝負!",
+      "幹嘛幹嘛!放開我!……好吧你要帶我去哪?": "幹嘛幹嘛!放開我!……好吧你要帶我去哪?",
+      "心臟要跳出來啦!": "心臟要跳出來啦!",
+      "想到就要馬上去做,不然會憋死!": "想到就要馬上去做,不然會憋死!",
+      "我先看你們玩,等一下我再衝進去!": "我先看你們玩,等一下我再衝進去!",
+      "我想要玩!……不,我想要吃!……不,我想要睡!……不,我想要玩!": "我想要玩!……不,我想要吃!……不,我想要睡!……不,我想要玩!",
+      "我決定了!……又改主意了。": "我決定了!……又改主意了。",
+      "我覺得球比什麼都好玩!……好啦,除了猜拳。": "我覺得球比什麼都好玩!……好啦,除了猜拳。",
+      "早就等不及了!": "早就等不及了!",
+      "有人要來嗎?我要開球了!": "有人要來嗎?我要開球了!",
+      "球!!是球!!我要踢!!": "球!!是球!!我要踢!!",
+      "登場!沒有預告的那種!": "登場!沒有預告的那種!",
+      "看到球了!我先上!": "看到球了!我先上!",
+      "看招!頂——!": "看招!頂——!",
+      "看起來超好玩的!等我!": "看起來超好玩的!等我!",
+      "等等,我剛剛要幹嘛來著?": "等等,我剛剛要幹嘛來著?",
+      "算我一個!我來了!": "算我一個!我來了!",
+      "累?我才不累!……好啦有一點。": "累?我才不累!……好啦有一點。",
+      "衝啊——!": "衝啊——!",
+      "誰來跟我比一場!現在!立刻!馬上!": "誰來跟我比一場!現在!立刻!馬上!",
+      "贏了贏了贏了!!": "贏了贏了贏了!!",
+      "走吧!現在就出發!去哪?總之先走再說!": "走吧!現在就出發!去哪?總之先走再說!",
+      "躺著看雲,什麼都不做!……好無聊喔,不過好舒服。": "躺著看雲,什麼都不做!……好無聊喔,不過好舒服。",
+      "這樣不痛快!重來!": "這樣不痛快!重來!",
+      "這次不玩!我要先做別的!……等一下再說!": "這次不玩!我要先做別的!……等一下再說!",
+      "這種感覺還不錯!": "這種感覺還不錯!",
+      "隨機應變不是很有挑戰性嗎?對吧!{user}!": "隨機應變不是很有挑戰性嗎?對吧!{user}!"
+    }
+  },
+  "fileType": "slime_pet_personality",
+  "id": "impulsive",
+  "name": "衝動",
+  "personalityVersion": 1.0,
+  "revision": 1.0,
+  "sections": {
+    "blocks": [
+      {
+        "fields": {
+          "LENS": "",
+          "NAME": "向使用者學新詞",
+          "TAG": "chat"
+        },
+        "id": "impulsive_teach_hat",
+        "inputs": {
+          "DO": {
+            "block": {
+              "fields": {
+                "AUTOSEC": 0.0,
+                "BIND_ACTION": "",
+                "CLICK_WAIT": true,
+                "FONT": "__default__",
+                "SPEAKER": "",
+                "TEXT": "喂!教我一個新詞!",
+                "TYPEWRITER": true,
+                "WAIT": true
+              },
+              "id": "impulsive_teach_q",
+              "inputs": {
+                "OPTIONS": {
+                  "block": {
+                    "fields": {
+                      "DELTA": 0.0,
+                      "KEY": "",
+                      "LABEL": "好啊,我教你",
+                      "SCOPE": ""
+                    },
+                    "id": "impulsive_teach_yes",
+                    "inputs": {
+                      "GOTO": {
+                        "block": {
+                          "fields": {
+                            "DEFAULT": "",
+                            "EMPTY_REPLY": "",
+                            "FRESH": true,
+                            "KEY": "learned",
+                            "MAXLEN": 16.0,
+                            "PROMPT": "快說!要教我什麼?"
+                          },
+                          "id": "impulsive_teach_ask",
+                          "next": {
+                            "block": {
+                              "extraState": {
+                                "hasElse": true
+                              },
+                              "id": "impulsive_teach_if",
+                              "inputs": {
+                                "DO0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "learned",
+                                      "LIST": "pet"
+                                    },
+                                    "id": "impulsive_teach_learn",
+                                    "next": {
+                                      "block": {
+                                        "fields": {
+                                          "N": 5.0,
+                                          "NOWAIT": true
+                                        },
+                                        "id": "impulsive_teach_hop",
+                                        "next": {
+                                          "block": {
+                                            "fields": {
+                                              "AUTOSEC": 3.0,
+                                              "BIND_ACTION": "",
+                                              "FONT": "__default__",
+                                              "SPEAKER": "",
+                                              "TEXT": "「{text:learned}」!學會啦!謝謝{user}!",
+                                              "TYPEWRITER": true,
+                                              "WAIT": true
+                                            },
+                                            "id": "impulsive_teach_thanks",
+                                            "type": "dialogue_line"
+                                          }
+                                        },
+                                        "type": "phys_jump_small"
+                                      }
+                                    },
+                                    "type": "keyword_learn"
+                                  }
+                                },
+                                "ELSE": {
+                                  "block": {
+                                    "fields": {
+                                      "AUTOSEC": 2.0,
+                                      "BIND_ACTION": "",
+                                      "FONT": "__default__",
+                                      "SPEAKER": "",
+                                      "TEXT": "嘖,那下次一定要教!",
+                                      "TYPEWRITER": true,
+                                      "WAIT": true
+                                    },
+                                    "id": "impulsive_teach_quiet",
+                                    "type": "dialogue_line"
+                                  }
+                                },
+                                "IF0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "learned"
+                                    },
+                                    "id": "impulsive_teach_cond",
+                                    "type": "cond_text_set"
+                                  }
+                                }
+                              },
+                              "type": "controls_if"
+                            }
+                          },
+                          "type": "dialogue_ask_text"
+                        }
+                      }
+                    },
+                    "next": {
+                      "block": {
+                        "fields": {
+                          "DELTA": 0.0,
+                          "KEY": "",
+                          "LABEL": "下次吧",
+                          "SCOPE": ""
+                        },
+                        "id": "impulsive_teach_nope",
+                        "type": "dialogue_option"
+                      }
+                    },
+                    "type": "dialogue_option"
+                  }
+                }
+              },
+              "type": "dialogue_line"
+            }
+          }
+        },
+        "type": "event_when_chat"
+      },
+      {
+        "fields": {
+          "LENS": "",
+          "NAME": "想更了解使用者",
+          "TAG": "chat"
+        },
+        "id": "impulsive_know_hat",
+        "inputs": {
+          "DO": {
+            "block": {
+              "fields": {
+                "AUTOSEC": 0.0,
+                "BIND_ACTION": "",
+                "CLICK_WAIT": true,
+                "FONT": "__default__",
+                "SPEAKER": "",
+                "TEXT": "喂喂,你最近迷什麼?快告訴我!",
+                "TYPEWRITER": true,
+                "WAIT": true
+              },
+              "id": "impulsive_know_q",
+              "inputs": {
+                "OPTIONS": {
+                  "block": {
+                    "fields": {
+                      "DELTA": 0.0,
+                      "KEY": "",
+                      "LABEL": "好啊,我告訴你",
+                      "SCOPE": ""
+                    },
+                    "id": "impulsive_know_yes",
+                    "inputs": {
+                      "GOTO": {
+                        "block": {
+                          "fields": {
+                            "DEFAULT": "",
+                            "EMPTY_REPLY": "",
+                            "FRESH": true,
+                            "KEY": "interest",
+                            "MAXLEN": 16.0,
+                            "PROMPT": "說啊!你有興趣的是什麼?"
+                          },
+                          "id": "impulsive_know_ask",
+                          "next": {
+                            "block": {
+                              "extraState": {
+                                "hasElse": true
+                              },
+                              "id": "impulsive_know_if",
+                              "inputs": {
+                                "DO0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "interest",
+                                      "LIST": "user"
+                                    },
+                                    "id": "impulsive_know_learn",
+                                    "next": {
+                                      "block": {
+                                        "fields": {
+                                          "N": 5.0,
+                                          "NOWAIT": true
+                                        },
+                                        "id": "impulsive_know_hop",
+                                        "next": {
+                                          "block": {
+                                            "fields": {
+                                              "AUTOSEC": 3.0,
+                                              "BIND_ACTION": "",
+                                              "FONT": "__default__",
+                                              "SPEAKER": "",
+                                              "TEXT": "「{text:interest}」!聽起來不錯!我記住了!",
+                                              "TYPEWRITER": true,
+                                              "WAIT": true
+                                            },
+                                            "id": "impulsive_know_thanks",
+                                            "type": "dialogue_line"
+                                          }
+                                        },
+                                        "type": "phys_jump_small"
+                                      }
+                                    },
+                                    "type": "keyword_learn"
+                                  }
+                                },
+                                "ELSE": {
+                                  "block": {
+                                    "fields": {
+                                      "AUTOSEC": 2.0,
+                                      "BIND_ACTION": "",
+                                      "FONT": "__default__",
+                                      "SPEAKER": "",
+                                      "TEXT": "哼,那下次再說,不准賴皮!",
+                                      "TYPEWRITER": true,
+                                      "WAIT": true
+                                    },
+                                    "id": "impulsive_know_quiet",
+                                    "type": "dialogue_line"
+                                  }
+                                },
+                                "IF0": {
+                                  "block": {
+                                    "fields": {
+                                      "KEY": "interest"
+                                    },
+                                    "id": "impulsive_know_cond",
+                                    "type": "cond_text_set"
+                                  }
+                                }
+                              },
+                              "type": "controls_if"
+                            }
+                          },
+                          "type": "dialogue_ask_text"
+                        }
+                      }
+                    },
+                    "next": {
+                      "block": {
+                        "fields": {
+                          "DELTA": 0.0,
+                          "KEY": "",
+                          "LABEL": "現在不想說",
+                          "SCOPE": ""
+                        },
+                        "id": "impulsive_know_nope",
+                        "type": "dialogue_option"
+                      }
+                    },
+                    "type": "dialogue_option"
+                  }
+                }
+              },
+              "type": "dialogue_line"
+            }
+          }
+        },
+        "type": "event_when_chat"
+      }
+    ],
+    "chat": [
+      {
+        "lens": "疲憊",
+        "say": "累?我才不累!……好啦有一點。",
+        "tag": "lens"
+      },
+      {
+        "lens": "生氣",
+        "say": "[shake]啊!氣死我了!!",
+        "tag": "lens"
+      },
+      {
+        "lens": "開心",
+        "say": "[wave]哈哈哈!太爽了!再來!",
+        "tag": "lens"
+      },
+      {
+        "say": "不管了!先做再說!",
+        "tag": "chat"
+      },
+      {
+        "say": "[shake]我突然想到一件事——算了,我又忘了!",
+        "tag": "chat"
+      },
+      {
+        "hop": 1.0,
+        "say": "走吧!現在就出發!去哪?總之先走再說!",
+        "tag": "chat"
+      },
+      {
+        "say": "等等,我剛剛要幹嘛來著?",
+        "tag": "chat"
+      },
+      {
+        "say": "我想要玩!……不,我想要吃!……不,我想要睡!……不,我想要玩!",
+        "tag": "chat"
+      },
+      {
+        "say": "隨機應變不是很有挑戰性嗎?對吧!{user}!",
+        "tag": "chat"
+      },
+      {
+        "say": "想到就要馬上去做,不然會憋死!",
+        "tag": "chat"
+      },
+      {
+        "say": "誰來跟我比一場!現在!立刻!馬上!",
+        "tag": "chat"
+      },
+      {
+        "say": "[shake]有點無聊,來點刺激的吧!",
+        "tag": "chat"
+      },
+      {
+        "hop": 2.0,
+        "say": "[shake]哇哇哇——刺激!",
+        "tag": "chat"
+      },
+      {
+        "hop": 2.0,
+        "say": "[wave]我!來!了!",
+        "tag": "chat"
+      },
+      {
+        "hop": 2.0,
+        "say": "[wave]哈哈哈!我勢不可擋!!",
+        "tag": "chat"
+      },
+      {
+        "say": "[wave]有點無聊,來點刺激的吧!",
+        "tag": "chat"
+      },
+      {
+        "say": "我決定了!……又改主意了。",
+        "tag": "chat"
+      },
+      {
+        "say": "唉呀~及時享樂嘛!",
+        "tag": "chat"
+      },
+      {
+        "say": "好閒啊!我想做點什麼!",
+        "tag": "chat"
+      },
+      {
+        "say": "休息?沒空!……好啦就停一下下。",
+        "tag": "rest"
+      },
+      {
+        "say": "(坐不到三秒就開始抖腳)",
+        "tag": "rest"
+      },
+      {
+        "say": "(睡著了也很躁動的樣子)",
+        "tag": "sleep"
+      },
+      {
+        "say": "……衝啊……zzz",
+        "tag": "sleep"
+      },
+      {
+        "lens": "悲傷",
+        "say": "嗚……我剛剛還好好的,怎麼突然就……",
+        "tag": "lens"
+      },
+      {
+        "lens": "悲傷",
+        "say": "(眼眶紅了)才、才沒有哭!",
+        "tag": "lens"
+      },
+      {
+        "lens": "緊張",
+        "say": "來了來了來了!我我我準備好了!才怪!",
+        "tag": "lens"
+      },
+      {
+        "lens": "緊張",
+        "say": "心臟要跳出來啦!",
+        "tag": "lens"
+      },
+      {
+        "lens": "悠哉",
+        "say": "咦?今天居然一點都不想衝……偶爾這樣也不錯!",
+        "tag": "lens"
+      },
+      {
+        "lens": "悠哉",
+        "say": "躺著看雲,什麼都不做!……好無聊喔,不過好舒服。",
+        "tag": "lens"
+      },
+      {
+        "lens": "奔跑",
+        "say": "衝啊——!",
+        "tag": "lens"
+      },
+      {
+        "say": "我覺得球比什麼都好玩!……好啦,除了猜拳。",
+        "tag": "chat"
+      }
+    ],
+    "lenses": [
+      {
+        "name": "疲憊",
+        "nature": [
+          "負面",
+          "持續"
+        ]
+      },
+      {
+        "name": "生氣",
+        "nature": [
+          "負面"
+        ],
+        "timeout_max": 90.0,
+        "timeout_min": 45.0
+      },
+      {
+        "movement_overrides": {
+          "hop_chance_per_second": 1.0
+        },
+        "name": "開心",
+        "nature": [
+          "正面"
+        ],
+        "timeout_max": 90.0,
+        "timeout_min": 45.0
+      },
+      {
+        "continue_chance": 0.4,
+        "continue_decay": 0.6,
+        "force_run": true,
+        "max_rounds": 3.0,
+        "movement_overrides": {
+          "idle_duration_max": 1.0,
+          "idle_duration_min": 0.3
+        },
+        "name": "奔跑",
+        "timeout_max": 12.0,
+        "timeout_min": 5.0
+      },
+      {
+        "name": "悲傷",
+        "nature": [
+          "負面"
+        ],
+        "timeout_max": 120.0,
+        "timeout_min": 60.0
+      },
+      {
+        "name": "緊張",
+        "nature": [
+          "負面"
+        ],
+        "timeout_max": 40.0,
+        "timeout_min": 20.0
+      },
+      {
+        "name": "悠哉",
+        "nature": [
+          "正面"
+        ],
+        "timeout_max": 120.0,
+        "timeout_min": 60.0
+      }
+    ],
+    "params": {
+      "anger_proneness": 1.8,
+      "auto_chat_interval": [
+        60.0,
+        240.0
+      ],
+      "auto_game_interval": [
+        90.0,
+        300.0
+      ],
+      "ball_play_chance": 0.12,
+      "exhausted_threshold": 8.0,
+      "fatigue_rate": 3.5,
+      "game_ask_chance": 0.6,
+      "game_refuse_base": 0.1,
+      "game_refuse_busy": 0.1,
+      "game_refuse_negative": 0.5,
+      "hop_chance": 0.9,
+      "idle_duration": [
+        0.8,
+        2.4
+      ],
+      "idle_hop_chance": 0.35,
+      "invite_best_of_weights": {
+        "1": 0.2,
+        "3": 0.3,
+        "5": 0.5
+      },
+      "joy_proneness": 1.5,
+      "jump_variance": 0.3,
+      "jump_velocity": 590.0,
+      "max_jump_velocity": 860.0,
+      "mood_swing": 0.7,
+      "mouse_follow_chance": 0.2,
+      "mouse_follow_duration": [
+        8.0,
+        30.0
+      ],
+      "move_speed": 150.0,
+      "nervous_proneness": 0.15,
+      "relax_share": 0.05,
+      "rest_duration": [
+        10.0,
+        25.0
+      ],
+      "rest_recovery_rate": 25.0,
+      "run_any_mood": false,
+      "run_chance": 0.05,
+      "run_speed_multiplier": 2.4,
+      "sleep_duration": [
+        40.0,
+        100.0
+      ],
+      "sociability": 0.6,
+      "tired_move_factor": 0.85,
+      "tired_threshold": 30.0,
+      "touch_affinity": 0.1,
+      "walk_duration": [
+        1.0,
+        3.0
+      ]
+    },
+    "reactions": [
+      {
+        "on": "tired",
+        "say": [
+          "不行不行……腿軟了。",
+          "什麼!我居然沒電了?!"
+        ]
+      },
+      {
+        "on": "wake",
+        "say": [
+          "[shake]睡飽了!衝啊!",
+          "咦?{user},我睡了多久?算了不重要!"
+        ]
+      },
+      {
+        "hop": 1.0,
+        "on": "interact",
+        "say": [
+          "[shake]哇!{user}!你突然找我做什麼呢!……感覺還不錯。",
+          "啊!嚇我一跳!繼續繼續!",
+          "這種感覺還不錯!"
+        ]
+      },
+      {
+        "on": "drag",
+        "say": [
+          "幹嘛幹嘛!放開我!……好吧你要帶我去哪?",
+          "[shake]哇哇哇——刺激!",
+          "嗚呼!"
+        ]
+      },
+      {
+        "hop": 2.0,
+        "on": "enter",
+        "say": [
+          "[wave]我!來!了!",
+          "登場!沒有預告的那種!"
+        ]
+      },
+      {
+        "on": "sleep",
+        "say": [
+          "啊~睡覺!!明天一起床就衝!",
+          "好啦好啦我睡就是了……"
+        ]
+      },
+      {
+        "hop": 3.0,
+        "on": "game_win",
+        "say": [
+          "[wave]哈哈哈!沒人能擋我!再來!",
+          "贏了贏了贏了!!"
+        ]
+      },
+      {
+        "on": "game_lose",
+        "say": [
+          "[shake]什麼!不算不算!再來一場!!",
+          "可惡!我要拿回來!現在!"
+        ],
+        "shiver": 1.5
+      },
+      {
+        "on": "game_tie",
+        "say": [
+          "平手?!再一局!這次一定分出勝負!",
+          "這樣不痛快!重來!"
+        ]
+      },
+      {
+        "hop": 1.0,
+        "on": "invite_accept",
+        "say": [
+          "好!就現在!來!",
+          "早就等不及了!"
+        ]
+      },
+      {
+        "on": "invite_refuse",
+        "say": [
+          "不想!現在不想!",
+          "……我剛剛心情變了,不玩!"
+        ]
+      },
+      {
+        "hop": 1.0,
+        "on": "ball_found",
+        "say": [
+          "球!!是球!!我要踢!!",
+          "看到球了!我先上!"
+        ]
+      },
+      {
+        "on": "ball_invite",
+        "say": [
+          "喂!來玩球!誰先搶到誰贏!",
+          "有人要來嗎?我要開球了!"
+        ]
+      },
+      {
+        "hop": 1.0,
+        "on": "ball_join",
+        "say": [
+          "算我一個!我來了!",
+          "好啊!誰怕誰!"
+        ]
+      },
+      {
+        "on": "ball_decline",
+        "say": [
+          "這次不玩!我要先做別的!……等一下再說!",
+          "我先看你們玩,等一下我再衝進去!"
+        ]
+      },
+      {
+        "hop": 1.0,
+        "on": "ball_playing",
+        "say": [
+          "看招!頂——!",
+          "再來再來!傳給我!",
+          "太高了啦!我接不到!"
+        ]
+      },
+      {
+        "on": "ball_end",
+        "say": [
+          "呼呼呼……玩到我喘不過氣了!再來一場!",
+          "好!今天就到這!……明天繼續!"
+        ]
+      },
+      {
+        "on": "ball_watch",
+        "say": [
+          "你們居然不叫我!我也要玩!",
+          "看起來超好玩的!等我!"
+        ]
+      }
+    ]
+  }
+}
