@@ -9,7 +9,7 @@
 
 此專案的目標旨在可離線使用且內容盡可能自定義，進而，此專案並不考慮在未來加入LLM的API串接等功能。
 
-(等我搞定Github的設定後就正式開源了...)
+
 
 —
 
@@ -23,7 +23,6 @@ This project was inspired by "Nisemaru," "shimeji," "VPet-Simulator," and "Tiny 
 
 The goal of this project is to be usable offline and with as much customizable content as possible; therefore, this project does not consider adding features such as LLM API integration in the future.
 
-(I'll officially open-source it after I've set up my GitHub...)
 
 #################
 
