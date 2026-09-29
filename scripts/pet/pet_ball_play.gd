@@ -178,6 +178,8 @@ func _invite_others(item: PropItem) -> void:
 
 
 func _begin(item: PropItem) -> void:
+	if _pet.is_following():   # 想去玩球算「想去做別的事情」,先離開路隊(見 Pet._tick_pet_follow_lifecycle 的說明)。
+		_pet.stop_follow()
 	ball = item
 	state = "chase"
 	_timer = MAX_PLAY_SECONDS

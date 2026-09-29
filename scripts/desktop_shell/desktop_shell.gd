@@ -80,6 +80,7 @@ func _enter_tree() -> void:
 
 
 func _ready() -> void:
+	add_to_group("desktop_shell")   # 給沒有場景樹節點參照的靜態工具(例如 TttGame)找回這個場景用
 	# 桌面透明合成依賴 project.godot 的 rendering/gl_compatibility/driver.windows="opengl3_angle":
 	# Intel UHD 這類顯卡走原生 OpenGL 時背景會變純黑,改用 ANGLE(D3D11)才正常。不要刪這個設定。
 	RenderingServer.set_default_clear_color(Color(0, 0, 0, 0))
@@ -143,6 +144,15 @@ func _ready() -> void:
 
 
 ## 開機後檢查:有桌寵的預設內容(內建性格、狀態鏡…)比目前版本舊,就問使用者要不要追加(見 DefaultsUpdater)。無頭測試與「這一版不要再問」的不問。
+## 2026-09-30 使用者實機回報(Godot 編輯器除錯輸出,兩個方向都踩過):"Windows with the 'on top' can't become
+## transient" 與 "Transient windows can't become on top"——這兩個是同一個 Windows/Godot 已知限制的一體兩面
+## (查證見 godotengine/godot#117698,4.7.2 尚未收到修正,#117748 的修正目標版本更後面):always_on_top 與
+## transient 這兩個狀態在原生視窗(本專案 embed_subwindows=false)上互斥。一開始只把這些對話框自己的
+## always_on_top 拿掉還不夠——使用者接著實測「全局設定關掉浮動視窗保持在最上層」問題就消失,證實真正衝突的
+## 是 host(這裡是主視窗,永遠置頂)本身:Godot 的 popup_centered() 把對話框設成 host 的 transient 子視窗時,
+## host 若是置頂的一樣會撞上這個限制。修法統一改用 FloatingWindow.popup_child_dialog()(建立 transient 子視窗
+## 的當下先暫時放掉 host 的置頂,建好立刻還原——owned/transient window 本來就會自動疊在 host 上面,不需要
+## host 置頂)。
 func _check_defaults_update() -> void:
 	if not PetRoster.enabled() or DefaultsUpdater.acknowledged(SETTINGS_PATH):
 		return
@@ -150,18 +160,17 @@ func _check_defaults_update() -> void:
 	if outdated.is_empty():
 		return
 	var dialog := make_defaults_update_dialog(outdated)
-	add_child(dialog)
-	dialog.popup_centered(Vector2i(500, 280))
+	FloatingWindow.popup_child_dialog(self, get_window(), dialog, Vector2i(500, 280))
 
 
 ## 「追加新的預設內容?」的確認視窗(獨立成函式方便測試)。三個選項:追加 / 之後再說(下次開機再問)/ 這一版不要再問。
 func make_defaults_update_dialog(pets: Array) -> ConfirmationDialog:
 	var dialog := ConfirmationDialog.new()
 	dialog.title = tr("預設組資料更新")
-	# 主視窗底下的確認視窗不能是獨佔式:獨佔視窗開著時,Windows 會把主視窗的穿透形狀整個丟掉(整個螢幕都點不到後面的程式);transient 也和置頂衝突(會報錯)
+	# 主視窗底下的確認視窗不能是獨佔式:獨佔視窗開著時,Windows 會把主視窗的穿透形狀整個丟掉(整個螢幕都點不到後面的程式)。
+	# always_on_top 不在這裡設(見上面 _check_defaults_update() 的說明,要等 popup_centered() 跑完才補設)。
 	dialog.exclusive = false
 	dialog.transient = false
-	dialog.always_on_top = true
 	dialog.theme = ManagerUi.make_theme()
 	var names := pets.map(func(pet: Node) -> String: return pet.get_label())
 	dialog.dialog_text = tr("這個版本更新了預設內容(性格、狀態鏡、反應事件等)的資料。\n是否要追加新的預設內容到既有桌寵上?\n這不會覆蓋自定義內容與手動調整過的預設參數。\n\n(手動調整過的預設參數要同步的話,到桌寵管理的「性格」分頁按「重設此性格副本」。)\n\n會更新:%s") % "、".join(names)
@@ -190,8 +199,7 @@ func _maybe_offer_language_choice() -> void:
 		AppSettings.mark_language_choice_prompted()
 		return
 	var dialog := make_language_choice_dialog()
-	add_child(dialog)
-	dialog.popup_centered(Vector2i(460, 220))
+	FloatingWindow.popup_child_dialog(self, get_window(), dialog, Vector2i(460, 220))
 
 
 ## 語言選擇彈窗(獨立成函式方便測試)。只有「繁體中文」與「English」兩個選項,兩種語言的文字都要看得懂
@@ -202,7 +210,6 @@ func make_language_choice_dialog() -> ConfirmationDialog:
 	dialog.title = "選擇語言 / Choose Language"
 	dialog.exclusive = false
 	dialog.transient = false
-	dialog.always_on_top = true
 	dialog.theme = ManagerUi.make_theme()
 	dialog.dialog_text = "請選擇介面與桌寵預設語言(之後可以在「全局設定」改介面語系)。\nPlease choose the interface and default pet language (you can change this later in Global Settings)."
 	dialog.dialog_autowrap = true
@@ -666,7 +673,7 @@ func _on_pet_ejected(pet: Node, reason: String) -> void:
 
 ## 系統匣「移除這隻桌寵」:直接從場上拿掉(退場動畫等 leave 素材流程做好再接)。
 ## 使用者從系統匣要收起一隻桌寵:它正在幫你計時(跑著或暫停著)的話先問要暫停還是取消計時、並列出目前的計時情形。
-## 對話框是獨立視窗、置頂(桌寵自己不能跳彈窗問,但這是使用者主動按的選單,可以)。
+## 對話框是主視窗底下的獨立子視窗(桌寵自己不能跳彈窗問,但這是使用者主動按的選單,可以)。
 func _on_remove_pet_requested(pet: Node) -> void:
 	if not is_instance_valid(pet):
 		return
@@ -675,10 +682,10 @@ func _on_remove_pet_requested(pet: Node) -> void:
 		return
 	var dialog := ConfirmationDialog.new()
 	dialog.title = tr("收起桌寵")
-	# 主視窗底下的確認視窗不能是獨佔式:獨佔視窗開著時,Windows 會把主視窗的穿透形狀整個丟掉(整個螢幕都點不到後面的程式);transient 也和置頂衝突(會報錯)
+	# 主視窗底下的確認視窗不能是獨佔式:獨佔視窗開著時,Windows 會把主視窗的穿透形狀整個丟掉(整個螢幕都點不到後面的程式)。
+	# 不設 always_on_top,見 _check_defaults_update() 的說明(跟置頂衝突,會把視窗卡死)。
 	dialog.exclusive = false
 	dialog.transient = false
-	dialog.always_on_top = true
 	dialog.theme = ManagerUi.make_theme()
 	dialog.dialog_text = tr("「%s」正在幫你計時:\n%s\n\n收起來之前,計時要怎麼處理?") % [pet.get_label(), pet.pet_timer.describe()]
 	dialog.dialog_autowrap = true
@@ -696,7 +703,7 @@ func _on_remove_pet_requested(pet: Node) -> void:
 	dialog.canceled.connect(dialog.queue_free)
 	add_child(dialog)
 	if DisplayServer.get_name() != "headless":
-		dialog.popup_centered(Vector2i(460, 240))
+		FloatingWindow.popup_child_dialog(self, get_window(), dialog, Vector2i(460, 240))
 
 
 ## 系統匣「檢查更新…」:使用者主動點的,才會真的連線;結果用一個小視窗回報(這是使用者主動觸發的操作,不是桌寵自己跳彈窗)。
@@ -709,7 +716,7 @@ func _on_update_check_finished(result: Dictionary) -> void:
 	dialog.title = tr("檢查更新")
 	dialog.exclusive = false
 	dialog.transient = false
-	dialog.always_on_top = true
+	# 不設 always_on_top,見 _check_defaults_update() 的說明(跟置頂衝突,會把視窗卡死)。
 	dialog.theme = ManagerUi.make_theme()
 	dialog.dialog_text = String(result.get("message", ""))
 	dialog.dialog_autowrap = true
@@ -723,7 +730,7 @@ func _on_update_check_finished(result: Dictionary) -> void:
 	dialog.canceled.connect(dialog.queue_free)
 	add_child(dialog)
 	if DisplayServer.get_name() != "headless":
-		dialog.popup_centered(Vector2i(420, 200))
+		FloatingWindow.popup_child_dialog(self, get_window(), dialog, Vector2i(420, 200))
 
 
 func _on_remove_pet(pet: Node) -> void:
@@ -992,6 +999,9 @@ func _on_tray_recall() -> void:
 
 
 ## 浮動視窗重設:所有開著的浮動視窗(藏起來的也算)拉到最上層、拉回螢幕範圍內。回傳處理了幾個視窗。
+## 2026-09-30 曾經追加過「順便重設主視窗自己的置頂」,但使用者實機測出這個自動重開置頂的動作反而更不穩定
+## (視窗會閃一下、從工作列消失),拿掉了;浮動視窗的「保持在最上層」設定本身也已經整個停用(見 AppSettings.
+## floating_on_top() 的說明),不會再有需要靠這裡救援置頂狀態的情境。
 func reset_floating_windows() -> int:
 	var count := 0
 	for node: Node in get_tree().get_nodes_in_group("floating_windows"):
@@ -1027,7 +1037,7 @@ func _ask_canonicals(pending: Dictionary, chosen: Dictionary) -> void:
 		_quit_dialog.queue_free()
 		_ask_canonicals(pending, chosen))
 	_quit_dialog.canceled.connect(func() -> void: _quit_dialog.queue_free())
-	_quit_dialog.popup_centered()
+	FloatingWindow.popup_child_dialog(self, get_window(), _quit_dialog)
 
 
 ## 存每個角色本體的狀態:已指定的用指定者(指定「不存」的略過),其餘用預設政策選出的那隻。

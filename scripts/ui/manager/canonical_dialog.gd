@@ -14,8 +14,10 @@ var _policy_option: OptionButton
 func setup(key: String, pets: Array, policy: String) -> void:
 	_pets = pets
 	title = "同角色有複製品尚未指定本體"
-	always_on_top = true
-	# 主視窗底下的確認視窗不能是獨佔式:獨佔視窗開著時,Windows 會把主視窗的穿透形狀整個丟掉(整個螢幕都點不到後面的程式);transient 也和置頂衝突(會報錯)
+	# 主視窗底下的確認視窗不能是獨佔式:獨佔視窗開著時,Windows 會把主視窗的穿透形狀整個丟掉(整個螢幕都點不到後面的程式)。
+	# 不設 always_on_top:這種視窗會被 Godot 設成主視窗(一直置頂)的 transient 子視窗,跟置頂在 Windows 原生
+	# 視窗上互斥(#117698,4.7.2 尚未修正),硬設會把視窗卡死;身為 owned window,Windows 本來就會自動疊在
+	# 主視窗上面,不需要自己也置頂(見 desktop_shell.gd 的 _check_defaults_update() 有更完整的說明)。
 	exclusive = false
 	transient = false
 	theme = ManagerUi.make_theme()

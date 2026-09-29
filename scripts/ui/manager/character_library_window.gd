@@ -366,15 +366,16 @@ func ask_delete(folder: String, character_name: String) -> void:
 	dialog.title = "刪除角色"
 	dialog.ok_button_text = "搬到備份"
 	dialog.cancel_button_text = "取消"
-	dialog.always_on_top = true
+	# 不設 always_on_top:這種視窗會被 Godot 設成這個(可能置頂的)浮動視窗的 transient 子視窗,跟置頂在
+	# Windows 原生視窗上互斥(godotengine/godot#117698,4.7.2 尚未修正),硬設會把視窗卡死到連工作列都找不到
+	# (2026-09-30 使用者實機回報)。身為 owned window,Windows 本來就會自動疊在浮動視窗上面,不需要自己也置頂。
 	dialog.theme = ManagerUi.make_theme()
 	dialog.dialog_text = tr("要把「%s」從角色庫移走嗎?\n\n整個素材包資料夾會搬到備份資料夾(不會真的刪掉)%s。之後想找回來,到備份資料夾把它搬回 sprite 資料夾就好。") % [character_name,
 			tr("，另外把它的 %d 個設定檔(角色設定、狀態、積木檔)複製一份進同一個備份") % related.size() if not related.is_empty() else ""]
 	dialog.confirmed.connect(func() -> void: delete_character(folder, character_name))
 	dialog.canceled.connect(func() -> void: dialog.queue_free())
 	dialog.confirmed.connect(func() -> void: dialog.queue_free())
-	add_child(dialog)
-	dialog.popup_centered()
+	FloatingWindow.popup_child_dialog(self, get_window(), dialog)
 
 
 ## 刪除(搬到備份)。回傳錯誤文字(空字串 = 成功)。
@@ -401,7 +402,7 @@ func _on_create_pressed() -> void:
 	dialog.title = tr("新建角色")
 	dialog.ok_button_text = tr("新建")
 	dialog.cancel_button_text = tr("取消")
-	dialog.always_on_top = true
+	# 不設 always_on_top,見 ask_delete() 的說明(跟置頂衝突,會把視窗卡死)。
 	dialog.theme = ManagerUi.make_theme()
 	var box := VBoxContainer.new()
 	var group := ButtonGroup.new()
@@ -444,7 +445,7 @@ func _on_create_pressed() -> void:
 	add_child(dialog)
 	validate.call(edit.text)
 	if is_inside_tree() and DisplayServer.get_name() != "headless":
-		dialog.popup_centered(Vector2i(480, 380))
+		FloatingWindow.popup_child_dialog(self, get_window(), dialog, Vector2i(480, 380))
 		edit.grab_focus()
 
 
@@ -493,7 +494,7 @@ func ask_export(folder: String, character_name: String) -> void:
 	dialog.title = "匯出 .pet"
 	dialog.ok_button_text = "選擇存檔位置…"
 	dialog.cancel_button_text = "取消"
-	dialog.always_on_top = true
+	# 不設 always_on_top,見 ask_delete() 的說明(跟置頂衝突,會把視窗卡死)。
 	dialog.theme = ManagerUi.make_theme()
 	var box := VBoxContainer.new()
 	var label := Label.new()
@@ -516,8 +517,7 @@ func ask_export(folder: String, character_name: String) -> void:
 				func(paths: PackedStringArray) -> void: export_character(folder, str(paths[0]), options), get_window_id(), PetPackage.suggested_name(folder)))
 	dialog.confirmed.connect(dialog.queue_free)
 	dialog.canceled.connect(dialog.queue_free)
-	add_child(dialog)
-	dialog.popup_centered()
+	FloatingWindow.popup_child_dialog(self, get_window(), dialog)
 
 
 ## 匯出成 .pet。桌面上有用這個角色生成的桌寵時,先把它目前的設定(與狀態)存起來,匯出的才是最新的。回傳錯誤文字(空字串 = 成功)。

@@ -54,7 +54,9 @@ static func ask_name(parent: Node, title_text: String, message: String, default_
 	dialog.title = title_text
 	dialog.ok_button_text = ok_text
 	dialog.cancel_button_text = "取消"
-	dialog.always_on_top = true
+	# 不設 always_on_top:這種視窗會被 Godot 設成呼叫端(可能置頂的)視窗的 transient 子視窗,跟置頂在
+	# Windows 原生視窗上互斥(godotengine/godot#117698,4.7.2 尚未修正),硬設會把視窗卡死到連工作列都找不到
+	# (2026-09-30 使用者實機回報)。身為 owned window,Windows 本來就會自動疊在呼叫端視窗上面,不需要自己也置頂。
 	dialog.theme = make_theme()
 	var box := VBoxContainer.new()
 	var label := Label.new()
@@ -81,7 +83,7 @@ static func ask_name(parent: Node, title_text: String, message: String, default_
 	parent.add_child(dialog)
 	validate.call(edit.text)
 	if parent.is_inside_tree() and DisplayServer.get_name() != "headless":
-		dialog.popup_centered(Vector2i(480, 220))
+		FloatingWindow.popup_child_dialog(parent, parent.get_window(), dialog, Vector2i(480, 220))
 		edit.grab_focus()
 		edit.select_all()
 	return dialog

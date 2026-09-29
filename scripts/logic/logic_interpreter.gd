@@ -431,6 +431,30 @@ func top_blocks() -> Array:
 	return _top_blocks
 
 
+## 把目前生效的所有積木(使用者自己匯入的 + 性格帶進來的閒聊/反應 + 交互行為規則帶進來的)整合成一份
+## load_data() 讀得回去的檔案格式,給「匯出積木檔」用。使用者可以把這份檔案帶去網頁積木編輯器,在
+## 「性格已經幫你組好的反應」這個基礎上繼續加東西,不用從性格文本從零重打一次(2026-09-30 使用者要求)。
+## _personality_blocks/_rule_blocks 本來就是跟使用者自己的積木同一套格式在跑(set_personality_layer()
+## 呼叫的是同一個 _register_hat()),直接接在陣列後面就是合法的頂層積木清單。
+func to_data() -> Dictionary:
+	return {
+		"fileType": FILE_TYPE,
+		"recognitionTag": str(_pet.recognition_tag),
+		"dialogueTranslations": _translations.duplicate(true),
+		"workspaceState": {"blocks": {"languageVersion": 0, "blocks": _top_blocks + _personality_blocks + _rule_blocks}},
+		"knownCharacters": _known_characters.values(),
+	}
+
+
+## 存成檔案(見 to_data())。回傳錯誤代碼,OK = 成功。
+func save_file(path: String) -> Error:
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		return FileAccess.get_open_error()
+	file.store_string(JSON.stringify(to_data(), "  "))
+	return OK
+
+
 ## 設定性格層:blocks = 性格帶進來的頂層事件積木(閒聊與反應),skip_own_chat / skip_own_reactions = 暫時停用使用者自己的同類事件。
 ## 只重新登記事件,不動使用者的積木檔內容。
 func set_personality_layer(blocks: Array, skip_own_chat: bool, skip_own_reactions: bool) -> void:

@@ -368,10 +368,82 @@ static func native_file_dialog(title_text: String, start_dir: String, dialog_mod
 		restore.call()
 		if status and not paths.is_empty():
 			on_picked.call(paths)
-	var result := DisplayServer.file_dialog_show(title_text, start_dir, default_name, false, dialog_mode, filters, callback, parent_id)
+	# 2026-09-30 使用者實機回報:從「桌寵管理」「角色庫」這類視窗匯出/匯入檔案,對話框開著時整個視窗
+	# 卡死不能動(程式其他部分正常)。系統匣選單觸發的「導出 Schema…」用的是同一個函式,parent_id 一直
+	# 是 0,沒有這個問題——懷疑是系統原生對話框指定 parent_id 給這個專案「自畫、無邊框」的浮動視窗時,
+	# 在某些環境下對話框沒有正常取得焦點或顯示位置,變成一個看不見、但仍然強制回應的原生視窗,體感就是
+	# 那個視窗卡死了。傳給 DisplayServer 的 parent_id 一律用 0(不指定特定視窗),呼叫端原本傳進來的
+	# parent_id 只留著給上面 restore() 的「對話框關閉後幫這個視窗搶回焦點」這個小功能用,不影響對話框
+	# 本體的顯示行為,兩者互不相干。
+	var result := DisplayServer.file_dialog_show(title_text, start_dir, default_name, false, dialog_mode, filters, callback, 0)
 	if result != OK:
 		restore.call()
 	return result
+
+
+## 2026-09-30 使用者實機驗證:確認視窗(ConfirmationDialog/AcceptDialog)一律不設 always_on_top(見各呼叫端
+## 的說明)還是不夠——host(這個對話框所屬的浮動視窗)自己如果是置頂的,Godot 的 popup_centered() 把對話框
+## 設成 host 的 transient 子視窗時一樣會撞上同一個 Windows 限制(godotengine/godot#117698,置頂跟 transient
+## 不能同時成立在同一個視窗上;這裡雖然踩到限制的是 host 那一邊,不是對話框自己,但一樣會把整個視窗卡死),
+## 使用者實測「全局設定關掉浮動視窗保持在最上層」後問題就消失,證實了這一點。
+## 2026-09-30 使用者又實機回報:光是彈出來還不夠,按「確認」把這個子視窗關掉的那一刻一樣會卡死——查證
+## #117698 的敘述本來就包含「關掉子視窗」這個方向,不是只有「打開」。所以不能一彈出來就馬上把 host 的
+## 置頂還原,要撐到子視窗真的隱藏/關閉的那一刻才還原,子視窗活著的整段期間 host 都不置頂。
+## 用 visibility_changed(不是 tree_exited)偵測關閉:有些呼叫端的對話框是「建一次、重複彈出」
+## (例如 ManagerWindow._confirm),取消時只是 hide() 不會 queue_free(),tree_exited 永遠不會觸發,
+## 那樣置頂狀態會被卡死在「放掉」,不會還原。
+## 子視窗一旦建好,身為 owned/transient window 本來就會自動疊在 top_window 上面(不需要 top_window 置頂),
+## 所以整段期間 host 不置頂不會有任何視覺影響。所有 ConfirmationDialog/AcceptDialog 都要透過這個函式顯示,
+## 不要自己呼叫 add_child() + popup_centered()。
+## parent = 對話框要掛在場景樹的哪個節點底下(大多數呼叫端傳 self 就好);top_window = 實際持有置頂旗標、
+## 對話框最終會變成它 transient 子視窗的那個原生視窗——FloatingWindow 子類別自己就是 Window,parent 跟
+## top_window 通常是同一個(self);DesktopShell 不是 Window(它操作的是 get_window()),parent 傳 self、
+## top_window 要另外傳 get_window()。
+static func popup_child_dialog(parent: Node, top_window: Window, dialog: Window, popup_size := Vector2i.ZERO) -> void:
+	if dialog.get_parent() == null:
+		parent.add_child(dialog)
+	_lower_until_hidden(top_window, dialog)
+	if popup_size == Vector2i.ZERO:
+		dialog.popup_centered()
+	else:
+		dialog.popup_centered(popup_size)
+
+
+## 跟 popup_child_dialog() 同一件事,給要用 popup_centered_clamped()(限制在螢幕範圍內)的呼叫端用。
+static func popup_child_dialog_clamped(parent: Node, top_window: Window, dialog: Window, popup_size: Vector2i, ratio: float) -> void:
+	if dialog.get_parent() == null:
+		parent.add_child(dialog)
+	_lower_until_hidden(top_window, dialog)
+	dialog.popup_centered_clamped(popup_size, ratio)
+
+
+## top_window 暫時放掉置頂,直到 dialog 隱藏(不管是使用者按確認/取消觸發引擎內建的 hide(),還是呼叫端
+## 自己 queue_free() 之前的 hide())才還原,見上面兩個函式的說明。visibility_changed 是主要的偵測點;
+## tree_exiting 當備援(以防萬一有節點被釋放時沒有先經過 hide()、不會觸發 visibility_changed 的情形),
+## 兩條路徑共用同一個 restore(),誰先觸發就照做、順便把另一條路徑的連線也解掉,不會重複還原。
+static func _lower_until_hidden(top_window: Window, dialog: Window) -> void:
+	var was_on_top := top_window.always_on_top
+	top_window.always_on_top = false
+	# GDScript 的 lambda 是在「建立當下」把用到的區域變數複製一份捕捉進去,不是引用;on_visibility/on_exiting
+	# 要等 restore() 定義完才賦值,restore() 裡直接捕捉這兩個變數的話會抓到定義當下還是 null 的舊值,
+	# 之後才觸發解除連結永遠找不到(2026-09-30 實機測出的真的 bug,不是理論上的)。改用 Array(參照型別)
+	# 包住兩個 handler,restore() 捕捉的是這個陣列的參照,之後才賦值的內容看得到。
+	var handlers: Array[Callable] = [Callable(), Callable()]
+	var restore := func() -> void:
+		if is_instance_valid(top_window):
+			top_window.always_on_top = was_on_top
+		if is_instance_valid(dialog):
+			if dialog.visibility_changed.is_connected(handlers[0]):
+				dialog.visibility_changed.disconnect(handlers[0])
+			if dialog.tree_exiting.is_connected(handlers[1]):
+				dialog.tree_exiting.disconnect(handlers[1])
+	handlers[0] = func() -> void:
+		if not dialog.visible:
+			restore.call()
+	handlers[1] = func() -> void:
+		restore.call()
+	dialog.visibility_changed.connect(handlers[0])
+	dialog.tree_exiting.connect(handlers[1])
 
 
 ## 使用者要關閉視窗時呼叫(系統叉叉或自畫的 ✕)。預設直接關,子類別可覆寫。

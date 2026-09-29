@@ -63,7 +63,7 @@ func _build() -> void:
 	tabs.add_child(_scrolled("反應台詞", _build_lines_tab("reactions", "反應台詞:遇到某件事(被摸、被拖曳、輸贏…)時說的話與做的動作;同一件事有好幾項就隨機挑一項。沒有寫的事件會用內建反應。")))
 	_build_floating_bar()
 	_confirm = ConfirmationDialog.new()
-	_confirm.always_on_top = true   # 不置頂的話會被置頂的浮動視窗壓在下面,而它是獨佔式的 → 視窗看起來整個凍結
+	# 不設 always_on_top,見 manager_ui.gd 的 ask_name() 說明(跟置頂衝突,會把視窗卡死)。
 	_confirm.title = "尚未儲存的變更"
 	_confirm.dialog_text = "這個性格有還沒儲存的變更,要儲存後關閉嗎?"
 	_confirm.ok_button_text = "儲存後關閉"
@@ -347,7 +347,7 @@ func _save_with_prompt(close_after: bool) -> void:
 		dialog.dialog_text = tr("已經有一個代號叫「%s」的自訂性格了,要用目前的內容覆蓋它嗎?") % PersonalityFile.clean_id(_id_edit.text)
 		dialog.ok_button_text = "覆蓋"
 		dialog.cancel_button_text = "取消"
-		dialog.always_on_top = true
+		# 不設 always_on_top,見 _ready() 裡 _confirm 的說明(跟置頂衝突,會把視窗卡死)。
 		dialog.theme = ManagerUi.make_theme()
 		dialog.confirmed.connect(func() -> void:
 			if save_now(true) == "" and close_after:
@@ -355,7 +355,7 @@ func _save_with_prompt(close_after: bool) -> void:
 		dialog.confirmed.connect(dialog.queue_free)
 		dialog.canceled.connect(dialog.queue_free)
 		add_child(dialog)
-		dialog.popup_centered(Vector2i(440, 160))
+		FloatingWindow.popup_child_dialog(self, get_window(), dialog, Vector2i(440, 160))
 		return
 	if result == "" and close_after:
 		queue_free()
@@ -366,7 +366,7 @@ func _request_close() -> void:
 	if not _dirty:
 		queue_free()
 		return
-	_confirm.popup_centered(Vector2i(460, 160))
+	FloatingWindow.popup_child_dialog(self, get_window(), _confirm, Vector2i(460, 160))
 
 
 func is_dirty() -> bool:

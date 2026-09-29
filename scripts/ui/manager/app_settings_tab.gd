@@ -198,14 +198,10 @@ func _build_performance() -> void:
 		message.emit("光源已開啟。" if on else "光源已關閉。"))
 	add_child(_lights_check)
 	_on_top_check = CheckBox.new()
-	_on_top_check.text = "浮動視窗保持在最上層(取消後可能被其他程式蓋住;蓋住時用系統匣的「浮動視窗重設」拉回來)"
+	_on_top_check.text = "浮動視窗保持在最上層(此版本暫時停用:跟系統對話框衝突會讓視窗卡死或消失,見下方說明)"
 	_on_top_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_on_top_check.toggled.connect(func(on: bool) -> void:
-		if _updating:
-			return
-		AppSettings.set_floating_on_top(on)
-		get_tree().call_group("floating_windows", "refresh_on_top")
-		message.emit("浮動視窗會保持在最上層。" if on else "浮動視窗不再保持最上層。"))
+	_on_top_check.disabled = true
+	_on_top_check.tooltip_text = "已知的 Godot 引擎限制,置頂視窗跟彈出的對話框(確認/取消之類)衝突時會卡死或讓視窗憑空消失。這個版本先強制關閉,浮動視窗被其他程式蓋住時改用系統匣的「浮動視窗重設」拉回來。"
 	add_child(_on_top_check)
 
 

@@ -65,7 +65,10 @@ const FLY_FAILED_SPOT_RADIUS := 60.0
 const CUTOUT_LEAD_TIME := 0.1
 ## 預留距離上限(像素),以及穿透形狀四周固定多留的邊(貼圖抗鋸齒/次像素位置造成的 1~2 像素也不會被裁)。
 const CUTOUT_LEAD_MAX := 200.0
-const CUTOUT_SAFETY_MARGIN := 6.0
+## 2026-09-30 使用者實機回報:移動時偶爾還是看得到穿透形狀裁到貼圖邊緣的痕跡。這個值本來就是刻意留的
+## 緩衝(動畫每一幀輪廓大小的微小變化、次像素定位),從 6px 加大到 10px 給多一點餘裕;純粹是形狀外擴,
+## 不影響判定框大小,風險很低。
+const CUTOUT_SAFETY_MARGIN := 10.0
 const CUTOUT_SNAP := 8.0
 ## 入場保護期間把可點擊形狀放大這麼多像素,涵蓋掉落過程,避免身體被裁掉。
 const ENTRANCE_CUTOUT_GROW := 60.0
@@ -222,6 +225,16 @@ var _rise_anim_left := 0.0
 var _follow_tag := ""
 var _follow_started := 0
 var _follow_jump_cooldown := 0.0
+## 這次跟隨最長維持幾秒(見 start_follow/_tick_pet_follow_lifecycle);不管誰發起的都不會超過 FOLLOW_MAX_SECONDS。
+var _follow_duration_cap := 0.0
+## 連續多久碰不到跟隨對象(超過 FOLLOW_STUCK_SECONDS 就放棄這次跟隨)。
+var _follow_stuck_left := 0.0
+## 跟隨對象上一次檢查是不是在休息中(邊緣觸發用,只在「從沒在休息變成在休息」那一刻做一次加入/離開的決定)。
+var _follow_leader_resting := false
+## 跟隨對象上一次檢查是不是在跟著滑鼠走(邊緣觸發用):跟隨對象自己跟滑鼠走的時候,整條路隊會很自然地
+## 跟著一起移動(既有的跟隨移動邏輯本來就是持續追蹤對象目前的位置,不用另外處理);等對象跟完滑鼠、
+## 從「跟著滑鼠」變回「沒在跟滑鼠」的那一刻,算這趟「順道去見使用者」的行程結束,整條路隊直接解散。
+var _follow_leader_seeking_mouse := false
 var _seek_left := 0.0
 ## 拖曳中吸引:被吸引的目標座標(桌寵本地座標)與剩餘有效時間(持續呼叫 set_attract_goal 才會維持,0.3 秒沒更新就解除)。
 var attractable := true
@@ -458,7 +471,7 @@ func uptime_hours() -> float:
 ## 疲勞消耗倍率:在場越久越累,最多加快 UPTIME_CAP_HOURS × UPTIME_FATIGUE_PER_HOUR(= 32%)。
 func uptime_factor() -> float:
 	return 1.0 + minf(uptime_hours(), UPTIME_CAP_HOURS) * UPTIME_FATIGUE_PER_HOUR
-const GAME_KIND_NAMES := {"rps": "猜拳", "dice": "拚骰"}
+const GAME_KIND_NAMES := {"rps": "猜拳", "dice": "拚骰", "ttt": "井字棋"}
 
 
 ## 記一筆戰績(GameChat.react 在每場結束時呼叫)。kind = rps / dice,outcome = win / lose / tie。
@@ -504,7 +517,7 @@ func game_stat_text(kind: String, field: String) -> String:
 
 
 func show_game_record() -> void:
-	GameChat.say(self, tr("[b]我的戰績[/b]\n%s\n%s") % [game_record_line("rps"), game_record_line("dice")], 6.0)
+	GameChat.say(self, tr("[b]我的戰績[/b]\n%s\n%s\n%s") % [game_record_line("rps"), game_record_line("dice"), game_record_line("ttt")], 6.0)
 
 
 func clear_game_record() -> void:
@@ -541,6 +554,8 @@ func _tick_auto_game(delta: float) -> void:
 	if _auto_game_left > 0.0:
 		return
 	if not lens_blocks("game") and _can_auto_chat() and GameInvite.start_random(self):
+		if is_following():   # 自己主動找對戰算「想去做別的事情」,先離開路隊(見 _tick_pet_follow_lifecycle 的說明)。
+			stop_follow()
 		_shell_state.note_auto_chat_started()
 		_auto_game_left = _roll_auto_game_wait()
 	else:
@@ -668,6 +683,14 @@ func start_rps_with(other: Node, best_of := 0) -> void:
 	await RpsGame.play_pets(self, other, best_of if BEST_OF_CHOICES.has(best_of) else game_best_of)
 
 
+func start_ttt_with_user() -> void:
+	TttGame.play_user(self, game_best_of)
+
+
+func start_ttt_with(other: Node, best_of := 0) -> void:
+	await TttGame.play_pets(self, other, best_of if BEST_OF_CHOICES.has(best_of) else game_best_of)
+
+
 ## 桌寵自己發起對戰時自己決定的賽制(不看右鍵選單的「賽制」,那是使用者叫的遊戲用的);依權重隨機,權重可以調(之後性格預設會改它)。
 var invite_best_of_weights := {1: 0.5, 3: 0.35, 5: 0.15}
 
@@ -741,6 +764,19 @@ func _add_game_menus(root: RID) -> void:
 	NativeMenu.add_submenu_item(rps_menu, tr("跟其他桌寵猜拳"), rps_pets_menu)
 	_add_match_items(rps_menu)
 	NativeMenu.add_submenu_item(root, tr("猜拳"), rps_menu)
+	var ttt_menu := NativeMenu.create_menu()
+	_context_rids.append(ttt_menu)
+	NativeMenu.add_item(ttt_menu, tr("跟我玩井字棋"), _on_context_item, Callable(), "ttt_user")
+	var ttt_pets_menu := NativeMenu.create_menu()
+	_context_rids.append(ttt_pets_menu)
+	if others.is_empty():
+		NativeMenu.set_item_disabled(ttt_pets_menu, NativeMenu.add_item(ttt_pets_menu, tr("(場上沒有其他桌寵)")), true)
+	else:
+		for other: Node in others:
+			NativeMenu.add_item(ttt_pets_menu, other.get_label(), _on_context_item, Callable(), "ttt_pet:%d" % other.spawn_serial)
+	NativeMenu.add_submenu_item(ttt_menu, tr("跟其他桌寵井字棋"), ttt_pets_menu)
+	_add_match_items(ttt_menu)
+	NativeMenu.add_submenu_item(root, tr("井字棋"), ttt_menu)
 
 
 ## 遊戲選單共用的尾巴:賽制(一戰/三戰兩勝/五戰三勝,猜拳與拚骰共用)、查看戰績、清除戰績。
@@ -806,6 +842,13 @@ func _on_game_menu_item(text: String) -> bool:
 			var rival := _pet_by_serial(int(argument))
 			if rival != null and not is_in_game():
 				GameInvite.invite(self, rival, "rps")
+		"ttt_user":
+			if not is_in_game() and not TttGame.has_active_board():
+				start_ttt_with_user()
+		"ttt_pet":
+			var ttt_rival := _pet_by_serial(int(argument))
+			if ttt_rival != null and not is_in_game() and not TttGame.has_active_board():
+				GameInvite.invite(self, ttt_rival, "ttt")
 		_:
 			return false
 	return true
@@ -1163,10 +1206,25 @@ func _ask_wake_up() -> void:
 		vitality.resume_sleep()   # 問話的過程中被吵醒了,選了讓牠繼續睡就躺回去
 
 
+## 正在睡覺/休息(站著發呆、坐下、睡著)或在玩球時被摸摸:不該切去播 interact 打斷手上的事
+## (2026-09-30 使用者實機回報,玩球時摸摸會讓桌寵放棄玩球、睡著/坐下休息時摸摸會讓桌寵站起來)。
+## 這幾種情況下只在有「被觸摸」的專屬台詞(積木事件或性格反應)時才用 logic.fire_event() 觸發那段台詞
+## (只發事件、不真的切動作,睡覺/休息/玩球的動畫照常播),完全沒有台詞就整次摸摸當作沒發生,連摸摸的
+## 特效跟心情加成都不觸發。
+func _is_petting_protected() -> bool:
+	return is_sleeping() or is_resting_now() or (ball_play != null and ball_play.active())
+
+
 ## 摸摸是「短期突發」的互動:桌寵停下來播 interact,一直摸就一直播,停手後再持續 PETTING_TAIL 秒才恢復。
 ## 刻意不呼叫 _interrupt():不中止進行中的積木鏈、不動任何長期狀態(run 開關、狀態鏡、跟隨…),
 ## 停手後桌寵回到原本的行為(照 run 開著就跑、狀態鏡的動作前綴與數值覆蓋原封不動)。只解除積木指定動作的佔用,好讓 interact 顯示出來。
 func _on_petted() -> void:
+	if _is_petting_protected():
+		if logic != null and logic.has_action_hat(&"interact"):
+			logic.fire_event(&"interact")
+			if vitality != null:
+				vitality.on_petted()
+		return
 	effects.play_interaction("pet")
 	_last_user_msec = Time.get_ticks_msec()
 	release_hold()
@@ -1682,7 +1740,35 @@ func _tick_blink(delta: float) -> void:
 		_apply_overlay()
 
 
+## 進入固定/靜止模式前,使用者自己設定的「不會被其他桌寵跟隨」「不跟隨其他桌寵」「不主動使用家具」
+## (見 InteractionRules 開頭的說明);離開固定/靜止模式時換回來。固定⇄靜止互相切換(兩種都算「受限」)
+## 不會重新蓋掉這份備份,只在真正離開受限模式時才清掉、換回去。
+var _move_mode_forced_backup: Dictionary = {}
+
+
+func _apply_move_mode_interaction_defaults(new_mode: MoveMode) -> void:
+	var was_restricted := move_mode == MoveMode.FIXED or move_mode == MoveMode.STATIONARY
+	var will_be_restricted := new_mode == MoveMode.FIXED or new_mode == MoveMode.STATIONARY
+	if not was_restricted and not will_be_restricted:
+		return
+	var rules := interaction_rules.duplicate(true)
+	if will_be_restricted:
+		if not was_restricted:
+			_move_mode_forced_backup = {"no_follow_target": bool(rules.get("no_follow_target", false)),
+				"no_follow_source": bool(rules.get("no_follow_source", false)), "ignore_furniture": bool(rules.get("ignore_furniture", false))}
+		rules["no_follow_target"] = true
+		rules["no_follow_source"] = true
+		rules["ignore_furniture"] = new_mode == MoveMode.FIXED or bool(_move_mode_forced_backup.get("ignore_furniture", false))
+	elif not _move_mode_forced_backup.is_empty():
+		rules["no_follow_target"] = bool(_move_mode_forced_backup.get("no_follow_target", false))
+		rules["no_follow_source"] = bool(_move_mode_forced_backup.get("no_follow_source", false))
+		rules["ignore_furniture"] = bool(_move_mode_forced_backup.get("ignore_furniture", false))
+		_move_mode_forced_backup = {}
+	set_interaction_rules(rules)
+
+
 func set_move_mode(mode: MoveMode) -> void:
+	_apply_move_mode_interaction_defaults(mode)
 	_exit_climb(false, false)
 	move_mode = mode
 	_hybrid_airborne = false
@@ -2022,6 +2108,8 @@ func end_drag(throw_velocity: Vector2) -> void:
 
 ## 開始跟隨辨識代號為 tag 的桌寵。找不到目標,或會形成循環跟隨(A 跟 B、B 又跟 A,或更長的環)
 ## 時拒絕並回傳 false。跟隨對固定與靜止模式不生效。
+## 不管這次跟隨是誰叫的(積木、選單、還是自己自主決定),一條路隊最長都是 FOLLOW_MAX_SECONDS(見
+## _tick_pet_follow_lifecycle);自主決定跟隨時另外會把這個上限縮短成性格抽到的秒數。
 func start_follow(tag: String) -> bool:
 	var target := _find_pet_by_tag(tag)
 	if target == null or target == self:
@@ -2037,6 +2125,10 @@ func start_follow(tag: String) -> bool:
 		current = _find_pet_by_tag(current._follow_tag, false) if current._follow_tag != "" else null
 	_follow_tag = tag
 	_follow_started = Time.get_ticks_usec()
+	_follow_duration_cap = FOLLOW_MAX_SECONDS
+	_follow_stuck_left = 0.0
+	_follow_leader_resting = false
+	_follow_leader_seeking_mouse = false
 	interaction.follow_count += 1
 	return true
 
@@ -2070,9 +2162,12 @@ func can_follow_mouse() -> bool:
 
 
 ## 開始跟著滑鼠 seconds 秒(不給就用 follow_me_seconds)。不能動的模式回傳 false。
+## 跟著別隻桌寵走的路隊到這裡算「想去做別的事情」,先自己離開跟隨(見 _tick_pet_follow_lifecycle 的說明)。
 func follow_mouse(seconds := -1.0) -> bool:
 	if not can_follow_mouse():
 		return false
+	if is_following():
+		stop_follow()
 	seek_mouse(seconds if seconds > 0.0 else follow_me_seconds, false)
 	effects.play_interaction("follow")
 	return true
@@ -2100,6 +2195,131 @@ func _tick_auto_mouse_follow(delta: float) -> void:
 		return
 	if randf() < mouse_follow_chance:
 		follow_mouse(randf_range(minf(mouse_follow_duration.x, mouse_follow_duration.y), maxf(mouse_follow_duration.x, mouse_follow_duration.y)))
+
+
+# --- 路隊:自己選擇跟著別隻桌寵走(見 start_follow/_movement_goal 既有的跟隨移動與排隊間距) ---
+
+## 自己選擇跟著別隻桌寵走:每 20~45 秒抽一次,機率 pet_follow_chance(黏人最高,內向、懶惰偏低;0 = 不會)。
+var auto_pet_follow_enabled := true
+var pet_follow_chance := 0.0
+var pet_follow_duration := Vector2(60.0, 180.0)
+var _auto_pet_follow_left := -1.0
+const AUTO_PET_FOLLOW_CHECK := Vector2(20.0, 45.0)
+## 一條路隊(不管是自己選的還是積木/選單叫的)最長維持這麼久,到了自動解散,見 start_follow。
+const FOLLOW_MAX_SECONDS := 480.0
+## 跟隨中連續這麼久、距離都超過這個範圍碰不到跟隨對象,就放棄這次跟隨。
+const FOLLOW_STUCK_SECONDS := 20.0
+const FOLLOW_STUCK_DISTANCE := 260.0
+
+
+## 依性格偶爾自己決定跟著場上另一隻桌寵走:已經在跟(不管誰叫的)、跟著滑鼠、睡著、忙著、心情差時不會抽。
+## 挑離自己最近、跟了不會形成循環的桌寵;跟隨秒數在 pet_follow_duration 範圍內隨機,但不會超過 FOLLOW_MAX_SECONDS。
+func _tick_auto_pet_follow(delta: float) -> void:
+	if not auto_pet_follow_enabled or pet_follow_chance <= 0.0 or is_following() or _seek_left > 0.0:
+		return
+	if _auto_pet_follow_left < 0.0:
+		_auto_pet_follow_left = randf_range(AUTO_PET_FOLLOW_CHECK.x, AUTO_PET_FOLLOW_CHECK.y)
+	_auto_pet_follow_left -= delta
+	if _auto_pet_follow_left > 0.0:
+		return
+	_auto_pet_follow_left = randf_range(AUTO_PET_FOLLOW_CHECK.x, AUTO_PET_FOLLOW_CHECK.y)
+	if move_mode == MoveMode.FIXED or move_mode == MoveMode.STATIONARY or is_sleeping() or is_resting_now() \
+			or has_negative_lens() or is_busy_for_game() or dragging or entering or bool(interaction_rules.get("no_follow_source", false)):
+		return
+	if randf() >= pet_follow_chance:
+		return
+	var candidate := _nearest_followable_pet()
+	if candidate == null:
+		return
+	if start_follow(candidate.recognition_tag):
+		_follow_duration_cap = minf(randf_range(minf(pet_follow_duration.x, pet_follow_duration.y), maxf(pet_follow_duration.x, pet_follow_duration.y)), FOLLOW_MAX_SECONDS)
+
+
+## 場上離自己最近、可以跟隨的桌寵(排除自己、正在入場/被收起的、設了「不會被其他桌寵跟隨」的、跟了會形成循環的);找不到回 null。
+func _nearest_followable_pet() -> Node:
+	var best: Node = null
+	var best_distance := INF
+	for other: Node in get_tree().get_nodes_in_group("pets"):
+		if other == self or not is_instance_valid(other) or other.is_queued_for_deletion() or other.entering \
+				or bool(other.interaction_rules.get("no_follow_target", false)):
+			continue
+		var distance := global_position.distance_to(other.global_position)
+		if distance < best_distance:
+			best_distance = distance
+			best = other
+	return best
+
+
+## 路隊的生命週期,對這次跟隨是自己選的還是積木/選單叫的都一體適用:到了時間上限、太久碰不到人、
+## 跟隨對象被收起來(找不到了)就自動解散;跟隨對象去休息/睡覺時考慮要不要一起休息,去使用家具時考慮
+## 要不要一起用(都用/都不用,這次跟隨到此結束),去玩球時考慮要不要一起加入(一起玩就不用再跟著走了);
+## 跟隨對象在跟別人一對一拚骰/猜拳時不影響跟隨判定(反正跟隨者本來就不能參與),什麼都不做。
+func _tick_pet_follow_lifecycle(delta: float) -> void:
+	if not is_following():
+		_follow_stuck_left = 0.0
+		_follow_leader_resting = false
+		_follow_leader_seeking_mouse = false
+		return
+	var target := _find_pet_by_tag(_follow_tag)
+	if target == null or not is_instance_valid(target) or target.is_queued_for_deletion():
+		stop_follow()
+		return
+	if (Time.get_ticks_usec() - _follow_started) / 1000000.0 >= _follow_duration_cap:
+		stop_follow()
+		return
+	if global_position.distance_to(target.global_position) > FOLLOW_STUCK_DISTANCE:
+		_follow_stuck_left += delta
+		if _follow_stuck_left >= FOLLOW_STUCK_SECONDS:
+			stop_follow()
+			return
+	else:
+		_follow_stuck_left = 0.0
+	if target.is_in_game():
+		return
+	if target.is_following_mouse():
+		_follow_leader_seeking_mouse = true
+		return
+	if _follow_leader_seeking_mouse:
+		# 跟隨對象剛結束跟滑鼠走(前一刻還在跟、這一刻不跟了):這趟「順道去見使用者」的行程結束,路隊直接解散,
+		# 不用再判斷要不要加入或離開別的活動(既有的跟隨移動邏輯這段期間本來就會自然跟著對象一起移動到滑鼠旁邊)。
+		_follow_leader_seeking_mouse = false
+		stop_follow()
+		return
+	var target_resting: bool = target.is_resting_now()
+	if target_resting and not _follow_leader_resting:
+		_follow_leader_resting = true
+		_react_to_leader_resting()
+		return
+	if not target_resting:
+		_follow_leader_resting = false
+	if target.is_using_furniture() and not is_using_furniture():
+		_react_to_leader_furniture(target)
+		return
+	if target.ball_play != null and target.ball_play.active() and (ball_play == null or not ball_play.active()):
+		_react_to_leader_ball_play(target)
+
+
+## 跟隨對象開始休息/睡覺:依社交意願決定要不要也跟著休息(維持跟隨關係,對方醒了再一起走),不然就離開跟隨。
+func _react_to_leader_resting() -> void:
+	if vitality == null or is_resting_now() or is_busy_for_game() or not is_ground_mode() \
+			or randf() >= clampf(sociability, 0.0, 1.0) or not vitality.force_rest():
+		stop_follow()
+
+
+## 跟隨對象開始使用家具:跟著用同一件(用同一種錨點類型);滿座用不了就離開跟隨。不管用不用得了這次跟隨都結束——
+## 用得了的話家具的移動優先權比跟隨高(見 _movement_goal),用完自然會接回去繼續跟,不用特地保留 _follow_tag。
+func _react_to_leader_furniture(target: Node) -> void:
+	var item: FurnitureItem = target.furniture_target()
+	if item == null or not use_furniture(item, target.furniture_anchor_kind()):
+		stop_follow()
+
+
+## 跟隨對象開始玩球:借用既有的「別隻桌寵邀請一起玩」流程決定要不要加入(有興趣就加入,沒興趣就婉拒,
+## 都會照常發對話);不管結果如何都結束這次跟隨(加入的話要自己去追球,不能再原地跟著對方走)。
+func _react_to_leader_ball_play(target: Node) -> void:
+	if ball_play != null and is_instance_valid(target.ball_play.ball):
+		ball_play.receive_invite(target.ball_play.ball)
+	stop_follow()
 
 
 ## 限時朝(或遠離)滑鼠位置移動 seconds 秒,時間到就把移動決策交還給下一層(跟隨或原本的自主邏輯)。
@@ -2181,6 +2401,11 @@ func is_using_furniture() -> bool:
 ## 目前正在使用的家具(已經走到定位坐/躺著才算,走去的路上回傳 null),給「共用家具」這類積木條件判斷用。
 func furniture_target() -> FurnitureItem:
 	return _furniture_target if _furniture_seated and is_instance_valid(_furniture_target) else null
+
+
+## 目前正在使用的錨點類型("sit"/"lay"),沒在用回傳空字串;給路隊「跟著一起用同一件家具」判斷用同一種錨點。
+func furniture_anchor_kind() -> String:
+	return _furniture_target.anchor_type(_furniture_anchor) if _furniture_seated and is_instance_valid(_furniture_target) else ""
 
 
 ## 延長使用家具的時間(積木「延長使用家具的時間」用):seconds 加到剩餘時間上(第一次呼叫時,原本無限時的使用會從現在開始倒數)。
@@ -2357,7 +2582,8 @@ func _secondary_goal() -> Variant:
 
 
 func _liked_prop_goal() -> Variant:
-	if (interaction_rules["prefs"] as Array).is_empty() or move_mode == MoveMode.FIXED or move_mode == MoveMode.STATIONARY or is_sleeping() or has_negative_lens():
+	# is_busy_for_game():對戰中(井字棋等)的桌寵不會自己跑去撿喜歡的道具,見 TttGame 的說明。
+	if (interaction_rules["prefs"] as Array).is_empty() or move_mode == MoveMode.FIXED or move_mode == MoveMode.STATIONARY or is_sleeping() or has_negative_lens() or is_busy_for_game():
 		return null
 	_liked_scan_left -= get_physics_process_delta_time()
 	if _liked_scan_left <= 0.0:
@@ -2397,7 +2623,8 @@ var _container_cooldown_until_msec := 0
 
 func _container_goal() -> Variant:
 	# 「整體交互開關」的 ignore_furniture 只擋「自己決定要不要去用」;使用者手動拖曳去用、或積木明確指定使用不受影響。
-	if bool(interaction_rules.get("ignore_furniture", false)):
+	# is_busy_for_game():對戰中(井字棋等)的桌寵不會自己跑去拿容器家具的道具,見 TttGame 的說明。
+	if bool(interaction_rules.get("ignore_furniture", false)) or is_busy_for_game():
 		return null
 	if (interaction_rules["prefs"] as Array).is_empty() or move_mode == MoveMode.FIXED or move_mode == MoveMode.STATIONARY or is_sleeping() or has_negative_lens():
 		return null
@@ -2930,12 +3157,24 @@ func _play_locomotion(action: StringName) -> void:
 		play_action(action)
 
 
+## _measured_velocity 平滑用的每秒收斂率(在 MEASURED_VELOCITY_REF_HZ 那個影格率下,相當於原本每個
+## physics tick 用 0.6 的 lerp 權重)。2026-09-30 把 physics_ticks_per_second 從 60 降到 30(省 CPU)
+## 之後,如果權重還是寫死 0.6,tick 變少但每個 tick 間隔變長,同樣秒數內收斂的圈數變少、追速度突然變化
+## (剛被丟出去那一瞬間)會比原本更慢一拍,反而讓「移動時貼圖邊緣被穿透形狀裁到」這個使用者剛回報的
+## 問題更明顯。改用跟影格時間無關的公式(指數收斂),不管 physics tick 開多快,同樣的真實時間內收斂
+## 的程度都一樣,在原本 60Hz 下算出來的權重跟舊寫法完全相同,純粹是把「跟 tick rate 綁在一起」這件事
+## 修掉,不是改變原本調好的平滑手感。
+const MEASURED_VELOCITY_REF_HZ := 60.0
+const MEASURED_VELOCITY_REF_WEIGHT := 0.6
+
+
 func _physics_process(delta: float) -> void:
 	if _action_area == null:
 		return
 	# 實際位移速度(給穿透形狀預留用,見 get_cutout_polygons);用平滑值避免單影格的跳動讓形狀忽大忽小。
 	if delta > 0.0:
-		_measured_velocity = _measured_velocity.lerp((global_position - _last_global_position) / delta, 0.6)
+		var weight := 1.0 - pow(1.0 - MEASURED_VELOCITY_REF_WEIGHT, delta * MEASURED_VELOCITY_REF_HZ)
+		_measured_velocity = _measured_velocity.lerp((global_position - _last_global_position) / delta, weight)
 	_last_global_position = global_position
 	if not _active_lenses.is_empty():
 		_tick_lenses()
@@ -2958,6 +3197,8 @@ func _physics_process(delta: float) -> void:
 	_tick_drop_through(delta)
 	_tick_prop_action(delta)
 	_tick_auto_mouse_follow(delta)
+	_tick_auto_pet_follow(delta)
+	_tick_pet_follow_lifecycle(delta)
 	_tick_furniture_seek()
 	_tick_container_seek(delta)
 	if _attract_left > 0.0:

@@ -91,12 +91,15 @@ func _build() -> void:
 		tab.changed.connect(_mark_dirty)
 		tab.message.connect(_show_message)
 	# 交互行為分頁的「基本反應對話」讀的是性格分頁的資料:切過去性格分頁改了東西、再切回來,重新載入才看得到最新內容。
-	tabs.tab_changed.connect(func(_i: int) -> void: _interaction_tab._reload())
+	# 記憶分頁也放了一份性格檔匯入按鈕(2026-09-30 使用者要求),同樣道理:切回性格分頁要重新整理下拉選單才看得到新匯入的項目。
+	tabs.tab_changed.connect(func(_i: int) -> void:
+		_interaction_tab._reload()
+		_personality_tab._reload_options())
 
 	_build_floating_bar()
 
 	_confirm = ConfirmationDialog.new()
-	_confirm.always_on_top = true   # 不置頂的話會被置頂的浮動視窗壓在下面,而它是獨佔式的 → 視窗看起來整個凍結
+	# 不設 always_on_top,見 manager_ui.gd 的 ask_name() 說明(跟置頂衝突,會把視窗卡死)。
 	_confirm.title = "尚未儲存的變更"
 	_confirm.dialog_text = "檢測到尚未儲存的變更,是否儲存後離開?"
 	_confirm.ok_button_text = "儲存後離開"
@@ -206,7 +209,7 @@ func _request_save(after := Callable()) -> void:
 	if is_instance_valid(_apply_guard):
 		return
 	_apply_guard = ConfirmationDialog.new()
-	_apply_guard.always_on_top = true   # 不置頂的話會被置頂的浮動視窗壓在下面,而它是獨佔式的 → 視窗看起來整個凍結
+	# 不設 always_on_top,見 manager_ui.gd 的 ask_name() 說明(跟置頂衝突,會把視窗卡死)。
 	_apply_guard.title = "性格還沒套用"
 	_apply_guard.dialog_text = "「性格」分頁選了性格,但還沒按「套用」,存下去桌寵不會有變化。\n要先套用再儲存嗎?"
 	_apply_guard.ok_button_text = "套用並儲存"
@@ -229,7 +232,7 @@ func _request_save(after := Callable()) -> void:
 	_apply_guard.canceled.connect(_apply_guard.queue_free)
 	add_child(_apply_guard)
 	if is_inside_tree() and DisplayServer.get_name() != "headless":
-		_apply_guard.popup_centered()
+		FloatingWindow.popup_child_dialog(self, get_window(), _apply_guard)
 
 
 func _save() -> void:
@@ -248,7 +251,7 @@ func _request_close() -> void:
 	if not _dirty:
 		queue_free()
 		return
-	_confirm.popup_centered()
+	FloatingWindow.popup_child_dialog(self, get_window(), _confirm)
 
 
 ## 不儲存離開:把每隻桌寵與全域數值還原成上次快照,再關閉。

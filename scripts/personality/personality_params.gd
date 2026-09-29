@@ -38,6 +38,8 @@ const SPECS := {
 	"mouse_follow_chance": {"kind": "float", "min": 0.0, "max": 1.0, "default": 0.08, "label": "自己跟著滑鼠的意願(每 20~45 秒抽一次的機率,0 = 不會;黏人的最高)"},
 	"mouse_follow_duration": {"kind": "range", "min": 3.0, "max": 600.0, "default": Vector2(15.0, 45.0), "label": "自己跟著滑鼠的時間(秒)"},
 	"follow_me_seconds": {"kind": "float", "min": 5.0, "max": 3600.0, "default": 60.0, "label": "選單「跟著我」跟多久(秒)"},
+	"pet_follow_chance": {"kind": "float", "min": 0.0, "max": 1.0, "default": 0.0, "label": "自己跟著別隻桌寵走的意願(每 20~45 秒抽一次的機率,0 = 不會;黏人最高、內向懶惰偏低)"},
+	"pet_follow_duration": {"kind": "range", "min": 3.0, "max": 480.0, "default": Vector2(60.0, 180.0), "label": "自己跟著別隻桌寵走的時間(秒;不管這裡設多少,一條路隊最長都是 8 分鐘)"},
 	# --- 奔跑判定(見 PetVitality):要有名叫「奔跑」的狀態鏡,跑多久、要不要延續在那個狀態鏡裡調 ---
 	"run_chance": {"kind": "float", "min": 0.0, "max": 1.0, "default": 0.0, "label": "自己跑一下的意願(符合條件時每秒起跑的機率,0 = 不會;條件 = 開心或剛贏了遊戲)"},
 	"run_any_mood": {"kind": "bool", "default": false, "label": "不管心情都可能自己跑(活潑的性格)"},
@@ -177,6 +179,10 @@ static func get_value(pet: Node, key: String) -> Variant:
 			return pet.mouse_follow_duration
 		"follow_me_seconds":
 			return pet.follow_me_seconds
+		"pet_follow_chance":
+			return pet.pet_follow_chance
+		"pet_follow_duration":
+			return pet.pet_follow_duration
 		"ball_play_chance":
 			return pet.ball_play_chance
 		"mood_sad_threshold":
@@ -277,6 +283,10 @@ static func set_value(pet: Node, key: String, value: Variant) -> void:
 			pet.mouse_follow_duration = value
 		"follow_me_seconds":
 			pet.follow_me_seconds = value
+		"pet_follow_chance":
+			pet.pet_follow_chance = value
+		"pet_follow_duration":
+			pet.pet_follow_duration = value
 		"ball_play_chance":
 			pet.ball_play_chance = value
 		"mood_sad_threshold":

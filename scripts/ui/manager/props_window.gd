@@ -363,7 +363,7 @@ func _on_delete_pressed() -> void:
 	dialog.dialog_text = tr("要刪除「%s」嗎?\n它的資料夾會搬到備份資料夾,不會直接消失。") % _current.display_name
 	dialog.ok_button_text = "刪除"
 	dialog.cancel_button_text = "取消"
-	dialog.always_on_top = true
+	# 不設 always_on_top,見 manager_ui.gd 的 ask_name() 說明(跟置頂衝突,會把視窗卡死)。
 	dialog.theme = ManagerUi.make_theme()
 	dialog.confirmed.connect(func() -> void:
 		delete_current()
@@ -371,7 +371,7 @@ func _on_delete_pressed() -> void:
 	dialog.canceled.connect(dialog.queue_free)
 	add_child(dialog)
 	if DisplayServer.get_name() != "headless":
-		dialog.popup_centered()
+		FloatingWindow.popup_child_dialog(self, get_window(), dialog)
 
 
 func delete_current() -> void:

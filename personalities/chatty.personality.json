@@ -717,6 +717,7 @@
         6.5
       ],
       "idle_hop_chance": 0.15,
+      "idle_sit_chance": 0.4,
       "joy_proneness": 1.0,
       "jump_variance": 0.15,
       "jump_velocity": 530.0,
@@ -728,6 +729,11 @@
         40.0
       ],
       "nervous_proneness": 0.1,
+      "pet_follow_chance": 0.12,
+      "pet_follow_duration": [
+        45.0,
+        120.0
+      ],
       "relax_share": 0.2,
       "rest_duration": [
         10.0,

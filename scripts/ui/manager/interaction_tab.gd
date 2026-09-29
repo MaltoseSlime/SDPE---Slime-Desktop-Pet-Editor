@@ -29,6 +29,8 @@ var _pref_list: VBoxContainer
 var _nickname_line: LineEdit
 var _ignore_props_check: CheckBox
 var _ignore_furniture_check: CheckBox
+var _no_follow_target_check: CheckBox
+var _no_follow_source_check: CheckBox
 var _reaction_list: VBoxContainer
 var _reaction_boxes: Dictionary = {}   # reactions 陣列索引 → TextEdit
 var _characters: Array[Dictionary] = []
@@ -142,6 +144,22 @@ func _build_toggle_card() -> void:
 	_ignore_furniture_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_ignore_furniture_check.toggled.connect(func(_pressed: bool) -> void: _commit_toggles())
 	box.add_child(_ignore_furniture_check)
+	_no_follow_target_check = CheckBox.new()
+	_no_follow_target_check.text = "不會被其他桌寵跟隨(別隻桌寵自己決定要跟著誰走時不會選到這隻)"
+	_no_follow_target_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_no_follow_target_check.toggled.connect(func(_pressed: bool) -> void: _commit_toggles())
+	box.add_child(_no_follow_target_check)
+	_no_follow_source_check = CheckBox.new()
+	_no_follow_source_check.text = "不跟隨其他桌寵(自己不會主動決定跟著誰走)"
+	_no_follow_source_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_no_follow_source_check.toggled.connect(func(_pressed: bool) -> void: _commit_toggles())
+	box.add_child(_no_follow_source_check)
+	var follow_note := Label.new()
+	follow_note.text = "固定模式底下這兩個「不跟隨」開關與「不主動使用家具」都會自動打開,靜止模式只自動打開這兩個「不跟隨」開關(拖去用家具還是會用);切回其他模式後會換回你在這裡自己設定的值。"
+	follow_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	follow_note.custom_minimum_size.x = CARD_WIDTH
+	follow_note.theme_type_variation = AppSettings.MUTED_LABEL
+	box.add_child(follow_note)
 
 
 func _commit_toggles() -> void:
@@ -150,6 +168,8 @@ func _commit_toggles() -> void:
 	var rules := _rules()
 	rules["ignore_props"] = _ignore_props_check.button_pressed
 	rules["ignore_furniture"] = _ignore_furniture_check.button_pressed
+	rules["no_follow_target"] = _no_follow_target_check.button_pressed
+	rules["no_follow_source"] = _no_follow_source_check.button_pressed
 	_apply(rules)
 
 
@@ -306,6 +326,8 @@ func _reload() -> void:
 	var rules: Dictionary = _pet.interaction_rules
 	_ignore_props_check.button_pressed = bool(rules.get("ignore_props", false))
 	_ignore_furniture_check.button_pressed = bool(rules.get("ignore_furniture", false))
+	_no_follow_target_check.button_pressed = bool(rules.get("no_follow_target", false))
+	_no_follow_source_check.button_pressed = bool(rules.get("no_follow_source", false))
 	for slot: String in _action_options:
 		var option: OptionButton = _action_options[slot]
 		option.clear()

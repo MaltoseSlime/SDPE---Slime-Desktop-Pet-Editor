@@ -39,7 +39,126 @@ func _ready() -> void:
 	_undo_button.disabled = true
 	_undo_button.pressed.connect(_undo)
 	add_child(_undo_button)
+	_build_personality_shortcuts()
 	_build_slots()
+
+
+## 性格檔的匯入/匯出跟性格分頁是同一份功能,這裡放一份方便使用者操作,不用特地切分頁(2026-09-30 使用者要求)。
+## 2026-09-30 使用者要求把原本放在性格分頁的「導出 Schema / 匯入積木檔 / 匯出積木檔」也一併移來這裡集中,
+## 標題正名為「設定檔匯出/匯入」(不再只是性格檔的捷徑)。
+func _build_personality_shortcuts() -> void:
+	add_child(HSeparator.new())
+	add_child(ManagerUi.heading("設定檔匯出/匯入"))
+	add_child(ManagerUi.hint_row("性格檔、Schema、積木檔的匯入/匯出都集中在這裡", "性格檔的匯入/匯出跟「性格」分頁裡的是同一份功能,匯入後切回性格分頁下拉選單會自動重新整理。Schema 跟積木檔的匯入/匯出跟系統匣右鍵選單是同一個功能,這裡放一份方便一起操作。"))
+	var row := HBoxContainer.new()
+	var import_button := ManagerUi.button("匯入自訂性格…")
+	import_button.pressed.connect(_import_personality)
+	var export_button := ManagerUi.button("匯出目前設定為性格檔…")
+	export_button.pressed.connect(_export_personality)
+	var export_schema := ManagerUi.button("導出 Schema…")
+	export_schema.tooltip_text = "匯出這隻桌寵有哪些動作、數值、狀態鏡、道具、特效、音效,給網頁端積木編輯器的下拉選單用。跟系統匣右鍵選單「導出 Schema…」是同一個功能。"
+	export_schema.pressed.connect(_export_schema)
+	var import_logic := ManagerUi.button("匯入積木檔…")
+	import_logic.tooltip_text = "讀入網頁端積木編輯器導出的邏輯 JSON(*.logic.json),取代這隻桌寵目前的積木內容;會自動保存一份,之後每次生成都會自動載入。"
+	import_logic.pressed.connect(_import_logic)
+	var export_logic := ManagerUi.button("匯出積木檔…")
+	export_logic.tooltip_text = "把這隻桌寵目前生效的所有積木(自己匯入的 + 性格帶進來的閒聊/反應 + 交互行為規則)整合匯出成一份積木檔,可以帶去網頁端積木編輯器,在性格已經幫你組好的反應基礎上繼續編輯。"
+	export_logic.pressed.connect(_export_logic)
+	for control in [import_button, export_button, export_schema, import_logic, export_logic]:
+		row.add_child(control)
+	add_child(row)
+
+
+func _export_schema() -> void:
+	if _pet == null:
+		return
+	FloatingWindow.native_file_dialog("導出 Schema", "", DisplayServer.FILE_DIALOG_MODE_SAVE_FILE, PackedStringArray(["*.json;JSON"]),
+			_on_export_schema_picked, get_window().get_window_id(), "%s.schema.json" % str(_pet.recognition_tag))
+
+
+func _on_export_schema_picked(paths: PackedStringArray) -> void:
+	export_schema_to(paths[0])
+
+
+func export_schema_to(path: String) -> Error:
+	var error := SchemaExporter.save(_pet, path)
+	message.emit(tr("已導出 Schema:%s") % path if error == OK else tr("導出失敗:%s") % error_string(error))
+	return error
+
+
+func _import_logic() -> void:
+	if _pet == null:
+		return
+	FloatingWindow.native_file_dialog("匯入積木檔", "", DisplayServer.FILE_DIALOG_MODE_OPEN_FILE, PackedStringArray(["*.json;JSON"]),
+			_on_import_logic_picked, get_window().get_window_id())
+
+
+func _on_import_logic_picked(paths: PackedStringArray) -> void:
+	import_logic_from(paths[0])
+
+
+func import_logic_from(path: String) -> bool:
+	var ok: bool = _pet.logic.load_file(path)
+	if ok:
+		PetRoster.store_logic(_pet.recognition_tag, path, CharacterFiles.folder_of(_pet))
+		message.emit(tr("已匯入積木檔:%s") % path)
+	else:
+		message.emit(tr("匯入失敗,請確認是不是網頁端積木編輯器導出的積木檔:%s") % path)
+	return ok
+
+
+func _export_logic() -> void:
+	if _pet == null:
+		return
+	FloatingWindow.native_file_dialog("匯出積木檔", "", DisplayServer.FILE_DIALOG_MODE_SAVE_FILE, PackedStringArray(["*.json;JSON"]),
+			_on_export_logic_picked, get_window().get_window_id(), "%s.logic.json" % str(_pet.recognition_tag))
+
+
+func _on_export_logic_picked(paths: PackedStringArray) -> void:
+	export_logic_to(paths[0])
+
+
+func export_logic_to(path: String) -> Error:
+	var error: Error = _pet.logic.save_file(path)
+	message.emit(tr("已匯出積木檔:%s") % path if error == OK else tr("匯出失敗(無法寫入):%s") % path)
+	return error
+
+
+func _import_personality() -> void:
+	FloatingWindow.native_file_dialog("匯入自訂性格(性格檔)", "", DisplayServer.FILE_DIALOG_MODE_OPEN_FILE, PackedStringArray(["*.json;性格檔"]),
+			_on_import_personality_picked, get_window().get_window_id())
+
+
+func _on_import_personality_picked(paths: PackedStringArray) -> void:
+	import_personality_from(paths[0])
+
+
+func import_personality_from(path: String) -> Dictionary:
+	var result := PersonalityFile.import_file(path)
+	var report: Array = result["report"]
+	if bool(result["ok"]):
+		message.emit(tr("已匯入自訂性格。%s") % ((" 注意:" + "; ".join(report)) if not report.is_empty() else ""))
+	else:
+		message.emit(tr("匯入失敗:%s") % "; ".join(report))
+	return result
+
+
+func _export_personality() -> void:
+	if _pet == null:
+		return
+	FloatingWindow.native_file_dialog("匯出目前設定為性格檔", "", DisplayServer.FILE_DIALOG_MODE_SAVE_FILE, PackedStringArray(["*.json;性格檔"]),
+			_on_export_personality_picked, get_window().get_window_id(), "%s.personality.json" % str(_pet.recognition_tag))
+
+
+func _on_export_personality_picked(paths: PackedStringArray) -> void:
+	export_personality_to(paths[0])
+
+
+func export_personality_to(path: String) -> Error:
+	var data := PersonalityFile.export_pet(_pet, "%s_personality" % str(_pet.recognition_tag), tr("%s的性格") % _pet.get_label(), tr("從 %s 匯出的目前設定") % _pet.get_label())
+	var error := PersonalityFile.write_file(path, data)
+	message.emit(tr("已匯出性格檔:%s") % path if error == OK else tr("匯出失敗(無法寫入):%s") % path)
+	return error
 
 
 ## 記憶存檔:5 格,把目前的記憶存起來、之後再讀回來(見 MemorySlots)。
@@ -153,14 +272,14 @@ func _ask(title_text: String, body: String, ok_text: String, on_ok: Callable) ->
 	dialog.dialog_text = body
 	dialog.ok_button_text = ok_text
 	dialog.cancel_button_text = "取消"
-	dialog.always_on_top = true
+	# 不設 always_on_top,見 manager_ui.gd 的 ask_name() 說明(跟置頂衝突,會把視窗卡死)。
 	dialog.theme = ManagerUi.make_theme()
 	dialog.confirmed.connect(on_ok)
 	dialog.confirmed.connect(dialog.queue_free)
 	dialog.canceled.connect(dialog.queue_free)
 	add_child(dialog)
 	dialog.min_size = Vector2i(460, 200)
-	dialog.popup_centered_clamped(Vector2i(480, 220), 0.9)
+	FloatingWindow.popup_child_dialog_clamped(self, get_window(), dialog, Vector2i(480, 220), 0.9)
 
 
 func _check(text: String, on: bool) -> CheckBox:
@@ -187,7 +306,7 @@ func _open_confirm() -> void:
 		return
 	var dialog := ConfirmationDialog.new()
 	dialog.title = "重置記憶 — 最後確認"
-	dialog.always_on_top = true
+	# 不設 always_on_top,見 manager_ui.gd 的 ask_name() 說明(跟置頂衝突,會把視窗卡死)。
 	dialog.theme = ManagerUi.make_theme()
 	dialog.ok_button_text = "永久清除這些記憶"
 	dialog.cancel_button_text = "取消"
@@ -229,7 +348,7 @@ func _open_confirm() -> void:
 	dialog.canceled.connect(func() -> void: dialog.queue_free())
 	add_child(dialog)
 	if DisplayServer.get_name() != "headless":
-		dialog.popup_centered_clamped(Vector2i(620, 520), 0.9)
+		FloatingWindow.popup_child_dialog_clamped(self, get_window(), dialog, Vector2i(620, 520), 0.9)
 
 
 func _execute() -> void:

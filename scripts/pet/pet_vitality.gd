@@ -286,8 +286,12 @@ func _can_rest() -> bool:
 	return true
 
 
-## 開始一輪連續休息:從指定階段起跳,段數歸零。
-func _begin_chain(first_stage: Mode) -> void:
+## 開始一輪連續休息:從指定階段起跳,段數歸零。autonomous = 這是自己(不是路隊反應)決定要休息的——
+## 算「想去做別的事情」,先離開路隊(見 Pet._tick_pet_follow_lifecycle 的說明);force_rest() 是路隊反應
+## 用的「跟著一起休息」,傳 false 不要把自己剛決定維持的跟隨關係又拆掉。
+func _begin_chain(first_stage: Mode, autonomous: bool = true) -> void:
+	if autonomous and _pet.is_following():
+		_pet.stop_follow()
 	_rest_round = 0
 	_enter_stage(first_stage)
 
@@ -694,7 +698,7 @@ func force_rest() -> bool:
 	if mode != Mode.ACTIVE or not _can_rest():
 		return false
 	_manual_rest = true
-	_begin_chain(Mode.RESTING)
+	_begin_chain(Mode.RESTING, false)   # 不算「自己想去做別的事情」,不動跟隨關係(休息中維持跟隨無害,見 _begin_chain 的說明)。
 	return true
 
 

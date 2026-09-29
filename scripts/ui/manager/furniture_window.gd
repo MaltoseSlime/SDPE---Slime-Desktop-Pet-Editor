@@ -4,9 +4,18 @@ extends FloatingWindow
 ## 右邊編輯選中的家具(名稱、觸發方式、縮放、標籤、容器內容物,見 FurnitureDef.container_items)。進階貼圖(normal / conditional / interacted 三個狀態)、
 ## 坐/躺位置(錨點)與光源都在精靈圖編輯器的家具區編輯(見 PackEditorWindow._build_furniture_panel)——那邊有畫布可以
 ## 直接對著貼圖拖曳,看得到實際位置,不像這裡只能打數字,2026-09-22 從這裡搬過去的。
-## 所有修改立刻存檔(user://furniture/<家具>/furniture.json),沒有「儲存」鈕;刪除是搬到備份資料夾(見 FurnitureLibrary)。
+## 2026-09-30 改成跟桌寵管理一樣的「儲存/儲存並關閉/不儲存並關閉」:欄位編輯只改記憶體裡的 FurnitureDef,
+## 按浮動列的「儲存」才真的寫進 user://furniture/<家具>/furniture.json 並同步桌面上已放置的實例
+## (FurnitureManager.refresh_def)。新增家具(從模板)、刪除家具(搬到備份)這兩個操作本身就是立即生效的
+## 檔案系統操作,跟一般欄位編輯是不同類別,維持原本按下去就動作、不用等「儲存」。
 
 var _manager: FurnitureManager
+## 記憶體裡改過、還沒按「儲存」寫回磁碟的家具 id。Save 時逐一寫回、同步桌面實例。
+var _dirty_ids: Dictionary = {}
+var _dirty := false
+var _status_bar: Label
+var _confirm: ConfirmationDialog
+var _bar_style: StyleBoxFlat
 var _list: ItemList
 var _defs: Array[FurnitureDef] = []
 var _current: FurnitureDef
@@ -45,6 +54,9 @@ var _placed_remove: Button
 signal edit_sprite_requested(furniture_id: String)
 
 
+const FLOATING_BAR_HEIGHT := 46
+
+
 func setup(manager: FurnitureManager) -> void:
 	_manager = manager
 	setup_floating("家具庫", Vector2i(760, 620), Vector2i(600, 420))
@@ -53,8 +65,10 @@ func setup(manager: FurnitureManager) -> void:
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)
 	var margin := MarginContainer.new()
-	for side in ["left", "right", "top", "bottom"]:
+	for side in ["left", "right", "top"]:
 		margin.add_theme_constant_override("margin_" + side, 10)
+	# 底下留出浮動存檔列的位置(見 _build_floating_bar),不然分頁內容長的時候會被蓋住。
+	margin.add_theme_constant_override("margin_bottom", FLOATING_BAR_HEIGHT + 6)
 	background.add_child(margin)
 	var page := VBoxContainer.new()
 	page.add_theme_constant_override("separation", 6)
@@ -67,10 +81,123 @@ func setup(manager: FurnitureManager) -> void:
 	_status = Label.new()
 	_status.theme_type_variation = AppSettings.MUTED_LABEL
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_status.text = "改了就立刻存起來。貼圖(平時的樣子、條件成立時的樣子、以後給桌寵使用時的樣子)在「編輯素材」的精靈圖編輯器裡準備:動作槽 normal / conditional / interacted。"
+	_status.text = "貼圖(平時的樣子、條件成立時的樣子、以後給桌寵使用時的樣子)在「編輯素材」的精靈圖編輯器裡準備:動作槽 normal / conditional / interacted。"
 	page.add_child(_status)
+	_build_floating_bar()
+	_confirm = ConfirmationDialog.new()
+	# 不設 always_on_top,見 manager_ui.gd 的 ask_name() 說明(跟置頂衝突,會把視窗卡死)。
+	_confirm.title = "尚未儲存的變更"
+	_confirm.dialog_text = "檢測到尚未儲存的變更,是否儲存後離開?"
+	_confirm.ok_button_text = "儲存後離開"
+	_confirm.cancel_button_text = "取消"
+	_confirm.add_button("不儲存離開", true, "discard")
+	_confirm.confirmed.connect(func() -> void: _request_save(_close_now))
+	_confirm.custom_action.connect(func(action: StringName) -> void:
+		if action == &"discard":
+			_discard_and_close())
+	add_child(_confirm)
 	_reload_container_props()
 	reload()
+
+
+## 浮動列底色跟邊線跟著編輯器配色走(不是寫死的深色),使用者在「全局設定」改配色時要能即時跟著換。
+func _restyle_bar() -> void:
+	if _bar_style == null:
+		return
+	var colors: Dictionary = AppSettings.appearance()["colors"]
+	_bar_style.bg_color = (colors["bg"] as Color).lerp(colors["text"], 0.06)
+	_bar_style.border_color = AppSettings.ink(0.18)
+
+
+func refresh_theme() -> void:
+	super.refresh_theme()
+	_restyle_bar()
+
+
+## 儲存 / 儲存並關閉 / 不儲存並關閉 + 狀態文字:釘在視窗底部的浮動面板,跟桌寵管理視窗同一套做法
+## (見 ManagerWindow._build_floating_bar)。
+func _build_floating_bar() -> void:
+	var bar := PanelContainer.new()
+	bar.name = "FloatingButtons"
+	bar.custom_minimum_size.y = FLOATING_BAR_HEIGHT
+	bar.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	bar.offset_top = -FLOATING_BAR_HEIGHT
+	var style := StyleBoxFlat.new()
+	_bar_style = style
+	_restyle_bar()
+	style.border_width_top = 1
+	style.set_content_margin_all(6.0)
+	style.content_margin_left = 12.0
+	style.content_margin_right = 12.0
+	bar.add_theme_stylebox_override("panel", style)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	bar.add_child(row)
+	_status_bar = Label.new()
+	_status_bar.theme_type_variation = AppSettings.MUTED_LABEL
+	_status_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_status_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_status_bar.clip_text = true
+	_status_bar.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	row.add_child(_status_bar)
+	var save := ManagerUi.button("儲存")
+	save.pressed.connect(func() -> void: _request_save())
+	var save_close := ManagerUi.button("儲存並關閉")
+	save_close.pressed.connect(func() -> void: _request_save(_close_now))
+	var discard := ManagerUi.button("不儲存並關閉")
+	discard.pressed.connect(_discard_and_close)
+	for button in [save, save_close, discard]:
+		row.add_child(button)
+	add_child(bar)
+
+
+func _mark_dirty(id: String) -> void:
+	_dirty = true
+	_dirty_ids[id] = true
+	_status_bar.text = "有尚未儲存的變更。"
+
+
+func _request_save(after := Callable()) -> void:
+	_save_all()
+	if after.is_valid():
+		after.call()
+
+
+## 把記憶體裡改過的家具逐一寫回磁碟,並同步桌面上已放置的同一件家具實例。
+func _save_all() -> void:
+	var failed := false
+	for id: String in _dirty_ids.keys():
+		var def := _def_by_id(id)
+		if def == null:
+			continue
+		if FurnitureLibrary.save_def(def) != "":
+			failed = true
+		if _manager != null:
+			_manager.refresh_def(id)
+	_dirty_ids.clear()
+	_dirty = false
+	_status_bar.text = "存檔失敗,請檢查磁碟空間或權限。" if failed else "已儲存。"
+
+
+func _def_by_id(id: String) -> FurnitureDef:
+	for def in _defs:
+		if def.id == id:
+			return def
+	return null
+
+
+## 真正關閉視窗前的共用收尾:關掉編輯模式,不留著一直能拖桌面上的家具卻沒地方能把模式關掉。
+func _close_now() -> void:
+	if _manager != null:
+		_manager.set_edit_mode(false)
+	queue_free()
+
+
+## 不儲存離開:記憶體裡的修改本來就沒寫進磁碟(見檔頭說明),直接關掉視窗、丟掉這份記憶體副本就好。
+func _discard_and_close() -> void:
+	_dirty_ids.clear()
+	_dirty = false
+	_close_now()
 
 
 func _build_list_column() -> Control:
@@ -150,6 +277,11 @@ func _build_form_column() -> Control:
 		spin.value_changed.connect(func(_v: float) -> void: _edit_condition())
 		# 只要放得下兩位數字就好,不然視窗窄一點(表單欄位跟著視窗寬度縮)時,四個數字框擠在同一列會被裁掉。
 		spin.custom_minimum_size.x = 58.0
+		# ManagerUi.spin() 預設 allow_greater/allow_lesser = true:min/max 只管上下箭頭,直接打字或
+		# 滑鼠拖曳還是能超出範圍(2026-09-30 使用者實機回報,分鐘欄位打得出 65 這種不存在的數字)。
+		# 時間欄位本來就該是硬性範圍(0~23 時、0~59 分),這裡蓋回 false 讓打字也照樣夾在範圍內。
+		spin.allow_greater = false
+		spin.allow_lesser = false
 	# 從/到分兩列(各自跟其他欄位一樣是「130px 標籤 + 內容」的排版),不要擠在同一列,不然視窗窄的時候會被裁掉。
 	_time_row = VBoxContainer.new()
 	for pair: Array in [["從", _time_start_hour, _time_start_minute], ["到", _time_end_hour, _time_end_minute]]:
@@ -210,7 +342,16 @@ func _build_form_column() -> Control:
 
 
 func reload() -> void:
-	_defs = FurnitureLibrary.list()
+	var fresh := FurnitureLibrary.list()
+	# 還沒存檔的家具不要被剛從磁碟讀回來的舊版本蓋掉(新增/刪除家具都會呼叫 reload(),但那是「別的家具」
+	# 的操作,不該連帶弄丟使用者正在改、還沒按「儲存」的另一件家具)。
+	if not _dirty_ids.is_empty():
+		for i in fresh.size():
+			if _dirty_ids.has(fresh[i].id):
+				var kept := _def_by_id(fresh[i].id)
+				if kept != null:
+					fresh[i] = kept
+	_defs = fresh
 	_updating = true
 	_list.clear()
 	for def in _defs:
@@ -278,8 +419,12 @@ func _rename() -> void:
 		_name_edit.text = _current.display_name
 		return
 	_current.display_name = wanted
-	_save()
-	reload()
+	_mark_dirty(_current.id)
+	# 改列表顯示用的名字就好,不能呼叫 reload()——那會整份從磁碟重讀,把這次(還沒存檔的)改名蓋掉。
+	for i in _defs.size():
+		if _defs[i] == _current:
+			_list.set_item_text(i, wanted)
+			break
 
 
 func _edit_condition() -> void:
@@ -294,14 +439,14 @@ func _edit_condition() -> void:
 		raw["action"] = _action_edit.text
 	_current.condition = FurnitureCondition.clean(raw)
 	_sync_condition_visibility()
-	_save()
+	_mark_dirty(_current.id)
 
 
 func _edit_scale() -> void:
 	if _updating or _current == null:
 		return
 	_current.scale_multiplier = clampf(_scale_spin.value, FurnitureDef.SCALE_RANGE.x, FurnitureDef.SCALE_RANGE.y)
-	_save()
+	_mark_dirty(_current.id)
 
 
 ## 超過 MAX_TAGS 個就擋下最後一次選取(清單本身沒有內建的多選數量上限)。
@@ -322,12 +467,7 @@ func _edit_tags() -> void:
 		_updating = false
 		return
 	_current.tags = FurnitureDef.clean_tags(picked)
-	_save()
-
-
-func _save() -> void:
-	var error := FurnitureLibrary.save_def(_current)
-	_status.text = tr("存檔失敗:%s") % error if error != "" else "已存檔。"
+	_mark_dirty(_current.id)
 
 
 func _reload_container_props() -> void:
@@ -353,8 +493,8 @@ func _sync_container_buttons() -> void:
 	_container_delete.disabled = _container_list.get_selected_items().is_empty()
 
 
-## 新增一種容器道具,或(同一種已經設定過)改它的補滿數量;存檔後同步桌面上已經放置的同一件家具實例
-## (見 FurnitureManager.refresh_def → FurnitureItem._sync_container_items,不會弄丟目前剩餘的庫存)。
+## 新增一種容器道具,或(同一種已經設定過)改它的補滿數量;按「儲存」後才會同步桌面上已經放置的同一件
+## 家具實例(見 FurnitureManager.refresh_def → FurnitureItem._sync_container_items,不會弄丟目前剩餘的庫存)。
 func _on_container_add_pressed() -> void:
 	if _current == null or _container_prop_option.selected < 0 or _container_prop_option.selected >= _container_props.size():
 		return
@@ -369,10 +509,8 @@ func _on_container_add_pressed() -> void:
 	if not found:
 		items.append({"id": def.id, "capacity": int(_container_capacity_spin.value)})
 	_current.container_items = FurnitureDef.clean_container_items(items)
-	_save()
+	_mark_dirty(_current.id)
 	_refresh_container_list()
-	if _manager != null:
-		_manager.refresh_def(_current.id)
 
 
 func _on_container_delete_pressed() -> void:
@@ -382,10 +520,8 @@ func _on_container_delete_pressed() -> void:
 	var items := _current.container_items.duplicate(true)
 	items.remove_at(selected[0])
 	_current.container_items = FurnitureDef.clean_container_items(items)
-	_save()
+	_mark_dirty(_current.id)
 	_refresh_container_list()
-	if _manager != null:
-		_manager.refresh_def(_current.id)
 
 
 func _on_add_pressed() -> void:
@@ -409,6 +545,9 @@ func _on_delete_pressed() -> void:
 	if error != "":
 		_status.text = tr("刪除失敗:%s") % error
 		return
+	# 刪掉的這件如果還有沒存的修改,那份記憶體副本一起丟掉,免得 _dirty 卡在 true(明明已經沒東西可存了)。
+	_dirty_ids.erase(_current.id)
+	_dirty = not _dirty_ids.is_empty()
 	_current = null
 	reload()
 	_status.text = tr("已把「%s」搬到備份。") % name
@@ -417,6 +556,10 @@ func _on_delete_pressed() -> void:
 func _on_place_pressed() -> void:
 	if _current == null or _manager == null:
 		return
+	# 這裡改的欄位(觸發方式、標籤、容器內容物…)要按「儲存」才會真的寫進磁碟;放上桌面前先存檔,
+	# 不然接下來的「重讀一次」會直接把這些還沒存檔的修改蓋掉。
+	if _dirty_ids.has(_current.id):
+		_save_all()
 	# 精靈圖編輯器的家具區改的是它自己讀進來的另一份 FurnitureDef(不是這個視窗的 _current),
 	# 存檔只會寫進 furniture.json,不會回頭更新這裡快取的物件;放上桌面前重讀一次才不會用到舊資料
 	# (光源、錨點、above_light 這些在那邊編的欄位都算,2026-09-22 修正)。
@@ -483,8 +626,10 @@ func _on_placed_remove_pressed() -> void:
 	_manager.remove(_manager.items[index])
 
 
-## 關掉視窗時把編輯模式一起關掉,不留著一直能拖桌面上的家具卻沒地方能把模式關掉。
+## 有未儲存的變更就跳出確認視窗(儲存後離開/不儲存離開/取消),跟桌寵管理視窗一致;
+## 沒有變更就直接關(順便關掉編輯模式,不留著一直能拖桌面上的家具卻沒地方能把模式關掉)。
 func _request_close() -> void:
-	if _manager != null:
-		_manager.set_edit_mode(false)
-	queue_free()
+	if _dirty:
+		FloatingWindow.popup_child_dialog(self, get_window(), _confirm)
+		return
+	_close_now()

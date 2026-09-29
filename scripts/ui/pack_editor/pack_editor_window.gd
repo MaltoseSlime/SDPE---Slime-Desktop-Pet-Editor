@@ -900,7 +900,9 @@ func _ask_new_pack_name() -> void:
 ## 問使用者一個名字的小視窗;名字不合格時確定鈕是停用的並說明原因。on_chosen(name) 在按確定後呼叫。
 func _ask_name(title_text: String, message: String, default_name: String, ok_text: String, on_chosen: Callable) -> void:
 	var dialog := ConfirmationDialog.new()
-	dialog.always_on_top = true   # 不置頂的話會被置頂的浮動視窗壓在下面,而它是獨佔式的 → 視窗看起來整個凍結
+	# 不設 always_on_top:這種視窗會被 Godot 設成這個(可能置頂的)浮動視窗的 transient 子視窗,跟置頂在
+	# Windows 原生視窗上互斥(godotengine/godot#117698,4.7.2 尚未修正),硬設會把視窗卡死到連工作列都找不到
+	# (2026-09-30 使用者實機回報)。身為 owned window,Windows 本來就會自動疊在浮動視窗上面,不需要自己也置頂。
 	dialog.title = title_text
 	dialog.ok_button_text = ok_text
 	dialog.cancel_button_text = "取消"
@@ -929,7 +931,7 @@ func _ask_name(title_text: String, message: String, default_name: String, ok_tex
 	add_child(dialog)
 	validate.call(edit.text)
 	if is_inside_tree() and DisplayServer.get_name() != "headless":
-		dialog.popup_centered(Vector2i(480, 220))
+		FloatingWindow.popup_child_dialog(self, get_window(), dialog, Vector2i(480, 220))
 		edit.grab_focus()
 		edit.select_all()
 
@@ -943,7 +945,7 @@ func guard_unsaved(proceed: Callable, action_text := "繼續") -> void:
 	if is_instance_valid(_guard_dialog):
 		return
 	_guard_dialog = ConfirmationDialog.new()
-	_guard_dialog.always_on_top = true   # 不置頂的話會被置頂的浮動視窗壓在下面,而它是獨佔式的 → 視窗看起來整個凍結
+	# 不設 always_on_top,見 _ask_name() 的說明(跟置頂衝突,會把視窗卡死)。
 	_guard_dialog.title = "有未存的變更"
 	_guard_dialog.dialog_text = tr("目前的素材包有還沒存檔的變更。\n要先存檔再%s、放棄這些變更直接%s,還是取消?") % [action_text, action_text]
 	_guard_dialog.ok_button_text = tr("存檔後%s") % action_text
@@ -962,7 +964,7 @@ func guard_unsaved(proceed: Callable, action_text := "繼續") -> void:
 	_guard_dialog.canceled.connect(_guard_dialog.queue_free)
 	add_child(_guard_dialog)
 	if is_inside_tree() and DisplayServer.get_name() != "headless":
-		_guard_dialog.popup_centered(Vector2i(480, 180))
+		FloatingWindow.popup_child_dialog(self, get_window(), _guard_dialog, Vector2i(480, 180))
 
 
 ## 開系統的檔案對話框(對這個視窗模態);使用者選好後才呼叫 on_picked(paths)。start_dir 非空就從那個資料夾開始。
@@ -1026,7 +1028,7 @@ func _finish_dialog(dialog: PackImportDialog) -> void:
 	dialog.confirmed.connect(dialog.queue_free)
 	dialog.canceled.connect(dialog.queue_free)
 	if is_inside_tree() and DisplayServer.get_name() != "headless":
-		dialog.popup_centered(Vector2i(540, 640) if dialog.title == "匯入精靈圖" else Vector2i(540, 220))
+		FloatingWindow.popup_child_dialog(self, get_window(), dialog, Vector2i(540, 640) if dialog.title == "匯入精靈圖" else Vector2i(540, 220))
 
 
 func _existing_actions() -> Array[String]:
@@ -1783,7 +1785,7 @@ func add_custom_action(action_name: String) -> String:
 
 func _ask_action_name(on_chosen: Callable) -> void:
 	var dialog := ConfirmationDialog.new()
-	dialog.always_on_top = true   # 不置頂的話會被置頂的浮動視窗壓在下面,而它是獨佔式的 → 視窗看起來整個凍結
+	# 不設 always_on_top,見 _ask_name() 的說明(跟置頂衝突,會把視窗卡死)。
 	dialog.title = "新增自訂動作"
 	dialog.ok_button_text = "新增"
 	dialog.cancel_button_text = "取消"
@@ -1804,7 +1806,7 @@ func _ask_action_name(on_chosen: Callable) -> void:
 	dialog.canceled.connect(dialog.queue_free)
 	add_child(dialog)
 	if is_inside_tree() and DisplayServer.get_name() != "headless":
-		dialog.popup_centered(Vector2i(440, 180))
+		FloatingWindow.popup_child_dialog(self, get_window(), dialog, Vector2i(440, 180))
 		edit.grab_focus()
 
 
@@ -3171,7 +3173,7 @@ func replace_sheet_with(new_source: String) -> void:
 		_finish_replace(sheets[0], new_source)
 		return
 	var dialog := ConfirmationDialog.new()
-	dialog.always_on_top = true   # 不置頂的話會被置頂的浮動視窗壓在下面,而它是獨佔式的 → 視窗看起來整個凍結
+	# 不設 always_on_top,見 _ask_name() 的說明(跟置頂衝突,會把視窗卡死)。
 	dialog.title = "要換哪一張精靈圖?"
 	var choice := OptionButton.new()
 	for sheet_path in sheets:
@@ -3184,7 +3186,7 @@ func replace_sheet_with(new_source: String) -> void:
 	dialog.canceled.connect(dialog.queue_free)
 	add_child(dialog)
 	if DisplayServer.get_name() != "headless":
-		dialog.popup_centered(Vector2i(460, 120))
+		FloatingWindow.popup_child_dialog(self, get_window(), dialog, Vector2i(460, 120))
 
 
 func _finish_replace(old_relative: String, new_source: String) -> void:
@@ -3237,7 +3239,7 @@ func _on_clean_pressed() -> void:
 	dialog.title = "清理未使用檔案"
 	dialog.ok_button_text = "搬到備份"
 	dialog.cancel_button_text = "取消"
-	dialog.always_on_top = true
+	# 不設 always_on_top,見 _ask_name() 的說明(跟置頂衝突,會把視窗卡死)。
 	dialog.theme = ManagerUi.make_theme()
 	if list.is_empty():
 		dialog.dialog_text = "沒有匯入時複製進來、卻已經沒人用的檔案。"
@@ -3249,8 +3251,7 @@ func _on_clean_pressed() -> void:
 	dialog.canceled.connect(dialog.queue_free)
 	if not own_files_actions.is_empty():
 		dialog.add_child(_build_clear_action_row(dialog, own_files_actions))
-	add_child(dialog)
-	dialog.popup_centered()
+	FloatingWindow.popup_child_dialog(self, get_window(), dialog)
 
 
 ## 「清理未使用檔案」對話框裡附加的一排:挑一個「有自己實體檔案(不是精靈圖切片)」的動作,整個清掉它的圖(幀清單設定清空 + 檔案搬到備份)。
@@ -3280,7 +3281,7 @@ func _confirm_clear_action(action_name: String, host: Window) -> void:
 	confirm.title = "清除動作的檔案"
 	confirm.ok_button_text = "清除並搬到備份"
 	confirm.cancel_button_text = "取消"
-	confirm.always_on_top = true
+	# 不設 always_on_top,見 _ask_name() 的說明(跟置頂衝突,會把視窗卡死)。
 	confirm.theme = ManagerUi.make_theme()
 	confirm.dialog_text = tr("要整個清掉「%s」嗎?這個動作就不會再出現在動作清單。它獨有的 %d 個檔案會搬到備份資料夾(不會直接刪除;被別的動作共用的圖檔不會動):\n\n%s") % [action_name, files.size(), "\n".join(PackedStringArray(files.slice(0, 12))) + ("\n……" if files.size() > 12 else "")]
 	confirm.confirmed.connect(func() -> void:

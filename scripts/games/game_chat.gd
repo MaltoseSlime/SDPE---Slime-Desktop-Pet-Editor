@@ -25,10 +25,14 @@ static func set_result_context(a: Node, b: Node, result_a: String) -> void:
 			pet.clear_counterpart("loser")
 
 
-## 這些桌寵開始 / 結束一場對戰(計數,同一隻同時參加幾場就加幾)。
+## 這些桌寵開始 / 結束一場對戰(計數,同一隻同時參加幾場就加幾)。不管這場對戰是誰發起的(自己主動找、
+## 被別隻桌寵邀請、還是被使用者叫去對戰),只要真的開打了就算「跟隨者想去做別的事情」,先離開路隊
+## (見 Pet._tick_pet_follow_lifecycle 的說明;玩球的對應位置在 PetBallPlay._begin())。
 static func enter(pets: Array) -> void:
 	for pet: Variant in pets:
 		if is_instance_valid(pet):
+			if pet.is_following():
+				pet.stop_follow()
 			pet.game_depth += 1
 
 

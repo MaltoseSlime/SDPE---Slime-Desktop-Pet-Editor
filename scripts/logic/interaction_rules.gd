@@ -6,10 +6,15 @@ extends RefCounted
 ## 3. props:對某個道具的反應:對話(編譯成 event_prop_* 積木)+ 動作(執行期由 Pet.begin_prop_action 播:只做一次,或持續到道具用完 / 離開判定,像摸摸移開後才恢復)。
 ## 4. prefs:喜歡 / 不喜歡的道具(存道具資料夾名稱 id 與當時的顯示名稱)。喜歡的道具掉在場上會自己走過去撿、撿到心情變好;不喜歡的不會自己撿(拖著遞給它還是會收);「不與此道具交互」(ignore)則完全無視:不撿、不被它摩擦、不會成為候選、也不被它吸引。
 ##    道具資料找不到(被刪掉、搬走)時列表顯示成灰色,可以「重新連結」到現有的另一個道具。
-## 5. ignore_props / ignore_furniture:整隻桌寵層級的總開關(跟上面 3/4 的「對某個道具/某個偏好」不一樣,這兩個是全部生效)。
+## 5. ignore_props / ignore_furniture / no_follow_target / no_follow_source:整隻桌寵層級的總開關
+##    (跟上面 3/4 的「對某個道具/某個偏好」不一樣,這兩個是全部生效)。
 ##    ignore_props = true 時,Pet.prop_preference() 對任何道具都回傳 "ignore"(等於幫每個道具都設了「不與此道具交互」)。
 ##    ignore_furniture = true 時,關掉自主使用家具的行為(目前只有容器類的自主拿取,見 Pet._container_goal());
 ##    使用者手動拖曳桌寵去用家具、或積木「加入使用家具」這種明確指定的互動不受影響,只擋「自己決定要不要去用」的部分。
+##    no_follow_target = true 時,不會被選為別隻桌寵「自己決定要跟著誰走」的對象(見 Pet._nearest_followable_pet());
+##    no_follow_source = true 時,自己不會主動決定跟著別隻桌寵走(見 Pet._tick_auto_pet_follow())。
+##    這三個(no_follow_target/no_follow_source/ignore_furniture)在固定/靜止模式下會被自動強制打開,
+##    離開這兩種模式後換回使用者原本自己設定的值,見 Pet._apply_move_mode_interaction_defaults()。
 ## 詳細編輯(條件、選項、連續動作…)要到網頁端積木編輯器;這裡只提供最常用、最簡單的部分。所有欄位讀進來都會驗證與夾範圍。
 
 const MAX_TEXT := 120
@@ -31,7 +36,7 @@ const PROP_KINDS := {"collected": "道具消耗", "rubbed": "被摩擦", "candid
 
 
 static func empty() -> Dictionary:
-	return {"actions": {}, "characters": [], "props": [], "prefs": [], "ignore_props": false, "ignore_furniture": false}
+	return {"actions": {}, "characters": [], "props": [], "prefs": [], "ignore_props": false, "ignore_furniture": false, "no_follow_target": false, "no_follow_source": false}
 
 
 static func slot_keys() -> Array[String]:
@@ -98,10 +103,9 @@ static func clean(raw: Variant) -> Dictionary:
 				continue
 			seen[id] = true
 			result["prefs"].append({"id": id, "name": _text(entry.get("name", id)), "pref": pref})
-	var ignore_props_raw: Variant = raw.get("ignore_props", false)
-	var ignore_furniture_raw: Variant = raw.get("ignore_furniture", false)
-	result["ignore_props"] = ignore_props_raw if ignore_props_raw is bool else false
-	result["ignore_furniture"] = ignore_furniture_raw if ignore_furniture_raw is bool else false
+	for key in ["ignore_props", "ignore_furniture", "no_follow_target", "no_follow_source"]:
+		var value_raw: Variant = raw.get(key, false)
+		result[key] = value_raw if value_raw is bool else false
 	return result
 
 

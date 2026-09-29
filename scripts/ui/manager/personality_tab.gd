@@ -675,7 +675,7 @@ func _reset_own_copy() -> void:
 	dialog.dialog_text = tr("要把這隻角色的「%s」%s重設成共用的原版嗎?\n這隻角色改過的台詞與參數設定會消失,而且這個性格管的參數會一併同步成原版的值(連你手動調過的也會換掉;數值定義與狀態鏡沒改過的換成新版、你自己建的不動)。") % [_name_of(chosen), "(有改過)" if edited else ""]
 	dialog.ok_button_text = "重設"
 	dialog.cancel_button_text = "取消"
-	dialog.always_on_top = true
+	# 不設 always_on_top,見 manager_ui.gd 的 ask_name() 說明(跟置頂衝突,會把視窗卡死)。
 	dialog.theme = ManagerUi.make_theme()
 	dialog.confirmed.connect(func() -> void:
 		PersonalityApplier.reset_own(_pet, chosen)
@@ -691,7 +691,7 @@ func _reset_own_copy() -> void:
 	dialog.confirmed.connect(dialog.queue_free)
 	dialog.canceled.connect(dialog.queue_free)
 	add_child(dialog)
-	dialog.popup_centered(Vector2i(460, 200))
+	FloatingWindow.popup_child_dialog(self, get_window(), dialog, Vector2i(460, 200))
 
 
 func _on_editor_saved(id: String) -> void:
@@ -740,3 +740,5 @@ func export_to(path: String) -> Error:
 	var error := PersonalityFile.write_file(path, data)
 	message.emit(tr("已匯出性格檔:%s") % path if error == OK else tr("匯出失敗(無法寫入):%s") % path)
 	return error
+
+

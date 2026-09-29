@@ -8,8 +8,9 @@ extends RefCounted
 const INVITE_LINES := {
 	"rps": ["要不要來玩剪刀石頭布?", "要不要跟我猜個拳?", "無聊耶……來猜拳好不好?"],
 	"dice": ["要不要來拚骰子,比誰的點數大?", "要不要擲骰子比一場?", "要不要跟我賭一把運氣?"],
+	"ttt": ["要不要來下一盤井字棋?", "來玩井字棋好不好?", "無聊耶……陪我玩井字棋嘛?"],
 }
-const GAME_NAMES := {"rps": "猜拳", "dice": "拚骰"}
+const GAME_NAMES := {"rps": "猜拳", "dice": "拚骰", "ttt": "井字棋"}
 const GROUP_LINES: Array[String] = ["要不要一起拚骰子,比誰的點數大?", "要不要一起擲骰子比一場?"]
 const ACCEPT_LINES: Array[String] = ["好啊,來吧!", "嘿嘿,奉陪!", "來就來,誰怕誰!"]
 const REFUSE_LINES := {
@@ -29,7 +30,10 @@ static func start_random(inviter: Node) -> bool:
 		func(p: Node) -> bool: return p != inviter and not p.is_queued_for_deletion() and not p.entering and not p.game_always_refuse)
 	if candidates.is_empty():
 		return false
-	invite(inviter, candidates.pick_random(), "rps" if randf() < 0.5 else "dice", inviter.pick_invite_best_of())
+	var kinds: Array[String] = ["rps", "dice"]
+	if not TttGame.has_active_board():   # 棋盤全場只能有一塊,已經有的話這次自動邀請不考慮井字棋(見 TttGame 的說明)。
+		kinds.append("ttt")
+	invite(inviter, candidates.pick_random(), kinds.pick_random(), inviter.pick_invite_best_of())
 	return true
 
 
@@ -68,6 +72,9 @@ static func invite(inviter: Node, invitee: Node, kind: String, best_of := 0, wai
 	if invitee.is_in_game():
 		GameChat.think_blocked(inviter, invitee, TranslationServer.translate(str(GAME_NAMES.get(kind, "遊戲"))))
 		return {"accepted": false, "reason": "in_game"}
+	# 井字棋全場同時只能有一塊棋盤(使用者要求):已經有的話,新的井字棋邀請(自動或手動指定)一律擋下。
+	if kind == "ttt" and TttGame.has_active_board():
+		return {"accepted": false, "reason": "board_busy"}
 	var generations := {inviter: inviter.action_generation, invitee: invitee.action_generation}
 	if not inviter.BEST_OF_CHOICES.has(best_of):
 		best_of = inviter.game_best_of
@@ -109,10 +116,14 @@ static func invite(inviter: Node, invitee: Node, kind: String, best_of := 0, wai
 	if wait_game:
 		if kind == "rps":
 			await inviter.start_rps_with(invitee, best_of)
+		elif kind == "ttt":
+			await inviter.start_ttt_with(invitee, best_of)
 		else:
 			await inviter.start_dice_contest([invitee], best_of)
 	elif kind == "rps":
 		inviter.start_rps_with(invitee, best_of)
+	elif kind == "ttt":
+		inviter.start_ttt_with(invitee, best_of)
 	else:
 		inviter.start_dice_contest([invitee], best_of)
 	return {"accepted": true, "reason": ""}

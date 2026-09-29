@@ -676,6 +676,7 @@
         3.5
       ],
       "idle_hop_chance": 0.3,
+      "idle_sit_chance": 0.2,
       "invite_best_of_weights": {
         "1": 0.3,
         "3": 0.4,
@@ -693,6 +694,11 @@
       ],
       "move_speed": 165.0,
       "nervous_proneness": 0.05,
+      "pet_follow_chance": 0.22,
+      "pet_follow_duration": [
+        20.0,
+        60.0
+      ],
       "relax_share": 0.1,
       "rest_duration": [
         10.0,
