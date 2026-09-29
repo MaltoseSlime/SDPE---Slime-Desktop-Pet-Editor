@@ -144,15 +144,9 @@ func _ready() -> void:
 
 
 ## 開機後檢查:有桌寵的預設內容(內建性格、狀態鏡…)比目前版本舊,就問使用者要不要追加(見 DefaultsUpdater)。無頭測試與「這一版不要再問」的不問。
-## 2026-09-30 使用者實機回報(Godot 編輯器除錯輸出,兩個方向都踩過):"Windows with the 'on top' can't become
-## transient" 與 "Transient windows can't become on top"——這兩個是同一個 Windows/Godot 已知限制的一體兩面
-## (查證見 godotengine/godot#117698,4.7.2 尚未收到修正,#117748 的修正目標版本更後面):always_on_top 與
-## transient 這兩個狀態在原生視窗(本專案 embed_subwindows=false)上互斥。一開始只把這些對話框自己的
-## always_on_top 拿掉還不夠——使用者接著實測「全局設定關掉浮動視窗保持在最上層」問題就消失,證實真正衝突的
-## 是 host(這裡是主視窗,永遠置頂)本身:Godot 的 popup_centered() 把對話框設成 host 的 transient 子視窗時,
-## host 若是置頂的一樣會撞上這個限制。修法統一改用 FloatingWindow.popup_child_dialog()(建立 transient 子視窗
-## 的當下先暫時放掉 host 的置頂,建好立刻還原——owned/transient window 本來就會自動疊在 host 上面,不需要
-## host 置頂)。
+## 這種確認視窗一律透過 FloatingWindow.popup_child_dialog() 顯示:host(這裡是主視窗,永遠置頂)跟 transient
+## 子視窗不能同時成立在同一個視窗上是 Godot 在 Windows 上的已知限制(godotengine/godot#117698),
+## popup_child_dialog() 內部直接讓對話框全程不當 transient 子視窗來繞開,細節見它自己的說明。
 func _check_defaults_update() -> void:
 	if not PetRoster.enabled() or DefaultsUpdater.acknowledged(SETTINGS_PATH):
 		return
@@ -683,7 +677,6 @@ func _on_remove_pet_requested(pet: Node) -> void:
 	var dialog := ConfirmationDialog.new()
 	dialog.title = tr("收起桌寵")
 	# 主視窗底下的確認視窗不能是獨佔式:獨佔視窗開著時,Windows 會把主視窗的穿透形狀整個丟掉(整個螢幕都點不到後面的程式)。
-	# 不設 always_on_top,見 _check_defaults_update() 的說明(跟置頂衝突,會把視窗卡死)。
 	dialog.exclusive = false
 	dialog.transient = false
 	dialog.theme = ManagerUi.make_theme()
@@ -716,7 +709,6 @@ func _on_update_check_finished(result: Dictionary) -> void:
 	dialog.title = tr("檢查更新")
 	dialog.exclusive = false
 	dialog.transient = false
-	# 不設 always_on_top,見 _check_defaults_update() 的說明(跟置頂衝突,會把視窗卡死)。
 	dialog.theme = ManagerUi.make_theme()
 	dialog.dialog_text = String(result.get("message", ""))
 	dialog.dialog_autowrap = true
@@ -998,17 +990,51 @@ func _on_tray_recall() -> void:
 	_shell_state.emergency_recall_requested.emit()
 
 
-## 浮動視窗重設:所有開著的浮動視窗(藏起來的也算)拉到最上層、拉回螢幕範圍內。回傳處理了幾個視窗。
-## 2026-09-30 曾經追加過「順便重設主視窗自己的置頂」,但使用者實機測出這個自動重開置頂的動作反而更不穩定
-## (視窗會閃一下、從工作列消失),拿掉了;浮動視窗的「保持在最上層」設定本身也已經整個停用(見 AppSettings.
-## floating_on_top() 的說明),不會再有需要靠這裡救援置頂狀態的情境。
+## 浮動視窗重設:所有開著的浮動視窗(藏起來的也算)拉到最上層、拉回螢幕範圍內,並且強洗一次整個視窗疊層順序,
+## 把卡在桌面覆蓋層(這裡的 get_window(),永遠置頂,見 _configure_window())後面出不來的視窗一起救出來——
+## 包含不在 floating_windows 群組裡的 ConfirmationDialog/AcceptDialog 這類子視窗(用 _all_child_windows()
+## 找場景樹裡所有 Window 節點,不只是有註冊群組的那幾個)。做法:短暫放掉覆蓋層的置頂,讓 Windows 把所有視窗
+## 攤回同一個 Z 序類別裡重排一次、逐個搶前景,延遲一小段時間再還原覆蓋層置頂(給 Windows 時間真的把畫面重排完,
+## 立刻還原的話搶前景可能還沒生效就被蓋回去)。2026-09-30 曾經追加過「順便重設主視窗自己的置頂」,那次是把
+## reset_window() 呼叫端改成連主視窗的置頂旗標一起重新設一次,使用者實機測出反而更不穩定(視窗會閃一下、從
+## 工作列消失),拿掉了——這裡不一樣:只是「借過一下、馬上還」的一次性 Z 序重洗,不是常態改變任何設定,不管
+## AppSettings.floating_on_top() 以後開不開,這條救援路徑都要能獨立運作,使用者永遠有路可退。回傳處理了幾個視窗。
 func reset_floating_windows() -> int:
+	var overlay := get_window()
+	var was_top := overlay.always_on_top
+	if was_top:
+		overlay.always_on_top = false
+	var handled: Array[Window] = []
 	var count := 0
 	for node: Node in get_tree().get_nodes_in_group("floating_windows"):
 		if node is FloatingWindow:
 			(node as FloatingWindow).reset_window()
+			handled.append(node)
 			count += 1
+	for window in _all_child_windows(get_tree().root):
+		if window == overlay or handled.has(window) or not window.visible:
+			continue
+		window.grab_focus()
+		DisplayServer.window_move_to_foreground(window.get_window_id())
+		count += 1
+	if was_top:
+		var timer := get_tree().create_timer(0.4)
+		timer.timeout.connect(func() -> void:
+			if is_instance_valid(overlay):
+				overlay.always_on_top = was_top)
 	return count
+
+
+## 純樹狀搜尋:場景樹裡目前所有的 Window 節點(遞迴找,不只是掛在 root 底下第一層的),給 reset_floating_windows()
+## 洗 Z 序用——ConfirmationDialog/AcceptDialog 這類子視窗是掛在觸發它的節點底下(不一定是 root),沒有註冊
+## floating_windows 群組,只能整棵樹找過一遍才不會漏掉。
+func _all_child_windows(from: Node) -> Array[Window]:
+	var result: Array[Window] = []
+	if from is Window:
+		result.append(from as Window)
+	for child in from.get_children():
+		result.append_array(_all_child_windows(child))
+	return result
 
 
 ## 安全退出:先通知桌寵播放 leave 退場動作,等它們放行(或最多 SHUTDOWN_TIMEOUT 秒)才真正關閉。

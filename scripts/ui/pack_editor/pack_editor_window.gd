@@ -3292,8 +3292,7 @@ func _confirm_clear_action(action_name: String, host: Window) -> void:
 			_after_frames_changed([], tr("已清除「%s」,搬走 %d 個檔案到:%s") % [action_name, result["moved"], result["backup"]]))
 	confirm.confirmed.connect(confirm.queue_free)
 	confirm.canceled.connect(confirm.queue_free)
-	host.add_child(confirm)
-	confirm.popup_centered()
+	FloatingWindow.popup_child_dialog(host, host, confirm)
 
 
 ## 把未使用的檔案搬到備份。回傳錯誤文字(空字串 = 成功)。

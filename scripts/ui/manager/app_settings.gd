@@ -209,11 +209,14 @@ static func available_languages() -> Dictionary:
 
 
 ## 浮動視窗(管理視窗、編輯器…,不含行動區裡的懸浮球與道具欄)是否永遠置頂;存在 [editor_ui] 的 floating_on_top。
-## 2026-09-30 暫時停用:置頂跟原生子視窗(對話框)的 transient 關係衝突(godotengine/godot#117698),就算撐滿
-## 對話框整個生命週期不置頂也還是會卡死或視窗憑空消失(使用者實機驗證,自動重開置頂的做法比手動更不穩定)。
-## 這裡不管使用者存檔裡的舊設定值一律回傳 false,直到 Godot 修好這個限制或想到別的解法為止;設定頁的勾選框
-## 也對應停用,見 app_settings_tab.gd。
+## 2026-09-30 曾經因為置頂跟原生子視窗(對話框)的 transient 關係衝突(godotengine/godot#117698)整個強制關閉過;
+## 2026-09-29 改成讓 ConfirmationDialog/AcceptDialog 全程不當 transient 子視窗(見 FloatingWindow.popup_child_dialog()
+## 的說明)繞開這個限制,使用者實機驗證過置頂開著也不會卡死,恢復成真正的開關。萬一以後又冒出別的置頂相關卡死
+## 情境,系統匣「浮動視窗重設」有獨立於這個設定的自救機制(見 DesktopShell.reset_floating_windows())。
 static func floating_on_top() -> bool:
+	var config := ConfigFile.new()
+	if config.load(SETTINGS_PATH) == OK:
+		return bool(config.get_value("editor_ui", "floating_on_top", false))
 	return false
 
 

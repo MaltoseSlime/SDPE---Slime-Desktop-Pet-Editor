@@ -2146,6 +2146,15 @@ func is_following() -> bool:
 	return _follow_tag != ""
 
 
+## 目前有沒有任何一隻桌寵正跟著自己走(領路人視角,給積木「當自己作為領路人時」用)。掃場上所有桌寵找
+## 跟隨目標是自己的,不維護反向索引——路隊人數不多,現掃便宜,也不用煩惱跟隨關係變動時兩邊要同步更新。
+func is_followed() -> bool:
+	for other: Node in get_tree().get_nodes_in_group("pets"):
+		if other != self and is_instance_valid(other) and other.is_following() and other._follow_tag == recognition_tag:
+			return true
+	return false
+
+
 ## 「跟著我」:跟著滑鼠走 follow_me_seconds 秒(選單指令與測試者面板用);性格參數 follow_me_seconds 可調,預設 1 分鐘。
 var follow_me_seconds := 60.0
 ## 自己選擇跟著滑鼠:每 20~45 秒抽一次,機率 mouse_follow_chance(黏人的性格最高,0 = 不會),跟的秒數在 mouse_follow_duration 範圍內隨機。

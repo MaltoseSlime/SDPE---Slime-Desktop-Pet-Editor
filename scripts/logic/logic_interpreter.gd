@@ -367,7 +367,7 @@ func _eligible_chat_hats(context_override := "") -> Array[Dictionary]:
 const PURE_CONDITION_TYPES: Array[String] = [
 	"cond_pet_present", "cond_pet_state", "cond_pet_sleeping", "cond_move_mode", "cond_holding_prop", "cond_text_set", "cond_time_between", "cond_date_is", "cond_weekday_is", "cond_value_compare", "flag_check",
 	"cond_game_stat", "cond_target_is", "cond_lens_active", "cond_lens_active_over", "cond_mood_compare", "cond_mood_zone", "cond_energy_compare", "cond_rest_state", "cond_lens_nature", "cond_loss_streak", "cond_ball_play", "cond_timer_running", "logic_compare", "logic_operation", "logic_boolean", "math_number", "math_random_between", "text",
-	"cond_furniture_using", "cond_furniture_sharing", "cond_furniture_state",
+	"cond_furniture_using", "cond_furniture_sharing", "cond_furniture_state", "cond_is_follower", "cond_is_leader",
 ]
 
 
@@ -504,6 +504,14 @@ func clear() -> void:
 ## PersonalityApplier.rebuild_layer() 每次重建性格事件層時呼叫;原文碰撞時使用者自己的翻譯優先,不會被蓋掉。
 ## clear()(重新匯入積木檔)會把這裡合併進來的內容一起清掉,呼叫端要記得在那之後重跑一次 rebuild_layer()
 ## (現有的性格套用/存讀流程本來就會這樣做,不是這個功能新增的責任)。
+## 把幾筆 {recognitionTag, displayName} 併進 knownCharacters(存在的代號就更新顯示名稱,不存在的新增),
+## 給「匯出積木檔時自動帶入互動分頁引用到的角色」用,見 memory_tab.gd 的 export_logic_to()。
+func merge_known_characters(entries: Array) -> void:
+	for entry in entries:
+		if entry is Dictionary and str(entry.get("recognitionTag", "")) != "":
+			_known_characters[str(entry["recognitionTag"])] = entry
+
+
 func merge_translations(table: Dictionary) -> void:
 	for language: String in table:
 		if not table[language] is Dictionary:
@@ -1078,7 +1086,7 @@ func _exec(block: Dictionary, token: int) -> String:
 		"cond_prob_percent", "cond_pet_present", "cond_pet_state", "cond_pet_sleeping", "cond_move_mode", "cond_text_set", "cond_time_between", "cond_date_is", "cond_weekday_is", \
 		"cond_lens_active", "cond_lens_active_over", "cond_holding_prop", "cond_value_compare", "flag_check", "cond_game_stat", "cond_target_is", \
 		"cond_mood_compare", "cond_mood_zone", "cond_energy_compare", "cond_rest_state", "cond_lens_nature", "cond_loss_streak", "cond_ball_play", "cond_timer_running", \
-			"cond_furniture_using", "cond_furniture_sharing", "cond_furniture_state":
+			"cond_furniture_using", "cond_furniture_sharing", "cond_furniture_state", "cond_is_follower", "cond_is_leader":
 			# (積木語法裡狀態鏡條件是回傳布林的值積木,這裡只是同時容許有 DO 語句輸入的寫法)
 			# 條件積木當成「如果…那麼」的 C 型積木使用:成立才執行裡面的積木。
 			if _eval_block(block):
@@ -1592,6 +1600,12 @@ func _eval_block(block: Dictionary) -> Variant:
 				"sleeping":
 					return rest_mode == PetVitality.Mode.SLEEPING
 			return rest_mode != PetVitality.Mode.ACTIVE
+		"cond_is_follower":
+			# 自己現在是不是路隊的跟隨者(正在跟著別隻桌寵走)。
+			return _pet.is_following()
+		"cond_is_leader":
+			# 自己現在是不是路隊的領路人(有別隻桌寵正跟著自己走)。
+			return _pet.is_followed()
 		"cond_lens_nature":
 			# 目前有沒有「正面 / 負面 / 持續」性質的狀態鏡生效。
 			var wanted_nature: String = {"positive": "正面", "negative": "負面", "continuous": "持續"}.get(str(fields.get("NATURE", "negative")).to_lower(), "負面")

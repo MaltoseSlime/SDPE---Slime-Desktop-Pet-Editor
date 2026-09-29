@@ -183,10 +183,17 @@ func _draw() -> void:
 		draw_rect(local_cell.grow(-2.0), Color(muted, 0.4), false, 1.5)
 		var mark := int(board[i])
 		var c := local_cell.get_center()
+		# 2026-09-30 使用者實機回報:「筆記本」配色的 accent(#e2dad0)跟 bg(#e3e1de)幾乎同色,叉直接畫在
+		# 底色上等於隱形。不能假設任何配色組的 accent/text 一定跟 bg 有足夠對比,所以先用跟 bg 對比夠大的
+		# 顏色(黑或白,依 bg 亮度挑)畫一條加寬的底線當輪廓,再疊上真正的顏色,不管什麼配色都看得清楚。
+		var outline := Color.BLACK if bg.get_luminance() > 0.5 else Color.WHITE
 		if mark == 1:
+			draw_line(c - Vector2(16, 16), c + Vector2(16, 16), Color(outline, 0.55), 7.0)
+			draw_line(c + Vector2(-16, 16), c + Vector2(16, -16), Color(outline, 0.55), 7.0)
 			draw_line(c - Vector2(16, 16), c + Vector2(16, 16), accent, 4.0)
 			draw_line(c + Vector2(-16, 16), c + Vector2(16, -16), accent, 4.0)
 		elif mark == 2:
+			draw_arc(c, 18.0, 0.0, TAU, 24, Color(outline, 0.55), 7.0)
 			draw_arc(c, 18.0, 0.0, TAU, 24, Color(text_color, 0.85), 4.0)
 	if show_surrender and _rects.has("surrender"):
 		var surrender: Rect2 = _rects["surrender"]

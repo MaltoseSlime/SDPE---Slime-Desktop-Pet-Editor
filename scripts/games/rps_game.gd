@@ -301,7 +301,14 @@ static func _play_battle_royale(pets: Array) -> Dictionary:
 		if user_alive:
 			distinct[user_choice] = true
 		if distinct.size() != 2:
-			# 平手(全部一樣或三種都出現):全員晉級,重來一輪。
+			# 平手(全部一樣或三種都出現):全員晉級,重來一輪。打到第 20 輪還是平手(一個都還沒淘汰)就直接
+			# 結束,不要無止盡玩下去(2026-09-30 使用者要求)。
+			if round_num >= 20:
+				var giveup_line := TranslationServer.translate("這樣下去似乎沒完沒了……下次再比吧?")
+				for pet: Node in alive:
+					GameChat.say(pet, giveup_line, 1.8)
+				await _wait(speaker, 1.6)
+				return {"winner": ""}
 			for pet: Node in alive:
 				GameChat.say(pet, "平手!全員晉級,再猜一次!", 1.4)
 			await _wait(speaker, 1.2)

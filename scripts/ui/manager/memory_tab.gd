@@ -119,9 +119,26 @@ func _on_export_logic_picked(paths: PackedStringArray) -> void:
 
 
 func export_logic_to(path: String) -> Error:
+	_sync_known_characters_from_interaction_rules()
 	var error: Error = _pet.logic.save_file(path)
 	message.emit(tr("已匯出積木檔:%s") % path if error == OK else tr("匯出失敗(無法寫入):%s") % path)
 	return error
+
+
+## 匯出前把互動分頁「雙人對話規則」引用到的其他角色自動寫進 knownCharacters(代號 + 目前顯示名稱),
+## 這樣匯入網頁端時對方會自動出現在角色名單,不用使用者先手動登記過一輪(2026-09-30 使用者交代)。
+## 只掃互動分頁這個來源,不掃跟隨目標/拚骰猜拳對手等其他欄位(使用者只提到互動分頁)。
+func _sync_known_characters_from_interaction_rules() -> void:
+	var rules: Dictionary = _pet.interaction_rules
+	var characters: Array = rules.get("characters", [])
+	var entries: Array = []
+	for entry: Dictionary in characters:
+		var tag := str(entry.get("tag", "")).strip_edges()
+		if tag == "":
+			continue
+		var display := SpriteLibrary.display_name_of_tag(tag)
+		entries.append({"recognitionTag": tag, "displayName": display if display != "" else tag})
+	_pet.logic.merge_known_characters(entries)
 
 
 func _import_personality() -> void:

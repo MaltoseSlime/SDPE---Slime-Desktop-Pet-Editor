@@ -306,6 +306,17 @@ static func tag_of(folder: String) -> String:
 	return tag if tag != "" else folder.replace("\\", "/").trim_suffix("/").get_file()
 
 
+## tag_of() 的反查:給辨識代號,找目前這個代號對應的角色顯示名稱(找不到回傳空字串)。掃過所有角色庫資料夾,
+## 給「匯出積木檔時自動把互動分頁引用到的角色寫進 knownCharacters」這類需要「代號 → 目前顯示名稱」的地方用。
+static func display_name_of_tag(tag: String) -> String:
+	if tag == "":
+		return ""
+	for folder in list_packs():
+		if tag_of(folder) == tag:
+			return str(_read_manifest(folder).get("name", folder.get_file()))
+	return ""
+
+
 ## 這個角色在素材包之外的設定檔(角色設定、狀態、導入的積木檔),存在的才列。
 static func related_files(folder: String) -> Array[String]:
 	var tag := tag_of(folder).validate_filename()

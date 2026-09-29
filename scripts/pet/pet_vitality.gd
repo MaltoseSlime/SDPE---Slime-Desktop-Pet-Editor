@@ -177,6 +177,15 @@ func _process(delta: float) -> void:
 				_recover(delta)
 			else:
 				_end_rest(false)
+			return
+		# 疲勞機制關掉不代表 idle_sit_chance(沒事自己坐下)也要跟著關掉——它本來就設計成跟疲憊無關
+		# (見宣告處的說明「不疲憊時也會」),一樣要照週期性判定跑;呼叫整個 _decide() 而不是只呼叫
+		# _maybe_idle_sit(),這樣 cooldown/_can_rest() 的門檻照樣有效,tired/exhausted 那幾段因為
+		# energy 在疲勞關閉時永遠停在滿血不會被消耗,自然不會誤觸發,不用另外特判。
+		_check_left -= delta
+		if _check_left <= 0.0:
+			_check_left = CHECK_INTERVAL
+			_decide()
 		return
 	match mode:
 		Mode.ACTIVE:

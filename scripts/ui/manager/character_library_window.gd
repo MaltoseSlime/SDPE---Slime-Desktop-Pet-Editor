@@ -165,6 +165,9 @@ func _add_card(summary: Dictionary) -> Dictionary:
 	frame.add_theme_stylebox_override("panel", frame_style)
 	frame.custom_minimum_size = Vector2(CharacterThumbnail.CELL, CharacterThumbnail.CELL)
 	frame.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var tag := SpriteLibrary.tag_of(str(summary["folder"]))
+	frame.tooltip_text = tr("辨識代號:%s") % tag
+	frame.mouse_filter = Control.MOUSE_FILTER_STOP
 	var holder := TextureRect.new()
 	holder.custom_minimum_size = Vector2(CharacterThumbnail.CELL, CharacterThumbnail.CELL)
 	holder.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
