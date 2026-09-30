@@ -7,6 +7,8 @@ extends VBoxContainer
 signal message(text: String)
 ## 音效設定:kind 是 "mute"(value bool)、"speak"(value bool)、"volume"(value 0.0–1.0);由開啟這個分頁的地方(DesktopShell)寫進共享狀態。
 signal audio_setting_requested(kind: String, value: Variant)
+## 「設定行動框顯示螢幕」改了,index 是使用者選的原始值(-1 = 自動),由 DesktopShell 接手實際搬動視窗與內容。
+signal monitor_setting_requested(index: int)
 
 const CUSTOM_ID := "custom"
 
@@ -18,9 +20,12 @@ var _alarm_list: ItemList
 var _alarm_delete: Button
 var _language_option: OptionButton
 var _fps_spin: SpinBox
+var _monitor_option: OptionButton
 var _autostart_check: CheckBox
 var _lights_check: CheckBox
 var _on_top_check: CheckBox
+var _bubble_pin_check: CheckBox
+var _bubble_mode_option: OptionButton
 var _firefly_mode: OptionButton
 var _firefly_start_hour: SpinBox
 var _firefly_start_minute: SpinBox
@@ -55,6 +60,8 @@ func _ready() -> void:
 	_build_language()
 	add_child(HSeparator.new())
 	_build_performance()
+	add_child(HSeparator.new())
+	_build_display()
 	add_child(HSeparator.new())
 	_build_startup()
 	add_child(HSeparator.new())
@@ -208,6 +215,64 @@ func _build_performance() -> void:
 		get_tree().call_group("floating_windows", "refresh_on_top")
 		message.emit("浮動視窗保持在最上層。" if on else "浮動視窗保持在最上層已關閉。"))
 	add_child(_on_top_check)
+	add_child(ManagerUi.heading_with_info("對話集中", "關閉時氣泡照舊貼在桌寵旁邊移動(預設)。開啟後從下面選一種集中方式:氣泡式——把某隻桌寵的氣泡拖到想要的位置放開,之後那隻桌寵的氣泡就固定出現在那裡(左上角對齊),不再跟著牠跑,每隻桌寵要自己拖過一次才會固定(也可以在桌寵的右鍵選單「固定氣泡位置」明確固定/解除固定,不一定要用拖的);聊天室式——不用等你互動的句子(閒聊、狀態播報)改成寫進一個可收合的聊天室視窗(拖它標題列移動、拖右下角調整大小、按一下收合成小圖示),需要你選選項或回答的句子還是照舊用浮動氣泡,不然沒辦法在聊天室裡點選項。之後會再加其他集中款式。"))
+	_bubble_pin_check = CheckBox.new()
+	_bubble_pin_check.text = "對話集中"
+	_bubble_pin_check.toggled.connect(func(on: bool) -> void:
+		if _updating:
+			return
+		_bubble_mode_option.disabled = not on
+		var mode := str(_bubble_mode_option.get_item_metadata(_bubble_mode_option.selected)) if on else "follow"
+		AppSettings.set_bubble_display_mode(mode)
+		get_tree().call_group("dialogue_display", "refresh_setting")
+		message.emit(tr("對話集中已開啟(%s)。") % str(_bubble_mode_option.text) if on else "對話集中已關閉,氣泡改回跟隨桌寵。"))
+	add_child(_bubble_pin_check)
+	_bubble_mode_option = OptionButton.new()
+	var bubble_mode_labels := {"pinned": "氣泡式(拖曳固定位置)", "chatroom": "聊天室式"}
+	for mode: String in ["pinned", "chatroom"]:
+		_bubble_mode_option.add_item(str(bubble_mode_labels[mode]))
+		_bubble_mode_option.set_item_metadata(_bubble_mode_option.item_count - 1, mode)
+	_bubble_mode_option.item_selected.connect(func(index: int) -> void:
+		if _updating or not _bubble_pin_check.button_pressed:
+			return
+		var mode := str(_bubble_mode_option.get_item_metadata(index))
+		AppSettings.set_bubble_display_mode(mode)
+		get_tree().call_group("dialogue_display", "refresh_setting")
+		message.emit(tr("對話集中方式已設成「%s」。") % str(bubble_mode_labels[mode])))
+	add_child(ManagerUi.labeled("集中方式", _bubble_mode_option))
+
+
+## 多螢幕環境下,選行動框(整個桌寵疊加視窗)要出現在哪個螢幕(2026-09-30 使用者回報:自動判斷有時候會
+## 落在副螢幕)。改了立刻把視窗、桌寵、家具、道具、固定的氣泡、聊天室視窗、開著的浮動視窗一起搬過去
+## (見 DesktopShell.apply_monitor_setting())。目前只支援單一螢幕顯示,不支援同時在多個螢幕上都顯示行動區。
+func _build_display() -> void:
+	add_child(ManagerUi.heading_with_info("行動框顯示螢幕", "多螢幕時,桌寵行動框(整個疊加視窗)要出現在哪個螢幕。「自動」交給系統判斷,如果它常常判斷到你不想要的那台螢幕,可以在這裡直接指定。改了會把桌寵、家具、道具、固定的氣泡、聊天室視窗、開著的管理視窗全部一起搬到新螢幕(依新舊螢幕比例挪動相對位置)。目前一次只會在一個螢幕上顯示,不支援同時顯示在多個螢幕。"))
+	_monitor_option = OptionButton.new()
+	_refresh_monitor_options()
+	_monitor_option.item_selected.connect(func(index: int) -> void:
+		if _updating:
+			return
+		var chosen := int(_monitor_option.get_item_metadata(index))
+		monitor_setting_requested.emit(chosen)
+		message.emit(tr("行動框顯示螢幕已設成「%s」,已經搬過去了。") % str(_monitor_option.text)))
+	add_child(ManagerUi.labeled("行動框顯示螢幕", _monitor_option))
+
+
+## 列出目前偵測到的螢幕(索引 + 解析度)+ 一個「自動」選項,選到已經選過的那個(選過的螢幕被拔掉時退回自動)。
+func _refresh_monitor_options() -> void:
+	_monitor_option.clear()
+	_monitor_option.add_item(tr("自動"))
+	_monitor_option.set_item_metadata(0, -1)
+	for i in DisplayServer.get_screen_count():
+		var size := DisplayServer.screen_get_size(i)
+		_monitor_option.add_item(tr("螢幕 %d(%dx%d)") % [i + 1, size.x, size.y])
+		_monitor_option.set_item_metadata(_monitor_option.item_count - 1, i)
+	var chosen := AppSettings.action_area_monitor_index()
+	for i in _monitor_option.item_count:
+		if int(_monitor_option.get_item_metadata(i)) == chosen:
+			_monitor_option.select(i)
+			return
+	_monitor_option.select(0)   # 選過的螢幕已經不存在了,顯示成「自動」(實際生效的判斷邏輯見 DesktopShell._resolve_target_screen)
 
 
 ## 開機自動啟動(Windows 登入時,不用系統管理員權限):寫進登錄檔的開機清單,預設關閉。只在匯出後的 exe 有意義(見 AutoStart)。
@@ -449,10 +514,17 @@ func _load_into_widgets() -> void:
 		if str(_language_option.get_item_metadata(i)) == AppSettings.language():
 			_language_option.select(i)
 	_fps_spin.value = AppSettings.max_fps()
+	_refresh_monitor_options()
 	_autostart_check.button_pressed = AutoStart.is_enabled()
 	_lights_check.button_pressed = AppSettings.lights_enabled()
 	_load_fireflies()
 	_on_top_check.button_pressed = AppSettings.floating_on_top()
+	var current_mode := AppSettings.bubble_display_mode()
+	_bubble_pin_check.button_pressed = current_mode != "follow"
+	_bubble_mode_option.disabled = current_mode == "follow"
+	for i in _bubble_mode_option.item_count:
+		if str(_bubble_mode_option.get_item_metadata(i)) == current_mode:
+			_bubble_mode_option.select(i)
 	var look := AppSettings.appearance()
 	for i in _preset_option.item_count:
 		if str(_preset_option.get_item_metadata(i)) == str(look["preset"]):

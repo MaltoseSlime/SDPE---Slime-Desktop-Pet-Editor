@@ -106,7 +106,7 @@ static func _play_round(initiator: Node, everyone: Array, sides: int, count: int
 		if winners.size() == 1 or tie_mode == "draw" or tie_round >= MAX_TIE_ROUNDS:
 			break
 		for pet: Node in winners:
-			GameChat.say(pet, "平手!再擲一次!", 1.6)
+			GameChat.say(pet, "平手!再擲一次!", 1.6, true)
 		await _wait(initiator, 1.5)
 		if _cancelled(everyone, generations):
 			return {}
@@ -150,7 +150,7 @@ static func _contest(initiator: Node, pets: Array, sides: int, count: int, modif
 		rounds += 1
 		if best_of > 1:
 			for pet: Node in everyone:
-				GameChat.say(pet, TranslationServer.translate("第 %d 局!") % rounds, 1.2)
+				GameChat.say(pet, TranslationServer.translate("第 %d 局!") % rounds, 1.2, true)
 			await _wait(initiator, 1.0)
 			if _cancelled(everyone, generations):
 				return {}

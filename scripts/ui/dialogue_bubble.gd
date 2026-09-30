@@ -6,6 +6,9 @@ extends PanelContainer
 ## 氣泡在 Cutout group 裡提供自己的矩形,才收得到點擊(視窗其餘部分是穿透的)。
 
 signal advanced(choice: int)
+## 「氣泡式」模式(AppSettings.bubble_display_mode() == "pinned")下,使用者把氣泡拖到新位置放開時發出,
+## UiManager 記下這隻桌寵之後的固定位置。
+signal position_pinned(target_pet: Node, position: Vector2)
 
 const TYPEWRITER_CPS := 30.0
 const BASE_FONT_SIZE := UiStyleKit.BASE_FONT_SIZE
@@ -60,10 +63,16 @@ var _raw_text := ""
 var _saved_options_visible := false
 var _settle_left := SETTLE_QUERIES
 var _previous_rect := Rect2()
+## 「氣泡式」拖曳:按下時的本地滑鼠座標(判斷有沒有超過拖曳門檻)、目前是不是正在拖。
+var _pin_press_local := Vector2.ZERO
+var _pin_dragging := false
+const PIN_DRAG_THRESHOLD := 6.0
 
 
 ## 建立氣泡內容。line 格式見 DesktopShellState.dialogue_line_requested。
-func setup(target_pet: Node, line: Dictionary) -> void:
+## show_in_world = false:「聊天室式」模式把這句改走聊天室視窗時用——氣泡本身還是照常建立(計時、選項、
+## 佇列、ticket 生命週期全部不變,UiManager 照舊靠它們排程),只是不畫出來、不佔穿透形狀、不接收滑鼠事件。
+func setup(target_pet: Node, line: Dictionary, show_in_world: bool = true) -> void:
 	pet = target_pet
 	_state = get_node("/root/DesktopShellState")
 	_style = pet.ui_style
@@ -78,8 +87,12 @@ func setup(target_pet: Node, line: Dictionary) -> void:
 	is_thought = str(line.get("bubble", "speech")).to_lower() == "thought"
 	var colors := _style.palette(is_thought)
 
-	add_to_group("Cutout")
-	mouse_filter = Control.MOUSE_FILTER_STOP
+	if show_in_world:
+		add_to_group("Cutout")
+		mouse_filter = Control.MOUSE_FILTER_STOP
+	else:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		modulate.a = 0.0
 	add_theme_stylebox_override("panel", UiStyleKit.panel_style(_style, factor, is_thought))
 	if is_thought:
 		_tail = ThoughtTail.new()
@@ -144,6 +157,9 @@ func setup(target_pet: Node, line: Dictionary) -> void:
 	_tag = UiStyleKit.name_tag(pet.get_label(), font, _style, factor, is_thought)
 	add_child(_tag)
 	_tag.top_level = true
+	if not show_in_world:
+		_tag.modulate.a = 0.0
+		_tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	if bool(line.get("typewriter", true)) and _label.get_total_character_count() > 0:
 		_label.visible_characters = 0
@@ -253,8 +269,14 @@ func _process(delta: float) -> void:
 
 
 ## 點擊氣泡:打字中先顯示全文,已打完就跳下一句(有選項時只有按選項才會前進)。
+## 「氣泡式」模式下改用 _handle_pin_input,支援拖曳(放開時沒拖過門檻才當作點擊)。
 func _gui_input(event: InputEvent) -> void:
-	if _closed or not (event is InputEventMouseButton) or not event.pressed or event.button_index != MOUSE_BUTTON_LEFT:
+	if _closed:
+		return
+	if AppSettings.bubble_display_mode() == "pinned":
+		_handle_pin_input(event)
+		return
+	if not (event is InputEventMouseButton) or not event.pressed or event.button_index != MOUSE_BUTTON_LEFT:
 		return
 	accept_event()
 	if _peeking:
@@ -264,6 +286,52 @@ func _gui_input(event: InputEvent) -> void:
 		_finish_typing()
 	elif not _has_options:
 		_close(-1)
+
+
+## 拖曳超過 PIN_DRAG_THRESHOLD 才算拖曳;沒拖過門檻就放開,沿用原本「點一下」的行為(在放開那一刻才判斷,
+## 而不是按下的當下——按下的當下還不知道使用者接下來會不會拖)。
+func _handle_pin_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		accept_event()
+		if event.pressed:
+			_pin_press_local = event.position
+			_pin_dragging = false
+		else:
+			if _pin_dragging:
+				_pin_dragging = false
+				position_pinned.emit(pet, global_position)
+			elif _peeking:
+				_end_peek()
+			elif _typing:
+				_finish_typing()
+			elif not _has_options:
+				_close(-1)
+	elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+		if not _pin_dragging and event.position.distance_to(_pin_press_local) < PIN_DRAG_THRESHOLD:
+			return
+		_pin_dragging = true
+		# 拖曳期間穿透形狀多留一圈(見 _cutout_rect 的 SETTLE_GROW),視窗形狀慢一影格更新時邊緣才不會破圖。
+		_settle_left = SETTLE_QUERIES
+		global_position = _clamp_to_screen(global_position + event.relative)
+		accept_event()
+
+
+func is_dragging_pin() -> bool:
+	return _pin_dragging
+
+
+## 固定的氣泡可以拖出行動區之外(2026-09-30 使用者要求),但不能拖到完全看不見、抓不回來——氣泡本身
+## 至少留 DRAG_VISIBLE_MARGIN 像素在螢幕範圍內。這個視窗本身就是覆蓋單一螢幕的疊加視窗,視窗的可視範圍
+## (get_viewport().get_visible_rect())直接當螢幕範圍用(跟 ChatRoomWindow._clamp_to_screen() 同一套做法)。
+const DRAG_VISIBLE_MARGIN := 40.0
+
+
+func _clamp_to_screen(pos: Vector2) -> Vector2:
+	var screen := get_viewport().get_visible_rect().size
+	var current_size: Vector2 = size.max(get_combined_minimum_size())
+	return Vector2(
+		clampf(pos.x, DRAG_VISIBLE_MARGIN - current_size.x, screen.x - DRAG_VISIBLE_MARGIN),
+		clampf(pos.y, DRAG_VISIBLE_MARGIN - current_size.y, screen.y - DRAG_VISIBLE_MARGIN))
 
 
 ## 氣泡外框(全域座標),排版與穿透形狀共用。
@@ -333,6 +401,23 @@ func place_tag() -> void:
 
 func is_closed() -> bool:
 	return _closed
+
+
+## 「聊天室式」模式(見 AppSettings.bubble_display_mode())判斷要不要把這句改走聊天室視窗:有選項或是
+## 等點擊的重要提問都要留在浮動氣泡(不然使用者沒辦法在聊天室視窗裡點選項),其餘(閒聊、狀態播報這類
+## 「不用等使用者互動」的句子)才適合改成寫進聊天記錄。
+func is_interactive() -> bool:
+	return _has_options or _wait_click
+
+
+## 完整內容(不含 BBCode 標記),聊天室視窗把它寫進聊天記錄用。
+func chat_text() -> String:
+	return _label.get_parsed_text()
+
+
+## 這句原本會用的泡泡外框色(一般說話/思考兩種配色不同),聊天室視窗的訊息文字顏色跟著這個走。
+func chat_color() -> Color:
+	return (_style.palette(is_thought)["border"] as Color)
 
 
 ## 中斷(使用者互動、被新的一句取代):不算選擇,直接關閉。

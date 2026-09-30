@@ -54,6 +54,9 @@ var _light_radius: SpinBox
 var _light_energy: SpinBox
 var _light_color: ColorPickerButton
 var _light_behind_body: CheckBox
+## 條件光源 ID(見 PackLights 的 cond_id 說明、Pet.set_conditional_light());空白 = 一般光源。
+var _light_cond_id: LineEdit
+var _light_cond_copy: Button
 ## 底部狀態列與右下「檢視」面板的底色(跟著編輯器配色,見 _restyle_panels)。
 var _bar_style: StyleBoxFlat
 var _view_style: StyleBoxFlat
@@ -182,6 +185,7 @@ var _furn_light_angle_row: Control
 var _furn_light_angle: SpinBox
 var _furn_light_spread: SpinBox
 var _furn_above_light: CheckBox
+var _furn_render_above_ui: CheckBox
 ## 「光源」「圖層」頁籤裡,角色內容跟家具內容各自的容器(互斥顯示,見 _apply_prop_mode/_build_furniture_panel 檔頭)。
 var _char_light_panel: VBoxContainer
 var _char_layer_panel: VBoxContainer
@@ -1231,6 +1235,16 @@ func _build_furniture_light_section(right: VBoxContainer) -> void:
 		_furniture_def.above_light = on
 		_save_furniture())
 	right.add_child(_furn_above_light)
+	_furn_render_above_ui = CheckBox.new()
+	_furn_render_above_ui.text = "顯示在桌寵與對話氣泡之上"
+	_furn_render_above_ui.tooltip_text = "平時家具會被桌寵、對話氣泡蓋住;勾選後改畫在最上層,協助自製 UI(例如當成一塊固定貼在畫面上的相框/邊框)。編輯模式拖曳、光源、坐躺、容器都不受影響,純粹只是換一個畫面圖層。"
+	_furn_render_above_ui.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_furn_render_above_ui.toggled.connect(func(on: bool) -> void:
+		if _updating or _furniture_def == null:
+			return
+		_furniture_def.render_above_ui = on
+		_save_furniture())
+	right.add_child(_furn_render_above_ui)
 
 
 ## 座標框改了(打數字,不是畫布拖曳):跟畫布拖曳走同一條路(_on_canvas_light_edited),數字/拖曳兩邊永遠同步。
@@ -1575,6 +1589,7 @@ func _refresh_furniture_editor() -> void:
 		return
 	_updating = true
 	_furn_above_light.button_pressed = _furniture_def.above_light
+	_furn_render_above_ui.button_pressed = _furniture_def.render_above_ui
 	_updating = false
 	_furn_light_index = mini(_furn_light_index, _furniture_def.lights.size() - 1)
 	_refresh_furniture_lights()
@@ -2069,6 +2084,23 @@ func _build_light_section(right: VBoxContainer) -> void:
 	_light_action = OptionButton.new()
 	_light_action.item_selected.connect(func(index: int) -> void: _edit_light("action", "" if index == 0 else _light_action.get_item_text(index), "light_action"))
 	right.add_child(ManagerUi.labeled("只在這個動作亮", _light_action))
+	# 條件光源 ID(2026-09-30 使用者要求):平時照常設位置/半徑/顏色,填了 ID 之後這盞光預設不亮,要積木用
+	# 同一個 ID「啟用/觸發」過才會亮(啟用這盞光的總開關還是要開著,ID 是疊加的額外門檻,不是取代)。
+	right.add_child(ManagerUi.hint_row("條件光源", "填一個 ID 之後,這盞光會多一道「要積木打開才會亮」的門檻(網頁積木編輯器的「條件光源」積木,填同一個 ID 就能開關它)。留空 = 一般光源,跟以前一樣照左邊的設定直接亮。只有這隻桌寵自己的積木能開關自己的 ID。"))
+	var cond_row := HBoxContainer.new()
+	_light_cond_id = ManagerUi.line_edit("留空 = 一般光源")
+	_light_cond_id.max_length = 32
+	_light_cond_id.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_light_cond_id.text_changed.connect(func(text: String) -> void: _edit_light("cond_id", text.strip_edges(), "light_cond_id"))
+	cond_row.add_child(_light_cond_id)
+	_light_cond_copy = ManagerUi.button("複製 ID")
+	_light_cond_copy.tooltip_text = "把目前的 ID 複製到剪貼簿,貼到網頁積木編輯器的「條件光源」積木裡。"
+	_light_cond_copy.pressed.connect(func() -> void:
+		if _light_cond_id.text.strip_edges() != "":
+			DisplayServer.clipboard_set(_light_cond_id.text.strip_edges())
+			_status.text = tr("已複製條件光源 ID:%s") % _light_cond_id.text.strip_edges())
+	cond_row.add_child(_light_cond_copy)
+	right.add_child(ManagerUi.labeled("ID", cond_row))
 	_light_enabled = CheckBox.new()
 	_light_enabled.text = "啟用這盞光"
 	_light_enabled.tooltip_text = "整盞光的總開關;關掉之後,不管套用範圍或分幀設定都不會亮。要「這個動作大部分時間亮、只有某幾幀暗掉」,總開關留著開,改用上面「套用範圍」選這一幀,把下面的「亮著」關掉。"
@@ -2618,6 +2650,8 @@ func _refresh_lights() -> void:
 	_light_color.disabled = not has_light
 	_light_behind_body.disabled = not has_light
 	_light_action.disabled = not has_light
+	_light_cond_id.editable = has_light
+	_light_cond_copy.disabled = not has_light
 	_light_name.editable = has_light
 	for spin: SpinBox in [_light_x, _light_y, _light_radius, _light_energy]:
 		spin.editable = has_light
@@ -2625,6 +2659,7 @@ func _refresh_lights() -> void:
 	if has_light:
 		var light := _lights[_light_index]
 		_light_name.text = str(light["name"])
+		_light_cond_id.text = str(light.get("cond_id", ""))
 		var light_at := PackLights.position_of(light, _action, _index)
 		_light_x.value = light_at.x
 		_light_y.value = light_at.y

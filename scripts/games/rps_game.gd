@@ -48,8 +48,8 @@ static func _pet_round(a: Node, b: Node, generations: Dictionary) -> Dictionary:
 	var gesture_b := 0
 	for attempt in MAX_DRAWS:
 		for word in ["剪刀…", "石頭…", "布!"]:
-			GameChat.say(a, word, COUNTDOWN_STEP + 0.3)
-			GameChat.say(b, word, COUNTDOWN_STEP + 0.3)
+			GameChat.say(a, word, COUNTDOWN_STEP + 0.3, true)
+			GameChat.say(b, word, COUNTDOWN_STEP + 0.3, true)
 			await _wait(a, COUNTDOWN_STEP)
 			if _cancelled([a, b], generations):
 				return {}
@@ -63,8 +63,8 @@ static func _pet_round(a: Node, b: Node, generations: Dictionary) -> Dictionary:
 		if gesture_a != gesture_b:
 			break
 		if attempt < MAX_DRAWS - 1:
-			GameChat.say(a, "平手!再來!", 1.4)
-			GameChat.say(b, "平手!再來!", 1.4)
+			GameChat.say(a, "平手!再來!", 1.4, true)
+			GameChat.say(b, "平手!再來!", 1.4, true)
 			await _wait(a, 1.2)
 			if _cancelled([a, b], generations):
 				return {}
@@ -238,13 +238,43 @@ static func _cancelled(pets: Array, generations: Dictionary) -> bool:
 ## 出拳:場上剛好只出現兩種手勢時,打不贏的那批被淘汰(GameChat.leave 立刻放行,恢復自主行為);出現一種
 ## (全部一樣)或三種手勢時算平手,全員晉級重猜一次;重複直到剩最後一位。host = 發起這場的桌寵(右鍵選單
 ## 「與桌寵猜拳」),負責在自己還活著時開口問使用者出什麼,被淘汰後改由下一個還活著的桌寵問。
+## 大逃殺猜拳的「要不要一起玩」台詞(2026-09-30 使用者要求跟全體拚骰一樣,發起時先問過場上其他桌寵,不是
+## 不由分說全部拉下水),接不接受一樣看 Pet.game_refusal(),跟 GameInvite.invite_all_dice() 同一套邏輯。
+const GROUP_LINES: Array[String] = ["要不要一起來猜拳大亂鬥?", "來玩剪刀石頭布吧,誰要加入?"]
+
+
 static func play_battle_royale(host: Node) -> Dictionary:
 	if not is_instance_valid(host) or host.is_in_game():
 		return {}
+	var others: Array = host.get_tree().get_nodes_in_group("pets").filter(
+		func(p: Node) -> bool: return p != host and is_instance_valid(p) and not p.is_queued_for_deletion() and not p.entering and not p.is_in_game())
 	var pets: Array = [host]
-	for other: Node in host.get_tree().get_nodes_in_group("pets"):
-		if other != host and is_instance_valid(other) and not other.is_in_game():
-			pets.append(other)
+	if not others.is_empty():
+		var generation: int = host.action_generation
+		var names: Array[String] = []
+		for other: Node in others:
+			names.append(str(other.get_label()))
+		var address: String = "、".join(names) if names.size() <= 3 else TranslationServer.translate("大家")
+		GameChat.say(host, "%s,%s" % [address, host.speak_tr(GROUP_LINES.pick_random())], 2.6)
+		await _wait(host, 1.9)
+		if not is_instance_valid(host) or host.action_generation != generation:
+			return {}
+		for other: Node in others:
+			if not is_instance_valid(other) or other.is_in_game():
+				continue
+			if other.vitality != null:
+				other.vitality.note_invited()
+			var refusal: Dictionary = other.game_refusal()
+			if randf() < float(refusal["chance"]):
+				GameChat.say(other, other.speak_tr(str((GameInvite.REFUSE_LINES[str(refusal["reason"])] as Array).pick_random())), 2.2)
+			else:
+				pets.append(other)
+				GameChat.say(other, other.speak_tr(str(GameInvite.ACCEPT_LINES.pick_random())), 1.6)
+		await _wait(host, 1.5)
+		if not is_instance_valid(host) or host.action_generation != generation:
+			return {}
+	# 沒人願意加入(或場上本來就只有發起者)一樣能跑完:_play_battle_royale() 只有一隻桌寵時本來就會退化成
+	# 「使用者 vs 這隻桌寵」單挑(檔頭⑤的說明),不用另外處理「全部拒絕」的收場台詞。
 	GameChat.enter(pets)
 	var result: Dictionary = await _play_battle_royale(pets)
 	GameChat.leave(pets)
@@ -264,7 +294,7 @@ static func _play_battle_royale(pets: Array) -> Dictionary:
 		round_num += 1
 		var speaker: Node = alive[0]
 		for pet: Node in alive:
-			GameChat.say(pet, TranslationServer.translate("第 %d 輪!還剩 %d 位") % [round_num, alive.size() + int(user_alive)], 1.4)
+			GameChat.say(pet, TranslationServer.translate("第 %d 輪!還剩 %d 位") % [round_num, alive.size() + int(user_alive)], 1.4, true)
 		await _wait(speaker, 1.2)
 		if _cancelled(alive, generations):
 			return {}
@@ -277,13 +307,13 @@ static func _play_battle_royale(pets: Array) -> Dictionary:
 				user_alive = false
 				if user_choice == 3:
 					for pet: Node in alive:
-						GameChat.say(pet, "使用者棄權啦!", 1.6)
+						GameChat.say(pet, "使用者棄權啦!", 1.6, true)
 					await _wait(speaker, 1.2)
 					if _cancelled(alive, generations):
 						return {}
 		for word in ["剪刀…", "石頭…", "布!"]:
 			for pet: Node in alive:
-				GameChat.say(pet, word, COUNTDOWN_STEP + 0.3)
+				GameChat.say(pet, word, COUNTDOWN_STEP + 0.3, true)
 			await _wait(speaker, COUNTDOWN_STEP)
 			if _cancelled(alive, generations):
 				return {}

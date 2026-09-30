@@ -76,6 +76,11 @@ var anchors: Array[Dictionary] = []
 var lights: Array[Dictionary] = []
 ## 這件家具的貼圖是不是蓋在自己的光暈之上(見檔頭)。
 var above_light := false
+## 這件家具要不要畫在桌寵與對話氣泡之上(2026-09-30 使用者要求:協助使用者自製 UI 用,例如當成一塊
+## 「相框」貼在畫面最上層)。預設 false(跟平時一樣,在裝飾層裡、被桌寵/氣泡蓋住);開啟後改由
+## DesktopShell 一個更高的 CanvasLayer 畫(見 FurnitureManager._home_parent_for()),編輯模式拖曳、
+## 光源、坐躺、容器這些既有功能都不受影響,純粹只是換一個畫面圖層。
+var render_above_ui := false
 ## 家具標籤(見檔頭),TAGS_CATALOG 的子集合。
 var tags: Array[String] = []
 ## 容器內容物(見檔頭):每筆 {id: 道具的 PropDef.id, capacity: 補滿時的數量}。空陣列 = 不是容器。
@@ -282,7 +287,7 @@ func to_dict() -> Dictionary:
 		"name": display_name, "thumbnail": thumbnail, "condition": condition.duplicate(true),
 		"scale": scale_multiplier, "template": template, "anchors": anchors.duplicate(true),
 		"lights": lights.duplicate(true), "above_light": above_light, "tags": tags.duplicate(),
-		"containerItems": container_items.duplicate(true),
+		"containerItems": container_items.duplicate(true), "render_above_ui": render_above_ui,
 	}
 
 
@@ -339,6 +344,7 @@ static func from_dict(data: Variant, folder_id: String) -> FurnitureDef:
 	# "lights"(新格式)優先;沒有就退回舊格式的單一 "light" 字典(clean_lights 會處理相容轉換)。
 	def.lights = clean_lights(data.get("lights", data.get("light")), def.condition)
 	def.above_light = bool(data.get("above_light", false)) if data.get("above_light", false) is bool else false
+	def.render_above_ui = bool(data.get("render_above_ui", false)) if data.get("render_above_ui", false) is bool else false
 	def.tags = clean_tags(data.get("tags"))
 	def.container_items = clean_container_items(data.get("containerItems"))
 	return def

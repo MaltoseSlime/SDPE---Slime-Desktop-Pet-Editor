@@ -61,16 +61,22 @@ static func think(pet: Node, text: String, seconds := 3.0) -> void:
 	}, DialogueTicket.new())
 
 
-static func say(pet: Node, text: String, seconds := 3.0) -> void:
+## quiet = true:這句不算「值得留底」的內容(每一局都會喊、還每隻參賽的桌寵都得喊一遍的短口號,例如猜拳倒數
+## 「剪刀…石頭…布!」、拚骰的「第 X 局!」、平手重來的提示)——氣泡照舊正常顯示,只是「聊天室式」模式下
+## 不會把這種洗版的重複句子寫進聊天記錄(見 UiManager._show_bubble 的 chat_log 判斷)。
+static func say(pet: Node, text: String, seconds := 3.0, quiet := false) -> void:
 	if not is_instance_valid(pet):
 		return
 	var state := pet.get_node("/root/DesktopShellState")
 	if state.dialogue_line_requested.get_connections().is_empty():
 		return
-	state.dialogue_line_requested.emit(pet, {
+	var line := {
 		"text": text, "font": "", "typewriter": false, "auto_seconds": seconds,
 		"bind_action": "", "options": [], "interrupts": true,
-	}, DialogueTicket.new())
+	}
+	if quiet:
+		line["chat_log"] = false
+	state.dialogue_line_requested.emit(pet, line, DialogueTicket.new())
 
 
 ## 用氣泡問使用者一個選擇題,回傳選了第幾個(0 起算);沒有介面、被打斷、逾時都回 -1。

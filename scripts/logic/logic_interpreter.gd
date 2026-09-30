@@ -50,8 +50,11 @@ var _memory_hats: Array[Dictionary] = []
 var _game_hats: Array[Dictionary] = []
 ## 邀請對戰事件(event_when_game_invited):這隻桌寵「被邀請」而接受/拒絕時,用自己的台詞取代內建那一句,見 run_invite_hats。
 var _invite_hats: Array[Dictionary] = []
-## 小道具事件(event_prop_collected / event_prop_rubbed / event_prop_candidate):見 run_prop_hats。
+## 小道具事件(event_prop_collected / event_prop_rubbed / event_prop_candidate,只有自己觸發):見 run_prop_hats。
 var _prop_hats: Array[Dictionary] = []
+## 道具使用廣播事件(event_prop_used):跟上面 _prop_hats 不同,這個不是只有自己拾取才觸發,場上所有桌寵
+## 拾取任何道具都會廣播過來,依 TAGS/INCLUDE_SELF/PROP 篩選,見 _on_prop_used。
+var _prop_used_hats: Array[Dictionary] = []
 ## 特效事件(event_when_effect):有人的 PetEffects 開始播放特效時觸發,見 _on_effect_played。
 var _effect_hats: Array[Dictionary] = []
 ## 家具使用事件(event_furniture_join / event_furniture_leave):有人開始/結束使用家具時觸發,見 _on_furniture_use_changed。
@@ -609,6 +612,10 @@ func _register_hat(block: Dictionary) -> void:
 				_state_timer.start()
 		"event_prop_collected", "event_prop_rubbed", "event_prop_candidate":
 			_prop_hats.append(block)
+		"event_prop_used":
+			_prop_used_hats.append(block)
+			if _state != null and not _state.prop_used.is_connected(_on_prop_used):
+				_state.prop_used.connect(_on_prop_used)
 		_:
 			pass
 
@@ -1093,6 +1100,17 @@ func _exec(block: Dictionary, token: int) -> String:
 				return await _run_chain(_statement(block, "DO"), token)
 		"dialogue_option":
 			pass # 選項積木由所屬的 dialogue_line 收集與執行,單獨出現在鏈上沒有作用。
+		"light_cond_set":
+			# 條件光源(2026-09-30 使用者要求):MODE = on(啟用,持續生效)/off(關閉)/trigger(觸發,
+			# SEC 秒後自動關閉,<= 0 等同啟用)。ID 空白時 Pet 的兩個函式自己會是 no-op,這裡不用另外檢查。
+			var light_id := str(fields.get("ID", "")).strip_edges().left(32)
+			match str(fields.get("MODE", "on")).to_lower():
+				"off":
+					_pet.set_conditional_light(light_id, false)
+				"trigger":
+					_pet.trigger_conditional_light(light_id, maxf(_number(fields.get("SEC", 0.0)), 0.0))
+				_:
+					_pet.set_conditional_light(light_id, true)
 		"lens_enable":
 			_pet.enable_lens(str(fields.get("LENS", "")))
 		"lens_disable":
@@ -1817,6 +1835,26 @@ func run_prop_hats(kind: String, prop_name: String) -> bool:
 	return handled
 
 
+## 有桌寵使用(拾取/吃掉)了道具:每個 event_prop_used 依 TAGS(要看哪些角色,空白 = 場內所有其他桌寵)、
+## INCLUDE_SELF(連自己也看)、PROP(道具名稱或代號,空白/any = 任何道具)判斷,符合就觸發。跟 event_prop_collected
+## (只有「自己」拾取才會觸發、沒有 TAGS/INCLUDE_SELF)是兩件獨立的事,兩者都可能同時被跑到。
+func _on_prop_used(who: Node, prop_name: String) -> void:
+	if not is_instance_valid(_pet):
+		return
+	for hat in _prop_used_hats.duplicate():
+		var fields: Dictionary = hat.get("fields", {})
+		var wanted_prop := str(fields.get("PROP", "")).strip_edges()
+		if wanted_prop != "" and wanted_prop.to_lower() != "any" and wanted_prop != prop_name:
+			continue
+		if who == _pet:
+			if not _truthy(fields.get("INCLUDE_SELF", false)):
+				continue
+		var wanted := _character_tags(fields)
+		if not wanted.is_empty() and not wanted.has(who.recognition_tag):
+			continue
+		_run_hat(hat)
+
+
 ## 有桌寵播放了特效:每個 event_when_effect 依 TAGS(要看哪些角色,空白 = 場內所有其他桌寵)、INCLUDE_SELF(連自己也看)、EFFECT(特效名稱或代號,空白 = 任何特效)判斷,符合就觸發。
 func _on_effect_played(who: Node, key: String) -> void:
 	if not is_instance_valid(_pet):
@@ -2106,6 +2144,13 @@ func _placeholder_text(inner: String, for_bbcode: bool) -> String:
 	if inner.begins_with("pick:"):
 		var choices := split_pool(inner.substr(5))
 		return str(choices.pick_random()) if not choices.is_empty() else ""
+	# 小提示詞條池:{tips} 隨機插入 content/tips_pool.json 裡的一則(健談性格的閒聊句用它,例如「你知道嗎?{tips}」);
+	# 跟 speak_tr()/_resolve_text 同一套「dialogue_locale 優先,沒設就跟介面語系走」原則選語系,池子是空的
+	# 就插入空字串,不會出錯(見 TipsPool 檔頭說明)。
+	if inner.strip_edges() == "tips":
+		var tips_locale: String = _pet.dialogue_locale if _pet.dialogue_locale != "" else TranslationServer.get_locale()
+		var tip := TipsPool.pick(tips_locale)
+		return PetText.escape_bbcode(tip) if for_bbcode else tip
 	# 特效標記:{fx:一群小愛心}、{fx:冒汗|4}(4 = 持續秒數,不寫用預設)。不顯示任何字。
 	if inner.strip_edges().begins_with("fx:"):
 		var fx_body := inner.strip_edges().substr(3)

@@ -57,6 +57,12 @@ signal furniture_use_changed(pet: Node, item: Node, anchor_type: String, using: 
 ## 說話打字機每顯示一個字發一次(音效管理器負責節流);對話介面不直接碰音效系統。
 signal speech_tick_requested(pet: Node)
 
+## 某隻桌寵拾取/吃掉了一個道具(PropReaction.collect(),不含被摩擦);積木「當(角色)使用了(道具)時」
+## 訂閱它,見 LogicInterpreter._on_prop_used。跟 effect_played/furniture_use_changed 同一套廣播設計
+## (場上所有桌寵都收得到,各自依 TAGS/INCLUDE_SELF 篩要不要理),讓其他桌寵也能反應「指定角色用了某物品」,
+## 不是只有使用者自己(2026-09-30 使用者要求:條件光源錨點要能綁到「指定對象使用了指定物品」)。
+signal prop_used(pet: Node, prop_name: String)
+
 ## 音效設定(使用者可調,SoundManager 負責存檔與套用):音量 0.0–1.0、靜音、說話音效開關。
 signal audio_settings_changed
 ## 關鍵事件要求即時存檔(見 SaveScheduler.request):拿到道具、對話選項改了數值等。

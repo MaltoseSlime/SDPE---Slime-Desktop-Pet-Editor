@@ -25,7 +25,7 @@ const DEFAULT_COLOR := "#ffe9a8"
 
 ## 一盞預設的光(新增時用):頭部上方、暖白色、中等半徑。
 static func new_light(index: int, at := Vector2(0.0, -60.0)) -> Dictionary:
-	return {"name": "光源 %d" % (index + 1), "x": at.x, "y": at.y, "radius": 80.0, "energy": 0.8, "color": DEFAULT_COLOR, "enabled": true, "action": ""}   # no-tr:存進 pack.json 的資料,不隨語系變
+	return {"name": "光源 %d" % (index + 1), "x": at.x, "y": at.y, "radius": 80.0, "energy": 0.8, "color": DEFAULT_COLOR, "enabled": true, "action": "", "cond_id": ""}   # no-tr:存進 pack.json 的資料,不隨語系變
 
 
 ## 把任意輸入(pack.json 讀來的)整理成合法的光源清單:壞的項目略過、數字夾在範圍內、最多 MAX_LIGHTS 盞。
@@ -54,6 +54,11 @@ static func clean(raw: Variant) -> Array[Dictionary]:
 			"enabled": bool(entry.get("enabled", true)) if entry.get("enabled", true) is bool else true,
 			"action": action,
 			"layer": "back" if str(entry.get("layer", "front")) == "back" else "front",
+			# 條件光源 ID(2026-09-30 使用者要求):空白 = 一般光源(跟以前一樣只看 enabled/action/逐幀熄燈);
+			# 非空白 = 這盞燈額外多一道「積木有沒有把這個 ID 打開」的門檻(見 Pet.set_conditional_light()/
+			# trigger_conditional_light()、PackLights.active() 的 active_cond_ids 參數),平時照樣可以在光源
+			# 頁籤設好位置/半徑/顏色,只是要積木「啟用/觸發」這個 ID 才會真的亮。
+			"cond_id": str(entry.get("cond_id", "")).strip_edges().left(32),
 		}
 		var by_action := _clean_anchors(entry.get("anchors"))
 		if not by_action.is_empty():
@@ -225,8 +230,10 @@ static func _copy_back(light: Dictionary, part: Dictionary) -> void:
 
 
 ## 這一刻(動作 action、幀 frame)有哪幾盞是亮的:總開關啟用、沒有指定動作或指定的動作剛好是現在的、
-## 而且這一幀沒有被逐幀覆蓋熄燈。
-static func active(lights: Array[Dictionary], action: String, frame: int) -> Array[Dictionary]:
+## 而且這一幀沒有被逐幀覆蓋熄燈。active_cond_ids = 這隻桌寵目前積木打開的條件光源 ID 集合(見
+## Pet.light_cond_active,鍵是 ID、值不重要,用 has() 判斷):這盞燈有設 cond_id 的話,還要多過這一關
+## 才算亮(平時在光源頁籤設好的 enabled/action/逐幀熄燈照樣有效,cond_id 是疊加的額外條件,不是取代)。
+static func active(lights: Array[Dictionary], action: String, frame: int, active_cond_ids: Dictionary = {}) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for light in lights:
 		if not bool(light["enabled"]):
@@ -235,6 +242,9 @@ static func active(lights: Array[Dictionary], action: String, frame: int) -> Arr
 		if wanted != "" and wanted != action:
 			continue
 		if not frame_enabled(light, action, frame):
+			continue
+		var cond_id := str(light.get("cond_id", ""))
+		if cond_id != "" and not active_cond_ids.has(cond_id):
 			continue
 		result.append(light)
 	return result

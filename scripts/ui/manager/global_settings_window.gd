@@ -5,6 +5,8 @@ extends FloatingWindow
 
 ## 音效設定要寫進共享狀態並通知 SoundManager,由開啟視窗的 DesktopShell 接手。
 signal audio_setting_requested(kind: String, value: Variant)
+## 「設定行動框顯示螢幕」改了,index 是使用者選的原始值(-1 = 自動),由 DesktopShell 接手實際搬動視窗與內容。
+signal monitor_setting_requested(index: int)
 
 var _app_settings_tab: AppSettingsTab
 var _status_label: Label
@@ -37,6 +39,7 @@ func setup() -> void:
 	scroll.add_child(_app_settings_tab)
 	_app_settings_tab.message.connect(func(text: String) -> void: _status_label.text = text)
 	_app_settings_tab.audio_setting_requested.connect(func(kind: String, value: Variant) -> void: audio_setting_requested.emit(kind, value))
+	_app_settings_tab.monitor_setting_requested.connect(func(index: int) -> void: monitor_setting_requested.emit(index))
 
 	_build_credits_tab()
 

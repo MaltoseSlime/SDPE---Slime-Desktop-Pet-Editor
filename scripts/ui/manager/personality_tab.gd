@@ -656,38 +656,50 @@ func _on_editor_saved_to_pet(id: String) -> void:
 	message.emit(tr("已存到這隻角色自己的「%s」(別隻角色與共用的性格不受影響)。要讓新的參數生效請按「套用」,記得再按「儲存」。") % _name_of(id))
 
 
-## 「重設此性格副本」:丟掉這隻角色改過的副本,從共用的性格檔重新複製原版。
+## 「重設性格副本」:丟掉這隻角色改過的副本,從共用的性格檔重新複製原版。2026-10-01 使用者回饋:很多人
+## 各區塊(參數/對話/反應/數值定義/狀態鏡)混著用不同性格,舊版只找第一個有選到的區塊就重設那一個,
+## 其他區塊的副本不會被動到——改成一次收集這隻角色目前所有區塊實際選用的性格 id(可能好幾個不重複的),
+## 全部一起重設、一起同步,才是使用者講的「整套該桌寵的預設性格」。
 func _reset_own_copy() -> void:
 	if _pet == null:
 		return
 	var wanted := _wanted()
-	var chosen := ""
-	for section: String in ["params", "chat", "reactions", "lenses", "valueDefs"]:
-		if str(wanted[section]) != "":
-			chosen = str(wanted[section])
-			break
-	if chosen == "" or not PersonalityApplier.has_own(_pet, chosen):
+	var ids: Array[String] = []
+	for section: String in PersonalityApplier.SECTIONS:
+		var id := str(wanted[section])
+		if id != "" and PersonalityApplier.has_own(_pet, id) and not ids.has(id):
+			ids.append(id)
+	if ids.is_empty():
 		message.emit("這隻角色沒有選任何性格,或還沒帶著性格副本。")
 		return
-	var edited := PersonalityApplier.is_edited(_pet, chosen)
+	var any_edited := false
+	for id in ids:
+		if PersonalityApplier.is_edited(_pet, id):
+			any_edited = true
+	var names: Array[String] = []
+	for id in ids:
+		names.append(_name_of(id))
+	var names_text := "、".join(PackedStringArray(names))
 	var dialog := ConfirmationDialog.new()
 	dialog.title = "重設性格副本"
-	dialog.dialog_text = tr("要把這隻角色的「%s」%s重設成共用的原版嗎?\n這隻角色改過的台詞與參數設定會消失,而且這個性格管的參數會一併同步成原版的值(連你手動調過的也會換掉;數值定義與狀態鏡沒改過的換成新版、你自己建的不動)。") % [_name_of(chosen), "(有改過)" if edited else ""]
+	dialog.dialog_text = tr("要把這隻角色目前套用的所有性格(%s)%s重設成共用的原版嗎?\n這隻角色改過的台詞與參數設定會消失,而且這些性格管的參數會一併同步成原版的值(連你手動調過的也會換掉;數值定義與狀態鏡沒改過的換成新版、你自己建的不動)。") % [names_text, "(有改過)" if any_edited else ""]
 	dialog.ok_button_text = "重設"
 	dialog.cancel_button_text = "取消"
 	# 不設 always_on_top,見 manager_ui.gd 的 ask_name() 說明(跟置頂衝突,會把視窗卡死)。
 	dialog.theme = ManagerUi.make_theme()
 	dialog.confirmed.connect(func() -> void:
-		PersonalityApplier.reset_own(_pet, chosen)
-		# 同步:這個性格負責的區塊重新套用一次(參數連手動調過的也覆蓋,這是「重設」的意思)
+		for id in ids:
+			PersonalityApplier.reset_own(_pet, id)
+		# 同步:每個被重設的性格,把它實際負責的那幾個區塊重新套用一次(參數連手動調過的也覆蓋,這是「重設」的意思)
 		var sync := {}
 		for section: String in PersonalityApplier.SECTIONS:
-			if PersonalityApplier.choice_of(_pet, section) == chosen:
-				sync[section] = chosen
+			var section_id := str(wanted[section])
+			if ids.has(section_id):
+				sync[section] = section_id
 		var synced := PersonalityApplier.apply(_pet, sync, {"overwrite_params": true}) if not sync.is_empty() else {"lines": []}
 		_refresh_preview()
 		changed.emit()
-		message.emit(tr("已把這隻角色的「%s」重設成原版,並同步了 %d 項(記得再按「儲存」)。") % [_name_of(chosen), (synced["lines"] as Array).size()]))
+		message.emit(tr("已把這隻角色目前套用的所有性格(%s)重設成原版,並同步了 %d 項(記得再按「儲存」)。") % [names_text, (synced["lines"] as Array).size()]))
 	dialog.confirmed.connect(dialog.queue_free)
 	dialog.canceled.connect(dialog.queue_free)
 	add_child(dialog)

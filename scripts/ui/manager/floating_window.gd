@@ -310,6 +310,19 @@ func reset_window() -> void:
 	DisplayServer.window_move_to_foreground(get_window_id())
 
 
+## 主行動區換了螢幕(見 DesktopShell.apply_monitor_setting()):這個視窗跟著搬過去,依舊螢幕→新螢幕的
+## 比例維持相對位置(不是直接置中),搬完再照 ensure_on_screen() 夾一次(位置算出來理論上就在新螢幕內,
+## 這裡是防呆,以防兩個螢幕可用範圍差很多算出界外)。
+func move_to_screen(new_screen_index: int, old_screen_rect: Rect2i, new_screen_rect: Rect2i) -> void:
+	if old_screen_rect.size.x <= 0 or old_screen_rect.size.y <= 0:
+		return
+	var relative := Vector2(position - old_screen_rect.position)
+	var scale := Vector2(new_screen_rect.size) / Vector2(old_screen_rect.size)
+	position = new_screen_rect.position + Vector2i(relative * scale)
+	current_screen = new_screen_index
+	ensure_on_screen()
+
+
 ## 把視窗拉回最接近它的螢幕的可用範圍內(必要時縮小到放得下);標題列(客戶區上方)不會跑到螢幕外。
 func ensure_on_screen() -> void:
 	var rects: Array[Rect2i] = []

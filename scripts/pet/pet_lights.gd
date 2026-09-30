@@ -119,7 +119,8 @@ func _current_frame() -> int:
 func _current_lights() -> Array[Dictionary]:
 	if _lights.is_empty():
 		return []
-	return PackLights.active(_lights, _current_action(), _current_frame())
+	var cond_ids: Dictionary = _pet.light_cond_active if _pet != null and "light_cond_active" in _pet else {}
+	return PackLights.active(_lights, _current_action(), _current_frame(), cond_ids)
 
 
 ## 這盞光現在的位置:依目前動作與動畫幀(動作專屬發光錨點,見 PackLights)。

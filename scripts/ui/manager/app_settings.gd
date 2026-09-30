@@ -48,6 +48,69 @@ static func default_muted(text: Color, bg: Color) -> Color:
 	return text.lerp(bg, 0.45)
 
 
+# --- 重要更新(見 UpdateChecker):開機背景檢查的快取結果,系統匣圖示/選單文字用它決定要不要顯示紅點版。
+# 只快取「有沒有重要更新」這一件事,不是完整的檢查結果(那個只在使用者主動按「檢查更新…」時才需要)。
+
+## {available: 現在該不該顯示紅點, version: 該版本號(給之後想顯示在 tooltip 之類的地方用,available=false 時是空字串),
+## last_check: 上一次「真的連線检查成功」的 unix 時間戳(0 = 從來沒成功過)——只有成功的檢查才會推進這個時間戳,
+## 離線/逾時/格式錯誤都不算,下次開機還是會想再試一次,不會因為失敗過一次就靜默跳過 3 天。
+static func important_update_state() -> Dictionary:
+	var config := ConfigFile.new()
+	if config.load(SETTINGS_PATH) != OK:
+		return {"available": false, "version": "", "last_check": 0}
+	return {
+		"available": bool(config.get_value("updates", "important_available", false)),
+		"version": str(config.get_value("updates", "important_version", "")),
+		"last_check": int(config.get_value("updates", "important_last_check", 0)),
+	}
+
+
+static func set_important_update_state(available: bool, version: String) -> void:
+	var config := ConfigFile.new()
+	config.load(SETTINGS_PATH)
+	config.set_value("updates", "important_available", available)
+	config.set_value("updates", "important_version", version)
+	config.set_value("updates", "important_last_check", Time.get_unix_time_from_system())
+	config.save(SETTINGS_PATH)
+
+
+# --- 行動框顯示螢幕(2026-09-30 使用者回報:多螢幕環境下開機後行動框預設出現在副螢幕)---
+
+## -1 = 自動(跟系統/上次視窗位置判斷的螢幕走,不主動指定);其餘是 DisplayServer 的螢幕索引。
+## 存在 [display] 的 monitor_index。只支援單一螢幕顯示(見 DesktopShell._resolve_target_screen 的說明),
+## 但存成「索引」而不是「跟目前螢幕數量綁死的東西」,以後真的要做多螢幕同時顯示時這個值還能沿用。
+static func action_area_monitor_index() -> int:
+	var config := ConfigFile.new()
+	if config.load(SETTINGS_PATH) == OK:
+		return int(config.get_value("display", "monitor_index", -1))
+	return -1
+
+
+static func set_action_area_monitor_index(index: int) -> void:
+	var config := ConfigFile.new()
+	config.load(SETTINGS_PATH)
+	config.set_value("display", "monitor_index", index)
+	config.save(SETTINGS_PATH)
+
+
+## 上次套用畫面配置時,視窗(=螢幕)的像素尺寸。用來偵測「沒有換螢幕,但目前這個螢幕本身解析度/縮放比例
+## 換了」的情況(開機時比對目前螢幕尺寸跟這個值,不一樣就代表需要重新按比例排一次,不管是不是换了螢幕都一樣
+## 處理——見 DesktopShell.apply_monitor_setting())。(0,0) = 還沒記錄過(全新安裝,不必比對)。
+static func last_known_window_size() -> Vector2:
+	var config := ConfigFile.new()
+	if config.load(SETTINGS_PATH) == OK:
+		return Vector2(float(config.get_value("display", "last_w", 0.0)), float(config.get_value("display", "last_h", 0.0)))
+	return Vector2.ZERO
+
+
+static func set_last_known_window_size(size: Vector2) -> void:
+	var config := ConfigFile.new()
+	config.load(SETTINGS_PATH)
+	config.set_value("display", "last_w", size.x)
+	config.set_value("display", "last_h", size.y)
+	config.save(SETTINGS_PATH)
+
+
 # --- 效能 ---
 
 static func max_fps() -> int:
@@ -224,6 +287,33 @@ static func set_floating_on_top(enabled: bool) -> void:
 	var config := ConfigFile.new()
 	config.load(SETTINGS_PATH)
 	config.set_value("editor_ui", "floating_on_top", enabled)
+	config.save(SETTINGS_PATH)
+
+
+# --- 對話氣泡顯示方式(2026-09-30 使用者回饋單,「氣泡固定」)---
+
+## follow = 預設,氣泡跟著桌寵移動(既有行為);pinned = 氣泡式,使用者把某隻桌寵的氣泡拖到哪,之後那隻
+## 桌寵的氣泡就固定生成在那個位置(左上角對齊),不再跟著桌寵跑;chatroom = 聊天室式,把「純資訊、不用等
+## 使用者互動」的句子(沒有選項、也不是等點擊的重要提問)改成寫進一個可收合的聊天室視窗,需要互動的句子
+## (問題、選項)仍然照舊用浮動氣泡顯示——不然使用者沒辦法在聊天室視窗裡點選項。存在 [dialogue] 的 bubble_mode。
+const BUBBLE_MODES: Array[String] = ["follow", "pinned", "chatroom"]
+
+
+static func bubble_display_mode() -> String:
+	var config := ConfigFile.new()
+	if config.load(SETTINGS_PATH) == OK:
+		var mode := str(config.get_value("dialogue", "bubble_mode", "follow"))
+		if BUBBLE_MODES.has(mode):
+			return mode
+	return "follow"
+
+
+static func set_bubble_display_mode(mode: String) -> void:
+	if not BUBBLE_MODES.has(mode):
+		return
+	var config := ConfigFile.new()
+	config.load(SETTINGS_PATH)
+	config.set_value("dialogue", "bubble_mode", mode)
 	config.save(SETTINGS_PATH)
 
 

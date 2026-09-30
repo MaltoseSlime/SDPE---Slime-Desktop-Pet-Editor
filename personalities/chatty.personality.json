@@ -18,8 +18,10 @@
       "休息也阻止不了我分享想法的腳步~": "Even resting can't stop me from sharing my thoughts~",
       "你怎麼都不說話?那換我說!": "Why aren't you saying anything? Then I'll talk!",
       "你有沒有想過,為什麼天空是藍的?我想了一整個早上!": "Have you ever wondered why the sky is blue? I thought about it all morning!",
+      "你知道嗎?{tips}": "Do you know? {tips} ",
+      "跟你說喔!{tips}": "{tips}, just so you know!",
       "你知道嗎?同一張紙能被摺疊的次數是有限的……": "Did you know a single sheet of paper can only be folded so many times...",
-      "你知道嗎?我昨天做了一個超級奇怪的夢……": "You know what? I had the strangest dream last night...",
+      "跟你說喔,我昨天做了一個超級奇怪的夢……": "Just so you know, I had the strangest dream last night...",
       "你贏了!但我覺得剛才的判定有討論空間!": "You won! But I think that call is up for debate!",
       "來了來了!論玩球我可最擅長啦!": "Coming, coming! I'm the best at this!",
       "其實我偶爾也在想,你告訴過我的那些事情……": "Actually, sometimes I think about the things you've told me...",
@@ -96,8 +98,10 @@
       "休息也阻止不了我分享想法的腳步~": "休息也阻止不了我分享想法的腳步~",
       "你怎麼都不說話?那換我說!": "你怎麼都不說話?那換我說!",
       "你有沒有想過,為什麼天空是藍的?我想了一整個早上!": "你有沒有想過,為什麼天空是藍的?我想了一整個早上!",
+      "你知道嗎?{tips}": "你知道嗎?{tips}",
+      "跟你說喔!{tips}": "跟你說喔!{tips}",
       "你知道嗎?同一張紙能被摺疊的次數是有限的……": "你知道嗎?同一張紙能被摺疊的次數是有限的……",
-      "你知道嗎?我昨天做了一個超級奇怪的夢……": "你知道嗎?我昨天做了一個超級奇怪的夢……",
+      "跟你說喔,我昨天做了一個超級奇怪的夢……": "你知道嗎?我昨天做了一個超級奇怪的夢……",
       "你贏了!但我覺得剛才的判定有討論空間!": "你贏了!但我覺得剛才的判定有討論空間!",
       "來了來了!論玩球我可最擅長啦!": "來了來了!論玩球我可最擅長啦!",
       "其實我偶爾也在想,你告訴過我的那些事情……": "其實我偶爾也在想,你告訴過我的那些事情……",
@@ -470,6 +474,14 @@
         "tag": "chat"
       },
       {
+        "say": "你知道嗎?{tips}",
+        "tag": "chat"
+      },
+      {
+        "say": "跟你說喔!{tips}",
+        "tag": "chat"
+      },
+      {
         "say": "其實我偶爾也在想,你告訴過我的那些事情……",
         "tag": "chat"
       },
@@ -522,7 +534,7 @@
         "tag": "chat"
       },
       {
-        "say": "你知道嗎?我昨天做了一個超級奇怪的夢……",
+        "say": "告訴你喔,我昨天做了一個超級奇怪的夢……",
         "tag": "chat"
       },
       {

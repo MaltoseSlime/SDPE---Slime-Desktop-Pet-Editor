@@ -153,7 +153,22 @@ static func personality_of(pet: Node, id: String) -> Dictionary:
 	if own is Dictionary and (own as Dictionary).get("data") is Dictionary:
 		var checked := PersonalityFile.validate((own as Dictionary)["data"])
 		if bool(checked["ok"]):
-			return checked["personality"]
+			var personality: Dictionary = checked["personality"]
+			# 改過的副本整份凍結在改的當下那一刻(見上面的說明)——但「參數」的新欄位是例外:改的時候這個
+			# 參數根本還不存在,不可能是使用者刻意保留的舊值。2026-10-01 使用者實機回報:舊桌寵一直沒拿到
+			# 新加的「自動坐下(idle_sit_chance)」參數,只能手動按「重設此性格副本」;根因就在這裡——凍結的
+			# 副本連這個鍵都不存在,後面 DefaultsUpdater/_plan_params 的「沒紀錄就跟類別預設值比對」那套
+			# 保護邏輯完全輪不到它(整個 for key in new_params 迴圈就沒這個鍵)。這裡用共用檔「補」缺的參數鍵,
+			# 不是整個蓋掉——副本裡已經有的參數(不管是不是使用者刻意留的)一律維持副本原值不動。
+			var fresh_for_new_params := PersonalityFile.find(id)
+			if not fresh_for_new_params.is_empty():
+				var fresh_params: Dictionary = (fresh_for_new_params["personality"] as Dictionary).get("params", {})
+				var own_params: Dictionary = personality.get("params", {})
+				for key: String in fresh_params:
+					if not own_params.has(key):
+						own_params[key] = fresh_params[key]
+				personality["params"] = own_params
+			return personality
 	var found := PersonalityFile.find(id)
 	return found.get("personality", {})
 

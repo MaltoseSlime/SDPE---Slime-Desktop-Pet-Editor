@@ -56,6 +56,10 @@ var furniture_bar: FurnitureBar
 var save_scheduler: SaveScheduler
 ## 行動區角落的懸浮球(hover 才現身的選單 + 道具欄),見 HoverBall。
 var hover_ball: HoverBall
+## 對話氣泡/Status 面板/聊天室視窗的統一管理器,見 scripts/ui/ui_manager.gd(動態建立,沒有 class_name)。
+var ui_manager: Node
+## 懸浮球/「顯示在桌寵與對話氣泡之上」家具共用的 CanvasLayer(layer=11),見 _ready()。
+var _top_layer: CanvasLayer
 var _quit_dialog: ConfirmationDialog
 var _globals_loaded := false
 var _applied_polygon := PackedVector2Array()
@@ -109,6 +113,15 @@ func _ready() -> void:
 	_shell_state.pet_registered.connect(func(pet: Node) -> void: pet.manage_requested.connect(_open_manager))
 	_create_tray()
 	_create_platform_system()
+	# 懸浮球/家具「顯示在桌寵與對話氣泡之上」共用這一層更高的 CanvasLayer(11)——UiManager 的對話氣泡/
+	# 聊天室視窗是 layer=10,本來就會整層蓋在基礎 2D 世界(桌寵、平時的家具)上面。懸浮球選單要蓋在聊天室
+	# 收合圖示之上(2026-09-30 使用者要求),同一天使用者又要求「家具可以顯示在桌寵與對話氣泡之上」
+	# (協助使用者自製 UI),兩者需求相同,直接共用同一層。裡面的節點用 global_position/to_global() 算位置,
+	# CanvasLayer 沒設自訂位移/縮放時座標跟基礎 2D 世界是同一套數字,換到這層不影響既有的位置邏輯。
+	_top_layer = CanvasLayer.new()
+	_top_layer.name = "TopLayer"
+	_top_layer.layer = 11
+	add_child(_top_layer)
 	prop_manager = PropManager.new()
 	prop_manager.name = "PropManager"
 	add_child(prop_manager)
@@ -120,7 +133,7 @@ func _ready() -> void:
 	furniture_manager = FurnitureManager.new()
 	furniture_manager.name = "FurnitureManager"
 	add_child(furniture_manager)
-	furniture_manager.setup(action_area)
+	furniture_manager.setup(action_area, _top_layer)
 	furniture_manager.container_open_requested.connect(_open_container_contents)
 	furniture_bar = FurnitureBar.new()
 	furniture_bar.name = "FurnitureBar"
@@ -128,11 +141,13 @@ func _ready() -> void:
 	furniture_bar.setup(action_area, furniture_manager)
 	hover_ball = HoverBall.new()
 	hover_ball.name = "HoverBall"
-	add_child(hover_ball)
+	_top_layer.add_child(hover_ball)
 	hover_ball.setup(action_area, prop_manager)
 	hover_ball.action_requested.connect(_on_ball_action)
 	hover_ball.right_click_requested.connect(_start_passthrough)
-	add_child(preload("res://scripts/ui/ui_manager.gd").new())
+	ui_manager = preload("res://scripts/ui/ui_manager.gd").new()
+	add_child(ui_manager)
+	ui_manager.setup(action_area, hover_ball)
 	add_child(preload("res://scripts/audio/sound_manager.gd").new())
 	save_scheduler = SaveScheduler.new()
 	save_scheduler.name = "SaveScheduler"
@@ -141,6 +156,7 @@ func _ready() -> void:
 		_restore_roster()
 		_check_defaults_update.call_deferred()
 		_maybe_offer_language_choice.call_deferred()
+	_check_resolution_change_after_boot()
 
 
 ## 開機後檢查:有桌寵的預設內容(內建性格、狀態鏡…)比目前版本舊,就問使用者要不要追加(見 DefaultsUpdater)。無頭測試與「這一版不要再問」的不問。
@@ -704,6 +720,20 @@ func _on_check_update_requested() -> void:
 	_update_checker.check_for_update()
 
 
+## 系統匣圖示與工作列的應用程式圖示換成紅點版(有重要更新)或普通版;不彈窗,純粹被動提醒。
+## Window 沒有 icon 屬性(之前錯用 get_window().icon = ...,一直到這個函式真的被跑到才炸出
+## "Invalid assignment of property or key 'icon'" 的錯誤);工作列/視窗圖示要透過 DisplayServer.set_icon()
+## (吃 Image,不是 Texture2D)設定,無頭環境沒有真的視窗可設,直接跳過。
+func _apply_important_update_state(available: bool) -> void:
+	if DisplayServer.get_name() != "headless":
+		var texture: Texture2D = TrayController.ICON_NOTIF if available else TrayController.ICON_NORMAL
+		var image := texture.get_image() if texture != null else null
+		if image != null:
+			DisplayServer.set_icon(image)
+	if is_instance_valid(_tray):
+		_tray.set_important_update(available)
+
+
 func _on_update_check_finished(result: Dictionary) -> void:
 	var dialog := AcceptDialog.new()
 	dialog.title = tr("檢查更新")
@@ -781,6 +811,13 @@ func _create_tray() -> void:
 	_update_checker = UpdateChecker.new()
 	add_child(_update_checker)
 	_update_checker.check_finished.connect(_on_update_check_finished)
+	_update_checker.important_state_changed.connect(func(available: bool, _version: String) -> void: _apply_important_update_state(available))
+	# 開機背景自動檢查「重要更新」(見 UpdateChecker.auto_check_if_due(),節流 3 天一次、離線靜默跳過,不彈窗):
+	# 無頭測試不做這件事,不要每次跑測試都真的打一次 GitHub API。先套用上次快取的狀態(離線也看得到上次結果),
+	# 再另外丟一次背景檢查(到期才會真的連線)。
+	if DisplayServer.get_name() != "headless":
+		_apply_important_update_state(bool(AppSettings.important_update_state()["available"]))
+		_update_checker.auto_check_if_due()
 	_tray.toggle_frame_requested.connect(_on_tray_toggle_frame)
 	_tray.recall_requested.connect(_on_tray_recall)
 	_tray.windows_reset_requested.connect(reset_floating_windows)
@@ -865,6 +902,7 @@ func _open_settings() -> void:
 	add_child(_settings_window)
 	_settings_window.setup()
 	_settings_window.audio_setting_requested.connect(_on_audio_setting)
+	_settings_window.monitor_setting_requested.connect(apply_monitor_setting)
 
 
 ## 懸浮球選單的按鈕:開對應的視窗(道具欄與清空道具由球自己處理)。
@@ -1299,9 +1337,83 @@ func _configure_window() -> void:
 	window.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
 	# 第一階段先覆蓋目前所在的單一螢幕;跨螢幕虛擬桌面涵蓋留待「多螢幕混合 DPI 縮放校正」
 	# 驗證項目(主企劃書第九章第一階段第4點)處理,此處不預先假設涵蓋多顯示器。
-	var screen_index := window.current_screen
+	var screen_index := _resolve_target_screen()
+	window.current_screen = screen_index
 	window.position = DisplayServer.screen_get_position(screen_index)
 	window.size = DisplayServer.screen_get_size(screen_index)
+
+
+## 開機時行動框該出現在哪個螢幕:使用者在全局設定選過(AppSettings.action_area_monitor_index())就用那個
+## (螢幕拔掉了/索引超出範圍就退回自動);沒選過(-1,自動)就沿用 Godot/OS 本來就會決定的 current_screen
+## (2026-09-30 使用者回報:多螢幕環境下這個「自動」判斷有時候會落在副螢幕,所以才需要這個設定讓使用者自己指定)。
+func _resolve_target_screen() -> int:
+	var chosen := AppSettings.action_area_monitor_index()
+	if chosen >= 0 and chosen < DisplayServer.get_screen_count():
+		return chosen
+	return get_window().current_screen
+
+
+## 開機時(視窗、行動區、家具、道具都已經就緒之後)比對這次的視窗(=螢幕)尺寸跟上次記住的尺寸——不管是
+## 因為使用者指定了不同螢幕、還是同一台螢幕本身解析度/縮放比例換了,只要尺寸不一樣就照比例重排一次家具/
+## 道具/固定氣泡/聊天室視窗(桌寵、行動區框本身已經有自己的辦法適應,見下面 _rescale_layout 的說明)。
+## 第一次安裝(上次尺寸是 (0,0))不重排,只記錄基準值。
+func _check_resolution_change_after_boot() -> void:
+	var current := Vector2(get_window().size)
+	var last := AppSettings.last_known_window_size()
+	if last != Vector2.ZERO and not last.is_equal_approx(current):
+		_rescale_layout(last, current)
+	AppSettings.set_last_known_window_size(current)
+
+
+## 全局設定的「設定行動框顯示螢幕」改了(見 AppSettingsTab 的 monitor_setting_requested,index 是使用者
+## 選的原始值,-1 = 自動):存設定、把整個視窗搬到新螢幕、依新舊視窗尺寸比例把桌寵/家具/道具/固定氣泡/
+## 聊天室視窗一起挪過去,浮動視窗(獨立的 OS 視窗)也依比例搬過去。目前只支援單一螢幕顯示(不會同時在
+## 兩個螢幕上都顯示行動區),但存的是「目標螢幕索引」+ 每個項目各自「比例位置」的寫法,不是寫死跟目前
+## 螢幕數量綁死的東西,之後真的要做多螢幕同時顯示,這裡的資料形狀不用整個重來。
+func apply_monitor_setting(index: int) -> void:
+	AppSettings.set_action_area_monitor_index(index)
+	var window := get_window()
+	var old_size := Vector2(window.size)
+	var old_screen_rect := Rect2i(window.position, window.size)
+	var old_screen_index := window.current_screen
+	var target := _resolve_target_screen()
+	var target_size := DisplayServer.screen_get_size(target)
+	if target_size.x <= 0 or target_size.y <= 0:
+		return   # 讀不到這個螢幕的實際尺寸(無頭環境、或螢幕剛好被拔掉的競態),不要把視窗搬去一個 0x0 的地方
+	if target == old_screen_index and target_size == Vector2i(old_size):
+		return   # 選的螢幕其實跟目前一樣、尺寸也沒變,不用真的搬
+	window.current_screen = target
+	window.position = DisplayServer.screen_get_position(target)
+	window.size = target_size
+	var new_size := Vector2(window.size)
+	var new_screen_rect := Rect2i(window.position, window.size)
+	_rescale_layout(old_size, new_size)
+	for node in get_tree().get_nodes_in_group("floating_windows"):
+		if node is FloatingWindow:
+			(node as FloatingWindow).move_to_screen(target, old_screen_rect, new_screen_rect)
+	AppSettings.set_last_known_window_size(new_size)
+
+
+## 把「絕對座標」性質的東西依 old_size → new_size 的比例挪過去。行動區框本身用既有的 fit_to_window()
+## (只保證留在畫面內,不是嚴格按比例——這是它原本就有的、給「螢幕解析度換了」用的防呆,見 action_area.gd);
+## 桌寵只是簡單依比例位移再夾回新的視窗範圍(桌寵不需要保留跟行動區的相對關係,能力範圍本來就是靠
+## bind_action_area 隨時讀 boundary_rect,下一次移動就會自動貼齊新的行動區);家具/道具/固定氣泡/聊天室
+## 視窗各自有自己的防呆(見各自的 rescale_positions/rescale_layout/rescale_window_position)。
+func _rescale_layout(old_size: Vector2, new_size: Vector2) -> void:
+	if old_size.x <= 0.0 or old_size.y <= 0.0 or old_size.is_equal_approx(new_size):
+		return
+	var scale := new_size / old_size
+	action_area.boundary_rect = action_area.fit_to_window(Rect2(action_area.boundary_rect.position * scale, action_area.boundary_rect.size * scale), new_size)
+	for pet in get_tree().get_nodes_in_group("pets"):
+		var scaled: Vector2 = (pet as Node2D).global_position * scale
+		(pet as Node2D).global_position = Vector2(clampf(scaled.x, 0.0, new_size.x), clampf(scaled.y, 0.0, new_size.y))
+	if furniture_manager != null:
+		furniture_manager.rescale_positions(old_size, new_size)
+	if prop_manager != null:
+		prop_manager.rescale_positions(old_size, new_size)
+	if ui_manager != null and ui_manager.has_method("rescale_layout"):
+		ui_manager.rescale_layout(old_size, new_size)
+	action_area._notify_boundary_changed()   # 讓懸浮球/聊天室圖示照新的行動區範圍重新排版、重畫
 
 
 func _on_action_area_right_click() -> void:
@@ -1321,11 +1433,33 @@ func _start_passthrough() -> void:
 	_shell_state.is_passthrough_frozen = true
 	_shell_state.passthrough_started.emit()
 	modulate.a = PASSTHROUGH_ALPHA
+	_set_overlay_passthrough_fade(PASSTHROUGH_ALPHA)
 	await get_tree().create_timer(PASSTHROUGH_DURATION).timeout
 	_end_passthrough()
 
 
 func _end_passthrough() -> void:
 	modulate.a = 1.0
+	_set_overlay_passthrough_fade(1.0)
 	_shell_state.is_passthrough_frozen = false
 	_shell_state.passthrough_ended.emit()
+
+
+## modulate 設在 self(Node2D)上只會淡化基礎 2D 世界(桌寵、行動區框)那一層——CanvasLayer 不是 CanvasItem,
+## 沒有 modulate 屬性,不會自動跟著淡;裝飾層(平時的家具)更是完全獨立的原生視窗,又是另一回事。
+## 2026-10-01 使用者實機回報:右鍵暫時穿透時只有桌寵本體變淡,家具、對話氣泡、聊天室視窗還是不透明,
+## 看起來不一致(雖然滑鼠點擊已經真的穿透過去了,見 _process() 的 window.mouse_passthrough)。這裡補上
+## 懸浮球/「顯示在桌寵與對話氣泡之上」家具(_top_layer,直接淡化每個子節點)、平時的家具(裝飾層畫布,一個
+## 節點就淡化了全部)、對話氣泡/Status 面板/聊天室視窗(ui_manager 自己的 CanvasLayer 同樣沒有 modulate,
+## 轉呼叫它自己的淡化方法,見 ui_manager.gd 的 set_passthrough_fade())。
+func _set_overlay_passthrough_fade(alpha: float) -> void:
+	if _top_layer != null:
+		for child in _top_layer.get_children():
+			if child is CanvasItem:
+				(child as CanvasItem).modulate.a = alpha
+	if furniture_manager != null:
+		var canvas := furniture_manager.decor_canvas()
+		if canvas != null:
+			canvas.modulate.a = alpha
+	if ui_manager != null and ui_manager.has_method("set_passthrough_fade"):
+		ui_manager.set_passthrough_fade(alpha)

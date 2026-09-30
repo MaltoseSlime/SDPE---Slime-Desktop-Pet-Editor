@@ -15,6 +15,9 @@ extends RefCounted
 ##    no_follow_source = true 時,自己不會主動決定跟著別隻桌寵走(見 Pet._tick_auto_pet_follow())。
 ##    這三個(no_follow_target/no_follow_source/ignore_furniture)在固定/靜止模式下會被自動強制打開,
 ##    離開這兩種模式後換回使用者原本自己設定的值,見 Pet._apply_move_mode_interaction_defaults()。
+##    show_bubble_in_chatroom = true 時(2026-10-01 加入),全局設定切成「聊天室式」對話顯示時,這隻桌寵不用
+##    等使用者互動的句子(閒聊、狀態播報…)依然會額外彈出浮動氣泡(不是只寫進聊天記錄)——兩邊同時顯示,
+##    見 UiManager._show_bubble()。沒開啟「聊天室式」對話顯示時這個設定完全不影響行為。
 ## 詳細編輯(條件、選項、連續動作…)要到網頁端積木編輯器;這裡只提供最常用、最簡單的部分。所有欄位讀進來都會驗證與夾範圍。
 
 const MAX_TEXT := 120
@@ -27,16 +30,22 @@ const PREFS := ["like", "dislike", "ignore"]
 ## sit/lay 這兩個同時也是家具坐/躺錨點類型(見 FurnitureDef.ANCHOR_TYPES)直接拿來播的動作名稱——素材包作者
 ## 如果準備了不同於預設 sit/lay 的坐躺姿勢動作(例如另外取名的自訂動作),可以在這裡把 sit/lay 重新指到那個動作,
 ## 既有家具(anchors 存的仍是 "sit"/"lay" 字面值)不用重新編輯就會自動改用新指定的動作,不會因為代號對不起來而壞掉。
+## climb_wall/climb_ceiling(2026-10-01 加入):素材包有沒有專屬的爬牆/天花板動畫本身就會自動取代退回用的
+## walk 轉 90°/180° 湊出來的效果(見 Pet._wall_upright()/_ceiling_dedicated()),這裡讓使用者能像其他事件
+## 一樣,改指到素材包裡另一個自訂名稱的動作(例如叫 "crawl" 的動作),不用剛好取名 climb_wall/climb_ceiling
+## 才會被認得;改指到的動作也會反過來影響「該不該轉正」的判斷(_wall_upright/_ceiling_dedicated 也查同一個
+## 對應),不會出現「播的是自訂動畫,角度卻還是照舊轉 90°」這種不一致。
 const ACTION_SLOTS: Array[Array] = [
 	["interact", "被觸摸 / 互動"], ["drag", "被拖曳"], ["gather", "拾取 / 使用道具"], ["enter", "入場"], ["leave", "退場"],
 	["sleep", "睡覺"], ["sit", "坐下休息(含家具的坐下錨點)"], ["lay", "躺下休息(含家具的躺下錨點)"], ["dance", "跳舞"], ["walk", "走路"], ["run", "奔跑"], ["idle", "待機"], ["rise", "跳起(上升)"], ["fall", "落下"],
+	["climb_wall", "爬牆"], ["climb_ceiling", "爬天花板"],
 ]
 ## 道具反應的觸發時機。
 const PROP_KINDS := {"collected": "道具消耗", "rubbed": "被摩擦", "candidate": "道具選中"}
 
 
 static func empty() -> Dictionary:
-	return {"actions": {}, "characters": [], "props": [], "prefs": [], "ignore_props": false, "ignore_furniture": false, "no_follow_target": false, "no_follow_source": false}
+	return {"actions": {}, "characters": [], "props": [], "prefs": [], "ignore_props": false, "ignore_furniture": false, "no_follow_target": false, "no_follow_source": false, "show_bubble_in_chatroom": false}
 
 
 static func slot_keys() -> Array[String]:
@@ -103,7 +112,7 @@ static func clean(raw: Variant) -> Dictionary:
 				continue
 			seen[id] = true
 			result["prefs"].append({"id": id, "name": _text(entry.get("name", id)), "pref": pref})
-	for key in ["ignore_props", "ignore_furniture", "no_follow_target", "no_follow_source"]:
+	for key in ["ignore_props", "ignore_furniture", "no_follow_target", "no_follow_source", "show_bubble_in_chatroom"]:
 		var value_raw: Variant = raw.get(key, false)
 		result[key] = value_raw if value_raw is bool else false
 	return result

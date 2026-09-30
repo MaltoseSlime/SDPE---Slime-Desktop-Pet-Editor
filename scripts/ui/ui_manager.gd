@@ -8,6 +8,10 @@ extends CanvasLayer
 ##
 ## 還負責「重複前一句」(桌寵右鍵選單):只重播純文字與綁定動作,不再出現選項、也不重算 Flag。
 
+## 對話氣泡跟隨桌寵移動的平滑速度(2026-09-30 使用者要求「再更慢一點」,原本是每影格直接貼齊,現在改成
+## 指數平滑跟隨;值愈小追得愈慢)。只套用在對話氣泡,Status 面板維持原本直接貼齊(面板本來就不太需要柔順感,
+## 使用者這次也只提對話氣泡)。
+const BUBBLE_FOLLOW_SPEED := 5.0
 const GAP := 6.0
 const STAGGER_PADDING := 8.0
 const MAX_RETRIES := 3
@@ -41,6 +45,13 @@ var _repeat_connected: Dictionary = {}
 ## 偏移 0 重新試一次,介面會在原位跟推開後的位置之間快速跳動;沿用上一影格的偏移當第一個候選,
 ## 穩定不變時就不會重算。
 var _last_offsets: Dictionary = {}
+## 「氣泡式」模式(AppSettings.bubble_display_mode() == "pinned")下,桌寵 → 使用者拖曳後固定的氣泡位置
+## (左上角,畫布座標)。只存在記憶體(不跨重開機),沒拖過的桌寵沿用一般跟隨排版直到第一次被拖過。
+var _pinned_positions: Dictionary = {}
+var _chatroom: ChatRoomWindow
+## 右鍵暫時穿透期間的淡化透明度(1.0 = 沒在穿透);新出現的氣泡/面板要照這個值起始,不然穿透期間冒出來的
+## 新氣泡會是不透明的,跟其他已經淡掉的介面不一致,見 set_passthrough_fade()。
+var _passthrough_alpha := 1.0
 
 
 func _ready() -> void:
@@ -57,6 +68,26 @@ func _ready() -> void:
 	set_process(false)
 
 
+## 換螢幕、或同一台螢幕解析度變了(見 DesktopShell.apply_monitor_setting()):固定氣泡(氣泡式模式記住的位置)
+## 跟聊天室視窗的展開位置都是絕對座標,依新舊視窗尺寸的比例挪過去。
+func rescale_layout(old_size: Vector2, new_size: Vector2) -> void:
+	if old_size.x <= 0.0 or old_size.y <= 0.0 or old_size.is_equal_approx(new_size):
+		return
+	var scale := new_size / old_size
+	for pet: Node in _pinned_positions.keys():
+		_pinned_positions[pet] = (_pinned_positions[pet] as Vector2) * scale
+	if _chatroom != null:
+		_chatroom.rescale_window_position(old_size, new_size)
+
+
+## action_area/hover_ball:轉交給聊天室視窗(收合圖示的拖曳範圍限制、避開懸浮球,見 ChatRoomWindow.setup())。
+## 由 DesktopShell 在 add_child(ui_manager) 之後明確呼叫(跟懸浮球等其他行動區相關元件同一套「外部明確 setup」慣例)。
+func setup(action_area: Node, hover_ball: HoverBall) -> void:
+	_chatroom = ChatRoomWindow.new()
+	add_child(_chatroom)
+	_chatroom.setup(action_area, hover_ball)
+
+
 func _connect_pet(pet: Node) -> void:
 	if _connected_pets.has(pet):
 		return
@@ -66,6 +97,7 @@ func _connect_pet(pet: Node) -> void:
 	pet.timer_input_requested.connect(_on_timer_input.bind(pet))
 	pet.tree_exiting.connect(_forget_pet.bind(pet))
 	pet.interrupted.connect(_drop_queued.bind(pet))
+	pet.bubble_pin_toggle_requested.connect(_on_bubble_pin_toggle.bind(pet))
 
 
 func _forget_pet(pet: Node) -> void:
@@ -77,6 +109,7 @@ func _forget_pet(pet: Node) -> void:
 	_history.erase(pet)
 	_connected_pets.erase(pet)
 	_repeat_connected.erase(pet)
+	_pinned_positions.erase(pet)
 
 
 # --- 對話氣泡 ---
@@ -137,13 +170,33 @@ func _connect_repeat(pet: Node) -> void:
 
 func _show_bubble(pet: Node, line: Dictionary, ticket: RefCounted) -> void:
 	_close_bubble(pet)
+	# 「聊天室式」模式下,不用等使用者互動的句子(沒有選項、也不是等點擊的重要提問)改走聊天室視窗;
+	# 需要互動的句子(問題、選項)還是照舊用浮動氣泡——不然使用者沒辦法在聊天室視窗裡點選項。
+	var options: Array = line.get("options", [])
+	var interactive := not options.is_empty() or bool(line.get("wait_click", false))
+	var chatroom_route := AppSettings.bubble_display_mode() == "chatroom" and not interactive
+	# 「即使存在聊天室也顯示氣泡」(桌寵管理 > 交互行為,2026-10-01):個別桌寵可以要求聊天室式模式下這句
+	# 也額外彈浮動氣泡,不是只寫進聊天記錄——兩邊同時顯示。只影響要不要現形,chatroom_route(要不要寫進
+	# 聊天記錄)本身不變。
+	var force_bubble := chatroom_route and bool((pet.interaction_rules as Dictionary).get("show_bubble_in_chatroom", false))
+	var show_in_world := not chatroom_route or force_bubble
 	var bubble := DialogueBubble.new()
 	add_child(bubble)
-	bubble.setup(pet, line)
+	bubble.setup(pet, line, show_in_world)
+	if show_in_world:
+		# 右鍵穿透期間冒出來的新氣泡也要一起淡,不然跟其他已經淡掉的不一致;純聊天室式模式下這顆氣泡本來就是
+		# show_in_world=false 的隱形氣泡(setup() 已經把 modulate.a 設成 0),不能被這裡蓋掉。
+		bubble.modulate.a = _passthrough_alpha
+	# chat_log = false(見 GameChat.say 的 quiet 參數):每局都喊、每隻桌寵都得喊一遍的短口號,聊天室式模式下
+	# 不寫進聊天記錄(不然會洗版),但氣泡本身照舊建立、計時——只是這一句略過 append_line 這一步。
+	if chatroom_route and bool(line.get("chat_log", true)):
+		_chatroom.append_line(pet, bubble.chat_text(), bubble.chat_color(), bubble.is_thought)
 	_bubbles[pet] = bubble
 	_order.append(bubble)
+	pet.has_open_bubble = true   # 右鍵選單「固定氣泡位置」決定能不能點用(沒有氣泡可以固定就灰掉)
 	# 先清理自己的登記、再通知直譯器:直譯器醒來後可能立刻開下一句,那時舊氣泡必須已經登出。
 	bubble.advanced.connect(_on_bubble_advanced.bind(pet, bubble))
+	bubble.position_pinned.connect(_on_bubble_position_pinned)
 	if ticket != null:
 		# Callable 只記得物件、不持有參考:憑證若只有呼叫者短暫拿著(例如提問氣泡的憑證),會在函式結束時被釋放、連線跟著失效,所以掛在氣泡身上。
 		bubble.set_meta(&"ticket", ticket)
@@ -155,10 +208,45 @@ func _show_bubble(pet: Node, line: Dictionary, ticket: RefCounted) -> void:
 	_layout()
 
 
+## 右鍵暫時穿透開始/結束時由 DesktopShell 呼叫(見 DesktopShell._set_overlay_passthrough_fade()):
+## 這個 CanvasLayer 本身沒有 modulate(CanvasLayer 不是 CanvasItem),要自己逐一淡化每個顯示中的氣泡/
+## 面板/聊天室視窗;chatroom_route 的隱形氣泡(show_in_world=false)本來就 modulate.a=0,略過不動,
+## 不然穿透結束時會被誤改回不透明、變成真的看得見。
+func set_passthrough_fade(alpha: float) -> void:
+	_passthrough_alpha = alpha
+	for control in _order:
+		if control is DialogueBubble and not (control as DialogueBubble).is_in_group("Cutout"):
+			continue
+		control.modulate.a = alpha
+	if _chatroom != null:
+		_chatroom.modulate.a = alpha
+
+
+func _on_bubble_position_pinned(pet: Node, position: Vector2) -> void:
+	_pinned_positions[pet] = position
+	pet.bubble_pinned = true
+
+
+## 右鍵選單「固定氣泡位置」(明確的固定/解除固定,不是只能靠拖曳——2026-09-30 使用者回饋:希望有明確的方式)。
+## 已經固定就解除;沒固定就固定在目前顯示中的氣泡位置(選單項目在沒有氣泡可固定時本來就會灰掉,這裡多一層防呆)。
+func _on_bubble_pin_toggle(pet: Node) -> void:
+	if _pinned_positions.has(pet):
+		_pinned_positions.erase(pet)
+		pet.bubble_pinned = false
+		return
+	var bubble: DialogueBubble = _bubbles.get(pet)
+	if bubble == null or not is_instance_valid(bubble) or bubble.is_closed():
+		return
+	_pinned_positions[pet] = bubble.global_position
+	pet.bubble_pinned = true
+
+
 func _on_bubble_advanced(_choice: int, pet: Node, bubble: DialogueBubble) -> void:
 	if _bubbles.get(pet) == bubble:
 		_bubbles.erase(pet)
 		_state.dialogue_finished.emit(pet)
+		if is_instance_valid(pet):
+			pet.has_open_bubble = false
 	_order.erase(bubble)
 	_last_offsets.erase(bubble)
 	if pet.interrupted.is_connected(bubble.close_silently):
@@ -316,6 +404,7 @@ func _toggle_status(pet: Node) -> void:
 	var panel := StatusPanel.new()
 	add_child(panel)
 	panel.setup(pet)
+	panel.modulate.a = _passthrough_alpha   # 理由同 _show_bubble() 的氣泡
 	_panels[pet] = panel
 	_order.append(panel)
 	panel.closed.connect(_on_status_closed.bind(pet, panel))
@@ -352,8 +441,36 @@ func _layout() -> void:
 	var full_screen := Rect2(Vector2.ZERO, Vector2(get_viewport().get_visible_rect().size))
 	var monitors := monitor_rects()
 	var placed: Array[Rect2] = []
+	# 滑鼠指著對話氣泡時整個排版跳過(位置、避讓都凍結,只是照舊把目前的外框餵給後面的避讓計算),不然選項/文字
+	# 內容跟著桌寵移動時使用者很難點準或閱讀(2026-09-30 使用者實機回報)。用 OS 滑鼠座標判斷,跟 HoverBall
+	# 同一套做法(這個視窗本身是無邊框全螢幕穿透視窗,不能只靠 Godot 的 mouse_entered,滑鼠在穿透區時視窗根本
+	# 收不到事件)。
+	var os_mouse := Vector2(DisplayServer.mouse_get_position()) - Vector2(get_window().position)
+	var pinned_mode := AppSettings.bubble_display_mode() == "pinned"
 	for control in _order:
 		var pet: Node = control.pet
+		# size != ZERO:剛建立、還沒排過版的氣泡容器可能暫時是零尺寸(見 PanelContainer 的排版時序),零尺寸的矩形
+		# 在(0,0)不該被滑鼠「碰到」,不然剛出現的氣泡會被凍結在還沒排版的預設位置,一直卡在畫面角落。
+		# _last_offsets.has(control):這隻氣泡已經至少真正排版過一次——剛出現、還沒排過版的氣泡預設在 (0,0),
+		# 不該被「滑鼠碰到」凍結住(不然要是滑鼠座標剛好也在 (0,0) 附近,新氣泡會直接卡死在畫面角落,永遠等不到
+		# 第一次真正的排版;無頭測試環境下 DisplayServer.mouse_get_position() 固定回報 (0,0),就是這個情境)。
+		if control is DialogueBubble and _last_offsets.has(control) and control.global_rect().has_point(os_mouse):
+			placed.append(control.global_rect())
+			continue
+		# 「氣泡式」模式:正在被拖曳的氣泡不搶(位置由它自己的拖曳邏輯直接設);已經拖過的桌寵之後固定出現在
+		# 那個位置,不再跑一般的跟隨/避讓排版。還沒拖過的第一顆氣泡照舊用一般排版,讓使用者有個起點可以拖。
+		if control is DialogueBubble and pinned_mode:
+			if control.is_dragging_pin():
+				placed.append(control.global_rect())
+				continue
+			if _pinned_positions.has(pet):
+				control.reset_size()
+				control.global_position = _pinned_positions[pet]
+				control.place_tag()
+				if control.has_method("place_tail"):
+					control.place_tail(pet.get_body_rect())
+				placed.append(control.global_rect())
+				continue
 		# 名字標籤有一半跨在介面上緣之外,可用的螢幕範圍上緣要扣掉這一段,標籤才不會被螢幕頂端裁掉。
 		var overhang: float = control.tag_overhang()
 		# 對話框可以畫在行動區框架外,但一定要留在「桌寵所在的那一個螢幕」裡(多螢幕時不會跨到兩個螢幕之間或螢幕外)。
@@ -366,6 +483,7 @@ func _layout() -> void:
 				obstacles.append(other.get_body_rect())
 		var body: Rect2 = pet.get_body_rect()
 		var rect: Rect2
+		var had_offset_before := _last_offsets.has(control)
 		if control is StatusPanel:
 			rect = _place_beside(control.size, body, control.flipped, screen, obstacles)
 			control.flipped = rect.get_center().x < body.get_center().x
@@ -376,7 +494,12 @@ func _layout() -> void:
 			rect = _place(control.size, body, control.flipped, screen, obstacles, GAP + extra_gap, previous_offset)
 			control.flipped = rect.get_center().y > body.get_center().y
 			_last_offsets[control] = rect.position.x - (body.get_center().x - control.size.x * 0.5)
-		control.global_position = rect.position
+		if control is DialogueBubble and had_offset_before:
+			# 不是第一次排版(上一影格前就有記錄)才平滑跟隨;剛出現的氣泡要直接貼齊,不能從畫面另一頭慢慢飄過來。
+			var weight := 1.0 - exp(-get_process_delta_time() * BUBBLE_FOLLOW_SPEED)
+			control.global_position = control.global_position.lerp(rect.position, weight)
+		else:
+			control.global_position = rect.position
 		control.place_tag()
 		if control.has_method("place_tail"):
 			control.place_tail(body)

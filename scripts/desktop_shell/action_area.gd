@@ -117,11 +117,15 @@ func recenter(window_center: Vector2) -> void:
 ## 底部地面條;行動區中間的空地不在形狀內,滑鼠可以直接穿透點到桌面。
 ## 環帶拆成互不重疊的四個矩形(上下兩條通長、左右兩條夾在中間),每個都是簡單多邊形,
 ## 方便 DesktopShell 跟桌寵等其他成員的形狀做重疊扣除。
-## 邊框隱藏時(縮到系統匣後只剩桌寵那種狀態)還是要保留這圈穿透形狀,不然這個範圍內完全收不到滑鼠事件,
-## 右鍵暫時穿透(見 _handle_mouse_button/DesktopShell._on_action_area_right_click)整個判定不到,形同壞掉
-## (2026-09-27 修正:之前邊框隱藏就整組回傳空陣列,連右鍵這種不需要看到邊框才能用的功能也一起停用了)。
-## 隱藏時左鍵拖曳把手仍然關閉(見 _handle_mouse_button),只差在滑鼠事件收得到、收不到而已。
+## 邊框隱藏時整組回傳空陣列,這一圈完全不擋滑鼠(2026-09-30 使用者實機回報:邊框藏起來時偶爾還是感覺擋到
+## 點擊,就是這一圈明明看不到、卻還是在收滑鼠事件)。2026-09-27 曾經因為「邊框隱藏時右鍵暫時穿透整個觸發
+## 不到」把這裡改成隱藏時也保留形狀,但那個根因現在有另一條不依賴這圈形狀的路:HoverBall 右鍵固定觸發同一個
+## _start_passthrough()(見 desktop_shell.gd 的 hover_ball.right_click_requested.connect(_start_passthrough),
+## 這個保底 2026-09-24 就做了、永遠生效不是可關的開關),邊框隱藏時一樣點得到暫時穿透,不會走回 2026-09-27
+## 修的那個舊坑。隱藏時左鍵拖曳把手本來就關著(見 _handle_mouse_button),回傳空陣列不影響這件事。
 func get_cutout_polygons() -> Array:
+	if not frame_visible:
+		return []
 	var outer := boundary_rect.grow(CAPTURE_MARGIN)
 	var inner := boundary_rect.grow(-CAPTURE_MARGIN)
 	var bands: Array[Rect2] = [

@@ -14,6 +14,15 @@ signal status_requested
 signal repeat_last_requested
 ## 右鍵選單「桌寵管理…」:方便直接叫出管理視窗,不用特地開系統匣選單。
 signal manage_requested
+## 右鍵選單「固定氣泡位置」(2026-09-30 使用者回饋:希望有明確的固定/解除固定方式,不是只能靠拖曳);
+## UiManager 接手實際固定/解除固定,並把結果回寫 bubble_pinned。
+signal bubble_pin_toggle_requested
+## 「固定氣泡」模式(AppSettings.bubble_display_mode() == "pinned")下這隻桌寵的氣泡有沒有被固定住;
+## UiManager 更新,右鍵選單的打勾狀態用。
+var bubble_pinned := false
+## 目前是不是有氣泡正顯示中;UiManager 更新,右鍵選單決定「固定氣泡位置」能不能點(沒有氣泡可以固定就灰掉,
+## 已經固定的話永遠可以點來解除固定,不受這個影響)。
+var has_open_bubble := false
 ## 一個動作「被要求播放」的瞬間發出(同一個動作連續被要求不會重複發),邏輯直譯器的
 ## 「當角色正在 [動作] 時」事件積木就是掛在這裡。
 signal action_started(action_name: StringName)
@@ -191,6 +200,7 @@ var _blink_next := 3.0
 ## 積木/事件指定的動作(SCRIPTED)佔用動畫與自主移動的剩餘秒數;佔用期間自主行為的動作請求被忽略,
 ## 地面模式原地站住。至少一個動畫循環,等待類積木會用 extend_hold() 延長。
 var _hold_left := 0.0
+var _offscreen_seconds := 0.0
 var _hold_action: StringName = &""
 var _context_rids: Array[RID] = []
 var _fly_stuck_timer := 0.0
@@ -893,6 +903,45 @@ var _pet_lights: PetLights
 
 func lights() -> PetLights:
 	return _pet_lights
+
+
+## 條件光源(2026-09-30 使用者要求):平時在光源頁籤設好位置/半徑/顏色的光,額外多一道「積木有沒有把這個
+## ID 打開」的門檻(見 PackLights.active() 的 active_cond_ids)。鍵是使用者在光源頁籤設的 cond_id、值不重要,
+## 用 has() 判斷。只有這隻桌寵自己看得到、也只能開關自己的 ID(積木沒有辦法指定別人的桌寵)。
+var light_cond_active: Dictionary = {}
+## ID → 這個 ID 目前是第幾次開關(每次 set/trigger 都 +1)。給 trigger_conditional_light() 的計時器收尾用:
+## 計時器到期時比對這個數字還是不是自己觸發那一次,不是就代表期間又被重新觸發/手動改過,不要誤關掉新的狀態。
+var _light_cond_generation: Dictionary = {}
+
+
+## 積木「啟用/關閉條件光源[ID]」:持續生效直到下一次呼叫改變它(不會自動關閉)。ID 空白就什麼都不做。
+func set_conditional_light(id: String, on: bool) -> void:
+	if id == "":
+		return
+	_light_cond_generation[id] = int(_light_cond_generation.get(id, 0)) + 1
+	if on:
+		light_cond_active[id] = true
+	else:
+		light_cond_active.erase(id)
+	if _pet_lights != null:
+		_pet_lights._request_redraw()
+
+
+## 積木「觸發條件光源[ID]」:立刻打開,過 seconds 秒後自動關閉(<= 0 = 不自動關,等同「啟用」)。
+## 這段期間內如果又被別的積木呼叫 set_conditional_light()/trigger_conditional_light() 改變同一個 ID,
+## 這裡的計時器到期時發現世代數對不上就不會誤關(見 _light_cond_generation 的說明)。
+func trigger_conditional_light(id: String, seconds: float) -> void:
+	if id == "":
+		return
+	set_conditional_light(id, true)
+	if seconds <= 0.0:
+		return
+	var generation: int = _light_cond_generation[id]
+	get_tree().create_timer(seconds).timeout.connect(func() -> void:
+		if not is_instance_valid(self):
+			return
+		if int(_light_cond_generation.get(id, 0)) == generation:
+			set_conditional_light(id, false))
 
 
 func _apply_lights(frames: SpriteFrames) -> void:
@@ -2823,6 +2872,10 @@ func _build_context_menu() -> RID:
 	NativeMenu.set_item_disabled(root, say_index, logic == null or not logic.has_chat_lines())
 	var repeat_index := NativeMenu.add_item(root, tr("重複前一句"), _on_context_item, Callable(), "repeat")
 	NativeMenu.set_item_disabled(root, repeat_index, repeat_last_requested.get_connections().is_empty())
+	if AppSettings.bubble_display_mode() == "pinned":
+		var pin_index := NativeMenu.add_check_item(root, tr("固定氣泡位置"), _on_context_item, Callable(), "bubble_pin")
+		NativeMenu.set_item_checked(root, pin_index, bubble_pinned)
+		NativeMenu.set_item_disabled(root, pin_index, not bubble_pinned and not has_open_bubble)
 	var manage_index := NativeMenu.add_item(root, tr("桌寵管理…"), _on_context_item, Callable(), "manage")
 	NativeMenu.set_item_disabled(root, manage_index, manage_requested.get_connections().is_empty())
 	if can_follow_mouse():
@@ -2899,6 +2952,8 @@ func _on_context_item(tag: Variant) -> void:
 			pet_timer.stop()
 		"repeat":
 			repeat_last_requested.emit()
+		"bubble_pin":
+			bubble_pin_toggle_requested.emit()
 		"manage":
 			manage_requested.emit()
 		"bottom_stick":
@@ -3176,6 +3231,14 @@ func _play_locomotion(action: StringName) -> void:
 const MEASURED_VELOCITY_REF_HZ := 60.0
 const MEASURED_VELOCITY_REF_WEIGHT := 0.6
 
+## 2026-10-01 使用者實機回報:行動區被打包流程的無頭空跑意外寫壞過一次座標(根因見
+## tools/make_release_copy.ps1 的修正),桌寵因此被甩到行動區外面、光靠框架本身的「行動區重設」
+## 救不回來(那個只重設框的大小位置,不動桌寵座標)。這裡加一個自動保底:座標持續在行動區外側
+## 一段夠長的緩衝距離之外、超過一段時間(排除拖曳、入場動畫這種本來就該暫時在框外的情形),
+## 判定是不正常的「跑丟了」,自動收起重放(比照系統匣「緊急召回」的做法,不需要使用者手動點)。
+const OFFSCREEN_MARGIN := 300.0
+const OFFSCREEN_RECALL_SECONDS := 2.0
+
 
 func _physics_process(delta: float) -> void:
 	if _action_area == null:
@@ -3189,7 +3252,17 @@ func _physics_process(delta: float) -> void:
 		_tick_lenses()
 	if dragging:
 		_play(&"drag", -1, ActionPriority.INTERACTION)
+		_offscreen_seconds = 0.0
 		return
+	if entering:
+		_offscreen_seconds = 0.0
+	elif _bounds().grow(OFFSCREEN_MARGIN).has_point(position):
+		_offscreen_seconds = 0.0
+	else:
+		_offscreen_seconds += delta
+		if _offscreen_seconds >= OFFSCREEN_RECALL_SECONDS:
+			_on_emergency_recall()
+			_offscreen_seconds = 0.0
 	_hold_left = maxf(_hold_left - delta, 0.0)
 	_tick_blink(delta)
 	if auto_chat_enabled and _shell_state.auto_chat_enabled:
@@ -3415,19 +3488,22 @@ func _climb_length() -> float:
 	return _frame_size.x * params.scale_multiplier
 
 
-## 有專屬的爬牆動畫(climb_wall 素材,畫的是直立貼在牆邊的樣子)就不轉 90°,直立貼著牆爬;沒有才用 walk 轉 90° 湊。
+## 有專屬的爬牆動畫(climb_wall 素材,或交互行為頁籤把 climb_wall 改指到的另一個動作,畫的是直立貼在牆邊
+## 的樣子)就不轉 90°,直立貼著牆爬;沒有才用 walk 轉 90° 湊。查同一個對應(InteractionRules.mapped_action),
+## 才不會「播的是改指過去的自訂動畫,角度卻還是照舊轉 90°」。
 func _wall_upright() -> bool:
-	return not _find_variants(_lens_base(CLIMB_ACTION_WALL)).is_empty()
+	return not _find_variants(_lens_base(InteractionRules.mapped_action(interaction_rules, CLIMB_ACTION_WALL))).is_empty()
 
 
 func _climb_height() -> float:
 	return _frame_size.y * params.scale_multiplier
 
 
-## 有專屬的天花板動畫(climb_ceiling 素材,畫的是倒掛在天花板上的樣子,軸心 = 抓著天花板的那一點)就直接播、不旋轉;
-## 沒有就維持原本的做法:用 walk 動畫整隻倒過來(180°)走。
+## 有專屬的天花板動畫(climb_ceiling 素材,或交互行為頁籤把 climb_ceiling 改指到的另一個動作,畫的是倒掛在
+## 天花板上的樣子,軸心 = 抓著天花板的那一點)就直接播、不旋轉;沒有就維持原本的做法:用 walk 動畫整隻倒過來
+## (180°)走。查同一個對應(InteractionRules.mapped_action),理由同 _wall_upright()。
 func _ceiling_dedicated() -> bool:
-	return not _find_variants(_lens_base(CLIMB_ACTION_CEILING)).is_empty()
+	return not _find_variants(_lens_base(InteractionRules.mapped_action(interaction_rules, CLIMB_ACTION_CEILING))).is_empty()
 
 
 func _climb_rotation() -> float:

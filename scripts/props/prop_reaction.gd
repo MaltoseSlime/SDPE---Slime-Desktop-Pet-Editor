@@ -23,6 +23,12 @@ static func _trigger(def: PropDef, pet: Node, kind: String) -> Dictionary:
 	var handled_by_hat := false
 	if pet.logic != null:
 		handled_by_hat = pet.logic.run_prop_hats(kind, def.display_name)
+	if kind == "collected":
+		# 廣播給場上所有桌寵(不只自己):event_prop_used 讓「指定對象使用了指定物品」這種積木也收得到,
+		# 跟 event_prop_collected(只有自己看得到自己拾取)是兩件獨立的事,兩者都會跑。
+		var shell_state := pet.get_node_or_null("/root/DesktopShellState")
+		if shell_state != null:
+			shell_state.prop_used.emit(pet, def.display_name)
 	if def.effect != "" and pet.effects != null:
 		pet.effects.play(def.effect)
 	if def.holdable and kind == "collected":

@@ -25,6 +25,8 @@ const DOUBLE_CLICK_TIME := 0.45
 var items: Array[FurnitureItem] = []
 var _action_area: Node
 var _decor: DecorOverlay
+## 「顯示在桌寵與對話氣泡之上」(FurnitureDef.render_above_ui)的家具畫在這裡,見 _home_parent_for()。
+var _top_layer: Node
 var edit_mode := false
 ## 正被拖著的家具(一次只有一個);_mouse 是最近一次滑鼠的畫布座標。
 var dragged: FurnitureItem
@@ -33,14 +35,21 @@ var _last_container_click_item: FurnitureItem
 var _last_container_click_time := -100.0
 
 
-func setup(action_area: Node) -> void:
+func setup(action_area: Node, top_layer: Node = null) -> void:
 	_action_area = action_area
+	_top_layer = top_layer
 	add_to_group("furniture_manager")
 	# 永遠留在 Cutout 群組(不像編輯模式那樣開關):平常只有容器類家具會被算進穿透判定範圍(見 get_cutout_polygons),
 	# 讓使用者不用開家具編輯模式也能雙擊容器打開查看內容物;純裝飾的家具維持滑鼠完全穿透,不受影響。
 	add_to_group("Cutout")
 	_decor = DecorOverlay.instance(self)
 	_restore()
+
+
+## 裝飾層(平時家具真正畫的地方,見 DecorOverlay)的畫布節點,給 DesktopShell 右鍵暫時穿透時一起淡化用;
+## 還沒有裝飾層(無頭、非 Windows、還沒套用成功)回 null。
+func decor_canvas() -> Node2D:
+	return _decor.canvas if _decor != null else null
 
 
 static func _path() -> String:
@@ -156,7 +165,8 @@ func set_edit_mode(on: bool) -> void:
 				item.reparent(self, true)
 	else:
 		end_drag()
-		# 搬回裝飾層交給 _process 自然處理(下面),不用在這裡立刻做。
+		# 搬回各自該去的地方(裝飾層,或「顯示在桌寵與對話氣泡之上」的那件搬回頂層)交給 _process 自然處理
+		# (見 _home_parent_for()),不用在這裡立刻做。
 
 
 ## 「Cutout」群組成員介面:編輯模式時每件家具各自的可點擊範圍;平時(純裝飾滑鼠穿透)只有容器類的家具例外算進來,
@@ -236,14 +246,30 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-## 裝飾層可以用了(穿透樣式套用成功)就把家具搬過去,讓它們真的滑鼠穿透;搬過去之前畫在主視窗裡,看得見但會擋點擊。
-## 編輯模式中不搬(家具留在主視窗才點得到、拖得動),關掉編輯模式後下一影格自然搬回去。
+## 裝飾層可以用了(穿透樣式套用成功)就把一般家具搬過去,讓它們真的滑鼠穿透;搬過去之前畫在主視窗裡,
+## 看得見但會擋點擊。「顯示在桌寵與對話氣泡之上」的家具(見 _home_parent_for())不等裝飾層,直接搬去
+## 頂層 CanvasLayer,那一層本來就存在、不用等穿透樣式套用。編輯模式中都不搬(家具留在主視窗才點得到、
+## 拖得動),關掉編輯模式後下一影格自然各自搬回去。
 func _process(_delta: float) -> void:
-	if edit_mode or _decor == null or _decor.canvas == null or not _decor.usable:
+	if edit_mode:
 		return
 	for item in items:
-		if is_instance_valid(item) and item.get_parent() != _decor.canvas:
-			item.reparent(_decor.canvas, true)
+		if not is_instance_valid(item):
+			continue
+		var target := _home_parent_for(item)
+		if target != null and item.get_parent() != target:
+			item.reparent(target, true)
+
+
+## 這件家具平時(非編輯模式)該掛在哪個節點底下:「顯示在桌寵與對話氣泡之上」的去頂層 CanvasLayer;
+## 其餘照舊——裝飾層可以用就去裝飾層,裝飾層還沒準備好(或這台系統沒有,見 DecorOverlay.instance())
+## 就先留在主視窗(item.get_parent() 已經是 self 或還沒設過都算,回傳 null 表示「不用動」)。
+func _home_parent_for(item: FurnitureItem) -> Node:
+	if item.def != null and item.def.render_above_ui and _top_layer != null:
+		return _top_layer
+	if _decor != null and _decor.canvas != null and _decor.usable:
+		return _decor.canvas
+	return null
 
 
 func _bounds() -> Rect2:
@@ -251,6 +277,22 @@ func _bounds() -> Rect2:
 		var rect: Rect2 = _action_area.boundary_rect
 		return Rect2(_action_area.to_global(rect.position), rect.size)
 	return Rect2(0.0, 0.0, 1920.0, 1080.0)
+
+
+## 換螢幕、或同一台螢幕解析度/縮放比例變了(見 DesktopShell.apply_monitor_setting()):每件家具的位置照
+## 新舊視窗尺寸的比例挪過去,盡量維持在螢幕上的相對位置;挪完再夾回目前行動區範圍內(比例算出來的位置理論上
+## 都在合理範圍,這裡是防呆——螢幕長寬比差很多、或行動區本身還沒跟著長大時,位置還是不會被推到框外去)。
+func rescale_positions(old_size: Vector2, new_size: Vector2) -> void:
+	if old_size.x <= 0.0 or old_size.y <= 0.0 or old_size.is_equal_approx(new_size):
+		return
+	var scale := new_size / old_size
+	var bounds := _bounds()
+	for item in items:
+		if not is_instance_valid(item):
+			continue
+		var scaled := item.global_position * scale
+		item.global_position = Vector2(clampf(scaled.x, bounds.position.x, bounds.end.x), clampf(scaled.y, bounds.position.y, bounds.end.y))
+	_save()
 
 
 func _save() -> void:

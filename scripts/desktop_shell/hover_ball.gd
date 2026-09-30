@@ -67,6 +67,15 @@ func setup(action_area: Node, manager: PropManager) -> void:
 	_manager = manager
 	_shell_state = get_node("/root/DesktopShellState")
 	_shell_state.passthrough_started.connect(func() -> void: set_inventory_open(false))   # 右鍵穿透時道具欄直接收起來
+	# 2026-09-30 使用者實機回報:調整行動區邊框時球會被留在框外點不到。_process() 本來就會每影格比對
+	# _area_rect() 跟 _last_area 補排版,但拖邊框是連續動作,直接接 boundary_changed 訊號可以在邊框「這一下」
+	# 變動的當下立刻排版,不等下一影格,也不用依賴 _area 物件剛好有這個訊號(沒有就照舊靠 _process() 補)。
+	# 同一天使用者又回報「球沒有跟著走」:_layout() 只更新 _rects(點擊判定用的資料),不會自己畫面重繪——
+	# 平時靠 _process() 的 previous != _expanded / _dragging_ball 才會補一次 queue_redraw(),但那兩個條件
+	# 都跟「邊框被拖」無關,所以球的點擊範圍其實已經跟上了,畫面上卻還停在舊位置沒有真的重畫,才會看起來
+	# 「沒有跟著走」。這裡直接補一次 queue_redraw(),邊框變動的當下就把球畫到新位置。
+	if "boundary_changed" in _area.get_signal_list().map(func(s: Dictionary) -> String: return str(s["name"])):
+		_area.boundary_changed.connect(func(_rect: Rect2) -> void: _layout(); queue_redraw())
 	add_to_group("Cutout")
 	z_index = 30
 	var config := ConfigFile.new()
@@ -107,9 +116,16 @@ func set_inventory_open(open: bool) -> void:
 	queue_redraw()
 
 
+## 球心位置:先照比例算,再用實際半徑(BALL_RADIUS)夾回行動區內,免得行動區被縮得很小時 _fraction 的
+## 2%~98% 邊界margin(比例)小於球的實際半徑,讓球的一部分畫到框外、變成點不到(2026-09-30 使用者實機回報)。
 func ball_center() -> Vector2:
 	var rect := _area_rect()
-	return rect.position + rect.size * _fraction
+	var raw := rect.position + rect.size * _fraction
+	if rect.size.x <= BALL_RADIUS * 2.0 or rect.size.y <= BALL_RADIUS * 2.0:
+		return rect.get_center()   # 行動區比球本身還小,直接置中,夾不出合理範圍。
+	return Vector2(
+		clampf(raw.x, rect.position.x + BALL_RADIUS, rect.end.x - BALL_RADIUS),
+		clampf(raw.y, rect.position.y + BALL_RADIUS, rect.end.y - BALL_RADIUS))
 
 
 func _area_rect() -> Rect2:
@@ -284,12 +300,27 @@ func _on_motion() -> void:
 
 
 ## 這個座標下的元件 id(item:xxx / slot:N / close / ball / panel / menu),沒有回空字串。
+## 2026-09-30 使用者實機回報:選單/道具欄明明沒顯示,舊位置卻還點得到——_rects 理論上每次 _layout() 都會
+## 清空重建,但 _process()(切換展開/收合)跟 _input()(滑鼠點擊)是分開跑的兩條路徑,收合前後有一個很窄的
+## 時序縫隙讓點擊撞到殘留的舊 rect。這裡不管 _rects 字典裡還留著什麼,直接照目前真正的狀態(_expanded /
+## _inventory_open)把不該存在的那幾種 id 擋掉,不依賴「_rects 一定跟狀態同步」這個假設。
 func _id_at(point: Vector2) -> String:
 	for id: String in _rects:
-		if id.begins_with("item:") or id.begins_with("slot:") or id == "close" or id == "panel_header":
-			if (_rects[id] as Rect2).has_point(point):
-				return id
+		if id.begins_with("item:"):
+			if not _expanded:
+				continue
+		elif id.begins_with("slot:") or id == "close" or id == "panel_header":
+			if not _inventory_open:
+				continue
+		else:
+			continue
+		if (_rects[id] as Rect2).has_point(point):
+			return id
 	for id in ["ball", "panel", "menu"]:
+		if id == "panel" and not _inventory_open:
+			continue
+		if id == "menu" and not _expanded:
+			continue
 		if _rects.has(id) and (_rects[id] as Rect2).has_point(point):
 			return id
 	return ""

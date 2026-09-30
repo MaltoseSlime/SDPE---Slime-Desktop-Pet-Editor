@@ -286,6 +286,20 @@ func _bounds() -> Rect2:
 	return Rect2(0.0, 0.0, 1920.0, 1080.0)
 
 
+## 換螢幕、或同一台螢幕解析度變了(見 DesktopShell.apply_monitor_setting()):場上還留著的道具依新舊視窗
+## 尺寸的比例挪過去,挪完夾回目前行動區範圍內(道具沒有存檔,只需要處理「現在活著的」這些)。
+func rescale_positions(old_size: Vector2, new_size: Vector2) -> void:
+	if old_size.x <= 0.0 or old_size.y <= 0.0 or old_size.is_equal_approx(new_size):
+		return
+	var scale := new_size / old_size
+	var bounds := _bounds()
+	for item in items:
+		if not is_instance_valid(item):
+			continue
+		var scaled := item.global_position * scale
+		item.global_position = Vector2(clampf(scaled.x, bounds.position.x, bounds.end.x), clampf(scaled.y, bounds.position.y, bounds.end.y))
+
+
 func _remove(item: PropItem) -> void:
 	if item == dragged:
 		dragged = null

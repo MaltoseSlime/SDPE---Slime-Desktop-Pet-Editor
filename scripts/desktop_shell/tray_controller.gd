@@ -1,3 +1,4 @@
+class_name TrayController
 extends Node
 ## 系統匣圖示與右鍵選單(主企劃書第二章「系統匣常駐」):
 ## 利用 Godot 內建 StatusIndicator 節點,在 Windows 通知區域常駐顯示引擎圖示。
@@ -72,6 +73,9 @@ const ID_SAY_SOMETHING := 103
 const ID_FORCE_REST := 106
 const MODE_NAMES: Array[String] = ["地面模式", "飛行模式", "漂浮模式", "固定模式", "靜止模式"]
 const FIXED_MODE := 3
+const ICON_NORMAL := preload("res://SDPE_icon.png")
+## 右上角紅點版,提醒有「重要更新」(見 UpdateChecker.IMPORTANT_MARKER)。
+const ICON_NOTIF := preload("res://SDPE_icon_notif.png")
 
 ## 選單勾選狀態(除錯用的穿透範圍線是否顯示;由 Shell 同步初值)。
 var debug_polygon_visible := false
@@ -80,6 +84,9 @@ var recent_packs: Array[String] = []
 ## 「召喚 / 測試用」選單目前列出的角色資料夾(選單項目的 id 對應這個陣列)。
 var _summon_paths: Array[String] = []
 var _indicator: StatusIndicator
+## 開機背景檢查(見 UpdateChecker.auto_check_if_due())找到「重要更新」時變 true,系統匣圖示換成紅點版、
+## 「檢查更新…」選單文字跟著換;由 DesktopShell 在開機時讀快取套用、之後收到 important_state_changed 訊號時更新。
+var _important_update_available := false
 var _menu: PopupMenu
 var _submenus: Array[PopupMenu] = []
 var _pets: Array[Node] = []
@@ -92,10 +99,22 @@ func _ready() -> void:
 	_menu.id_pressed.connect(_on_menu_id_pressed)
 	add_child(_menu)
 	_indicator = StatusIndicator.new()
-	_indicator.icon = preload("res://SDPE_icon.png")
+	_indicator.icon = ICON_NOTIF if _important_update_available else ICON_NORMAL
 	_indicator.tooltip = tr("史萊姆桌寵引擎")
 	add_child(_indicator)
 	refresh_pets()
+
+
+## 系統匣圖示換成紅點版(有重要更新)或普通版,「檢查更新…」選單文字跟著換。DesktopShell 開機讀快取套用一次、
+## 之後收到 UpdateChecker.important_state_changed 訊號時再呼叫更新。
+func set_important_update(available: bool) -> void:
+	_important_update_available = available
+	if _indicator != null:
+		_indicator.icon = ICON_NOTIF if available else ICON_NORMAL
+	if _menu != null:
+		var idx := _menu.get_item_index(ID_CHECK_UPDATE)
+		if idx >= 0:
+			_menu.set_item_text(idx, tr("檢查更新…(存在更新)") if available else tr("檢查更新…(需要連網)"))
 
 
 ## 場上的桌寵增減時呼叫,重建選單。
@@ -158,7 +177,7 @@ func _rebuild_menu() -> void:
 	_menu.add_item(tr("全局設定…"), ID_SETTINGS)
 	_menu.add_item(tr("測試者面板…"), ID_TESTER)
 	_menu.add_item(tr("開啟網頁編輯工具(需要連網)"), ID_OPEN_WEB_EDITOR)
-	_menu.add_item(tr("檢查更新…(需要連網)"), ID_CHECK_UPDATE)
+	_menu.add_item(tr("檢查更新…(存在更新)") if _important_update_available else tr("檢查更新…(需要連網)"), ID_CHECK_UPDATE)
 	_menu.add_separator()
 	_add_summon_submenu()
 	_menu.add_separator()
