@@ -64,7 +64,15 @@ static func think(pet: Node, text: String, seconds := 3.0) -> void:
 ## quiet = true:這句不算「值得留底」的內容(每一局都會喊、還每隻參賽的桌寵都得喊一遍的短口號,例如猜拳倒數
 ## 「剪刀…石頭…布!」、拚骰的「第 X 局!」、平手重來的提示)——氣泡照舊正常顯示,只是「聊天室式」模式下
 ## 不會把這種洗版的重複句子寫進聊天記錄(見 UiManager._show_bubble 的 chat_log 判斷)。
-static func say(pet: Node, text: String, seconds := 3.0, quiet := false) -> void:
+## force_bubble = true:這句無論如何都要現形成浮動氣泡,不受「對話集中」模式或桌寵個別的「即使存在聊天室
+## 也顯示氣泡」設定影響(那個是每隻桌寵自己選要不要,這個是「這句話的性質就是該讓你當下看到」,例如計時器
+## 時間到、中途提醒——2026-10-02 使用者要求,見 PetTimer._say())。聊天室式/簡訊式模式下一樣會照常寫進
+## 聊天記錄,兩邊都有,不是只現形不記錄。
+## chain = true:這句是「安排好的連續發話事件」裡的一句(2026-10-02 使用者更正:單句閒聊不算連續發話,只有
+## 事先安排成一串的事件——這包含遊戲/對戰對話——才算,不然沒辦法分辨聊天室記錄裡相鄰的兩句是同一件事還是
+## 巧合)。只影響簡訊式的分組外觀(見 ChatRoomWindow.append_line() 的說明),不影響其他行為。遊戲/對戰的
+## 台詞一律走下面的 chain_say(),不要直接傳 chain=true 給這個函式(維持呼叫端統一用 chain_say)。
+static func say(pet: Node, text: String, seconds := 3.0, quiet := false, force_bubble := false, chain := false) -> void:
 	if not is_instance_valid(pet):
 		return
 	var state := pet.get_node("/root/DesktopShellState")
@@ -76,7 +84,18 @@ static func say(pet: Node, text: String, seconds := 3.0, quiet := false) -> void
 	}
 	if quiet:
 		line["chat_log"] = false
+	if force_bubble:
+		line["force_bubble"] = true
+	if chain:
+		line["chain"] = true
 	state.dialogue_line_requested.emit(pet, line, DialogueTicket.new())
+
+
+## 遊戲/對戰對話専用(猜拳、拚骰……):這些台詞本來就是設計成一連串的演出(倒數、出拳、結果、比分……),
+## 算「安排好的連續發話事件」,簡訊式可以把同一隻桌寵連續的幾句畫成分組的樣子(chain = true,見 say() 的
+## 說明)。rps_game.gd/dice_game.gd 一律呼叫這個,不要直接呼叫 say()。
+static func chain_say(pet: Node, text: String, seconds := 3.0, quiet := false) -> void:
+	say(pet, text, seconds, quiet, false, true)
 
 
 ## 用氣泡問使用者一個選擇題,回傳選了第幾個(0 起算);沒有介面、被打斷、逾時都回 -1。

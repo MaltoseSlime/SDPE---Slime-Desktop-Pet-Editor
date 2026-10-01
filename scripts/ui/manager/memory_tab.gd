@@ -100,6 +100,10 @@ func _on_import_logic_picked(paths: PackedStringArray) -> void:
 func import_logic_from(path: String) -> bool:
 	var ok: bool = _pet.logic.load_file(path)
 	if ok:
+		# logic.load_file() 內部的 clear() 連性格對話池/反應層、交互行為規則層都會一起清空(見 LogicInterpreter.clear()
+		# 的說明),這兩層不是從匯入的檔案來的,得在這裡重新補回去,不然匯入後這隻桌寵會暫時「失憶」成沒性格、沒交互行為規則。
+		PersonalityApplier.rebuild_layer(_pet)
+		_pet.set_interaction_rules(_pet.interaction_rules)
 		PetRoster.store_logic(_pet.recognition_tag, path, CharacterFiles.folder_of(_pet))
 		message.emit(tr("已匯入積木檔:%s") % path)
 	else:

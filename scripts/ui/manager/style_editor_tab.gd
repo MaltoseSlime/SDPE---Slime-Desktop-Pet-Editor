@@ -78,6 +78,10 @@ var _voice_label: Label
 var _voice_pitch_spin: SpinBox
 var _voice_volume_spin: SpinBox
 var _voice_player: AudioStreamPlayer
+var _chatroom_bubble_check: CheckBox
+var _sms_direction_option: OptionButton
+var _sms_bubble_scale_option: OptionButton
+var _sms_bubble_width_spin: SpinBox
 
 
 func _ready() -> void:
@@ -146,6 +150,32 @@ func _ready() -> void:
 	_wait_spin.suffix = "秒"
 	_wait_spin.value_changed.connect(_on_field_changed)
 	form.add_child(ManagerUi.labeled("選項最長等待", _wait_spin))
+
+	form = _new_card("聊天室設定")
+	_chatroom_bubble_check = CheckBox.new()
+	_chatroom_bubble_check.text = "即使存在聊天室也顯示氣泡(全局設定的對話集中是「聊天室式」或「簡訊式」時才有作用)"
+	_chatroom_bubble_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_chatroom_bubble_check.toggled.connect(_on_field_changed)
+	form.add_child(_chatroom_bubble_check)
+	_sms_direction_option = OptionButton.new()
+	_sms_direction_option.add_item("左")
+	_sms_direction_option.set_item_metadata(0, "left")
+	_sms_direction_option.add_item("右")
+	_sms_direction_option.set_item_metadata(1, "right")
+	_sms_direction_option.item_selected.connect(_on_field_changed)
+	form.add_child(ManagerUi.labeled("簡訊式發言方向", _sms_direction_option))
+	form.add_child(ManagerUi.hint_row("說明", "只影響「對話集中」設成「簡訊式」時這隻桌寵的氣泡:選「右」會整個鏡射到聊天室視窗右側——氣泡貼右邊框、尖角跟連續發話的分組方向都改到右側;文字內容依舊靠左對齊,姓名條跟時間戳依舊在氣泡自己的左上/左下角,不會跟著鏡射。"))
+	_sms_bubble_scale_option = OptionButton.new()
+	for step in PetUiStyle.SCALE_STEPS:
+		_sms_bubble_scale_option.add_item("%d%%" % step)
+	_sms_bubble_scale_option.item_selected.connect(_on_field_changed)
+	form.add_child(ManagerUi.labeled("簡訊氣泡尺寸", _sms_bubble_scale_option))
+	form.add_child(ManagerUi.hint_row("說明", "簡訊式氣泡的圓角、內距、寬度、字級的縮放百分比,跟上面「字級」(影響浮動氣泡與聊天室式純文字)分開設定,不會互相影響。"))
+	_sms_bubble_width_spin = ManagerUi.spin(10.0, InteractionRules.MIN_SMS_BUBBLE_WIDTH, InteractionRules.MAX_SMS_BUBBLE_WIDTH)
+	_sms_bubble_width_spin.suffix = "px"
+	_sms_bubble_width_spin.value_changed.connect(_on_field_changed)
+	form.add_child(ManagerUi.labeled("簡訊氣泡最大寬度", _sms_bubble_width_spin))
+	form.add_child(ManagerUi.hint_row("說明", "簡訊式氣泡換行前的最大寬度(縮放前的基準值,上面「簡訊氣泡尺寸」的縮放百分比會再乘上這個寬度)。"))
 
 	form = _new_card("角色尺寸")
 	_body_scale_spin = ManagerUi.spin(0.05, Pet.MIN_BODY_SCALE, Pet.MAX_BODY_SCALE)
@@ -400,6 +430,14 @@ func _load_form() -> void:
 			_dialogue_locale_option.select(i)
 			break
 	_wait_spin.value = style.option_wait_seconds
+	var chatroom_rules: Dictionary = _pet.interaction_rules
+	_chatroom_bubble_check.button_pressed = bool(chatroom_rules.get("show_bubble_in_chatroom", false))
+	for i in _sms_direction_option.item_count:
+		if str(_sms_direction_option.get_item_metadata(i)) == str(chatroom_rules.get("sms_direction", "left")):
+			_sms_direction_option.select(i)
+			break
+	_sms_bubble_scale_option.select(PetUiStyle.SCALE_STEPS.find(PetUiStyle.nearest_scale_step(int(chatroom_rules.get("sms_bubble_scale", 100)))))
+	_sms_bubble_width_spin.value = float(chatroom_rules.get("sms_bubble_width", InteractionRules.DEFAULT_SMS_BUBBLE_WIDTH))
 	_chat_check.button_pressed = _pet.auto_chat_enabled
 	_chat_min_spin.value = _pet.auto_chat_interval.x
 	_chat_max_spin.value = _pet.auto_chat_interval.y
@@ -569,6 +607,15 @@ func _on_field_changed(_value: Variant = null) -> void:
 	style.font_scale = PetUiStyle.SCALE_STEPS[maxi(_font_scale_option.selected, 0)]
 	_pet.dialogue_locale = str(_dialogue_locale_option.get_item_metadata(maxi(_dialogue_locale_option.selected, 0)))
 	style.option_wait_seconds = _wait_spin.value
+	var chatroom_rules: Dictionary = (_pet.interaction_rules as Dictionary).duplicate(true)
+	chatroom_rules["show_bubble_in_chatroom"] = _chatroom_bubble_check.button_pressed
+	chatroom_rules["sms_direction"] = str(_sms_direction_option.get_item_metadata(maxi(_sms_direction_option.selected, 0)))
+	chatroom_rules["sms_bubble_scale"] = PetUiStyle.SCALE_STEPS[maxi(_sms_bubble_scale_option.selected, 0)]
+	chatroom_rules["sms_bubble_width"] = _sms_bubble_width_spin.value
+	_pet.set_interaction_rules(chatroom_rules)
+	# 「聊天室設定」卡片這幾項(即使存在聊天室也顯示氣泡/簡訊式發言方向/簡訊氣泡外觀/簡訊氣泡最大寬度)
+	# 要立刻套用到這隻桌寵已經顯示中的訊息,不用等下一句新訊息才看得到差異(2026-10-02 使用者要求「即時變更」)。
+	get_tree().call_group("dialogue_display", "refresh_content")
 	_pet.auto_chat_enabled = _chat_check.button_pressed
 	var low := maxf(_chat_min_spin.value, PetProfile.MIN_AUTO_CHAT_SECONDS)
 	_pet.auto_chat_interval = Vector2(low, maxf(_chat_max_spin.value, low))

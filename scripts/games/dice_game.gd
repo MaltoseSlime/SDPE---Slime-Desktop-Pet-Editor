@@ -74,7 +74,7 @@ static func roll_and_show(pet: Node, sides: int, count: int, modifier: int, dc: 
 	var result := roll(sides, count, modifier)
 	_store(pet, key, result, dc)
 	if show:
-		GameChat.say(pet, describe(result, dc), 4.0)
+		GameChat.chain_say(pet, describe(result, dc), 4.0)
 	return pet.dice_results[key]
 
 
@@ -95,7 +95,7 @@ static func _play_round(initiator: Node, everyone: Array, sides: int, count: int
 			var result := roll(sides, count, modifier)
 			_store(pet, key, result, 0)
 			totals[pet] = int(result["total"])
-			GameChat.say(pet, describe(result, 0), 3.0)
+			GameChat.chain_say(pet, describe(result, 0), 3.0)
 			await _wait(initiator, 0.5)
 			if _cancelled(everyone, generations):
 				return {}
@@ -106,7 +106,7 @@ static func _play_round(initiator: Node, everyone: Array, sides: int, count: int
 		if winners.size() == 1 or tie_mode == "draw" or tie_round >= MAX_TIE_ROUNDS:
 			break
 		for pet: Node in winners:
-			GameChat.say(pet, "平手!再擲一次!", 1.6, true)
+			GameChat.chain_say(pet, "平手!再擲一次!", 1.6, true)
 		await _wait(initiator, 1.5)
 		if _cancelled(everyone, generations):
 			return {}
@@ -134,7 +134,7 @@ static func contest(initiator: Node, pets: Array, sides: int, count: int, modifi
 static func _contest(initiator: Node, pets: Array, sides: int, count: int, modifier: int, tie_mode: String, key: String, best_of: int) -> Dictionary:
 	var contenders: Array = pets.filter(func(p: Node) -> bool: return is_instance_valid(p))
 	if contenders.size() < 2:
-		GameChat.say(initiator, "一個人沒辦法拚骰啦……", 2.5)
+		GameChat.chain_say(initiator, "一個人沒辦法拚骰啦……", 2.5)
 		return {}
 	var everyone: Array = contenders.duplicate()
 	var generations := {}
@@ -150,7 +150,7 @@ static func _contest(initiator: Node, pets: Array, sides: int, count: int, modif
 		rounds += 1
 		if best_of > 1:
 			for pet: Node in everyone:
-				GameChat.say(pet, TranslationServer.translate("第 %d 局!") % rounds, 1.2, true)
+				GameChat.chain_say(pet, TranslationServer.translate("第 %d 局!") % rounds, 1.2, true)
 			await _wait(initiator, 1.0)
 			if _cancelled(everyone, generations):
 				return {}
@@ -168,7 +168,7 @@ static func _contest(initiator: Node, pets: Array, sides: int, count: int, modif
 			top = maxi(top, int(wins[pet]))
 		for pet: Node in everyone:
 			var line := TranslationServer.translate("[b]贏了這局![/b]") if winners.size() == 1 and winners[0] == pet else (TranslationServer.translate("這局平手") if winners.has(pet) and winners.size() > 1 else TranslationServer.translate("輸了這局……"))
-			GameChat.say(pet, TranslationServer.translate("%s\n(已贏 %d 局)") % [line, wins[pet]], 1.6)
+			GameChat.chain_say(pet, TranslationServer.translate("%s\n(已贏 %d 局)") % [line, wins[pet]], 1.6)
 		await _wait(initiator, 1.5)
 		if _cancelled(everyone, generations):
 			return {}

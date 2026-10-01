@@ -952,6 +952,10 @@ func _run_hat(hat: Dictionary) -> void:
 ## 依序執行一條積木鏈;回傳 "" 表示正常結束,"break"/"continue" 是迴圈流程控制,"abort" 是被即時互動中斷。
 func _run_chain(first: Dictionary, token: int) -> String:
 	var current := first
+	# prev_type:同一條鏈裡上一顆積木的 type,只給 _dialogue_line() 判斷「這句是不是接在另一句對話後面」
+	# (簡訊式的連續發話分組要用,見那裡的說明)。只在同一層鏈裡累積,進到巢狀的 DO/ELSE/迴圈身體(遞迴呼叫
+	# 這個函式)會從空字串重新算——巢狀分支結構上不算「同一串」,不繼承外層鏈最後一句是什麼。
+	var prev_type := ""
 	while not current.is_empty():
 		if not is_instance_valid(_pet) or _pet.action_generation != token:
 			_settle_after_abort(current)
@@ -959,11 +963,12 @@ func _run_chain(first: Dictionary, token: int) -> String:
 		if _over_budget():
 			await get_tree().process_frame
 			continue
-		var flow: String = await _exec(current, token)
+		var flow: String = await _exec(current, token, prev_type)
 		if flow != "":
 			if flow == "abort":
 				_settle_after_abort(current.get("next", {}).get("block", {}))
 			return flow
+		prev_type = str(current.get("type", ""))
 		current = current.get("next", {}).get("block", {})
 	return ""
 
@@ -999,7 +1004,7 @@ func _settle_after_abort(first: Dictionary) -> void:
 		current = current.get("next", {}).get("block", {})
 
 
-func _exec(block: Dictionary, token: int) -> String:
+func _exec(block: Dictionary, token: int, prev_type: String = "") -> String:
 	var type: String = block.get("type", "")
 	var fields: Dictionary = block.get("fields", {})
 	match type:
@@ -1009,7 +1014,7 @@ func _exec(block: Dictionary, token: int) -> String:
 			# 留給之後「隨機時跳過」差分過濾上線後,強制略過該過濾。
 			_pet.play_action(StringName(str(fields.get("ACTION", "idle"))), int(variant) if variant.is_valid_int() else -1, true)
 		"dialogue_line":
-			return await _dialogue_line(block, token)
+			return await _dialogue_line(block, token, prev_type)
 		"dialogue_wait":
 			await _wait(_number(fields.get("SEC", 0.0)), true)
 		"value_set":
@@ -1213,7 +1218,11 @@ func _exec_while(block: Dictionary, token: int) -> String:
 
 ## 一句對話:先播綁定動作,再請對話介面顯示並等它結束(點擊推進、自動跳下一句、選了選項)。
 ## 有選項時,依選擇套用該選項的數值/Flag 變更,接著執行該選項 GOTO 裡的積木鏈。
-func _dialogue_line(block: Dictionary, token: int) -> String:
+## prev_type:同一條鏈裡上一顆積木的 type(見 _run_chain())——跟自己「有沒有接在另一句對話後面/後面
+## 接不接另一句對話」合起來判斷這句算不算「安排好的連續發話事件」的一部分(line["chain"],2026-10-02
+## 使用者更正:單句閒聊不算,只有事先安排成一串的才算,簡訊式的連續發話分組要用這個判斷,見
+## ChatRoomWindow.append_line() 的說明)。
+func _dialogue_line(block: Dictionary, token: int, prev_type: String = "") -> String:
 	var fields: Dictionary = block.get("fields", {})
 	if _rate_exceeded("dialogue", DIALOGUES_LIMIT, DIALOGUES_WINDOW_MSEC):
 		_runaway(tr("對話在 %d 秒內出現超過 %d 句(疑似洗版死循環)") % [DIALOGUES_WINDOW_MSEC / 1000, DIALOGUES_LIMIT], null)
@@ -1260,6 +1269,8 @@ func _dialogue_line(block: Dictionary, token: int) -> String:
 		"options": labels,
 		# 選用欄位 BUBBLE(G39):speech(預設,一般對話框)/ thought(思考泡泡,配色與尾巴不同)。
 		"bubble": "thought" if str(fields.get("BUBBLE", "speech")).strip_edges().to_lower() == "thought" else "speech",
+		# 前面/後面接著另一句對話,算連在一起的「安排好的連續發話事件」(見上面 prev_type 的說明)。
+		"chain": prev_type == "dialogue_line" or str(block.get("next", {}).get("block", {}).get("type", "")) == "dialogue_line",
 	}
 	if not wait:
 		_send_line(speaker, line)

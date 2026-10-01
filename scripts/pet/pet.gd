@@ -17,8 +17,8 @@ signal manage_requested
 ## 右鍵選單「固定氣泡位置」(2026-09-30 使用者回饋:希望有明確的固定/解除固定方式,不是只能靠拖曳);
 ## UiManager 接手實際固定/解除固定,並把結果回寫 bubble_pinned。
 signal bubble_pin_toggle_requested
-## 「固定氣泡」模式(AppSettings.bubble_display_mode() == "pinned")下這隻桌寵的氣泡有沒有被固定住;
-## UiManager 更新,右鍵選單的打勾狀態用。
+## 這隻桌寵的氣泡有沒有被固定住(隨時都能固定,不綁定「對話集中」的模式);UiManager 更新,
+## 右鍵選單的打勾狀態用。
 var bubble_pinned := false
 ## 目前是不是有氣泡正顯示中;UiManager 更新,右鍵選單決定「固定氣泡位置」能不能點(沒有氣泡可以固定就灰掉,
 ## 已經固定的話永遠可以點來解除固定,不受這個影響)。
@@ -2872,10 +2872,10 @@ func _build_context_menu() -> RID:
 	NativeMenu.set_item_disabled(root, say_index, logic == null or not logic.has_chat_lines())
 	var repeat_index := NativeMenu.add_item(root, tr("重複前一句"), _on_context_item, Callable(), "repeat")
 	NativeMenu.set_item_disabled(root, repeat_index, repeat_last_requested.get_connections().is_empty())
-	if AppSettings.bubble_display_mode() == "pinned":
-		var pin_index := NativeMenu.add_check_item(root, tr("固定氣泡位置"), _on_context_item, Callable(), "bubble_pin")
-		NativeMenu.set_item_checked(root, pin_index, bubble_pinned)
-		NativeMenu.set_item_disabled(root, pin_index, not bubble_pinned and not has_open_bubble)
+	# 2026-10-02 起氣泡固定/解除固定隨時都能用(不再需要先把「對話集中」切成某個特定模式才看得到這一項)。
+	var pin_index := NativeMenu.add_check_item(root, tr("固定氣泡位置"), _on_context_item, Callable(), "bubble_pin")
+	NativeMenu.set_item_checked(root, pin_index, bubble_pinned)
+	NativeMenu.set_item_disabled(root, pin_index, not bubble_pinned and not has_open_bubble)
 	var manage_index := NativeMenu.add_item(root, tr("桌寵管理…"), _on_context_item, Callable(), "manage")
 	NativeMenu.set_item_disabled(root, manage_index, manage_requested.get_connections().is_empty())
 	if can_follow_mouse():

@@ -6,8 +6,8 @@ extends PanelContainer
 ## 氣泡在 Cutout group 裡提供自己的矩形,才收得到點擊(視窗其餘部分是穿透的)。
 
 signal advanced(choice: int)
-## 「氣泡式」模式(AppSettings.bubble_display_mode() == "pinned")下,使用者把氣泡拖到新位置放開時發出,
-## UiManager 記下這隻桌寵之後的固定位置。
+## 使用者把氣泡拖到新位置放開時發出(隨時都能拖,不綁定「對話集中」的模式),UiManager 記下這隻桌寵
+## 之後的固定位置。
 signal position_pinned(target_pet: Node, position: Vector2)
 
 const TYPEWRITER_CPS := 30.0
@@ -32,6 +32,13 @@ const READ_BASE_SECONDS := 1.0
 const READ_SECONDS_PER_CHAR := 0.1
 const READ_MIN_SECONDS := 1.8
 const READ_MAX_SECONDS := 10.0
+## 2026-10-02 使用者要求:「對話集中」開著、這隻桌寵又沒開「即使存在聊天室也顯示氣泡」時,這句根本不會
+## 現形(show_in_world = false,只是寫進聊天室紀錄),沒有畫面給使用者讀,原本那套「照字數算停留秒數」
+## 的節奏沒有意義,連續播下一句的等候間距可以縮短一點。
+const CHATROOM_READ_BASE_SECONDS := 0.4
+const CHATROOM_READ_SECONDS_PER_CHAR := 0.04
+const CHATROOM_READ_MIN_SECONDS := 0.6
+const CHATROOM_READ_MAX_SECONDS := 5.0
 
 var pet: Node
 ## 目前是垂直翻轉(顯示在腳底下方)嗎;排版管理器用來做遲滯,避免兩個選擇之間來回跳動。
@@ -53,6 +60,9 @@ var _auto_seconds := 0.0
 ## 有選項時額外要求的最短等待秒數(桌寵發起的提問要停留很久);沒指定就用風格設定的「選項最長等待」。
 var _patience := 0.0
 var _wait_click := false
+## 這顆氣泡有沒有真的現形(setup() 的 show_in_world 參數);沒現形時用比較短的自動停留節奏,見
+## CHATROOM_READ_* 常數。
+var _show_in_world := true
 var _option_scroll: ScrollContainer
 var _has_options := false
 var _closed := false
@@ -63,7 +73,7 @@ var _raw_text := ""
 var _saved_options_visible := false
 var _settle_left := SETTLE_QUERIES
 var _previous_rect := Rect2()
-## 「氣泡式」拖曳:按下時的本地滑鼠座標(判斷有沒有超過拖曳門檻)、目前是不是正在拖。
+## 固定拖曳:按下時的本地滑鼠座標(判斷有沒有超過拖曳門檻)、目前是不是正在拖。
 var _pin_press_local := Vector2.ZERO
 var _pin_dragging := false
 const PIN_DRAG_THRESHOLD := 6.0
@@ -86,6 +96,7 @@ func setup(target_pet: Node, line: Dictionary, show_in_world: bool = true) -> vo
 	_has_options = not options.is_empty()
 	is_thought = str(line.get("bubble", "speech")).to_lower() == "thought"
 	var colors := _style.palette(is_thought)
+	_show_in_world = show_in_world
 
 	if show_in_world:
 		add_to_group("Cutout")
@@ -268,24 +279,12 @@ func _process(delta: float) -> void:
 		_close(-1)
 
 
-## 點擊氣泡:打字中先顯示全文,已打完就跳下一句(有選項時只有按選項才會前進)。
-## 「氣泡式」模式下改用 _handle_pin_input,支援拖曳(放開時沒拖過門檻才當作點擊)。
+## 點擊氣泡:打字中先顯示全文,已打完就跳下一句(有選項時只有按選項才會前進)。任何時候都支援拖曳來固定
+## 位置(2026-10-02 起不再綁定「對話集中」的模式,見 _handle_pin_input;放開時沒拖過門檻才當作點擊)。
 func _gui_input(event: InputEvent) -> void:
 	if _closed:
 		return
-	if AppSettings.bubble_display_mode() == "pinned":
-		_handle_pin_input(event)
-		return
-	if not (event is InputEventMouseButton) or not event.pressed or event.button_index != MOUSE_BUTTON_LEFT:
-		return
-	accept_event()
-	if _peeking:
-		_end_peek()
-		return
-	if _typing:
-		_finish_typing()
-	elif not _has_options:
-		_close(-1)
+	_handle_pin_input(event)
 
 
 ## 拖曳超過 PIN_DRAG_THRESHOLD 才算拖曳;沒拖過門檻就放開,沿用原本「點一下」的行為(在放開那一刻才判斷,
@@ -452,6 +451,8 @@ func _on_text_complete() -> void:
 		_idle_left = _auto_seconds
 	elif _wait_click:
 		_idle_left = IDLE_DISMISS_SECONDS
+	elif not _show_in_world:
+		_idle_left = clampf(CHATROOM_READ_BASE_SECONDS + CHATROOM_READ_SECONDS_PER_CHAR * _label.get_total_character_count(), CHATROOM_READ_MIN_SECONDS, CHATROOM_READ_MAX_SECONDS)
 	else:
 		_idle_left = clampf(READ_BASE_SECONDS + READ_SECONDS_PER_CHAR * _label.get_total_character_count(), READ_MIN_SECONDS, READ_MAX_SECONDS)
 

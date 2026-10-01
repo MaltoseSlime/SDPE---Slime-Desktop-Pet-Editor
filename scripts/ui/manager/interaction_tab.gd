@@ -31,7 +31,6 @@ var _ignore_props_check: CheckBox
 var _ignore_furniture_check: CheckBox
 var _no_follow_target_check: CheckBox
 var _no_follow_source_check: CheckBox
-var _show_bubble_in_chatroom_check: CheckBox
 var _reaction_list: VBoxContainer
 var _reaction_boxes: Dictionary = {}   # reactions 陣列索引 → TextEdit
 var _characters: Array[Dictionary] = []
@@ -155,11 +154,6 @@ func _build_toggle_card() -> void:
 	_no_follow_source_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_no_follow_source_check.toggled.connect(func(_pressed: bool) -> void: _commit_toggles())
 	box.add_child(_no_follow_source_check)
-	_show_bubble_in_chatroom_check = CheckBox.new()
-	_show_bubble_in_chatroom_check.text = "即使存在聊天室也顯示氣泡(全局設定的對話顯示是「聊天室式」時才有作用)"
-	_show_bubble_in_chatroom_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_show_bubble_in_chatroom_check.toggled.connect(func(_pressed: bool) -> void: _commit_toggles())
-	box.add_child(_show_bubble_in_chatroom_check)
 	var follow_note := Label.new()
 	follow_note.text = "固定模式底下這兩個「不跟隨」開關與「不主動使用家具」都會自動打開,靜止模式只自動打開這兩個「不跟隨」開關(拖去用家具還是會用);切回其他模式後會換回你在這裡自己設定的值。"
 	follow_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -176,7 +170,6 @@ func _commit_toggles() -> void:
 	rules["ignore_furniture"] = _ignore_furniture_check.button_pressed
 	rules["no_follow_target"] = _no_follow_target_check.button_pressed
 	rules["no_follow_source"] = _no_follow_source_check.button_pressed
-	rules["show_bubble_in_chatroom"] = _show_bubble_in_chatroom_check.button_pressed
 	_apply(rules)
 
 
@@ -335,7 +328,6 @@ func _reload() -> void:
 	_ignore_furniture_check.button_pressed = bool(rules.get("ignore_furniture", false))
 	_no_follow_target_check.button_pressed = bool(rules.get("no_follow_target", false))
 	_no_follow_source_check.button_pressed = bool(rules.get("no_follow_source", false))
-	_show_bubble_in_chatroom_check.button_pressed = bool(rules.get("show_bubble_in_chatroom", false))
 	for slot: String in _action_options:
 		var option: OptionButton = _action_options[slot]
 		option.clear()

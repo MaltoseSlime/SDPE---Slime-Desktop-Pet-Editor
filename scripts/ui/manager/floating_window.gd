@@ -372,11 +372,19 @@ static func native_file_dialog(title_text: String, start_dir: String, dialog_mod
 				window.always_on_top = false
 				lowered.append(window)
 	var restore := func() -> void:
+		var wanted := AppSettings.floating_on_top()
 		for window in lowered:
 			if is_instance_valid(window):
-				window.always_on_top = AppSettings.floating_on_top()
+				window.always_on_top = wanted
 				if window.get_window_id() == parent_id and window.visible:
 					window.grab_focus()
+				# 2026-10-01 使用者實機回報:匯出/匯入檔案(原生檔案選取器)結束後整個視窗卡死——
+				# 跟對話框關閉時的「host 在 OS 層級變不可見」是同一個坑(見 _bring_dialog_forward()
+				# 的說明),只是這裡觸發點是原生檔案選取器關閉、重新把 always_on_top 設回 true 的那一刻,
+				# 不是我們自己的 ConfirmationDialog。單純改 always_on_top 旗標不會逼 Godot 重建原生視窗,
+				# 要跟 _heal_top_window() 一樣 hide()+show() 一次才會真的修好。
+				if wanted and window.visible and not window.is_queued_for_deletion():
+					_heal_top_window.call_deferred(window)
 	var callback := func(status: bool, paths: PackedStringArray, _filter: int) -> void:
 		restore.call()
 		if status and not paths.is_empty():
@@ -522,8 +530,22 @@ func _request_close() -> void:
 ## 一樣不乾淨,連帶讓其他置頂視窗(角色庫)也卡住。NOTIFICATION_PREDELETE 是原生視窗真的被摧毀之前最後
 ## 收得到的通知,這裡先把置頂旗標放掉,給 Windows 一個乾淨的時機處理焦點轉移,再讓視窗真的被釋放。
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_PREDELETE and always_on_top:
-		always_on_top = false
+	if what == NOTIFICATION_PREDELETE:
+		var was_on_top := always_on_top
+		if always_on_top:
+			always_on_top = false
+		# 2026-10-01 使用者實機回報:精靈圖編輯器「放棄變更並關閉」銷毀視窗本身沒有卡死(上面放掉
+		# always_on_top 這段已經確認正常跑完,用 print 偵錯場景驗證過),但呼叫端(角色庫)還是卡死了——
+		# 印證了這則註解原本的懷疑「銷毀置頂視窗連累其他置頂視窗」沒有被這段完全解決,只放掉自己的旗標
+		# 不夠,其他還活著、還置頂的兄弟視窗也要比照 _heal_top_window() 做一次 hide()+show() 才會修好,
+		# 只對原本就置頂的才做。
+		if was_on_top:
+			var tree := Engine.get_main_loop() as SceneTree
+			if tree != null:
+				for node in tree.get_nodes_in_group("floating_windows"):
+					var sibling := node as FloatingWindow
+					if sibling != null and sibling != self and is_instance_valid(sibling) and not sibling.is_queued_for_deletion() and sibling.always_on_top and sibling.visible:
+						_heal_top_window.call_deferred(sibling)
 
 
 ## 自畫標題列:可拖曳整個視窗,右邊 ✕ 關閉。

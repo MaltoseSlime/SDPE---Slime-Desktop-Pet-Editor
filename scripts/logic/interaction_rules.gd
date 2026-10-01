@@ -15,9 +15,23 @@ extends RefCounted
 ##    no_follow_source = true 時,自己不會主動決定跟著別隻桌寵走(見 Pet._tick_auto_pet_follow())。
 ##    這三個(no_follow_target/no_follow_source/ignore_furniture)在固定/靜止模式下會被自動強制打開,
 ##    離開這兩種模式後換回使用者原本自己設定的值,見 Pet._apply_move_mode_interaction_defaults()。
-##    show_bubble_in_chatroom = true 時(2026-10-01 加入),全局設定切成「聊天室式」對話顯示時,這隻桌寵不用
-##    等使用者互動的句子(閒聊、狀態播報…)依然會額外彈出浮動氣泡(不是只寫進聊天記錄)——兩邊同時顯示,
-##    見 UiManager._show_bubble()。沒開啟「聊天室式」對話顯示時這個設定完全不影響行為。
+##    show_bubble_in_chatroom = true 時(2026-10-01 加入),全局設定切成「聊天室式」/「簡訊式」對話顯示時,
+##    這隻桌寵不用等使用者互動的句子(閒聊、狀態播報…)依然會額外彈出浮動氣泡(不是只寫進聊天記錄)——
+##    兩邊同時顯示,見 UiManager._show_bubble()。沒開啟這兩種對話集中模式時這個設定完全不影響行為。
+##    編輯介面在桌寵管理「介面與自動行為」分頁的「聊天室設定」卡片(2026-10-02 從「交互行為」分頁移過去,
+##    見 style_editor_tab.gd——概念上更接近「這隻桌寵在聊天室/簡訊式視窗裡的樣子」,不是互動規則)。
+## 6. sms_direction("left"/"right",預設 "left",2026-10-02 加入):簡訊式裡這隻桌寵的氣泡要靠聊天室視窗
+##    的哪一側——"left" 維持原樣(氣泡尖角、連續發話的分組方向都在左側,氣泡貼視窗左邊框);"right" 整個
+##    鏡射到右側(尖角、分組方向改到右側,氣泡貼視窗右邊框),但文字內容仍然靠左對齊、姓名條跟時間戳仍然
+##    在氣泡「自己」的左上/左下角(不是跟著鏡射到右邊),只有氣泡整體的靠邊方向跟尖角方向鏡射,見
+##    ChatRoomWindow._make_sms_bubble()。同樣編輯介面在「聊天室設定」卡片。
+## 7. sms_bubble_scale(PetUiStyle.SCALE_STEPS 其中一檔,預設 100,2026-10-02 加入):簡訊式氣泡外觀
+##    (圓角、內距、氣泡寬度、字級)的縮放百分比,跟這隻桌寵「字體與對話」卡片的「字級」(影響浮動氣泡/
+##    聊天室式純文字)分開設定——使用者實機回報簡訊式氣泡會跟著字級一起縮放,不想要這樣,改成簡訊式
+##    氣泡外觀獨立一條設定,不受字級影響,見 ChatRoomWindow._make_sms_bubble()。
+## 8. sms_bubble_width(像素,預設 210,範圍 MIN_SMS_BUBBLE_WIDTH~MAX_SMS_BUBBLE_WIDTH,2026-10-02 加入):
+##    簡訊式氣泡換行前的最大寬度(氣泡會先長到這個寬度才開始自動換行);會再乘上 sms_bubble_scale,不是
+##    互斥的兩條設定——先用這個決定「縮放前基準有多寬」,sms_bubble_scale 再決定整體要放大縮小多少。
 ## 詳細編輯(條件、選項、連續動作…)要到網頁端積木編輯器;這裡只提供最常用、最簡單的部分。所有欄位讀進來都會驗證與夾範圍。
 
 const MAX_TEXT := 120
@@ -44,8 +58,14 @@ const ACTION_SLOTS: Array[Array] = [
 const PROP_KINDS := {"collected": "道具消耗", "rubbed": "被摩擦", "candidate": "道具選中"}
 
 
+const SMS_DIRECTIONS: Array[String] = ["left", "right"]
+const DEFAULT_SMS_BUBBLE_WIDTH := 210.0
+const MIN_SMS_BUBBLE_WIDTH := 80.0
+const MAX_SMS_BUBBLE_WIDTH := 600.0
+
+
 static func empty() -> Dictionary:
-	return {"actions": {}, "characters": [], "props": [], "prefs": [], "ignore_props": false, "ignore_furniture": false, "no_follow_target": false, "no_follow_source": false, "show_bubble_in_chatroom": false}
+	return {"actions": {}, "characters": [], "props": [], "prefs": [], "ignore_props": false, "ignore_furniture": false, "no_follow_target": false, "no_follow_source": false, "show_bubble_in_chatroom": false, "sms_direction": "left", "sms_bubble_scale": 100, "sms_bubble_width": DEFAULT_SMS_BUBBLE_WIDTH}
 
 
 static func slot_keys() -> Array[String]:
@@ -115,6 +135,14 @@ static func clean(raw: Variant) -> Dictionary:
 	for key in ["ignore_props", "ignore_furniture", "no_follow_target", "no_follow_source", "show_bubble_in_chatroom"]:
 		var value_raw: Variant = raw.get(key, false)
 		result[key] = value_raw if value_raw is bool else false
+	var direction := str(raw.get("sms_direction", "left"))
+	result["sms_direction"] = direction if SMS_DIRECTIONS.has(direction) else "left"
+	var bubble_scale_raw: Variant = raw.get("sms_bubble_scale", 100)
+	var bubble_scale := int(bubble_scale_raw) if (bubble_scale_raw is int or bubble_scale_raw is float) else 100
+	result["sms_bubble_scale"] = PetUiStyle.nearest_scale_step(bubble_scale)
+	var width_raw: Variant = raw.get("sms_bubble_width", DEFAULT_SMS_BUBBLE_WIDTH)
+	var width := float(width_raw) if (width_raw is int or width_raw is float) else DEFAULT_SMS_BUBBLE_WIDTH
+	result["sms_bubble_width"] = clampf(width, MIN_SMS_BUBBLE_WIDTH, MAX_SMS_BUBBLE_WIDTH)
 	return result
 
 

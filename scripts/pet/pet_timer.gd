@@ -419,9 +419,11 @@ static func _clean_laps(raw: Variant) -> Array[float]:
 	return result
 
 
+## 計時訊息(完成提醒、中途提醒)都要讓使用者當下看到,不管「對話集中」開不開、這隻桌寵有沒有另外開「即使
+## 存在聊天室也顯示氣泡」——2026-10-02 使用者要求,見 GameChat.say() 的 force_bubble 參數說明。
 func _say(text: String, seconds: float) -> void:
 	if is_instance_valid(_pet):
-		GameChat.say(_pet, text, seconds)
+		GameChat.say(_pet, text, seconds, false, true)
 
 
 # --- 時間的文字 ---

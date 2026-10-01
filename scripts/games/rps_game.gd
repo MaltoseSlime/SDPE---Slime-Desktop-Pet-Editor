@@ -48,23 +48,23 @@ static func _pet_round(a: Node, b: Node, generations: Dictionary) -> Dictionary:
 	var gesture_b := 0
 	for attempt in MAX_DRAWS:
 		for word in ["剪刀…", "石頭…", "布!"]:
-			GameChat.say(a, word, COUNTDOWN_STEP + 0.3, true)
-			GameChat.say(b, word, COUNTDOWN_STEP + 0.3, true)
+			GameChat.chain_say(a, word, COUNTDOWN_STEP + 0.3, true)
+			GameChat.chain_say(b, word, COUNTDOWN_STEP + 0.3, true)
 			await _wait(a, COUNTDOWN_STEP)
 			if _cancelled([a, b], generations):
 				return {}
 		gesture_a = randi() % 3
 		gesture_b = randi() % 3
-		GameChat.say(a, gesture(gesture_a), 2.5)
-		GameChat.say(b, gesture(gesture_b), 2.5)
+		GameChat.chain_say(a, gesture(gesture_a), 2.5)
+		GameChat.chain_say(b, gesture(gesture_b), 2.5)
 		await _wait(a, 1.3)
 		if _cancelled([a, b], generations):
 			return {}
 		if gesture_a != gesture_b:
 			break
 		if attempt < MAX_DRAWS - 1:
-			GameChat.say(a, "平手!再來!", 1.4, true)
-			GameChat.say(b, "平手!再來!", 1.4, true)
+			GameChat.chain_say(a, "平手!再來!", 1.4, true)
+			GameChat.chain_say(b, "平手!再來!", 1.4, true)
 			await _wait(a, 1.2)
 			if _cancelled([a, b], generations):
 				return {}
@@ -102,8 +102,8 @@ static func _play_pets(a: Node, b: Node, best_of := 1) -> Dictionary:
 		rounds += 1
 		if best_of > 1:
 			var header := TranslationServer.translate("第 %d 局!(%d : %d)") % [rounds, wins_a, wins_b]
-			GameChat.say(a, header, 1.4)
-			GameChat.say(b, TranslationServer.translate("第 %d 局!(%d : %d)") % [rounds, wins_b, wins_a], 1.4)
+			GameChat.chain_say(a, header, 1.4)
+			GameChat.chain_say(b, TranslationServer.translate("第 %d 局!(%d : %d)") % [rounds, wins_b, wins_a], 1.4)
 			await _wait(a, 1.2)
 			if _cancelled([a, b], generations):
 				return {}
@@ -120,9 +120,9 @@ static func _play_pets(a: Node, b: Node, best_of := 1) -> Dictionary:
 			var win_line := TranslationServer.translate("[b]贏了這局![/b]")
 			var lose_line := TranslationServer.translate("輸了這局……")
 			var line_a := draw_line if round_a == "draw" else (win_line if round_a == "win" else lose_line)
-			GameChat.say(a, "%s\n(%d : %d)" % [line_a, wins_a, wins_b], 1.6)
+			GameChat.chain_say(a, "%s\n(%d : %d)" % [line_a, wins_a, wins_b], 1.6)
 			var line_b := draw_line if round_a == "draw" else (win_line if round_a == "lose" else lose_line)
-			GameChat.say(b, "%s\n(%d : %d)" % [line_b, wins_b, wins_a], 1.6)
+			GameChat.chain_say(b, "%s\n(%d : %d)" % [line_b, wins_b, wins_a], 1.6)
 			await _wait(a, 1.5)
 			if _cancelled([a, b], generations):
 				return {}
@@ -182,10 +182,10 @@ static func _play_user(pet: Node, best_of := 1) -> Dictionary:
 				return last
 			if choice < 0 or choice > 2:
 				if choice == 3:
-					GameChat.say(pet, "好吧……下次再玩!", 2.0)
+					GameChat.chain_say(pet, "好吧……下次再玩!", 2.0)
 				return last
 			for word in ["剪刀…", "石頭…", "布!"]:
-				GameChat.say(pet, word, COUNTDOWN_STEP + 0.3)
+				GameChat.chain_say(pet, word, COUNTDOWN_STEP + 0.3)
 				await _wait(pet, COUNTDOWN_STEP)
 				if not is_instance_valid(pet) or pet.action_generation != generation:
 					return last
@@ -199,7 +199,7 @@ static func _play_user(pet: Node, best_of := 1) -> Dictionary:
 				user_wins += 1
 			var verdict: String = {"win": "我贏了!", "lose": "你贏了!", "draw": "平手!"}[round_result]
 			var score := "" if best_of <= 1 else TranslationServer.translate("\n(我 %d : %d 你)") % [pet_wins, user_wins]
-			GameChat.say(pet, TranslationServer.translate("我出 %s\n你出 %s\n→ [b]%s[/b]%s") % [gesture(pet_gesture), gesture(choice), verdict, score], 3.0)
+			GameChat.chain_say(pet, TranslationServer.translate("我出 %s\n你出 %s\n→ [b]%s[/b]%s") % [gesture(pet_gesture), gesture(choice), verdict, score], 3.0)
 			await _wait(pet, 1.8)
 			if not is_instance_valid(pet) or pet.action_generation != generation:
 				return last
@@ -214,7 +214,7 @@ static func _play_user(pet: Node, best_of := 1) -> Dictionary:
 		pet.game_vars["rps:rounds"] = str(rounds)
 		last = {"outcome": result, "pet": pet_gesture, "user": choice, "pet_wins": pet_wins, "user_wins": user_wins}
 		if best_of > 1:
-			GameChat.say(pet, TranslationServer.translate("[b]%s[/b]\n最終比數 我 %d : %d 你") % ["這一場我贏了!" if result == "win" else "這一場你贏了!", pet_wins, user_wins], 2.5)
+			GameChat.chain_say(pet, TranslationServer.translate("[b]%s[/b]\n最終比數 我 %d : %d 你") % ["這一場我贏了!" if result == "win" else "這一場你贏了!", pet_wins, user_wins], 2.5)
 			await _wait(pet, 1.6)
 			if not is_instance_valid(pet) or pet.action_generation != generation:
 				return last
@@ -255,7 +255,7 @@ static func play_battle_royale(host: Node) -> Dictionary:
 		for other: Node in others:
 			names.append(str(other.get_label()))
 		var address: String = "、".join(names) if names.size() <= 3 else TranslationServer.translate("大家")
-		GameChat.say(host, "%s,%s" % [address, host.speak_tr(GROUP_LINES.pick_random())], 2.6)
+		GameChat.chain_say(host, "%s,%s" % [address, host.speak_tr(GROUP_LINES.pick_random())], 2.6)
 		await _wait(host, 1.9)
 		if not is_instance_valid(host) or host.action_generation != generation:
 			return {}
@@ -266,10 +266,10 @@ static func play_battle_royale(host: Node) -> Dictionary:
 				other.vitality.note_invited()
 			var refusal: Dictionary = other.game_refusal()
 			if randf() < float(refusal["chance"]):
-				GameChat.say(other, other.speak_tr(str((GameInvite.REFUSE_LINES[str(refusal["reason"])] as Array).pick_random())), 2.2)
+				GameChat.chain_say(other, other.speak_tr(str((GameInvite.REFUSE_LINES[str(refusal["reason"])] as Array).pick_random())), 2.2)
 			else:
 				pets.append(other)
-				GameChat.say(other, other.speak_tr(str(GameInvite.ACCEPT_LINES.pick_random())), 1.6)
+				GameChat.chain_say(other, other.speak_tr(str(GameInvite.ACCEPT_LINES.pick_random())), 1.6)
 		await _wait(host, 1.5)
 		if not is_instance_valid(host) or host.action_generation != generation:
 			return {}
@@ -294,7 +294,7 @@ static func _play_battle_royale(pets: Array) -> Dictionary:
 		round_num += 1
 		var speaker: Node = alive[0]
 		for pet: Node in alive:
-			GameChat.say(pet, TranslationServer.translate("第 %d 輪!還剩 %d 位") % [round_num, alive.size() + int(user_alive)], 1.4, true)
+			GameChat.chain_say(pet, TranslationServer.translate("第 %d 輪!還剩 %d 位") % [round_num, alive.size() + int(user_alive)], 1.4, true)
 		await _wait(speaker, 1.2)
 		if _cancelled(alive, generations):
 			return {}
@@ -307,13 +307,13 @@ static func _play_battle_royale(pets: Array) -> Dictionary:
 				user_alive = false
 				if user_choice == 3:
 					for pet: Node in alive:
-						GameChat.say(pet, "使用者棄權啦!", 1.6, true)
+						GameChat.chain_say(pet, "使用者棄權啦!", 1.6, true)
 					await _wait(speaker, 1.2)
 					if _cancelled(alive, generations):
 						return {}
 		for word in ["剪刀…", "石頭…", "布!"]:
 			for pet: Node in alive:
-				GameChat.say(pet, word, COUNTDOWN_STEP + 0.3, true)
+				GameChat.chain_say(pet, word, COUNTDOWN_STEP + 0.3, true)
 			await _wait(speaker, COUNTDOWN_STEP)
 			if _cancelled(alive, generations):
 				return {}
@@ -321,7 +321,7 @@ static func _play_battle_royale(pets: Array) -> Dictionary:
 		for pet: Node in alive:
 			gestures[pet] = randi() % 3
 		for pet: Node in alive:
-			GameChat.say(pet, gesture(gestures[pet]), 2.2)
+			GameChat.chain_say(pet, gesture(gestures[pet]), 2.2)
 		await _wait(speaker, 1.3)
 		if _cancelled(alive, generations):
 			return {}
@@ -336,11 +336,11 @@ static func _play_battle_royale(pets: Array) -> Dictionary:
 			if round_num >= 20:
 				var giveup_line := TranslationServer.translate("這樣下去似乎沒完沒了……下次再比吧?")
 				for pet: Node in alive:
-					GameChat.say(pet, giveup_line, 1.8)
+					GameChat.chain_say(pet, giveup_line, 1.8)
 				await _wait(speaker, 1.6)
 				return {"winner": ""}
 			for pet: Node in alive:
-				GameChat.say(pet, "平手!全員晉級,再猜一次!", 1.4)
+				GameChat.chain_say(pet, "平手!全員晉級,再猜一次!", 1.4)
 			await _wait(speaker, 1.2)
 			if _cancelled(alive, generations):
 				return {}
@@ -352,7 +352,7 @@ static func _play_battle_royale(pets: Array) -> Dictionary:
 			if gestures[pet] == winning_gesture:
 				survivors.append(pet)
 			else:
-				GameChat.say(pet, "被淘汰了……下次加油!", 1.8)
+				GameChat.chain_say(pet, "被淘汰了……下次加油!", 1.8)
 				GameChat.react(pet, "rps", "lose")
 				GameChat.leave([pet])
 		if user_alive and user_choice != winning_gesture:
@@ -364,8 +364,8 @@ static func _play_battle_royale(pets: Array) -> Dictionary:
 				return {}
 	var winner: Node = alive[0] if alive.size() == 1 else null
 	if winner != null:
-		GameChat.say(winner, "[wave]我是冠軍!![/wave]", 3.0)
+		GameChat.chain_say(winner, "[wave]我是冠軍!![/wave]", 3.0)
 		GameChat.react(winner, "rps", "win")
 	elif user_alive and not pets.is_empty() and is_instance_valid(pets[0]):
-		GameChat.say(pets[0], "你是冠軍!!真厲害!", 3.0)
+		GameChat.chain_say(pets[0], "你是冠軍!!真厲害!", 3.0)
 	return {"winner": winner.recognition_tag if winner != null else ("user" if user_alive else "")}

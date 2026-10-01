@@ -26,6 +26,7 @@ var _lights_check: CheckBox
 var _on_top_check: CheckBox
 var _bubble_pin_check: CheckBox
 var _bubble_mode_option: OptionButton
+var _timestamp_option: OptionButton
 var _firefly_mode: OptionButton
 var _firefly_start_hour: SpinBox
 var _firefly_start_minute: SpinBox
@@ -215,7 +216,7 @@ func _build_performance() -> void:
 		get_tree().call_group("floating_windows", "refresh_on_top")
 		message.emit("浮動視窗保持在最上層。" if on else "浮動視窗保持在最上層已關閉。"))
 	add_child(_on_top_check)
-	add_child(ManagerUi.heading_with_info("對話集中", "關閉時氣泡照舊貼在桌寵旁邊移動(預設)。開啟後從下面選一種集中方式:氣泡式——把某隻桌寵的氣泡拖到想要的位置放開,之後那隻桌寵的氣泡就固定出現在那裡(左上角對齊),不再跟著牠跑,每隻桌寵要自己拖過一次才會固定(也可以在桌寵的右鍵選單「固定氣泡位置」明確固定/解除固定,不一定要用拖的);聊天室式——不用等你互動的句子(閒聊、狀態播報)改成寫進一個可收合的聊天室視窗(拖它標題列移動、拖右下角調整大小、按一下收合成小圖示),需要你選選項或回答的句子還是照舊用浮動氣泡,不然沒辦法在聊天室裡點選項。之後會再加其他集中款式。"))
+	add_child(ManagerUi.heading_with_info("對話集中", "關閉時氣泡照舊貼在桌寵旁邊移動(預設)。開啟後從下面選一種集中方式:聊天室式——不用等你互動的句子(閒聊、狀態播報)改成寫進一個可收合的聊天室視窗(拖它標題列移動、拖右下角調整大小、按一下收合成小圖示),一行純文字「桌寵名字: 台詞」;簡訊式——跟聊天室式同一個視窗、同一套規則,只是每句話改畫成圓角訊息氣泡,底色是那隻桌寵原本的泡泡外框色。不管選哪種,需要你選選項或回答的句子都還是照舊用浮動氣泡,不然沒辦法在聊天室裡點選項。之後會再加其他集中款式。個別桌寵的氣泡固定/解除固定是另一件事,隨時都能用(見桌寵右鍵選單「固定氣泡位置」),不受這裡影響。"))
 	_bubble_pin_check = CheckBox.new()
 	_bubble_pin_check.text = "對話集中"
 	_bubble_pin_check.toggled.connect(func(on: bool) -> void:
@@ -228,8 +229,8 @@ func _build_performance() -> void:
 		message.emit(tr("對話集中已開啟(%s)。") % str(_bubble_mode_option.text) if on else "對話集中已關閉,氣泡改回跟隨桌寵。"))
 	add_child(_bubble_pin_check)
 	_bubble_mode_option = OptionButton.new()
-	var bubble_mode_labels := {"pinned": "氣泡式(拖曳固定位置)", "chatroom": "聊天室式"}
-	for mode: String in ["pinned", "chatroom"]:
+	var bubble_mode_labels := {"chatroom": "聊天室式", "sms": "簡訊式"}
+	for mode: String in ["chatroom", "sms"]:
 		_bubble_mode_option.add_item(str(bubble_mode_labels[mode]))
 		_bubble_mode_option.set_item_metadata(_bubble_mode_option.item_count - 1, mode)
 	_bubble_mode_option.item_selected.connect(func(index: int) -> void:
@@ -240,13 +241,29 @@ func _build_performance() -> void:
 		get_tree().call_group("dialogue_display", "refresh_setting")
 		message.emit(tr("對話集中方式已設成「%s」。") % str(bubble_mode_labels[mode])))
 	add_child(ManagerUi.labeled("集中方式", _bubble_mode_option))
+	_timestamp_option = OptionButton.new()
+	_timestamp_option.tooltip_text = "聊天室式/簡訊式視窗裡,每則訊息底下要不要用小小的灰色字顯示時間(裝置目前的系統時間,記下來的當下時間,不是每次開視窗才重算)。跟上面的「對話集中」開不開沒有關係,選了就一直生效。"
+	var timestamp_labels := {"none": "不顯示時間戳", "12h": "12 小時制時間戳", "24h": "24 小時制時間戳"}
+	for mode: String in ["none", "12h", "24h"]:
+		_timestamp_option.add_item(str(timestamp_labels[mode]))
+		_timestamp_option.set_item_metadata(_timestamp_option.item_count - 1, mode)
+	_timestamp_option.item_selected.connect(func(index: int) -> void:
+		if _updating:
+			return
+		var mode := str(_timestamp_option.get_item_metadata(index))
+		AppSettings.set_chatroom_timestamp_mode(mode)
+		# 2026-10-02 使用者要求:切換時間戳設定也要即時套用到已經顯示中的訊息,不是只有之後新增的才有
+		# (用跟切換聊天室式/簡訊式同一套「從 _history 整個重畫」機制,見 ChatRoomWindow.refresh_content())。
+		get_tree().call_group("dialogue_display", "refresh_content")
+		message.emit(tr("聊天室時間戳已設成「%s」。") % str(timestamp_labels[mode])))
+	add_child(ManagerUi.labeled("時間戳", _timestamp_option))
 
 
 ## 多螢幕環境下,選行動框(整個桌寵疊加視窗)要出現在哪個螢幕(2026-09-30 使用者回報:自動判斷有時候會
 ## 落在副螢幕)。改了立刻把視窗、桌寵、家具、道具、固定的氣泡、聊天室視窗、開著的浮動視窗一起搬過去
 ## (見 DesktopShell.apply_monitor_setting())。目前只支援單一螢幕顯示,不支援同時在多個螢幕上都顯示行動區。
 func _build_display() -> void:
-	add_child(ManagerUi.heading_with_info("行動框顯示螢幕", "多螢幕時,桌寵行動框(整個疊加視窗)要出現在哪個螢幕。「自動」交給系統判斷,如果它常常判斷到你不想要的那台螢幕,可以在這裡直接指定。改了會把桌寵、家具、道具、固定的氣泡、聊天室視窗、開著的管理視窗全部一起搬到新螢幕(依新舊螢幕比例挪動相對位置)。目前一次只會在一個螢幕上顯示,不支援同時顯示在多個螢幕。"))
+	add_child(ManagerUi.heading_with_info("顯示器設定", "多螢幕時,桌寵行動框(整個疊加視窗)要出現在哪個螢幕。「自動」交給系統判斷,如果它常常判斷到你不想要的那台螢幕,可以在這裡直接指定。改了會把桌寵、家具、道具、固定的氣泡、聊天室視窗、開著的管理視窗全部一起搬到新螢幕(依新舊螢幕比例挪動相對位置)。目前一次只會在一個螢幕上顯示,不支援同時顯示在多個螢幕。"))
 	_monitor_option = OptionButton.new()
 	_refresh_monitor_options()
 	_monitor_option.item_selected.connect(func(index: int) -> void:
@@ -254,8 +271,8 @@ func _build_display() -> void:
 			return
 		var chosen := int(_monitor_option.get_item_metadata(index))
 		monitor_setting_requested.emit(chosen)
-		message.emit(tr("行動框顯示螢幕已設成「%s」,已經搬過去了。") % str(_monitor_option.text)))
-	add_child(ManagerUi.labeled("行動框顯示螢幕", _monitor_option))
+		message.emit(tr("顯示器設定已改成「%s」,已經搬過去了。") % str(_monitor_option.text)))
+	add_child(ManagerUi.labeled("顯示器設定", _monitor_option))
 
 
 ## 列出目前偵測到的螢幕(索引 + 解析度)+ 一個「自動」選項,選到已經選過的那個(選過的螢幕被拔掉時退回自動)。
@@ -525,6 +542,10 @@ func _load_into_widgets() -> void:
 	for i in _bubble_mode_option.item_count:
 		if str(_bubble_mode_option.get_item_metadata(i)) == current_mode:
 			_bubble_mode_option.select(i)
+	var current_timestamp_mode := AppSettings.chatroom_timestamp_mode()
+	for i in _timestamp_option.item_count:
+		if str(_timestamp_option.get_item_metadata(i)) == current_timestamp_mode:
+			_timestamp_option.select(i)
 	var look := AppSettings.appearance()
 	for i in _preset_option.item_count:
 		if str(_preset_option.get_item_metadata(i)) == str(look["preset"]):

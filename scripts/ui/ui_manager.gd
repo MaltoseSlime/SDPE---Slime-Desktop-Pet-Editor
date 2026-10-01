@@ -45,8 +45,8 @@ var _repeat_connected: Dictionary = {}
 ## 偏移 0 重新試一次,介面會在原位跟推開後的位置之間快速跳動;沿用上一影格的偏移當第一個候選,
 ## 穩定不變時就不會重算。
 var _last_offsets: Dictionary = {}
-## 「氣泡式」模式(AppSettings.bubble_display_mode() == "pinned")下,桌寵 → 使用者拖曳後固定的氣泡位置
-## (左上角,畫布座標)。只存在記憶體(不跨重開機),沒拖過的桌寵沿用一般跟隨排版直到第一次被拖過。
+## 桌寵 → 使用者拖曳/右鍵選單固定後的氣泡位置(左上角,畫布座標)。隨時都能固定,不綁定「對話集中」的
+## 模式。只存在記憶體(不跨重開機),沒固定過的桌寵沿用一般跟隨排版。
 var _pinned_positions: Dictionary = {}
 var _chatroom: ChatRoomWindow
 ## 右鍵暫時穿透期間的淡化透明度(1.0 = 沒在穿透);新出現的氣泡/面板要照這個值起始,不然穿透期間冒出來的
@@ -68,8 +68,8 @@ func _ready() -> void:
 	set_process(false)
 
 
-## 換螢幕、或同一台螢幕解析度變了(見 DesktopShell.apply_monitor_setting()):固定氣泡(氣泡式模式記住的位置)
-## 跟聊天室視窗的展開位置都是絕對座標,依新舊視窗尺寸的比例挪過去。
+## 換螢幕、或同一台螢幕解析度變了(見 DesktopShell.apply_monitor_setting()):固定氣泡(使用者拖曳/右鍵
+## 固定的位置)跟聊天室視窗的展開位置都是絕對座標,依新舊視窗尺寸的比例挪過去。
 func rescale_layout(old_size: Vector2, new_size: Vector2) -> void:
 	if old_size.x <= 0.0 or old_size.y <= 0.0 or old_size.is_equal_approx(new_size):
 		return
@@ -170,15 +170,20 @@ func _connect_repeat(pet: Node) -> void:
 
 func _show_bubble(pet: Node, line: Dictionary, ticket: RefCounted) -> void:
 	_close_bubble(pet)
-	# 「聊天室式」模式下,不用等使用者互動的句子(沒有選項、也不是等點擊的重要提問)改走聊天室視窗;
-	# 需要互動的句子(問題、選項)還是照舊用浮動氣泡——不然使用者沒辦法在聊天室視窗裡點選項。
+	# 「聊天室式」/「簡訊式」模式下,不用等使用者互動的句子(沒有選項、也不是等點擊的重要提問)改走聊天室
+	# 視窗;需要互動的句子(問題、選項)還是照舊用浮動氣泡——不然使用者沒辦法在聊天室視窗裡點選項。這兩個
+	# 模式只差在視窗裡每一句怎麼畫(見 ChatRoomWindow.append_line()),路由規則相同。
 	var options: Array = line.get("options", [])
-	var interactive := not options.is_empty() or bool(line.get("wait_click", false))
-	var chatroom_route := AppSettings.bubble_display_mode() == "chatroom" and not interactive
+	var wait_click := bool(line.get("wait_click", false))
+	var interactive := not options.is_empty() or wait_click
+	var chatroom_mode := AppSettings.bubble_display_mode()
+	var in_chatroom_family := chatroom_mode == "chatroom" or chatroom_mode == "sms"
+	var chatroom_route := in_chatroom_family and not interactive
 	# 「即使存在聊天室也顯示氣泡」(桌寵管理 > 交互行為,2026-10-01):個別桌寵可以要求聊天室式模式下這句
 	# 也額外彈浮動氣泡,不是只寫進聊天記錄——兩邊同時顯示。只影響要不要現形,chatroom_route(要不要寫進
-	# 聊天記錄)本身不變。
-	var force_bubble := chatroom_route and bool((pet.interaction_rules as Dictionary).get("show_bubble_in_chatroom", false))
+	# 聊天記錄)本身不變。line["force_bubble"](2026-10-02,見 GameChat.say()):這句本身的性質就是該讓
+	# 使用者當下看到(計時器時間到、中途提醒…),不是桌寵個別設定,兩者任一成立就現形。
+	var force_bubble := chatroom_route and (bool((pet.interaction_rules as Dictionary).get("show_bubble_in_chatroom", false)) or bool(line.get("force_bubble", false)))
 	var show_in_world := not chatroom_route or force_bubble
 	var bubble := DialogueBubble.new()
 	add_child(bubble)
@@ -189,8 +194,12 @@ func _show_bubble(pet: Node, line: Dictionary, ticket: RefCounted) -> void:
 		bubble.modulate.a = _passthrough_alpha
 	# chat_log = false(見 GameChat.say 的 quiet 參數):每局都喊、每隻桌寵都得喊一遍的短口號,聊天室式模式下
 	# 不寫進聊天記錄(不然會洗版),但氣泡本身照舊建立、計時——只是這一句略過 append_line 這一步。
-	if chatroom_route and bool(line.get("chat_log", true)):
-		_chatroom.append_line(pet, bubble.chat_text(), bubble.chat_color(), bubble.is_thought)
+	# 2026-10-02 使用者要求:等點擊(wait_click)的重要提問一定要現形成浮動氣泡(上面 interactive 已經保證),
+	# 但這種句子在「對話集中」開著時也可以順便記錄進聊天室(不像一般選項句——選項要在氣泡上點,寫進聊天室
+	# 記錄沒有意義;等點擊的句子是純文字重要通知,跟其他句子一樣值得留底)。
+	var should_log_to_chatroom := chatroom_route or (in_chatroom_family and wait_click)
+	if should_log_to_chatroom and bool(line.get("chat_log", true)):
+		_chatroom.append_line(pet, bubble.chat_text(), bubble.chat_color(), bubble.is_thought, bool(line.get("chain", false)))
 	_bubbles[pet] = bubble
 	_order.append(bubble)
 	pet.has_open_bubble = true   # 右鍵選單「固定氣泡位置」決定能不能點用(沒有氣泡可以固定就灰掉)
@@ -446,7 +455,11 @@ func _layout() -> void:
 	# 同一套做法(這個視窗本身是無邊框全螢幕穿透視窗,不能只靠 Godot 的 mouse_entered,滑鼠在穿透區時視窗根本
 	# 收不到事件)。
 	var os_mouse := Vector2(DisplayServer.mouse_get_position()) - Vector2(get_window().position)
-	var pinned_mode := AppSettings.bubble_display_mode() == "pinned"
+	# 對話氣泡要避開聊天室視窗(2026-10-02 使用者要求),聊天室/簡訊式視窗沒顯示時這裡是空矩形,當障礙物
+	# 完全沒作用。
+	var chatroom_rect := Rect2()
+	if _chatroom != null and _chatroom.visible:
+		chatroom_rect = Rect2(_chatroom.global_position, _chatroom.size)
 	for control in _order:
 		var pet: Node = control.pet
 		# size != ZERO:剛建立、還沒排過版的氣泡容器可能暫時是零尺寸(見 PanelContainer 的排版時序),零尺寸的矩形
@@ -457,9 +470,9 @@ func _layout() -> void:
 		if control is DialogueBubble and _last_offsets.has(control) and control.global_rect().has_point(os_mouse):
 			placed.append(control.global_rect())
 			continue
-		# 「氣泡式」模式:正在被拖曳的氣泡不搶(位置由它自己的拖曳邏輯直接設);已經拖過的桌寵之後固定出現在
-		# 那個位置,不再跑一般的跟隨/避讓排版。還沒拖過的第一顆氣泡照舊用一般排版,讓使用者有個起點可以拖。
-		if control is DialogueBubble and pinned_mode:
+		# 氣泡固定:正在被拖曳的氣泡不搶(位置由它自己的拖曳邏輯直接設);已經固定過的桌寵之後固定出現在
+		# 那個位置,不再跑一般的跟隨/避讓排版。隨時都能固定,不綁定「對話集中」的模式。
+		if control is DialogueBubble:
 			if control.is_dragging_pin():
 				placed.append(control.global_rect())
 				continue
@@ -481,6 +494,8 @@ func _layout() -> void:
 		for other: Node in get_tree().get_nodes_in_group("pets"):
 			if other != pet:
 				obstacles.append(other.get_body_rect())
+		if control is DialogueBubble and chatroom_rect.size != Vector2.ZERO:
+			obstacles.append(chatroom_rect)
 		var body: Rect2 = pet.get_body_rect()
 		var rect: Rect2
 		var had_offset_before := _last_offsets.has(control)
@@ -492,6 +507,12 @@ func _layout() -> void:
 			var extra_gap: float = control.tail_space() if control.has_method("tail_space") else 0.0
 			var previous_offset: float = _last_offsets.get(control, 0.0)
 			rect = _place(control.size, body, control.flipped, screen, obstacles, GAP + extra_gap, previous_offset)
+			# 一般的避讓(_place)重試有上限(MAX_ROWS),哲學上是「穩定優先於零重疊」,超過重試次數就接受
+			# 目前位置,其他氣泡/桌寵這樣沒關係——但聊天室視窗這個障礙物使用者要求一定要讓開,不接受「盡力
+			# 而為還是疊到」,這裡在一般避讓算完之後,對話氣泡額外做一次「保證脫離聊天室視窗」的強制修正
+			# (2026-10-02 使用者實機回報:氣泡還是會跑進聊天室視窗範圍內,見 _clear_of_chatroom())。
+			if control is DialogueBubble and chatroom_rect.size != Vector2.ZERO:
+				rect = _clear_of_chatroom(rect, chatroom_rect, screen)
 			control.flipped = rect.get_center().y > body.get_center().y
 			_last_offsets[control] = rect.position.x - (body.get_center().x - control.size.x * 0.5)
 		if control is DialogueBubble and had_offset_before:
@@ -602,6 +623,32 @@ func _place(size: Vector2, body: Rect2, flipped: bool, screen: Rect2, obstacles:
 		if row_cleared:
 			return candidate
 	return candidate
+
+
+## 保證氣泡不會疊在聊天室視窗上面(2026-10-02 使用者要求):rect 沒撞到就原樣回傳;撞到了就改貼在聊天室
+## 視窗的上緣或下緣(挑離原本位置比較近、夾進螢幕後也真的不再相交的那一側),兩側都還是相交(聊天室視窗
+## 比螢幕還高這種極端情況)才退而求其次改貼左右兩側;再不行(聊天室視窗整個蓋住螢幕)才維持原樣,不堅持
+## 到底卡死排版。跟一般的 _place() 重試邏輯分開獨立跑一次,保證結果,不是「盡力而為」。
+func _clear_of_chatroom(rect: Rect2, chatroom_rect: Rect2, screen: Rect2) -> Rect2:
+	if not rect.intersects(chatroom_rect):
+		return rect
+	var above := _clamp(Rect2(Vector2(rect.position.x, chatroom_rect.position.y - rect.size.y - GAP), rect.size), screen)
+	var below := _clamp(Rect2(Vector2(rect.position.x, chatroom_rect.end.y + GAP), rect.size), screen)
+	var candidates: Array[Rect2] = []
+	if absf(rect.position.y - above.position.y) <= absf(rect.position.y - below.position.y):
+		candidates = [above, below]
+	else:
+		candidates = [below, above]
+	for candidate in candidates:
+		if not candidate.intersects(chatroom_rect):
+			return candidate
+	var left := _clamp(Rect2(Vector2(chatroom_rect.position.x - rect.size.x - GAP, rect.position.y), rect.size), screen)
+	var right := _clamp(Rect2(Vector2(chatroom_rect.end.x + GAP, rect.position.y), rect.size), screen)
+	var side_candidates: Array[Rect2] = [left, right]
+	for candidate in side_candidates:
+		if not candidate.intersects(chatroom_rect):
+			return candidate
+	return rect   # 聊天室視窗大到整個蓋滿螢幕這種極端情況,讓不出空間,保留原位置而不是硬夾出畫面外。
 
 
 func _clamp(rect: Rect2, screen: Rect2) -> Rect2:

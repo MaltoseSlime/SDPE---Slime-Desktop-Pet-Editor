@@ -292,11 +292,16 @@ static func set_floating_on_top(enabled: bool) -> void:
 
 # --- 對話氣泡顯示方式(2026-09-30 使用者回饋單,「氣泡固定」)---
 
-## follow = 預設,氣泡跟著桌寵移動(既有行為);pinned = 氣泡式,使用者把某隻桌寵的氣泡拖到哪,之後那隻
-## 桌寵的氣泡就固定生成在那個位置(左上角對齊),不再跟著桌寵跑;chatroom = 聊天室式,把「純資訊、不用等
-## 使用者互動」的句子(沒有選項、也不是等點擊的重要提問)改成寫進一個可收合的聊天室視窗,需要互動的句子
-## (問題、選項)仍然照舊用浮動氣泡顯示——不然使用者沒辦法在聊天室視窗裡點選項。存在 [dialogue] 的 bubble_mode。
-const BUBBLE_MODES: Array[String] = ["follow", "pinned", "chatroom"]
+## follow = 預設,氣泡跟著桌寵移動(既有行為);chatroom = 聊天室式,把「純資訊、不用等使用者互動」的句子
+## (沒有選項、也不是等點擊的重要提問)改成寫進一個可收合的聊天室視窗,需要互動的句子(問題、選項)仍然
+## 照舊用浮動氣泡顯示——不然使用者沒辦法在聊天室視窗裡點選項;sms = 簡訊式,跟聊天室式一樣的視窗跟路由
+## 規則,只是每句話改畫成圓角訊息氣泡(見 ChatRoomWindow._make_sms_bubble()),不是一行純文字。
+## 存在 [dialogue] 的 bubble_mode。
+## 2026-10-02 拿掉舊的 pinned(氣泡式)這個「整體模式」:個別桌寵的氣泡固定/解除固定已經改成隨時都能用
+## (桌寵右鍵選單「固定氣泡位置」,不受這裡的設定影響,見 Pet._build_context_menu()/UiManager._layout()),
+## 不需要另外切一個全域模式才能用——舊存檔如果還存著 "pinned",下面 bubble_display_mode() 讀到不認得的值
+## 會自動退回 "follow",不會出錯。
+const BUBBLE_MODES: Array[String] = ["follow", "chatroom", "sms"]
 
 
 static func bubble_display_mode() -> String:
@@ -314,6 +319,30 @@ static func set_bubble_display_mode(mode: String) -> void:
 	var config := ConfigFile.new()
 	config.load(SETTINGS_PATH)
 	config.set_value("dialogue", "bubble_mode", mode)
+	config.save(SETTINGS_PATH)
+
+
+## 聊天室/簡訊式視窗每則訊息底下要不要顯示時間戳(2026-10-02 使用者要求):none = 不顯示(預設)、
+## 12h/24h = 12 或 24 小時制,寫的是裝置目前的系統時間(記錄當下,不是回放時重算)。存在 [dialogue] 的
+## timestamp_mode。
+const TIMESTAMP_MODES: Array[String] = ["none", "12h", "24h"]
+
+
+static func chatroom_timestamp_mode() -> String:
+	var config := ConfigFile.new()
+	if config.load(SETTINGS_PATH) == OK:
+		var mode := str(config.get_value("dialogue", "timestamp_mode", "none"))
+		if TIMESTAMP_MODES.has(mode):
+			return mode
+	return "none"
+
+
+static func set_chatroom_timestamp_mode(mode: String) -> void:
+	if not TIMESTAMP_MODES.has(mode):
+		return
+	var config := ConfigFile.new()
+	config.load(SETTINGS_PATH)
+	config.set_value("dialogue", "timestamp_mode", mode)
 	config.save(SETTINGS_PATH)
 
 

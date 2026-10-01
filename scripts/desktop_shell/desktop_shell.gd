@@ -1006,6 +1006,9 @@ func _on_import_logic(pet: Node) -> void:
 				if is_instance_valid(pet):
 					# 導入成功就複製一份保存,之後這個角色每次生成都會自動載入(見 _apply_saved_logic)。
 					if pet.logic.load_file(paths[0]):
+						# load_file() 的 clear() 會把性格對話池/反應層、交互行為規則層一起清掉,這裡補回去(見 memory_tab.gd 同樣的補法)。
+						PersonalityApplier.rebuild_layer(pet)
+						pet.set_interaction_rules(pet.interaction_rules)
 						PetRoster.store_logic(pet.recognition_tag, paths[0], CharacterFiles.folder_of(pet))
 					_tray.refresh_pets())
 
