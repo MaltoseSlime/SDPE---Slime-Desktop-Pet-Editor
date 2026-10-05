@@ -102,7 +102,7 @@ func _ready() -> void:
 	_flow.add_theme_constant_override("h_separation", 10)
 	_flow.add_theme_constant_override("v_separation", 10)
 	scroll.add_child(_flow)
-	var form := _new_card("四大顏色")
+	var form := _new_card("對話泡泡顏色")
 	_add_color_rows(form, COLOR_FIELDS)
 
 	form = _new_card("思考泡泡配色")
@@ -120,7 +120,26 @@ func _ready() -> void:
 		_scale_option.add_item("%d%%" % step)
 	_scale_option.item_selected.connect(_on_field_changed)
 	form.add_child(ManagerUi.labeled("介面縮放率", _scale_option))
-	form.add_child(ManagerUi.hint_row("說明", "只影響這隻桌寵的對話氣泡與 Status 面板(框體、邊框、文字一起縮放),不影響角色本體。"))
+	form.add_child(ManagerUi.hint_row("說明", "只影響這隻桌寵的對話氣泡與狀態面板(框體、邊框、文字一起縮放),不影響角色本體。"))
+
+	form.add_child(HSeparator.new())
+	form.add_child(ManagerUi.heading("狀態面板"))
+	_status_energy_check = CheckBox.new()
+	_status_energy_check.text = "顯示精力條(標出「累了」與「累到睡著」的門檻,底下寫目前的休息階段)"
+	_status_energy_check.toggled.connect(_on_field_changed)
+	form.add_child(_status_energy_check)
+	_status_mood_check = CheckBox.new()
+	_status_mood_check.text = "顯示心情條(標出「生氣」與「開心」的門檻)"
+	_status_mood_check.toggled.connect(_on_field_changed)
+	form.add_child(_status_mood_check)
+	form.add_child(ManagerUi.hint_row("說明", "狀態面板預設只顯示創作者勾選的數值(避免洩露彩蛋),這兩條也一樣預設不顯示。精力條要角色有疲勞機制(套用有疲勞參數的性格);心情條隨時都有,但要套用有「心情起伏」參數的性格,心情才會讓角色進入開心/生氣狀態。"))
+
+	form.add_child(HSeparator.new())
+	form.add_child(ManagerUi.heading("還原"))
+	var reset := ManagerUi.button("還原成預設風格")
+	reset.pressed.connect(_reset)
+	form.add_child(ManagerUi.hint_row("說明", "把這隻桌寵的介面風格(顏色、邊框、縮放、字體、選項等待)全部改回預設值;不影響角色尺寸與自動行為。"))
+	form.add_child(reset)
 
 	form = _new_card("字體與對話")
 	_font_option = OptionButton.new()
@@ -257,13 +276,6 @@ func _ready() -> void:
 	form.add_child(_no_fatigue_check)
 	form.add_child(ManagerUi.hint_row("說明", "不管什麼移動模式,跳舞、被拿來洗澡、使用道具的時候都不會走來走去,固定模式的桌寵只會收「拖曳到它身上」的道具。"))
 
-	form = _new_card("自主靜音")
-	_unmute_check = CheckBox.new()
-	_unmute_check.text = "允許自主解除靜音(事件觸發的靜音,在觸發條件消失時自動解除)"
-	_unmute_check.toggled.connect(_on_field_changed)
-	form.add_child(_unmute_check)
-	form.add_child(ManagerUi.hint_row("說明", "關閉後,事件觸發的靜音只會被積木的「解除靜音」或逾時解除;此設定只影響這隻桌寵自己的說話聲與效果音。"))
-
 	form = _new_card("說話聲音")
 	_voice_label = Label.new()
 	_voice_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -287,6 +299,13 @@ func _ready() -> void:
 	_voice_volume_spin.value_changed.connect(_on_field_changed)
 	form.add_child(ManagerUi.labeled("說話聲音量", _voice_volume_spin))
 	form.add_child(ManagerUi.hint_row("說明", "打字機每輸出一個字播一聲,請用很短的音效(ogg / wav / mp3,3 秒內、1 MB 內)。同一個角色(辨識代號相同)的所有桌寵共用。音高與音量對內建聲音也有效。系統匣「音效」選單的靜音與說話音效開關仍然有效。"))
+	form.add_child(HSeparator.new())
+	form.add_child(ManagerUi.heading("自主靜音"))
+	_unmute_check = CheckBox.new()
+	_unmute_check.text = "允許自主解除靜音(事件觸發的靜音,在觸發條件消失時自動解除)"
+	_unmute_check.toggled.connect(_on_field_changed)
+	form.add_child(_unmute_check)
+	form.add_child(ManagerUi.hint_row("說明", "關閉後,事件觸發的靜音只會被積木的「解除靜音」或逾時解除;此設定只影響這隻桌寵自己的說話聲與效果音。"))
 	_voice_player = AudioStreamPlayer.new()
 	add_child(_voice_player)
 
@@ -307,6 +326,14 @@ func _ready() -> void:
 	_trail_option.item_selected.connect(_on_field_changed)
 	form.add_child(ManagerUi.labeled("移動時自動殘影", _trail_option))
 	form.add_child(ManagerUi.hint_row("移動時自動殘影", "選「奔跑時」= 開了 run(或狀態鏡讓它奔跑)就一路留殘影;「只要在移動」= 走路、飛行、漂浮都留。殘影的顏色、拖尾距離、停留時間在下面「特效外觀 → 移動殘影」調。想用積木控制,用「開啟 / 關閉殘影」。"))
+
+	form.add_child(HSeparator.new())
+	form.add_child(ManagerUi.heading("睡覺 Zzz"))
+	_sleep_z_check = CheckBox.new()
+	_sleep_z_check.text = "睡著時頭上飄出 Zzz(用這隻角色的字體,從小 z 到大 Z,邊飄邊放大)"
+	_sleep_z_check.toggled.connect(_on_field_changed)
+	form.add_child(_sleep_z_check)
+	form.add_child(ManagerUi.hint_row("說明", "純裝飾的小特效,不需要素材;字體跟「字體與對話」的預設對話字體一致,字級跟著角色大小與介面縮放率。"))
 
 	form = _new_card("連帶觸發特效")
 	form.add_child(ManagerUi.hint_row("說明", "使用者互動時自動播的特效(不用寫積木)。例如「被觸摸 → 幸福」。積木的事件照常執行,兩邊可以同時作用;上面「啟用角色特效」關掉時這裡也不會播。"))
@@ -380,29 +407,6 @@ func _ready() -> void:
 	form.add_child(fx_buttons)
 	form.add_child(ManagerUi.hint_row("說明", "每個特效可以個別設定:單色、雙色(每顆粒子隨機取兩色之一,火苗是外焰/內焰)、單色漸層、雙色漸層、彩虹色調。大小是依角色身高換算倍率;密度只對會發射很多顆的特效有意義;範圍是生成點離角色的遠近(調大會分散、調小會集中在角色附近,對憂愁/全身發光/移動殘影沒有意義,這三個不會顯示這一項);殘影用暫留時長與拖尾間距。"))
 
-	form = _new_card("睡覺 Zzz")
-	_sleep_z_check = CheckBox.new()
-	_sleep_z_check.text = "睡著時頭上飄出 Zzz(用這隻角色的字體,從小 z 到大 Z,邊飄邊放大)"
-	_sleep_z_check.toggled.connect(_on_field_changed)
-	form.add_child(_sleep_z_check)
-	form.add_child(ManagerUi.hint_row("說明", "純裝飾的小特效,不需要素材;字體跟「字體與對話」的預設對話字體一致,字級跟著角色大小與介面縮放率。"))
-
-	form = _new_card("Status 面板")
-	_status_energy_check = CheckBox.new()
-	_status_energy_check.text = "顯示精力條(標出「累了」與「累到睡著」的門檻,底下寫目前的休息階段)"
-	_status_energy_check.toggled.connect(_on_field_changed)
-	form.add_child(_status_energy_check)
-	_status_mood_check = CheckBox.new()
-	_status_mood_check.text = "顯示心情條(標出「生氣」與「開心」的門檻)"
-	_status_mood_check.toggled.connect(_on_field_changed)
-	form.add_child(_status_mood_check)
-	form.add_child(ManagerUi.hint_row("說明", "Status 面板預設只顯示創作者勾選的數值(避免洩露彩蛋),這兩條也一樣預設不顯示。精力條要角色有疲勞機制(套用有疲勞參數的性格);心情條隨時都有,但要套用有「心情起伏」參數的性格,心情才會讓角色進入開心/生氣狀態。"))
-
-	var reset := ManagerUi.button("還原成預設風格")
-	reset.pressed.connect(_reset)
-	form = _new_card("還原")
-	form.add_child(ManagerUi.hint_row("說明", "把這隻桌寵的介面風格(顏色、邊框、縮放、字體、選項等待)全部改回預設值;不影響角色尺寸與自動行為。"))
-	form.add_child(reset)
 	_finish_cards()
 
 

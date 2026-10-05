@@ -2,7 +2,7 @@ class_name InteractionRules
 extends RefCounted
 ## 桌寵管理「交互行為」頁籤的資料(存在角色設定檔的 "interaction"):不用寫積木就能調的三件事。
 ## 1. actions:事件 → 動作的對應(例如「被摸摸」改用素材包裡的 shy 動作)。程式裡所有播放該事件動作的地方都會換成選的動作(素材沒有就退回原本的)。
-## 2. characters:對場上另一個角色(不含自己)的反應,只有對話。編譯成「當場內出現那個角色時」的事件積木(event_when_pet_state,KIND = present),接在解譯器的「規則層」。
+## 2. characters:對場上另一個角色(不含自己)的反應,只有對話。編譯成「與那個角色判定框接觸時」的事件積木(event_when_pets_touch,A 留空 = 自己、B = 對方;2026-10-05 從「場上出現」改成接觸),接在解譯器的「規則層」。
 ## 3. props:對某個道具的反應:對話(編譯成 event_prop_* 積木)+ 動作(執行期由 Pet.begin_prop_action 播:只做一次,或持續到道具用完 / 離開判定,像摸摸移開後才恢復)。
 ## 4. prefs:喜歡 / 不喜歡的道具(存道具資料夾名稱 id 與當時的顯示名稱)。喜歡的道具掉在場上會自己走過去撿、撿到心情變好;不喜歡的不會自己撿(拖著遞給它還是會收);「不與此道具交互」(ignore)則完全無視:不撿、不被它摩擦、不會成為候選、也不被它吸引。
 ##    道具資料找不到(被刪掉、搬走)時列表顯示成灰色,可以「重新連結」到現有的另一個道具。
@@ -32,6 +32,20 @@ extends RefCounted
 ## 8. sms_bubble_width(像素,預設 210,範圍 MIN_SMS_BUBBLE_WIDTH~MAX_SMS_BUBBLE_WIDTH,2026-10-02 加入):
 ##    簡訊式氣泡換行前的最大寬度(氣泡會先長到這個寬度才開始自動換行);會再乘上 sms_bubble_scale,不是
 ##    互斥的兩條設定——先用這個決定「縮放前基準有多寬」,sms_bubble_scale 再決定整體要放大縮小多少。
+## 9. pet_prefs(2026-10-04 加入):對其他桌寵的好惡程度,跟道具的 prefs 分開存(那個三選一沒有強度;
+##    這個只有一個欄位、每一列指定一個對象(特定桌寵或 ALL_PETS_TARGET = 全部)+ 一個等級
+##    PET_PREF_LEVELS(-3~3,見 PET_PREF_LEVEL_NAMES),比道具喜好多了強度分級。查詢用 pet_pref_level()
+##    (優先找指定那隻桌寵的項目,沒有才退回 ALL,兩者都沒有就是 0 = 普通,跟完全沒有這個功能時行為一致)。
+##    **原則性守則(使用者 2026-10-03 明確要求,之後也適用)**:我們只提供這個資料欄位跟「讀/改好惡等級」
+##    的積木,不自動設計/實作會自動幫這個等級漲跌的邏輯(像根據互動次數自動調整這種)——那個完全交給使用者
+##    自己用局部/全域數值 + 積木設計,再呼叫改好惡等級的積木套用。目前這個等級會影響(見 Pet.pet_affinity()
+##    的呼叫點):① 主動跟隨的候選與機率(Pet._nearest_followable_pet()/_tick_auto_pet_follow(),討厭
+##    (< 0)的對象完全不會被選為跟隨對象,喜歡的機率加成、也更容易被挑中);② 自己閒置時要不要主動邀請
+##    特定對象對戰(GameInvite.start_random() 用好惡程度加權抽選候選,討厭的機率被壓低但不是硬性排除,
+##    廣播式邀請——跟全場所有桌寵——不受影響,因為那種邀請本來就沒有「挑誰」這個步驟);③ 被邀請對戰時
+##    接受/拒絕的機率(Pet.game_refusal() 多了 inviter 參數,依對邀請者的好惡微調拒絕機率,廣播式邀請
+##    的被邀請者端一樣受影響,只是①的「主動挑誰」不受影響)。**還沒接的**(需要先確定「判定框」概念、
+##    或自主移動目標選擇系統才能接,見待辦備忘):判定框接觸時的心情增減、自主移動靠近/遠離喜歡/討厭的對象。
 ## 詳細編輯(條件、選項、連續動作…)要到網頁端積木編輯器;這裡只提供最常用、最簡單的部分。所有欄位讀進來都會驗證與夾範圍。
 
 const MAX_TEXT := 120
@@ -51,7 +65,7 @@ const PREFS := ["like", "dislike", "ignore"]
 ## 對應),不會出現「播的是自訂動畫,角度卻還是照舊轉 90°」這種不一致。
 const ACTION_SLOTS: Array[Array] = [
 	["interact", "被觸摸 / 互動"], ["drag", "被拖曳"], ["gather", "拾取 / 使用道具"], ["enter", "入場"], ["leave", "退場"],
-	["sleep", "睡覺"], ["sit", "坐下休息(含家具的坐下錨點)"], ["lay", "躺下休息(含家具的躺下錨點)"], ["dance", "跳舞"], ["walk", "走路"], ["run", "奔跑"], ["idle", "待機"], ["rise", "跳起(上升)"], ["fall", "落下"],
+	["sleep", "睡覺"], ["sit", "坐下休息(含家具的坐下錨點)"], ["lay", "躺下休息(含家具的躺下錨點)"], ["dance", "跳舞"], ["walk", "走路"], ["run", "奔跑"], ["idle", "待機"], ["rise", "跳起(上升)"], ["fall", "落下"], ["land", "降落(飛行模式著地瞬間)"], ["downward", "從平臺邊緣摔落(整段墜落)"],
 	["climb_wall", "爬牆"], ["climb_ceiling", "爬天花板"],
 ]
 ## 道具反應的觸發時機。
@@ -63,9 +77,16 @@ const DEFAULT_SMS_BUBBLE_WIDTH := 210.0
 const MIN_SMS_BUBBLE_WIDTH := 80.0
 const MAX_SMS_BUBBLE_WIDTH := 600.0
 
+## 對其他桌寵的好惡(pet_prefs):-3~3,0 = 普通(沒有這個功能時的行為);對稱三級喜歡/不喜歡。
+const PET_PREF_LEVELS: Array[int] = [-3, -2, -1, 0, 1, 2, 3]
+const PET_PREF_LEVEL_NAMES := {-3: "超級不喜歡", -2: "不喜歡", -1: "有點不喜歡", 0: "普通", 1: "有點喜歡", 2: "喜歡", 3: "超級喜歡"}
+## pet_prefs 項目的特殊 target 值:這一列是「沒被個別指定的其他桌寵」套用的預設等級。
+const ALL_PETS_TARGET := "ALL"
+const MAX_PET_PREFS := 60
+
 
 static func empty() -> Dictionary:
-	return {"actions": {}, "characters": [], "props": [], "prefs": [], "ignore_props": false, "ignore_furniture": false, "no_follow_target": false, "no_follow_source": false, "show_bubble_in_chatroom": false, "sms_direction": "left", "sms_bubble_scale": 100, "sms_bubble_width": DEFAULT_SMS_BUBBLE_WIDTH}
+	return {"actions": {}, "characters": [], "props": [], "prefs": [], "pet_prefs": [], "ignore_props": false, "ignore_furniture": false, "no_follow_target": false, "no_follow_source": false, "show_bubble_in_chatroom": false, "sms_direction": "left", "sms_bubble_scale": 100, "sms_bubble_width": DEFAULT_SMS_BUBBLE_WIDTH}
 
 
 static func slot_keys() -> Array[String]:
@@ -132,6 +153,18 @@ static func clean(raw: Variant) -> Dictionary:
 				continue
 			seen[id] = true
 			result["prefs"].append({"id": id, "name": _text(entry.get("name", id)), "pref": pref})
+	if raw.get("pet_prefs") is Array:
+		var seen_targets := {}
+		for entry: Variant in raw["pet_prefs"]:
+			if not entry is Dictionary or (result["pet_prefs"] as Array).size() >= MAX_PET_PREFS:
+				continue
+			var target := _text(entry.get("target", ""))
+			var level_raw: Variant = entry.get("level")
+			var level := int(level_raw) if (level_raw is int or level_raw is float) else 0
+			if target == "" or not PET_PREF_LEVELS.has(level) or level == 0 or seen_targets.has(target):
+				continue
+			seen_targets[target] = true
+			result["pet_prefs"].append({"target": target, "name": _text(entry.get("name", target)), "level": level})
 	for key in ["ignore_props", "ignore_furniture", "no_follow_target", "no_follow_source", "show_bubble_in_chatroom"]:
 		var value_raw: Variant = raw.get(key, false)
 		result[key] = value_raw if value_raw is bool else false
@@ -152,6 +185,32 @@ static func preference_of(rules: Dictionary, prop_id: String) -> String:
 		if entry["id"] == prop_id:
 			return str(entry["pref"])
 	return ""
+
+
+## 對這隻特定桌寵(tag)的好惡等級,只看有沒有「剛好指定這個 tag」的項目,不退回 ALL(UI 用來顯示這一列
+## 自己實際存了什麼,不要被 ALL 的退回值誤導成看起來「已經套用」)。
+static func direct_pet_pref_level(rules: Dictionary, target: String) -> int:
+	for entry: Dictionary in rules.get("pet_prefs", []):
+		if str(entry.get("target", "")) == target:
+			return int(entry.get("level", 0))
+	return 0
+
+
+## 對這隻特定桌寵(tag)的「有效」好惡等級:優先找指定這個 tag 的項目,找不到就退回 ALL_PETS_TARGET
+## 那條,兩者都沒有就是 0(普通,跟完全沒有這個功能時行為一致)。遊戲/跟隨等系統邏輯用這個,不要用上面
+## 那個(那個只給 UI 顯示用)。
+static func pet_pref_level(rules: Dictionary, target: String) -> int:
+	var all_level := 0
+	var found_specific := false
+	var specific_level := 0
+	for entry: Dictionary in rules.get("pet_prefs", []):
+		var entry_target := str(entry.get("target", ""))
+		if entry_target == target:
+			found_specific = true
+			specific_level = int(entry.get("level", 0))
+		elif entry_target == ALL_PETS_TARGET:
+			all_level = int(entry.get("level", 0))
+	return specific_level if found_specific else all_level
 
 
 ## 這個事件現在改用哪個動作(沒設就原本的)。
@@ -194,8 +253,10 @@ static func compile(rules: Dictionary) -> Array[Dictionary]:
 	for entry: Dictionary in rules.get("characters", []):
 		var chain := _chain(entry["lines"], "rule_c%d" % index)
 		if not chain.is_empty():
-			blocks.append({"type": "event_when_pet_state", "id": "rule_c%d_hat" % index,
-					"fields": {"TAGS": entry["tag"], "KIND": "present", "VALUE": "", "EDGE": "start", "MATCH": "any", "INCLUDE_SELF": false},
+			# 2026-10-05:觸發條件從「場上出現」改成「判定框接觸」(A_TAG 留空 = 這隻桌寵自己,B_TAG = 對方)。
+			# id 維持 rule_c%d_hat 不變,舊的積木檔裡同 id 的使用者副本仍會蓋過這顆規則層事件(見 LogicInterpreter._reregister_all())。
+			blocks.append({"type": "event_when_pets_touch", "id": "rule_c%d_hat" % index,
+					"fields": {"A_TAG": "", "B_TAG": entry["tag"], "EDGE": "start", "NAME": ""},
 					"inputs": {"DO": {"block": chain}}})
 		index += 1
 	index = 0

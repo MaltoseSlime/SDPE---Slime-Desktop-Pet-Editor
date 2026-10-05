@@ -117,6 +117,13 @@ static func snapshot_pet(pet: Node) -> Dictionary:
 		"body": {"scale": pet.params.scale_multiplier, "art_flipped": pet.art_flipped, "drag_fixed": pet.drag_when_fixed, "climb": pet.climb_enabled, "breath": pet.breathing_enabled, "land_for_props": pet.land_for_props, "fly_behavior": pet.FLY_BEHAVIOR_NAMES[pet.fly_behavior], "no_fatigue": pet.fatigue_disabled, "bottom": pet.bottom_anchored, "hitbox": [pet.hitbox_size.x, pet.hitbox_size.y, pet.hitbox_offset.x, pet.hitbox_offset.y]},
 		"voice": PetVoice.to_dict(pet),
 		"dice": {"sides": pet.dice_sides, "mod": pet.dice_mod, "dc": pet.dice_dc_percent, "best_of": pet.game_best_of, "auto_invite": pet.auto_game_enabled, "always_refuse": pet.game_always_refuse},
+		"game_prefs": {
+			"ai_level": {"ttt": pet.ttt_ai_level, "blockade": pet.blockade_ai_level, "mastermind": pet.mastermind_ai_level},
+			"mastermind_code_length": pet.mastermind_code_length,
+			"auto_invite": pet.game_auto_invite.duplicate(),
+			"force_accept": pet.game_force_accept.duplicate(),
+			"force_decline": pet.game_force_decline.duplicate(),
+		},
 		"personality": PersonalityApplier.to_data(pet),
 		"timer": {"sound": pet.timer_sound},
 		"dialogue_locale": pet.dialogue_locale,
@@ -258,6 +265,18 @@ static func _apply_pet_data(pet: Node, data: Dictionary) -> void:
 		pet.game_best_of = best_of if pet.BEST_OF_CHOICES.has(best_of) else 1
 		pet.auto_game_enabled = bool(dice.get("auto_invite", pet.auto_game_enabled))
 		pet.game_always_refuse = bool(dice.get("always_refuse", pet.game_always_refuse))
+	var game_prefs: Variant = data.get("game_prefs")
+	if game_prefs is Dictionary:
+		var ai_level: Variant = game_prefs.get("ai_level")
+		if ai_level is Dictionary:
+			pet.ttt_ai_level = GameAiLevel.clamp_level(int(_number(ai_level.get("ttt"), pet.ttt_ai_level)))
+			pet.blockade_ai_level = GameAiLevel.clamp_level(int(_number(ai_level.get("blockade"), pet.blockade_ai_level)))
+			pet.mastermind_ai_level = GameAiLevel.clamp_level(int(_number(ai_level.get("mastermind"), pet.mastermind_ai_level)))
+		var code_length := int(_number(game_prefs.get("mastermind_code_length"), pet.mastermind_code_length))
+		pet.mastermind_code_length = code_length if MastermindGame.CODE_LENGTH_CHOICES.has(code_length) else MastermindGame.DEFAULT_CODE_LENGTH
+		pet.game_auto_invite = _bool_dict(game_prefs.get("auto_invite"), pet.GAME_PREF_KINDS)
+		pet.game_force_accept = _bool_dict(game_prefs.get("force_accept"), pet.GAME_PREF_KINDS)
+		pet.game_force_decline = _bool_dict(game_prefs.get("force_decline"), pet.GAME_PREF_KINDS)
 
 
 static func value_to_dict(def: PetValueDef) -> Dictionary:
@@ -401,6 +420,17 @@ static func _array(value: Variant) -> Array:
 	if value is Array:
 		return value.slice(0, MAX_ENTRIES)
 	return []
+
+
+## 讀「遊戲與對戰」設定卡片的 per-game 覆寫字典(game_auto_invite/force_accept/force_decline):只收
+## allowed_keys 裡認得的鍵、值一律轉成 bool,壞資料或多出來的鍵直接丟掉,不會讓存檔失敗。
+static func _bool_dict(value: Variant, allowed_keys: Array) -> Dictionary:
+	var result := {}
+	if value is Dictionary:
+		for key: String in allowed_keys:
+			if value.has(key):
+				result[key] = bool(value[key])
+	return result
 
 
 static func _write(path: String, data: Dictionary) -> Error:

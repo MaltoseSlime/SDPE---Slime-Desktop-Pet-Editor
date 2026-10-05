@@ -75,11 +75,12 @@ func _build() -> void:
 	_interaction_tab = InteractionTab.new()
 	_memory_tab = MemoryTab.new()
 	_personality_tab = PersonalityTab.new()
-	tabs.add_child(_value_tab)
-	tabs.add_child(_lens_tab)
+	# 2026-10-06 順序調整:性格放最前面(初次製作的使用者先看到可以設定性格),數值/狀態鏡移到交互行為右邊。
 	tabs.add_child(_personality_tab)
 	tabs.add_child(_style_tab)
 	tabs.add_child(_interaction_tab)
+	tabs.add_child(_value_tab)
+	tabs.add_child(_lens_tab)
 	# 記憶分頁內容很長:包一層捲動區塊(分頁標題用捲動區塊的名字,要和分頁自己設的名字一樣)。
 	var memory_scroll := ScrollContainer.new()
 	memory_scroll.name = "記憶"

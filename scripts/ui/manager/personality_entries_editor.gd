@@ -2,7 +2,7 @@ class_name PersonalityEntriesEditor
 extends VBoxContainer
 ## 性格編輯器裡的「台詞」編輯區(閒聊台詞或反應台詞):依情境/觸發分組,每組有幾個項目,每個項目是一個文字框
 ## (一行一句備選台詞,每次隨機挑一句;閒聊可勾「依序全說」)加上機率、順便做的動作(播放動作、跳幾下、發抖幾秒)。
-## 資料格式和 PersonalityFile.validate 整理出來的 chat / reactions 項目一樣:{tag, lens, say[], seq[], chance, effects{}} 與 {on, say[], chance, effects{}}。
+## 資料格式和 PersonalityFile.validate 整理出來的 chat / reactions 項目一樣:{tag, lens, say[], seq[], chance, weight, effects{}} 與 {on, say[], chance, effects{}}(weight 只有 chat 有,是閒聊抽選池的競爭權重,不是獨立機率)。
 ## 台詞可以直接手打氣泡語法:[b]粗體[/b]、[wave]…[/wave]、[color=#ff8080]…[/color]、{數值名稱}(插入目前數值)。
 
 signal changed
@@ -101,6 +101,12 @@ func _add_entry(key: String, entry: Dictionary) -> void:
 	chance.value = float(entry.get("chance", 100.0)) if not entry.is_empty() else 100.0
 	chance.tooltip_text = "這一項真的開口的機率(100 = 一定說)。"
 	row.add_child(_captioned("機率", chance))
+	var weight: SpinBox = null
+	if _kind == "chat":
+		weight = _spin(0.0, 200.0, 10.0, "")
+		weight.value = float(entry.get("weight", 100.0)) if not entry.is_empty() else 100.0
+		weight.tooltip_text = "觸發率(0~200,預設 100):跟同一組情境裡其他台詞競爭被抽中的權重,不是獨立機率——200 不代表一定被抽到,只是機率是預設的兩倍,還是要跟其他台詞比。"
+		row.add_child(_captioned("觸發率", weight))
 	var action := ManagerUi.line_edit("動作名稱")
 	action.custom_minimum_size.x = 100.0
 	action.text = str((entry.get("effects", {}) as Dictionary).get("action", ""))
@@ -134,9 +140,12 @@ func _add_entry(key: String, entry: Dictionary) -> void:
 		box.set_meta("deleted", true)
 		_notify())
 	row.add_child(delete)
-	for spin: SpinBox in [chance, hop, shiver]:
+	var spins: Array[SpinBox] = [chance, hop, shiver]
+	if weight != null:
+		spins.append(weight)
+	for spin: SpinBox in spins:
 		spin.value_changed.connect(func(_v: float) -> void: _notify())
-	box.set_meta("parts", {"lines": lines, "sequence": sequence, "chance": chance, "action": action, "hop": hop, "shiver": shiver, "lens": lens_edit, "key": key})
+	box.set_meta("parts", {"lines": lines, "sequence": sequence, "chance": chance, "weight": weight, "action": action, "hop": hop, "shiver": shiver, "lens": lens_edit, "key": key})
 	(_groups[key] as VBoxContainer).add_child(box)
 
 
@@ -193,6 +202,7 @@ func entries() -> Array:
 				entry["tag"] = key
 				entry["lens"] = (parts["lens"] as LineEdit).text.strip_edges().left(40) if parts["lens"] != null else ""
 				entry["seq"] = text_lines if as_sequence else []
+				entry["weight"] = (parts["weight"] as SpinBox).value if parts["weight"] != null else 100.0
 			else:
 				entry["on"] = key
 			result.append(entry)

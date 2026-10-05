@@ -11,7 +11,7 @@ extends RefCounted
 ##   C. 動作資料夾   <動作>/<幀>.png(0.png、1.png…)
 ## 選用的 pack.json(放在素材包資料夾根目錄)可以覆蓋:名稱/辨識代號/縮放/面向/FPS/動作對應/眨眼資料夾名。沒有它就全用自動偵測。
 ##
-## 對應規則:系統動作(idle、walk、run、rise、fall、sit、lay、sleep、drag、interact、dance、climb_wall、climb_ceiling…)
+## 對應規則:系統動作(idle、walk、run、rise、fall、land、downward、sit、lay、sleep、drag、interact、dance、climb_wall、climb_ceiling…)
 ## 由 pack.json 的 "actions" 指定,沒指定的用 ALIASES 別名表自動找;素材包裡沒被系統動作用到的動作,
 ## 原名保留當自訂動作(積木的動作下拉選單會列出)。所有幀以「腳底置中」對齊成同一個畫布大小。
 ## 安全:只讀 PNG/JPG/WEBP、檔案數與尺寸有上限、pack.json 逐欄驗證型別,壞掉的欄位/檔案略過並記在 report,不往外拋錯。
@@ -19,7 +19,12 @@ extends RefCounted
 const MAX_FILES := 1500
 const MAX_FILE_BYTES := 8_000_000
 const MAX_SIDE := 4096
-const MAX_TOTAL_PIXELS := 60_000_000
+## 2026-10-05 從 60,000,000 調高:實際使用者回報的素材包(1500×1500 畫布 × 15 個動作 ≈ 52 幀)累計
+## 達 117,000,000 像素,原上限會讓走訪順序較後面的動作(interact/dance/drag/sleep/lay/enter/
+## climb_wall/climb_ceiling)被靜靜略過、完全沒有畫面,見 docs/dev_tests 外的診斷記錄
+## project-v016-sprite-pack-bug-20261004。調到這個值留足夠餘裕(同一份素材包之後再多一兩個動作也
+## 不會又撞到),不是毫無根據地放大。
+const MAX_TOTAL_PIXELS := 200_000_000
 const IMAGE_EXTENSIONS: Array[String] = ["png", "jpg", "jpeg", "webp"]
 ## 圖片偏移(pack.json 的 offsets)每軸的上限(像素),避免畫布被撐到離譜大小。
 const MAX_OFFSET := 512.0
@@ -33,7 +38,9 @@ const ALIASES := {
 	"walk": ["walk", "walk1", "move"],
 	"run": ["run", "dash", "walk", "walk1"],
 	"rise": ["rise", "jump", "jumpstart"],
-	"fall": ["fall", "jump", "land"],
+	"fall": ["fall", "jump"],
+	"land": ["land", "touchdown"],
+	"downward": ["downward", "fall_off", "tumble"],
 	"fly": ["fly", "flying", "hover"],
 	"sit": ["sit", "sit1", "squat"],
 	"lay": ["lay", "prone", "lie"],
@@ -48,7 +55,7 @@ const ALIASES := {
 	"climb_ceiling": ["climb_ceiling", "ceiling"],
 }
 ## 這些動作預設只播一次(不循環)。
-const ONE_SHOT: Array[String] = ["enter", "leave"]
+const ONE_SHOT: Array[String] = ["enter", "leave", "land"]
 
 static var _RE_UNDERSCORE := RegEx.create_from_string("^(.+)_(\\d+)$")
 static var _RE_TRAILING := RegEx.create_from_string("^(.*[^\\d])(\\d{2,})$")
@@ -74,13 +81,17 @@ static func load_pack(folder: String) -> Dictionary:
 	var nametag_align := str(manifest.get("nametag", "off")).to_lower() == "align"
 	var infos: Dictionary = {}
 	var total_pixels := [0]
+	## 匯入期間因為「單張圖片本身超過上限」(尺寸或檔案大小)被略過的檔名,跟「素材包總像素超過上限」是
+	## 兩種不同情況(見 load_pack() 結尾的 oversized_single_files/total_pixel_cap_hit),給呼叫端(桌面
+	## 放上桌寵/角色庫/精靈圖編輯器存檔)決定該跳哪一種提示視窗、該怎麼建議使用者用。
+	var oversized: Array[String] = []
 	var base_paths: Dictionary = {}
 	for animation_name: String in plan:
 		var entry: Dictionary = plan[animation_name]
 		for index: int in entry["frames"]:
 			base_paths[(actions[entry["source"]] as Array)[index]] = true
 	for path: String in base_paths:
-		var info := _load_info(path, total_pixels, report, nametag_align)
+		var info := _load_info(path, total_pixels, report, nametag_align, oversized)
 		if not info.is_empty():
 			infos[path] = info
 	if infos.is_empty():
@@ -94,7 +105,7 @@ static func load_pack(folder: String) -> Dictionary:
 				continue
 			for path: String in stage[source_name]:
 				if not blink_infos.has(path) and not infos.has(path):
-					var info := _load_info(path, total_pixels, report, false)
+					var info := _load_info(path, total_pixels, report, false, oversized)
 					if not info.is_empty():
 						blink_infos[path] = info
 	# 3. 每一幀的軸心(腳底中心點)與畫布:
@@ -144,6 +155,12 @@ static func load_pack(folder: String) -> Dictionary:
 	var blink_fps := _number(manifest.get("blink_fps"), DEFAULT_BLINK_FPS)
 	var loop_table := PackLoop.clean(manifest.get("loop_by_action"))
 	var loop_starts := {}
+	## 動作名(不含差分編號)→ {expected(宣告幀數), added(實際進去幀數)},記的是「幀沒有全部進去」的動作,
+	## 不是「完全沒有這個動作」(那種從 plan 裡自然就看不到)。給 load_pack() 結尾組回傳用。
+	var incomplete_actions: Dictionary = {}
+	## 材質丟失占位圖(見 _missing_frame_texture()):同一次 load_pack() 裡所有畫布大小一樣,只畫一次重用,
+	## 真的有幀進不去才會第一次用到(lazy)。
+	var missing_frame_texture: Texture2D = null
 	var all_infos := infos.duplicate()
 	all_infos.merge(blink_infos)
 	for animation_name: String in plan:
@@ -167,6 +184,8 @@ static func load_pack(folder: String) -> Dictionary:
 			if int(span["start"]) > 0:
 				loop_starts[animation_name] = int(span["start"])
 				loop_starts[animation_name + "_sp"] = int(span["start"])
+		if frame_list.is_empty():
+			continue   # 宣告了這個動作但一幀都沒有(理論上 plan 不會產生這種項目,防呆用)。
 		frames.add_animation(animation)
 		frames.set_animation_speed(animation, _number(fps_by_action.get(base_name), fps))
 		frames.set_animation_loop(animation, bool(loop_flag) if loop_flag != null else not one_shot.has(base_name))
@@ -176,9 +195,17 @@ static func load_pack(folder: String) -> Dictionary:
 			if infos.has(path):
 				frames.add_frame(animation, _frame_texture(infos[path], pivots[path], offsets[path], cell, up_max, crop and not ceiling_sources.has(entry["source"])))
 				added += 1
-		if added == 0:
-			frames.remove_animation(animation)
-			continue
+			else:
+				# 這一幀沒進去(撞到素材包總像素上限、或檔案本身毀損/讀不出來):不要靜靜跳過讓動畫默默變短,
+				# 塞材質丟失占位圖,創作者實際播放動畫時就能肉眼看到「這一幀有問題」(2026-10-05 使用者要求)。
+				if missing_frame_texture == null:
+					missing_frame_texture = _missing_frame_texture(cell)
+				frames.add_frame(animation, missing_frame_texture)
+		if added < frame_list.size():
+			# 這個動作有幀沒進去(通常是撞到素材包總像素上限,少數情況是檔案本身毀損/讀不出來):記下
+			# 「宣告幀數 vs 實際進去幀數」,給呼叫端組「哪些動作沒匯完整」的提示訊息用,見 load_pack() 結尾。
+			var existing: Dictionary = incomplete_actions.get(base_name, {"expected": 0, "added": 0})
+			incomplete_actions[base_name] = {"expected": int(existing["expected"]) + frame_list.size(), "added": int(existing["added"]) + added}
 		# 眨眼:對應「本體第 k 幀」的眨眼動畫 <動畫>_bl_f<k>,各階段圖用同一個動作同一幀、同一個軸心
 		var frame_position := 0
 		for index: int in frame_list:
@@ -268,7 +295,14 @@ static func load_pack(folder: String) -> Dictionary:
 	}
 	_sheet_cache.clear()
 	report.insert(0, TranslationServer.translate("讀到 %d 個動作(系統動作 + 自訂動作)、畫布 %d×%d、眨眼 %s。") % [_count_actions(frames), cell.x, cell.y, "有(逐幀對應)" if not blink_stages.is_empty() else "沒有"])
-	return {"ok": true, "frames": frames, "meta": meta, "report": report}
+	return {
+		"ok": true, "frames": frames, "meta": meta, "report": report,
+		## 下面兩個欄位給呼叫端(桌面放上桌寵/角色庫/精靈圖編輯器存檔)決定要不要跳「素材太多太大」的提示視窗
+		## (見 docs 的 v0.1.6 動作顯示 bug 根因記錄):
+		"total_pixel_cap_hit": total_pixels[0] > MAX_TOTAL_PIXELS,   # 素材包總像素超過上限(建議分批匯入)
+		"oversized_single_files": oversized,   # 單張圖片本身超過上限的檔名(建議使用者自己縮小這些檔案)
+		"incomplete_actions": incomplete_actions,   # 哪些動作的幀沒有全部匯入成功(expected vs added)
+	}
 
 
 ## 0,1,2,…,n-1,n-2,…,1,0,1… 的來回序列(n=1 恆為 0)。
@@ -281,7 +315,7 @@ static func _ping_pong(index: int, count: int) -> int:
 
 
 static func _fail(message: String) -> Dictionary:
-	return {"ok": false, "frames": null, "meta": {}, "report": [message]}
+	return {"ok": false, "frames": null, "meta": {}, "report": [message], "total_pixel_cap_hit": false, "oversized_single_files": [], "incomplete_actions": {}}
 
 
 static func _count_actions(frames: SpriteFrames) -> int:
@@ -551,14 +585,15 @@ static func clear_sheet_cache() -> void:
 
 
 ## 讀一張精靈圖(有快取)。回傳 {image, tex, size};讀不出來回空字典。
-static func _sheet(path: String, total_pixels: Array, report: Array[String]) -> Dictionary:
+static func _sheet(path: String, total_pixels: Array, report: Array[String], oversized: Array[String] = []) -> Dictionary:
 	if _sheet_cache.has(path):
 		return _sheet_cache[path]
-	var image := _load_image(path, report)
+	var image := _load_image(path, report, oversized)
 	if image == null:
 		return {}
 	if image.get_width() > MAX_SIDE or image.get_height() > MAX_SIDE:
 		report.append(TranslationServer.translate("精靈圖尺寸超過 %d,已略過:%s") % [MAX_SIDE, path.get_file()])
+		oversized.append(path.get_file())
 		return {}
 	total_pixels[0] += image.get_width() * image.get_height()
 	if total_pixels[0] > MAX_TOTAL_PIXELS:
@@ -720,24 +755,24 @@ static func _plan_uses_source(plan: Dictionary, source_name: String) -> bool:
 
 ## 讀一張圖。回傳 {tex(ImageTexture), size(Vector2i), tag(Rect2i,名字標籤位置,detect_tag 為 false 或沒偵測到時是空 Rect2i)};
 ## 失敗回空字典並記在 report。受檔案大小、尺寸、總像素上限保護。
-static func _load_info(path: String, total_pixels: Array, report: Array[String], detect_tag: bool) -> Dictionary:
+static func _load_info(path: String, total_pixels: Array, report: Array[String], detect_tag: bool, oversized: Array[String] = []) -> Dictionary:
 	if is_virtual(path):
 		# 精靈圖切片:不複製像素,貼圖是整張精靈圖、origin 是切片在裡面的左上角(名字標籤偵測不適用)。
 		var slice := parse_virtual(path)
 		if slice.is_empty():
 			return {}
 		if str(slice.get("fx", "")) != "":
-			return _fx_info(path, slice, total_pixels, report)
+			return _fx_info(path, slice, total_pixels, report, oversized)
 		if not is_slice(path):
 			# frames 清單裡的整張圖:照一般圖片讀(名字標籤偵測照舊)。同一個檔案被好幾幀引用(複製貼上、重複的姿勢)只讀一次。
 			var cache_key := "info:" + str(slice["file"])
 			if _sheet_cache.has(cache_key):
 				return _sheet_cache[cache_key]
-			var whole := _load_info(str(slice["file"]), total_pixels, report, detect_tag)
+			var whole := _load_info(str(slice["file"]), total_pixels, report, detect_tag, oversized)
 			if not whole.is_empty():
 				_sheet_cache[cache_key] = whole
 			return whole
-		var sheet := _sheet(str(slice["file"]), total_pixels, report)
+		var sheet := _sheet(str(slice["file"]), total_pixels, report, oversized)
 		if sheet.is_empty():
 			return {}
 		var rect: Rect2i = slice["rect"]
@@ -745,11 +780,12 @@ static func _load_info(path: String, total_pixels: Array, report: Array[String],
 			report.append(TranslationServer.translate("切片超出精靈圖範圍,已略過:%s %s") % [str(slice["file"]).get_file(), str(rect)])
 			return {}
 		return {"tex": sheet["tex"], "size": rect.size, "tag": Rect2i(), "origin": rect.position}
-	var image := _load_image(path, report)
+	var image := _load_image(path, report, oversized)
 	if image == null:
 		return {}
 	if image.get_width() > MAX_SIDE or image.get_height() > MAX_SIDE:
 		report.append(TranslationServer.translate("圖片尺寸超過 %d,已略過:%s") % [MAX_SIDE, path.get_file()])
+		oversized.append(path.get_file())
 		return {}
 	total_pixels[0] += image.get_width() * image.get_height()
 	if total_pixels[0] > MAX_TOTAL_PIXELS:
@@ -763,11 +799,11 @@ static func _load_info(path: String, total_pixels: Array, report: Array[String],
 
 
 ## 有圖片處理的一幀:先取出原圖(整張或切片),照 fx 的步驟處理,結果(新的貼圖)只算一次、之後重用。沒有名字標籤偵測。
-static func _fx_info(path: String, slice: Dictionary, total_pixels: Array, report: Array[String]) -> Dictionary:
+static func _fx_info(path: String, slice: Dictionary, total_pixels: Array, report: Array[String], oversized: Array[String] = []) -> Dictionary:
 	var cache_key := "fx:" + path
 	if _sheet_cache.has(cache_key):
 		return _sheet_cache[cache_key]
-	var image := _base_image_of(slice, report)
+	var image := _base_image_of(slice, report, oversized)
 	if image == null:
 		return {}
 	var processed := _process_fx(image, str(slice["fx"]), path, report)
@@ -783,14 +819,15 @@ static func _fx_info(path: String, slice: Dictionary, total_pixels: Array, repor
 
 
 ## 虛擬路徑指到的原圖(還沒套用圖片處理):整張圖或精靈圖切片。讀不出來回 null。
-static func _base_image_of(slice: Dictionary, report: Array[String]) -> Image:
+static func _base_image_of(slice: Dictionary, report: Array[String], oversized: Array[String] = []) -> Image:
 	if (slice["rect"] as Rect2i).size == Vector2i.ZERO:
-		var whole := _load_image(str(slice["file"]), report)
+		var whole := _load_image(str(slice["file"]), report, oversized)
 		if whole != null and (whole.get_width() > MAX_SIDE or whole.get_height() > MAX_SIDE):
 			report.append(TranslationServer.translate("圖片尺寸超過 %d,已略過:%s") % [MAX_SIDE, str(slice["file"]).get_file()])
+			oversized.append(str(slice["file"]).get_file())
 			return null
 		return whole
-	var sheet := _sheet(str(slice["file"]), [0], report)
+	var sheet := _sheet(str(slice["file"]), [0], report, oversized)
 	if sheet.is_empty():
 		return null
 	var rect: Rect2i = slice["rect"]
@@ -811,13 +848,14 @@ static func _process_fx(image: Image, fx: String, path: String, report: Array[St
 	return processed
 
 
-static func _load_image(path: String, report: Array[String]) -> Image:
+static func _load_image(path: String, report: Array[String], oversized: Array[String] = []) -> Image:
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
 		report.append(TranslationServer.translate("讀不了檔案:%s") % path.get_file())
 		return null
 	if file.get_length() > MAX_FILE_BYTES:
 		report.append(TranslationServer.translate("檔案太大(> %d MB),已略過:%s") % [MAX_FILE_BYTES / 1_000_000, path.get_file()])
+		oversized.append(path.get_file())
 		return null
 	var bytes := file.get_buffer(file.get_length())
 	var image := Image.new()
@@ -940,6 +978,59 @@ static func _frame_texture(info: Dictionary, pivot: Vector2, offset: Vector2, ce
 	atlas.region = Rect2(origin.x, origin.y, size.x, used_height)
 	atlas.margin = Rect2(float(cell.x) * 0.5 - place.x, up_max - place.y, float(cell.x - size.x), float(cell.y - used_height))
 	return atlas
+
+
+## 材質丟失占位圖:鋪滿整個畫布的粉紫色/黑色交錯棋盤格(遊戲引擎常見的「missing texture」視覺慣例),
+## 幀進不去(撞到素材包總像素上限、檔案毀損/讀不出來)時用它取代,不要靜靜跳過讓動畫默默變短或整個動作
+## 消失(2026-10-05 使用者要求)。棋盤格是執行期程式畫的除錯提示,不是生成角色美術,跟
+## feedback-no-generated-art 的例外(執行期程式繪製的向量特效)同一類。
+const MISSING_TEXTURE_TILE := 64
+static func _missing_frame_texture(cell: Vector2i) -> Texture2D:
+	var width := maxi(cell.x, 1)
+	var height := maxi(cell.y, 1)
+	var image := Image.create(width, height, false, Image.FORMAT_RGBA8)
+	var magenta := Color(1.0, 0.0, 1.0, 1.0)
+	var black := Color(0.0, 0.0, 0.0, 1.0)
+	var row := 0
+	var y := 0
+	while y < height:
+		var tile_h := mini(MISSING_TEXTURE_TILE, height - y)
+		var col := 0
+		var x := 0
+		while x < width:
+			var tile_w := mini(MISSING_TEXTURE_TILE, width - x)
+			image.fill_rect(Rect2i(x, y, tile_w, tile_h), magenta if (row + col) % 2 == 0 else black)
+			x += MISSING_TEXTURE_TILE
+			col += 1
+		y += MISSING_TEXTURE_TILE
+		row += 1
+	return ImageTexture.create_from_image(image)
+
+
+## 素材包匯入/存檔後「素材太多太大」的提示訊息(給桌面放上桌寵、角色庫、精靈圖編輯器存檔各自跳窗用;
+## 這裡只負責組文字,不含任何顯示機制,因為不同呼叫端的視窗基礎類別不一樣)。回傳 0~2 筆
+## {title, message},兩種情況分開報告、互不覆蓋,因為修法不同:
+## - total_pixel_cap_hit(素材包總像素超過上限):建議把動作拆成幾批分次匯入。
+## - oversized_single_files(單張圖片本身超過上限):分批匯入沒有用,要請使用者換小一點的檔案。
+static func limit_warning_dialogs(result: Dictionary) -> Array[Dictionary]:
+	var dialogs: Array[Dictionary] = []
+	if bool(result.get("total_pixel_cap_hit", false)):
+		var incomplete: Dictionary = result.get("incomplete_actions", {})
+		var lines := PackedStringArray()
+		for action_name: String in incomplete:
+			var entry: Dictionary = incomplete[action_name]
+			lines.append("%s(%d/%d 幀)" % [action_name, int(entry["added"]), int(entry["expected"])])
+		dialogs.append({
+			"title": TranslationServer.translate("素材包太大,沒有完整匯入"),
+			"message": TranslationServer.translate("這個素材包的圖片總像素超過上限(%d),以下動作沒有完整匯入,目前顯示成缺材質的棋盤格:\n%s\n請把動作拆成幾批分次匯入(例如先完成一半的動作、存檔,再匯入剩下的)。") % [MAX_TOTAL_PIXELS, "\n".join(lines)],
+		})
+	var oversized: Array = result.get("oversized_single_files", [])
+	if not oversized.is_empty():
+		dialogs.append({
+			"title": TranslationServer.translate("有圖片本身太大"),
+			"message": TranslationServer.translate("以下圖片本身超過單張上限(邊長 %dpx,或檔案大小 %d MB),已被跳過,目前顯示成缺材質的棋盤格:\n%s\n請自己把這些檔案縮小後再匯入——分批匯入沒有用,問題不是太多張,是這幾張本身太大。") % [MAX_SIDE, MAX_FILE_BYTES / 1_000_000, "\n".join(PackedStringArray(oversized))],
+		})
+	return dialogs
 
 
 # --- 給素材包編輯器用的公開介面 ---

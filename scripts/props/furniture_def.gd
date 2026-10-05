@@ -50,6 +50,40 @@ const MAX_TAGS := 6
 ## (見 FurnitureItem.container_remaining),不是存在這份定義裡(定義只有補滿用的上限)。
 const MAX_CONTAINER_ITEMS := 8
 const CONTAINER_CAPACITY_RANGE := Vector2(1, 99)
+## 效果(第六批,2026-10-04,使用者回饋):家具「條件成立」(conditional,即 FurnitureItem.active())期間,
+## 對行動區裡所有桌寵套用的持續效果,例如小夜燈讓低精力的桌寵更容易入睡。做法是「覆蓋成指定值,效果消失
+## 時還原回原來的值」(不是每秒累加,累加容易讓目標值無限飄走、也更難保證还原乾淨)。
+## 每筆 {target_kind, target_key, scope, value, filter_kind, filter_key, filter_scope, filter_op, filter_value}:
+## - target_kind:"value"(使用者自訂的局部/全域數值,ValueGateway)或 "stat"(桌寵內建、性格會調整的參數,
+##   只能挑 AURA_STAT_KEYS 裡列的,不開放任意屬性名稱,避免改到不該被外部覆寫的欄位)。
+## - target_key:value 模式是數值的 key(使用者自訂字串);stat 模式是 AURA_STAT_KEYS 其中一個。
+## - scope:"local"/"global",只有 target_kind="value" 才有意義(跟 ValueGateway.set_value 的 scope_hint 一致)。
+## - value:套用期間要覆蓋成的數值。
+## - filter_kind:""(不篩選,家具一啟用就對所有桌寵生效)/"value"/"stat"——篩選用哪一種數值判斷「這隻桌寵
+##   現在要不要套用」,例如「精力 < 30」才讓小夜燈生效。
+## - filter_key/filter_scope:跟 target 同一套規則,挑要比較的那個數值。
+## - filter_op:">"/">="/"="/"<="/"<"。
+## - filter_value:篩選的門檻值。
+## 實際套用/還原由 FurnitureItem 負責(見 FurnitureItem._apply_aura),每 CHECK_INTERVAL 重新算一次「現在
+## 哪些桌寵該套用哪些效果」,跟上次的套用狀態做差集:新符合的套用(先記住桌寵原本的值)、不再符合的還原。
+## 防呆(使用者 2026-10-04 明確要求的四種情境):① 桌寵被收起來——套用紀錄用 instance_from_id 查,查無效
+## 桌寵就直接丟掉紀錄(桌寵都被刪了,沒有「還原」的對象,不算洩漏);② 遊戲關閉再打開——套用紀錄只存在
+## FurnitureItem 的記憶體裡,不存檔,重開自然從頭乾淨判定;③ 家具被刪除或編輯模式收起來——FurnitureItem
+## 新增 _exit_tree() 離場前把目前套用中的效果全部還原;④ 家具效果設定被改掉(拿掉某筆效果)——
+## FurnitureManager.refresh_def → FurnitureItem.apply_def() 先把目前全部套用中的效果還原,再用新的
+## aura_effects 重新判定套用,不會留下舊效果的殘留。
+const AURA_STAT_KEYS: Array[String] = [
+	"vitality.energy", "vitality.mood", "vitality.fatigue_rate", "vitality.rest_recovery_rate",
+	"vitality.tired_threshold", "vitality.exhausted_threshold",
+	"vitality.mood_happy_threshold", "vitality.mood_angry_threshold", "vitality.mood_sad_threshold",
+	"sociability", "game_refuse_base",
+]
+const AURA_FILTER_OPS: Array[String] = [">", ">=", "=", "<=", "<"]
+const AURA_TARGET_KINDS: Array[String] = ["value", "stat"]
+const AURA_FILTER_KINDS: Array[String] = ["", "value", "stat"]
+const AURA_SCOPES: Array[String] = ["local", "global"]
+const MAX_AURA_EFFECTS := 6
+const AURA_VALUE_RANGE := Vector2(-999999.0, 999999.0)
 
 var id := ""
 var display_name := ""
@@ -85,6 +119,9 @@ var render_above_ui := false
 var tags: Array[String] = []
 ## 容器內容物(見檔頭):每筆 {id: 道具的 PropDef.id, capacity: 補滿時的數量}。空陣列 = 不是容器。
 var container_items: Array[Dictionary] = []
+## 效果(見檔頭 AURA_STAT_KEYS 的說明):家具啟用期間對行動區桌寵套用的覆蓋效果。空陣列 = 沒有效果,
+## 單純裝飾/光源用的家具不受影響。
+var aura_effects: Array[Dictionary] = []
 
 
 func is_container() -> bool:
@@ -288,6 +325,7 @@ func to_dict() -> Dictionary:
 		"scale": scale_multiplier, "template": template, "anchors": anchors.duplicate(true),
 		"lights": lights.duplicate(true), "above_light": above_light, "tags": tags.duplicate(),
 		"containerItems": container_items.duplicate(true), "render_above_ui": render_above_ui,
+		"auraEffects": aura_effects.duplicate(true),
 	}
 
 
@@ -312,6 +350,117 @@ static func clean_container_items(raw: Variant) -> Array[Dictionary]:
 		seen[id] = true
 		result.append({"id": id, "capacity": clampi(int(capacity_value), int(CONTAINER_CAPACITY_RANGE.x), int(CONTAINER_CAPACITY_RANGE.y))})
 	return result
+
+
+## 驗證單一效果篩選條件(filter_kind/key/scope/op/value);filter_kind 不合法或 key 空白一律視為不篩選
+## ("" / 保留欄位但不生效),不丟整筆效果(效果本身可能還是有效,只是沒有篩選條件,等同一啟用就對所有
+## 桌寵生效)。
+static func _clean_aura_filter(raw: Dictionary) -> Dictionary:
+	var kind := str(raw.get("filter_kind", ""))
+	if not AURA_FILTER_KINDS.has(kind):
+		kind = ""
+	var key := str(raw.get("filter_key", "")).strip_edges().left(MAX_NAME)
+	if key == "" or (kind == "stat" and not AURA_STAT_KEYS.has(key)):
+		kind = ""
+		key = ""
+	var scope := str(raw.get("filter_scope", "local"))
+	if not AURA_SCOPES.has(scope):
+		scope = "local"
+	var op := str(raw.get("filter_op", "<"))
+	if not AURA_FILTER_OPS.has(op):
+		op = "<"
+	var value_raw: Variant = raw.get("filter_value", 0.0)
+	var value := clampf(float(value_raw), AURA_VALUE_RANGE.x, AURA_VALUE_RANGE.y) if (value_raw is float or value_raw is int) else 0.0
+	return {"filter_kind": kind, "filter_key": key, "filter_scope": scope, "filter_op": op, "filter_value": value}
+
+
+## 驗證效果清單(見檔頭 AURA_STAT_KEYS 說明):壞的整筆丟掉(target_kind 不合法、target_key 空白,或
+## stat 模式選了不在允許清單裡的 key),最多 MAX_AURA_EFFECTS 筆。
+static func clean_aura_effects(raw: Variant) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if not raw is Array:
+		return result
+	for entry: Variant in (raw as Array):
+		if result.size() >= MAX_AURA_EFFECTS or not entry is Dictionary:
+			continue
+		var target_kind := str((entry as Dictionary).get("target_kind", "value"))
+		if not AURA_TARGET_KINDS.has(target_kind):
+			continue
+		var target_key := str((entry as Dictionary).get("target_key", "")).strip_edges().left(MAX_NAME)
+		if target_key == "" or (target_kind == "stat" and not AURA_STAT_KEYS.has(target_key)):
+			continue
+		var scope := str((entry as Dictionary).get("scope", "local"))
+		if not AURA_SCOPES.has(scope):
+			scope = "local"
+		var value_raw: Variant = (entry as Dictionary).get("value", 0.0)
+		if not (value_raw is float or value_raw is int):
+			continue
+		var cleaned := {
+			"target_kind": target_kind, "target_key": target_key, "scope": scope,
+			"value": clampf(float(value_raw), AURA_VALUE_RANGE.x, AURA_VALUE_RANGE.y),
+		}
+		cleaned.merge(_clean_aura_filter(entry as Dictionary))
+		result.append(cleaned)
+	return result
+
+
+## 讀「stat」模式 key(AURA_STAT_KEYS 其中一個,"vitality.xxx" 或桌寵本體屬性)目前的值;物件不存在或不是
+## 數字回 0.0。
+static func read_stat(pet: Node, key: String) -> float:
+	var target: Object = pet
+	var prop := key
+	if key.begins_with("vitality."):
+		if pet.vitality == null:
+			return 0.0
+		target = pet.vitality
+		prop = key.substr(9)
+	var value: Variant = target.get(prop)
+	return float(value) if (value is float or value is int) else 0.0
+
+
+static func write_stat(pet: Node, key: String, value: float) -> void:
+	var target: Object = pet
+	var prop := key
+	if key.begins_with("vitality."):
+		if pet.vitality == null:
+			return
+		target = pet.vitality
+		prop = key.substr(9)
+	target.set(prop, value)
+
+
+## 效果的 target 或 filter 共用:kind = "value"(ValueGateway)/"stat"(read_stat/write_stat)。
+static func read_effect_value(pet: Node, kind: String, key: String, scope: String) -> float:
+	if kind == "stat":
+		return read_stat(pet, key)
+	return ValueGateway.get_value(pet, key, scope)
+
+
+static func write_effect_value(pet: Node, kind: String, key: String, scope: String, value: float) -> void:
+	if kind == "stat":
+		write_stat(pet, key, value)
+	else:
+		ValueGateway.set_value(pet, key, value, scope)
+
+
+## 這隻桌寵現在符不符合這筆效果的篩選條件;filter_kind 空白(沒設篩選)一律符合。
+static func aura_filter_passes(pet: Node, effect: Dictionary) -> bool:
+	var kind := str(effect.get("filter_kind", ""))
+	if kind == "":
+		return true
+	var current := read_effect_value(pet, kind, str(effect.get("filter_key", "")), str(effect.get("filter_scope", "local")))
+	var threshold := float(effect.get("filter_value", 0.0))
+	match str(effect.get("filter_op", "<")):
+		">":
+			return current > threshold
+		">=":
+			return current >= threshold
+		"=":
+			return is_equal_approx(current, threshold)
+		"<=":
+			return current <= threshold
+		_:
+			return current < threshold
 
 
 ## 驗證標籤清單:只留在 TAGS_CATALOG 裡的、去重、最多 MAX_TAGS 個。
@@ -347,6 +496,7 @@ static func from_dict(data: Variant, folder_id: String) -> FurnitureDef:
 	def.render_above_ui = bool(data.get("render_above_ui", false)) if data.get("render_above_ui", false) is bool else false
 	def.tags = clean_tags(data.get("tags"))
 	def.container_items = clean_container_items(data.get("containerItems"))
+	def.aura_effects = clean_aura_effects(data.get("auraEffects"))
 	return def
 
 

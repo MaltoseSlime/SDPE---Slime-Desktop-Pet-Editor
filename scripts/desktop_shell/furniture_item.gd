@@ -32,6 +32,9 @@ var _toggle_cooldown_left := 0.0
 ## 補滿或桌寵剛拿走的東西會無緣無故恢復/消失。
 var container_remaining: Dictionary = {}
 var _interacted_left := 0.0
+## 效果套用紀錄(見 FurnitureDef.aura_effects 檔頭的防呆說明):鍵是 "<桌寵 instance id>:<效果索引>",
+## 值是套用前的原始數值(還原用)。只存在記憶體裡,不存檔——重開程式/場景自然從頭乾淨判定,見防呆②。
+var _aura_state: Dictionary = {}
 
 
 func setup(new_def: FurnitureDef, frames: SpriteFrames) -> void:
@@ -71,6 +74,9 @@ func _sync_container_items() -> void:
 ## 另一份獨立讀出來的舊 FurnitureDef,存檔不會自動同步過去(光源座標/大小/顏色、坐躺錨點都吃這份舊資料一直不會變),
 ## 這裡換掉整份定義;above_light 疊層順序只在 setup() 算一次,要另外重算,其餘欄位 _light/_sprite 每次都即時讀 def,不用另外處理。
 func apply_def(new_def: FurnitureDef) -> void:
+	# 防呆④(效果設定被改掉,見 FurnitureDef.aura_effects 檔頭):換定義前先把目前套用中的效果全部還原,
+	# 不然換成新定義之後,_aura_state 裡記的效果索引會對不上新的 aura_effects,還原會還錯甚至還原失敗。
+	_restore_all_aura()
 	def = new_def
 	if _sprite != null:
 		_sprite.z_index = LIGHT_Z + 1 if def.above_light else 0
@@ -133,8 +139,72 @@ func evaluate() -> void:
 			if is_instance_valid(pet) and pet.has_method("current_activity"):
 				actions.append(str(pet.current_activity()))
 		var minute := override_minute if override_minute >= 0 else AppSettings.minute_of_day_now()
-		wants_conditional = FurnitureCondition.evaluate(def.condition, minute, actions) and has_conditional
+		# in_use/full(2026-10-04):這件家具自己當下的佔用狀況,先清掉失效的持有者(桌寵被移除卻沒釋放
+		# 錨點的情形)才查,不然會把已經不在場的桌寵也算進「有人在用」。
+		_prune_anchor_holders()
+		var in_use := not _anchor_holders.is_empty()
+		var is_full := def.anchors.size() > 0 and _anchor_holders.size() >= def.anchors.size()
+		wants_conditional = FurnitureCondition.evaluate(def.condition, minute, actions, in_use, is_full) and has_conditional
 	_play(&"conditional_0" if wants_conditional else &"normal_0")
+	_apply_aura(wants_conditional)
+
+
+## 效果(見 FurnitureDef.aura_effects):is_active = 家具現在是不是「條件成立」的狀態。每次重新掃一遍場上
+## 所有桌寵跟這件家具的每一筆效果,跟上次的套用紀錄(_aura_state)做差集──新符合的套用(先記住原始值),
+## 不再符合的還原(桌寵離開篩選範圍、或家具本身不再啟用)。防呆①(桌寵被收起來):無效的桌寵直接丟掉紀錄,
+## 不嘗試還原(桌寵都不在了,没有「還原」的對象,不算洩漏)。
+func _apply_aura(is_active: bool) -> void:
+	if def == null:
+		return
+	if not is_active or def.aura_effects.is_empty():
+		_restore_all_aura()
+		return
+	for state_key: String in _aura_state.keys().duplicate():
+		var pid := int(str(state_key).split(":")[0])
+		var holder: Object = instance_from_id(pid)
+		if holder == null or not (holder is Node) or not is_instance_valid(holder):
+			_aura_state.erase(state_key)
+	for pet: Node in get_tree().get_nodes_in_group("pets"):
+		if not is_instance_valid(pet):
+			continue
+		for i in def.aura_effects.size():
+			var effect: Dictionary = def.aura_effects[i]
+			var state_key := "%d:%d" % [pet.get_instance_id(), i]
+			var should_apply := FurnitureDef.aura_filter_passes(pet, effect)
+			var target_kind := str(effect.get("target_kind", "value"))
+			var target_key := str(effect.get("target_key", ""))
+			var scope := str(effect.get("scope", "local"))
+			if should_apply and not _aura_state.has(state_key):
+				_aura_state[state_key] = FurnitureDef.read_effect_value(pet, target_kind, target_key, scope)
+				FurnitureDef.write_effect_value(pet, target_kind, target_key, scope, float(effect.get("value", 0.0)))
+			elif not should_apply and _aura_state.has(state_key):
+				FurnitureDef.write_effect_value(pet, target_kind, target_key, scope, float(_aura_state[state_key]))
+				_aura_state.erase(state_key)
+
+
+## 把目前所有套用中的效果還原成原始值,清空套用紀錄。防呆③(家具被刪除/編輯模式收起來)靠 _exit_tree()
+## 呼叫這個;防呆④(效果設定被改掉)靠 apply_def() 呼叫這個。
+func _restore_all_aura() -> void:
+	if _aura_state.is_empty():
+		return
+	for state_key: String in _aura_state.keys().duplicate():
+		var parts := str(state_key).split(":")
+		var pid := int(parts[0])
+		var effect_index := int(parts[1])
+		var holder: Object = instance_from_id(pid)
+		# is_instance_valid() 要先檢查:`is` 碰到已釋放的 Object 會直接噴執行期錯誤,不是安全失敗
+		# (跟 manager_ui.gd 的事件管理視窗同一個坑,見那邊的詳細說明)。instance_from_id() 找到的物件
+		# 隨時可能已經被釋放(例如桌寵/家具在套用殘留效果前就被移除)。
+		if is_instance_valid(holder) and holder is Node and def != null and effect_index >= 0 and effect_index < def.aura_effects.size():
+			var effect: Dictionary = def.aura_effects[effect_index]
+			FurnitureDef.write_effect_value(holder as Node, str(effect.get("target_kind", "value")), str(effect.get("target_key", "")), str(effect.get("scope", "local")), float(_aura_state[state_key]))
+	_aura_state.clear()
+
+
+## 防呆③:家具被刪除(FurnitureManager.remove() → queue_free())或編輯模式收起來都會經過這裡,
+## 離場前把目前套用中的效果全部還原,不會留著桌寵被覆蓋的數值回不去。
+func _exit_tree() -> void:
+	_restore_all_aura()
 
 
 ## 積木「觸發家具(開/關/與現況相反)」用:mode = "on"/"off"/"toggle"。冷卻中(見 TOGGLE_COOLDOWN)回傳 false、什麼都不做,

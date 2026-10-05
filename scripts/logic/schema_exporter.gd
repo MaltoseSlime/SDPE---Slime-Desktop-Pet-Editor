@@ -6,7 +6,7 @@ extends RefCounted
 ## 狀態鏡、小道具、特效、音效等系統完成前先導出空陣列。
 
 const SCHEMA_VERSION := "1.1"
-const SYSTEM_ACTIONS: Array[String] = ["idle", "walk", "run", "rise", "fall", "fly", "sit", "lay", "drag", "sleep", "gather", "enter", "leave", "interact", "dance", "climb_wall", "climb_ceiling"]
+const SYSTEM_ACTIONS: Array[String] = ["idle", "walk", "run", "rise", "fall", "land", "downward", "fly", "sit", "lay", "drag", "sleep", "gather", "enter", "leave", "interact", "dance", "climb_wall", "climb_ceiling"]
 const TOGGLES: Array[String] = ["run", "跟隨"]
 
 

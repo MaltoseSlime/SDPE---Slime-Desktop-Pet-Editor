@@ -104,8 +104,15 @@ func import_logic_from(path: String) -> bool:
 		# 的說明),這兩層不是從匯入的檔案來的,得在這裡重新補回去,不然匯入後這隻桌寵會暫時「失憶」成沒性格、沒交互行為規則。
 		PersonalityApplier.rebuild_layer(_pet)
 		_pet.set_interaction_rules(_pet.interaction_rules)
+		# 雙重重複第 1 類(見 LogicInterpreter.dedupe_top_blocks()):匯出再原封不動匯入的內容,跟剛補回來的
+		# 性格/規則層完全相同的部分直接拿掉,不然會雙重觸發。要等上面兩行補完性格/規則層才能比對,順序不能換。
+		var skipped: int = _pet.logic.dedupe_top_blocks()
 		PetRoster.store_logic(_pet.recognition_tag, path, CharacterFiles.folder_of(_pet))
-		message.emit(tr("已匯入積木檔:%s") % path)
+		if skipped > 0:
+			# dedupe 動的是記憶體內容,PetRoster.store_logic() 剛存的是原始檔案(未去重),覆蓋成去重後的
+			# 版本,下次開機重新套用才不會又長出同一批重複。
+			_pet.logic.save_user_only_file(PetRoster.logic_path(_pet.recognition_tag, CharacterFiles.folder_of(_pet)))
+		message.emit(tr("已匯入積木檔:%s(已略過 %d 個與目前性格內容重複的事件)") % [path, skipped] if skipped > 0 else tr("已匯入積木檔:%s") % path)
 	else:
 		message.emit(tr("匯入失敗,請確認是不是網頁端積木編輯器導出的積木檔:%s") % path)
 	return ok

@@ -1,26 +1,29 @@
-class_name TttBoard
+class_name TarotPickBoard
 extends Node2D
-## 井字棋棋盤:全場同時最多一塊(見 TttGame.active_board),程式畫的可拖曳面板(不是視窗、不用圖片素材)。
-## 標題列可以拖著移動;使用者對戰時輪到自己就能點格子下棋。右上角 ✕ 取消(不計戰績),「投降」文字按鈕算桌寵贏
-## (只有使用者對戰才會顯示)。閒置 IDLE_TIMEOUT 秒沒人互動就視同取消自動收掉,任何一次點擊/拖曳都會重置倒數。
-## 2026-10-04 使用者要求:可以拖出行動區外面,但不能拖出螢幕範圍(見 _screen_rect());預設位置還是貼著
-## 行動區置中。意外跑到螢幕外(換解析度、換螢幕)時,右鍵選單「行動區重設」會呼叫 recall() 撈回來(見
-## DesktopShell._on_tray_recall(),靠 "screen_clamped_boards" 群組找到所有這類面板)。
+## 塔羅牌占卜的選牌小視窗(2026-10-04 使用者要求):問完問題之後先開這塊,22 張牌背排成一排讓使用者點選
+## 要抽的張數(1/3/5)。選中的牌用外框標示,已選過的牌不能再選;選滿張數或按 ✕ 取消都會發一次 finished
+## 訊號(cancelled, indices——indices 是選牌的先後順序,用來對應 TarotDeck.shuffled_deck() 洗好的那副牌)。
+## 版面/拖曳/閒置自動收都比照小遊戲棋盤(TttBoard)同一套做法:程式畫的可拖曳面板,不是視窗、不用圖片素材;
+## 閒置 IDLE_TIMEOUT(10 分鐘,跟 TttBoard 一致,使用者明確要求「與小遊戲棋盤一致」)沒人互動就視同取消收掉。
+## 使用者填過的占卜問題只會用這一次(問完就洗掉,不存檔),所以選牌期間粗體顯示在牌堆上方提醒自己問了什麼。
+## 2026-10-04 使用者要求:可以拖出行動區外面,但不能拖出螢幕範圍(見 _screen_rect());意外跑到螢幕外時,
+## 右鍵選單「行動區重設」會呼叫 recall() 撈回來(見 DesktopShell._on_tray_recall())。
 
-signal cell_pressed(index: int)
-signal cancel_pressed
-signal surrender_pressed
+signal finished(cancelled: bool, indices: Array)
 
-const CELL := 56.0
+const COLUMNS := 11
+const CARD_W := 34.0
+const CARD_H := 50.0
+const GAP := 6.0
 const PAD := 14.0
 const HEADER := 30.0
-const SURRENDER_HEIGHT := 26.0
+const QUESTION_HEIGHT := 22.0
 const IDLE_TIMEOUT := 600.0
+const BOLD_EMBOLDEN := 0.7   # 跟 DialogueBubble 的 [b] 粗體同一套 FontVariation 做法
 
-var board: Array = [0, 0, 0, 0, 0, 0, 0, 0, 0]   # 0 空、1 = X、2 = O
-var interactive := false   # 現在是不是在等使用者點格子
-var show_surrender := false
-var status_text := ""
+var need := 1
+var question := ""
+var picked: Array[int] = []
 
 var _area: Node
 var _fraction: Variant = null   # 拖過之後記住位置(比例);沒拖過就置中
@@ -30,14 +33,21 @@ var _drag_grab := Vector2.ZERO
 var _mouse := Vector2.ZERO
 var _idle_left := IDLE_TIMEOUT
 var _last_area_cache := Rect2()
+var _done := false
 
 
-func setup(area: Node) -> void:
+func setup(area: Node, wanted: int, asked_question := "") -> void:
 	_area = area
+	need = clampi(wanted, 1, TarotDeck.MAJOR_ARCANA.size())
+	question = asked_question.strip_edges()
 	add_to_group("Cutout")
 	add_to_group("screen_clamped_boards")
 	z_index = 40
 	_layout()
+
+
+func _question_height() -> float:
+	return QUESTION_HEIGHT if question != "" else 0.0
 
 
 func _area_rect() -> Rect2:
@@ -63,7 +73,8 @@ func recall() -> void:
 
 
 func panel_size() -> Vector2:
-	return Vector2(PAD * 2.0 + CELL * 3.0, HEADER + PAD * 2.0 + CELL * 3.0 + (SURRENDER_HEIGHT if show_surrender else 0.0))
+	var rows := ceili(float(TarotDeck.MAJOR_ARCANA.size()) / float(COLUMNS))
+	return Vector2(PAD * 2.0 + COLUMNS * CARD_W + (COLUMNS - 1) * GAP, HEADER + _question_height() + PAD * 2.0 + rows * CARD_H + (rows - 1) * GAP)
 
 
 func _layout() -> void:
@@ -83,13 +94,13 @@ func _layout() -> void:
 	_rects["panel"] = panel
 	_rects["header"] = Rect2(panel.position, Vector2(size.x - 28.0, HEADER))
 	_rects["close"] = Rect2(panel.end.x - 26.0, panel.position.y + 4.0, 22.0, 22.0)
-	var grid_origin := panel.position + Vector2(PAD, HEADER + PAD)
-	for i in 9:
-		var col := i % 3
-		var row := i / 3
-		_rects["cell:%d" % i] = Rect2(grid_origin + Vector2(col * CELL, row * CELL), Vector2(CELL, CELL))
-	if show_surrender:
-		_rects["surrender"] = Rect2(panel.position.x + PAD, panel.end.y - SURRENDER_HEIGHT + 4.0, size.x - PAD * 2.0, SURRENDER_HEIGHT - 6.0)
+	if question != "":
+		_rects["question"] = Rect2(panel.position + Vector2(PAD, HEADER), Vector2(size.x - PAD * 2.0, QUESTION_HEIGHT))
+	var origin := panel.position + Vector2(PAD, HEADER + _question_height() + PAD)
+	for i in TarotDeck.MAJOR_ARCANA.size():
+		var col := i % COLUMNS
+		var row := i / COLUMNS
+		_rects["card:%d" % i] = Rect2(origin + Vector2(col * (CARD_W + GAP), row * (CARD_H + GAP)), Vector2(CARD_W, CARD_H))
 	_last_area_cache = area
 	queue_redraw()
 
@@ -102,24 +113,22 @@ func get_cutout_polygons() -> Array:
 
 
 func _process(delta: float) -> void:
-	if _area == null:
+	if _done or _area == null:
 		return
 	if _area_rect() != _last_area_cache:
 		_layout()
 	_idle_left -= delta
 	if _idle_left <= 0.0:
-		cancel_pressed.emit()
+		_finish(true)
 
 
 func note_activity() -> void:
 	_idle_left = IDLE_TIMEOUT
 
 
-func refresh() -> void:
-	_layout()
-
-
 func _input(event: InputEvent) -> void:
+	if _done:
+		return
 	if event is InputEventMouse:
 		_mouse = get_viewport().get_canvas_transform().affine_inverse() * event.position
 	if event is InputEventMouseMotion:
@@ -128,15 +137,15 @@ func _input(event: InputEvent) -> void:
 		if event.pressed:
 			_on_press()
 		else:
-			_on_release()
+			_dragging_header = false
 
 
 func _id_at(point: Vector2) -> String:
-	for id: String in ["close", "surrender", "header"]:
+	for id: String in ["close", "header"]:
 		if _rects.has(id) and (_rects[id] as Rect2).has_point(point):
 			return id
-	for i in 9:
-		var id := "cell:%d" % i
+	for i in TarotDeck.MAJOR_ARCANA.size():
+		var id := "card:%d" % i
 		if _rects.has(id) and (_rects[id] as Rect2).has_point(point):
 			return id
 	return ""
@@ -152,7 +161,7 @@ func _on_motion() -> void:
 		_layout()
 
 
-## 2026-10-04 使用者實機回報(步步為營那邊先發現的同一個坑):點在面板範圍內但沒打到任何按鈕/格子的地方
+## 2026-10-04 使用者實機回報(步步為營那邊先發現的同一個坑):點在面板範圍內但沒打到任何按鈕/牌的地方
 ## 會穿透到後面的對話氣泡選項按鈕,面板既然蓋在對話氣泡之上,只要滑鼠在面板範圍內就該整個吃掉這次點擊。
 func _on_press() -> void:
 	if not _rects.has("panel") or not (_rects["panel"] as Rect2).has_point(_mouse):
@@ -167,19 +176,26 @@ func _on_press() -> void:
 			_dragging_header = true
 			_drag_grab = _mouse - (_rects["panel"] as Rect2).position
 		"close":
-			cancel_pressed.emit()
-		"surrender":
-			if show_surrender:
-				surrender_pressed.emit()
+			_finish(true)
 		_:
-			if id.begins_with("cell:") and interactive:
-				var index := int(id.trim_prefix("cell:"))
-				if int(board[index]) == 0:
-					cell_pressed.emit(index)
+			if id.begins_with("card:"):
+				var index := int(id.trim_prefix("card:"))
+				if not picked.has(index) and picked.size() < need:
+					picked.append(index)
+					queue_redraw()
+					if picked.size() >= need:
+						_finish(false)
 
 
 func _on_release() -> void:
 	_dragging_header = false
+
+
+func _finish(cancelled: bool) -> void:
+	if _done:
+		return
+	_done = true
+	finished.emit(cancelled, picked.duplicate())
 
 
 func _draw() -> void:
@@ -197,28 +213,19 @@ func _draw() -> void:
 	draw_rect(local_panel, Color(bg, 0.95), true)
 	draw_rect(local_panel, Color(accent, 0.7), false, 2.0)
 	var header: Rect2 = _rects["header"]
-	draw_string(font, Vector2(header.position.x - global_position.x + 6.0, header.position.y - global_position.y + 20.0), status_text, HORIZONTAL_ALIGNMENT_LEFT, header.size.x, 15, Color(text_color, 0.95))
+	var status := tr("選 %d 張牌(%d/%d)") % [need, picked.size(), need]
+	draw_string(font, Vector2(header.position.x - global_position.x + 6.0, header.position.y - global_position.y + 20.0), status, HORIZONTAL_ALIGNMENT_LEFT, header.size.x, 15, Color(text_color, 0.95))
 	var close: Rect2 = _rects["close"]
 	draw_string(font, Vector2(close.position.x - global_position.x + 4.0, close.position.y - global_position.y + 16.0), "×", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(muted, 0.9))
-	for i in 9:
-		var cell: Rect2 = _rects["cell:%d" % i]
+	if question != "" and _rects.has("question"):
+		var bold_font := FontVariation.new()
+		bold_font.base_font = font
+		bold_font.variation_embolden = BOLD_EMBOLDEN
+		var question_rect: Rect2 = _rects["question"]
+		draw_string(bold_font, Vector2(question_rect.position.x - global_position.x, question_rect.position.y - global_position.y + 16.0), question, HORIZONTAL_ALIGNMENT_LEFT, question_rect.size.x, 15, Color(text_color, 0.95))
+	for i in TarotDeck.MAJOR_ARCANA.size():
+		var cell: Rect2 = _rects["card:%d" % i]
 		var local_cell := Rect2(cell.position - global_position, cell.size)
-		draw_rect(local_cell.grow(-2.0), Color(text_color, 0.05), true)
-		draw_rect(local_cell.grow(-2.0), Color(muted, 0.4), false, 1.5)
-		var mark := int(board[i])
-		var c := local_cell.get_center()
-		# 2026-09-30 使用者實機回報:「筆記本」配色的 accent(#e2dad0)跟 bg(#e3e1de)幾乎同色,叉直接畫在
-		# 底色上等於隱形。不能假設任何配色組的 accent/text 一定跟 bg 有足夠對比,所以先用跟 bg 對比夠大的
-		# 顏色(黑或白,依 bg 亮度挑)畫一條加寬的底線當輪廓,再疊上真正的顏色,不管什麼配色都看得清楚。
-		var outline := Color.BLACK if bg.get_luminance() > 0.5 else Color.WHITE
-		if mark == 1:
-			draw_line(c - Vector2(16, 16), c + Vector2(16, 16), Color(outline, 0.55), 7.0)
-			draw_line(c + Vector2(-16, 16), c + Vector2(16, -16), Color(outline, 0.55), 7.0)
-			draw_line(c - Vector2(16, 16), c + Vector2(16, 16), accent, 4.0)
-			draw_line(c + Vector2(-16, 16), c + Vector2(16, -16), accent, 4.0)
-		elif mark == 2:
-			draw_arc(c, 18.0, 0.0, TAU, 24, Color(outline, 0.55), 7.0)
-			draw_arc(c, 18.0, 0.0, TAU, 24, Color(text_color, 0.85), 4.0)
-	if show_surrender and _rects.has("surrender"):
-		var surrender: Rect2 = _rects["surrender"]
-		draw_string(font, Vector2(surrender.position.x - global_position.x, surrender.position.y - global_position.y + 15.0), tr("投降"), HORIZONTAL_ALIGNMENT_CENTER, surrender.size.x, 14, Color(1.0, 0.55, 0.55, 0.9))
+		var is_picked := picked.has(i)
+		draw_rect(local_cell, Color(muted, 0.35), true)
+		draw_rect(local_cell, Color(accent if is_picked else muted, 0.95 if is_picked else 0.5), false, 3.0 if is_picked else 1.5)

@@ -141,15 +141,10 @@ func load_data(data: Dictionary) -> bool:
 			blocks = container["blocks"]
 	_top_blocks = blocks
 	for block: Dictionary in blocks:
-		if not _own_skipped(block):
-			_register_hat(block)
 		LensChecker._walk(block, func(inner: Dictionary) -> void:
 			if inner.has("id"):
 				_hat_of_block[str(inner["id"])] = block)
-	for block: Dictionary in _personality_blocks:
-		_register_hat(block)
-	for block: Dictionary in _rule_blocks:
-		_register_hat(block)
+	_reregister_all()
 	_load_known_characters(data)
 	return true
 
@@ -253,41 +248,129 @@ func say_something(context_override := "") -> bool:
 	if context_override != "":
 		_pet.interrupt_scripts()
 		_chat_running = false
-	_run_chat(pool.pick_random())
+	_run_chat(_weighted_pick(pool))
 	return true
 
 
-## 測試者模式:目前載入的所有事件積木(頂層帽子),每項 {kind, label, hat}。閒聊事件在沒有匯入內容時列出佔位的三句。
+## 用事件的「觸發率」(fields.WEIGHT,0~200,沒寫就是 100)當權重抽一個,不是均勻抽選——這是跟同一個抽獎池
+## 裡其他事件競爭被抽中的相對權重,不是這顆事件自己觸發的獨立機率(200 不代表一定選中)。全部權重加起來是 0
+## (例如整池都被設成 0)就退回均勻亂抽,不讓抽獎池整個抽不出東西。
+func _weighted_pick(hats: Array[Dictionary]) -> Dictionary:
+	if hats.size() == 1:
+		return hats[0]
+	var weights: Array[float] = []
+	var total := 0.0
+	for hat in hats:
+		var weight := clampf(_number(hat.get("fields", {}).get("WEIGHT", 100.0)), 0.0, 200.0)
+		weights.append(weight)
+		total += weight
+	if total <= 0.0:
+		return hats.pick_random()
+	var roll := randf() * total
+	var cumulative := 0.0
+	for i in hats.size():
+		cumulative += weights[i]
+		if roll < cumulative:
+			return hats[i]
+	return hats[-1]
+
+
+## 測試者模式/「事件管理」小視窗(EventManagerWindow,2026-10-04 新增)共用:目前載入的所有事件積木
+## (頂層帽子),每項 {kind, label, hat, id, disabled, layer}。閒聊事件在沒有匯入內容時列出佔位的三句。
 func list_events() -> Array[Dictionary]:
 	var events: Array[Dictionary] = []
 	for action: StringName in _action_hats:
 		for hat: Dictionary in _action_hats[action]:
-			events.append({"kind": "action", "label": _named(tr("當角色正在 [%s] 時") % action, hat), "hat": hat})
+			events.append(_event_entry("action", _named(tr("當角色正在 [%s] 時") % action, hat), hat))
 	for hat in _every_hats:
-		events.append({"kind": "timer", "label": _named(tr("每 %s 秒") % str(hat.get("fields", {}).get("SEC", "?")), hat), "hat": hat})
+		events.append(_event_entry("timer", _named(tr("每 %s 秒") % str(hat.get("fields", {}).get("SEC", "?")), hat), hat))
 	for hat in _state_hats:
-		events.append({"kind": "state", "label": _named(tr("當場內有人的狀態是 [%s %s]") % [hat.get("fields", {}).get("KIND", ""), hat.get("fields", {}).get("VALUE", "")], hat), "hat": hat})
+		var state_fields: Dictionary = hat.get("fields", {})
+		var state_label: String
+		var state_type := str(hat.get("type", ""))
+		if state_type == "event_when_pets_touch":
+			state_label = tr("當 [%s] 與 [%s] 的判定框接觸時") % [state_fields.get("A_TAG", ""), state_fields.get("B_TAG", "")]
+		elif state_type == "event_when_pets_follow":
+			state_label = tr("當 [%s] 正在跟隨 [%s] 時") % [state_fields.get("A_TAG", ""), state_fields.get("B_TAG", "")]
+		else:
+			state_label = tr("當場內有人的狀態是 [%s %s]") % [state_fields.get("KIND", ""), state_fields.get("VALUE", "")]
+			# 2026-10-05:沒有把對象(TAGS)寫進標籤,梅莉雅的「露米出現時」事件在列表裡看起來像一條無名的通用事件。
+			var state_tags := str(state_fields.get("TAGS", "")).strip_edges()
+			if state_tags != "":
+				state_label += tr(" · 對象 [%s]") % state_tags
+		events.append(_event_entry("state", _named(state_label, hat), hat))
 	for hat in _game_hats:
 		var game_fields: Dictionary = hat.get("fields", {})
-		events.append({"kind": "game", "label": _named(tr("遊戲結果 [%s · %s]") % ["拚骰" if str(hat.get("type", "")) == "event_when_dice_contest" else "猜拳", game_fields.get("RESULT", "any")], hat), "hat": hat})
+		events.append(_event_entry("game", _named(tr("遊戲結果 [%s · %s]") % ["拚骰" if str(hat.get("type", "")) == "event_when_dice_contest" else "猜拳", game_fields.get("RESULT", "any")], hat), hat))
 	for hat in _invite_hats:
 		var invite_fields: Dictionary = hat.get("fields", {})
-		events.append({"kind": "game", "label": _named(tr("被邀請對戰 [%s · %s]") % [invite_fields.get("GAME", "any"), invite_fields.get("ANSWER", "any")], hat), "hat": hat})
+		events.append(_event_entry("game", _named(tr("被邀請對戰 [%s · %s]") % [invite_fields.get("GAME", "any"), invite_fields.get("ANSWER", "any")], hat), hat))
 	for hat in _prop_hats:
 		var prop_type := str(hat.get("type", "")).trim_prefix("event_prop_")
 		var prop_fields: Dictionary = hat.get("fields", {})
-		events.append({"kind": "prop", "label": _named(tr("當道具 [%s] %s 時") % [str(prop_fields.get("PROP", "")) if str(prop_fields.get("PROP", "")) != "" else "任何", {"collected": "被拾取/吃掉", "rubbed": "被摩擦", "candidate": "成為候選對象"}.get(prop_type, prop_type)], hat), "hat": hat})
+		events.append(_event_entry("prop", _named(tr("當道具 [%s] %s 時") % [str(prop_fields.get("PROP", "")) if str(prop_fields.get("PROP", "")) != "" else "任何", {"collected": "被拾取/吃掉", "rubbed": "被摩擦", "candidate": "成為候選對象"}.get(prop_type, prop_type)], hat), hat))
+	for hat in _prop_used_hats:
+		var used_fields: Dictionary = hat.get("fields", {})
+		events.append(_event_entry("prop", _named(tr("有人使用道具 [%s] 時") % (str(used_fields.get("PROP", "")) if str(used_fields.get("PROP", "")) != "" else "任何"), hat), hat))
 	for hat in _effect_hats:
 		var effect_fields: Dictionary = hat.get("fields", {})
-		events.append({"kind": "effect", "label": _named(tr("當 [%s] 播放特效 [%s] 時") % [str(effect_fields.get("TAGS", "")) if str(effect_fields.get("TAGS", "")) != "" else "其他桌寵", str(effect_fields.get("EFFECT", "")) if str(effect_fields.get("EFFECT", "")) != "" else "任何"], hat), "hat": hat})
+		events.append(_event_entry("effect", _named(tr("當 [%s] 播放特效 [%s] 時") % [str(effect_fields.get("TAGS", "")) if str(effect_fields.get("TAGS", "")) != "" else "其他桌寵", str(effect_fields.get("EFFECT", "")) if str(effect_fields.get("EFFECT", "")) != "" else "任何"], hat), hat))
+	for hat in _furniture_hats:
+		var join_or_leave := tr("開始使用") if str(hat.get("type", "")) == "event_furniture_join" else tr("結束使用")
+		events.append(_event_entry("furniture", _named(tr("有人 [%s] 家具時") % join_or_leave, hat), hat))
+	for hat in _memory_hats:
+		events.append(_event_entry("memory", _named(tr("記憶重置時"), hat), hat))
 	var chats: Array[Dictionary] = _chat_hats if not _chat_hats.is_empty() else _placeholder_chat_hats()
 	for hat in chats:
 		var fields: Dictionary = hat.get("fields", {})
 		var tag :=str(fields.get("TAG", "chat"))
 		var lens := str(fields.get("LENS", ""))
 		var suffix := " · " + lens if lens != "" else ""
-		events.append({"kind": "chat", "label": _named(tr("閒聊 [%s%s] · %s") % [tag, suffix, _first_text(hat)], hat), "hat": hat})
+		events.append(_event_entry("chat", _named(tr("閒聊 [%s%s] · %s") % [tag, suffix, _first_text(hat)], hat), hat))
 	return events
+
+
+## list_events() 共用:組一筆事件項目,附帶 id(跟 _disabled_hats/_running 用的 key 同一套算法)、
+## 目前是否被暫時停用、來源層(見 _hat_layer())、觸發條件特徵碼(見 trigger_signature())。
+func _event_entry(kind: String, label: String, hat: Dictionary) -> Dictionary:
+	var id := _hat_id(hat)
+	return {"kind": kind, "label": label, "hat": hat, "id": id, "disabled": _disabled_hats.has(id), "layer": _hat_layer(hat), "trigger_sig": trigger_signature(hat)}
+
+
+## 2026-10-05 新增(見 [[project-block-editor-wishlist-20261002]]「2026-10-02 新議題」整段第 3 類):
+## 「使用者自己寫的新積木,觸發條件跟別的事件疑似重複(型別相同 + 關鍵欄位相同)」只提示、不自動停用/合併
+## ——沒辦法從積木本身判斷使用者是不小心做出重複效果、還是故意疊加增加隨機變化。這裡只回傳一個特徵碼給
+## EventManagerWindow 比對兩兩是否相同,不影響任何執行邏輯;NAME 欄位是使用者自己取的顯示名稱(純標籤,
+## 不影響觸發),特意排除,不然同一種觸發條件只因為取了不同名字就被誤判成不重複。
+static func trigger_signature(hat: Dictionary) -> String:
+	var fields: Dictionary = (hat.get("fields", {}) as Dictionary).duplicate()
+	fields.erase("NAME")
+	return "%s|%s" % [str(hat.get("type", "")), JSON.stringify(fields)]
+
+
+## _disabled_hats/_running 的 key 算法,跟 force_run_hat() 原本重複寫的那兩行一致,抽出來共用。
+func _hat_id(hat: Dictionary) -> String:
+	return str(hat.get("id", hat.hash()))
+
+
+## 依積木 id 的固定命名規則判斷這顆事件來自哪一層(見 [[project-block-editor-wishlist-20261002]] 的雙重
+## 重複備忘:性格層 id 是 "pers:<性格id>:...",規則層(InteractionRules.compile)是 "rule_c%d_hat"/
+## "rule_p%d_hat","placeholder_%d" 是沒有匯入閒聊時的佔位閒聊,其餘都是使用者自己匯入的 user 層。
+## 只給 EventManagerWindow 顯示來源標籤用,不影響任何執行邏輯。
+func _hat_layer(hat: Dictionary) -> String:
+	var id := str(hat.get("id", ""))
+	# 2026-10-05:同一個 id 使用者積木檔與規則層都有時(_reregister_all() 讓使用者那份蓋過規則層),
+	# 實際生效的是使用者那份,要標成「自訂」,不能因為 id 是 rule_ 開頭就標成交互行為規則。
+	for block: Dictionary in _top_blocks:
+		if _hat_id(block) == id:
+			return "user"
+	if id.begins_with("pers:"):
+		return "personality"
+	if id.begins_with("rule_"):
+		return "rule"
+	if id.begins_with("placeholder_"):
+		return "placeholder"
+	return "user"
 
 
 ## 測試者模式:積木檔裡所有對話積木(不管在哪個事件底下),每項 {label, block}。
@@ -307,10 +390,57 @@ func list_dialogues() -> Array[Dictionary]:
 ## 強制執行一個事件積木:先中止目前的積木鏈與動作佔用,再無視「同一事件已在執行」的保護直接跑。
 func force_run_hat(hat: Dictionary) -> void:
 	_pet.interrupt_scripts()
-	_disabled_hats.erase(str(hat.get("id", hat.hash())))
-	_running.erase(str(hat.get("id", hat.hash())))
+	var id := _hat_id(hat)
+	_disabled_hats.erase(id)
+	_running.erase(id)
 	_chat_running = false
 	_run_hat(hat)
+
+
+## EventManagerWindow 用:暫時停用/恢復一個事件,不寫檔只影響這次執行(跟失控保護 _runaway() 共用同一份
+## _disabled_hats——被看門狗停用的事件在這裡也會顯示成「已停用」,是同一個機制,不是兩套)。
+func set_hat_disabled(hat: Dictionary, disabled: bool) -> void:
+	var id := _hat_id(hat)
+	if disabled:
+		_disabled_hats[id] = true
+	else:
+		_disabled_hats.erase(id)
+
+
+## EventManagerWindow 用:從目前生效的積木拿掉這個事件,不寫檔只影響這次執行——使用者自己匯入的(user 層)
+## 要重新匯入積木檔才會恢復;性格/規則層帶來的,下次性格重新套用或交互行為分頁按「儲存」(兩者都會整層
+## 重建,見 set_personality_layer()/set_rule_layer())就會恢復原狀。刻意不區分來源做「真的永久刪除」,
+## 跟測試者面板其他操作同一個「只影響這次執行」的原則,否則要另外處理三層各自的存檔路徑,超出這個小功能
+## 該做的範圍。找不到(id 對不上任何一層,例如沒有真實匯入內容時的佔位閒聊)回傳 false。
+func remove_hat(hat: Dictionary) -> bool:
+	var id := _hat_id(hat)
+	var removed := false
+	for arr: Array in [_top_blocks, _personality_blocks, _rule_blocks]:
+		for i in range(arr.size() - 1, -1, -1):
+			if _hat_id(arr[i]) == id:
+				arr.remove_at(i)
+				removed = true
+	if removed:
+		_disabled_hats.erase(id)
+		_reregister_all()
+	return removed
+
+
+## 2026-10-05 新增:真正從使用者積木層(_top_blocks)刪掉這個事件,之後呼叫端要 save_user_only_file() 寫回
+## 積木檔,下次開機才不會再出現。只對 user 層有效;若同 id 的性格/規則層事件存在,_reregister_all() 會把它補回來
+## (例如交互行為規則產生的 rule_c0_hat),這種要去對應分頁改來源。回傳有沒有真的刪到東西。
+func remove_user_hat(hat: Dictionary) -> bool:
+	var id := _hat_id(hat)
+	var kept: Array = []
+	for block: Dictionary in _top_blocks:
+		if _hat_id(block) != id:
+			kept.append(block)
+	if kept.size() == _top_blocks.size():
+		return false
+	_top_blocks = kept
+	_disabled_hats.erase(id)
+	_reregister_all()
+	return true
 
 
 ## 強制播放單獨一句對話積木(含它的選項與 GOTO,但不接後面的 next)。
@@ -370,7 +500,7 @@ func _eligible_chat_hats(context_override := "") -> Array[Dictionary]:
 const PURE_CONDITION_TYPES: Array[String] = [
 	"cond_pet_present", "cond_pet_state", "cond_pet_sleeping", "cond_move_mode", "cond_holding_prop", "cond_text_set", "cond_time_between", "cond_date_is", "cond_weekday_is", "cond_value_compare", "flag_check",
 	"cond_game_stat", "cond_target_is", "cond_lens_active", "cond_lens_active_over", "cond_mood_compare", "cond_mood_zone", "cond_energy_compare", "cond_rest_state", "cond_lens_nature", "cond_loss_streak", "cond_ball_play", "cond_timer_running", "logic_compare", "logic_operation", "logic_boolean", "math_number", "math_random_between", "text",
-	"cond_furniture_using", "cond_furniture_sharing", "cond_furniture_state", "cond_is_follower", "cond_is_leader",
+	"cond_furniture_using", "cond_furniture_sharing", "cond_furniture_state", "cond_is_follower", "cond_is_leader", "cond_pet_invisible", "cond_pet_affinity", "cond_pets_touch", "cond_pets_follow",
 ]
 
 
@@ -464,16 +594,82 @@ func set_personality_layer(blocks: Array, skip_own_chat: bool, skip_own_reaction
 	_personality_blocks = blocks
 	_skip_own["chat"] = skip_own_chat
 	_skip_own["reactions"] = skip_own_reactions
+	_reregister_all()
+
+
+## 把 _top_blocks/_personality_blocks/_rule_blocks 三層全部重新登記一次(不動積木內容本身),
+## set_personality_layer()/load_data()/remove_hat() 共用。
+##
+## 雙重重複第 2 類(使用者把性格/規則匯出的積木拿去改過,id 沒變但內容已改):性格層 id 是
+## "pers:<性格id>:chat:<序號>"/"pers:<性格id>:reaction:<事件>..."、規則層是 "rule_c%d_hat"/
+## "rule_p%d_hat",Blockly 編輯器裡只要是「編輯既有積木」而不是刪掉重建,這個 id 全程不變。只要使用者
+## 的 _top_blocks 裡有某個 id 跟性格/規則層當下某顆事件的 id 相同,就讓使用者那份(已改過的)蓋過去,
+## 性格/規則層原本同 id 那顆跳過不登記——不用把整個性格拔掉,只有真的被動過的那幾顆被蓋掉。永久生效
+## (不只匯入當下),性格/規則之後重建一樣套用這個規則。第 1 類(內容完全相同,不是蓋過去而是整個不留)
+## 見 dedupe_top_blocks()。
+func _reregister_all() -> void:
 	var user_blocks := _top_blocks
 	_clear_registrations()
 	_top_blocks = user_blocks
+	var user_ids := {}
+	for block: Dictionary in user_blocks:
+		var id := str(block.get("id", ""))
+		if id != "":
+			user_ids[id] = true
 	for block: Dictionary in user_blocks:
 		if not _own_skipped(block):
 			_register_hat(block)
 	for block: Dictionary in _personality_blocks:
-		_register_hat(block)
+		if not user_ids.has(str(block.get("id", ""))):
+			_register_hat(block)
 	for block: Dictionary in _rule_blocks:
-		_register_hat(block)
+		if not user_ids.has(str(block.get("id", ""))):
+			_register_hat(block)
+
+
+## 雙重重複第 1 類(單純複製匯出再原封不動匯入,沒改過):比對 _top_blocks 跟目前活著的
+## _personality_blocks+_rule_blocks,完全相同(深層比較——Dictionary/Array 的 == 本來就是深層比較)的
+## 直接從 _top_blocks 移除、不重複登記,回傳移除了幾個,給匯入流程(memory_tab.gd/desktop_shell.gd 的
+## 「匯入積木檔」)跳提示「已略過 N 個與目前性格內容重複的事件」用。id 相同但內容已改的不算這類(那是
+## _reregister_all() 的 id 覆蓋機制負責,見那裡的說明);要在 PersonalityApplier.rebuild_layer()/
+## set_interaction_rules() 都跑完、性格/規則層已經是匯入後的最終內容時才呼叫,不然比對到的是舊內容。
+func dedupe_top_blocks() -> int:
+	var reference_pool: Array = _personality_blocks + _rule_blocks
+	var kept: Array = []
+	var removed := 0
+	for block: Dictionary in _top_blocks:
+		var is_duplicate := false
+		for existing: Dictionary in reference_pool:
+			if block == existing:
+				is_duplicate = true
+				break
+		if is_duplicate:
+			removed += 1
+		else:
+			kept.append(block)
+	if removed > 0:
+		_top_blocks = kept
+		_reregister_all()
+	return removed
+
+
+## 只存使用者自己這層(_top_blocks,通常是 dedupe_top_blocks() 處理過的版本),不像 to_data()/
+## save_file() 把性格/規則層也攤平合併進去。PetRoster 存的是「下次開機要重新套用」的持久檔案,如果也把
+## 當下的性格內容存進去,每次開機重建性格層時又會在這份檔案裡長出重複的一份,等於把雙重重複第 1 類的
+## dedupe 效果每次開機後又打回原狀。給匯入流程在 dedupe_top_blocks() 真的刪掉東西時,覆蓋掉
+## PetRoster.store_logic() 剛存的原始複製檔用。
+func save_user_only_file(path: String) -> Error:
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		return FileAccess.get_open_error()
+	file.store_string(JSON.stringify({
+		"fileType": FILE_TYPE,
+		"recognitionTag": str(_pet.recognition_tag),
+		"dialogueTranslations": _translations.duplicate(true),
+		"workspaceState": {"blocks": {"languageVersion": 0, "blocks": _top_blocks}},
+		"knownCharacters": _known_characters.values(),
+	}, "  "))
+	return OK
 
 
 ## 設定規則層(見 InteractionRules.compile):只重新登記事件,不動使用者的積木檔內容。
@@ -496,6 +692,12 @@ func personality_block_count() -> int:
 func clear() -> void:
 	_top_blocks = []
 	_clear_registrations()
+	# 2026-10-05 修正:這兩個狀態原本放在 _clear_registrations() 裡,每次重新登記(匯入、性格/交互行為重建、
+	# 事件管理移除)都會被清掉。結果是:①正在播放的事件鏈(_running)被忘記,同一顆事件可以再開一條鏈疊在上面
+	# 重播 → 「洗版」;②狀態邊緣觸發的記憶(_state_last)被忘記,「場上有露米」這類條件仍成立時會被當成
+	# 「剛由不成立變成立」又觸發一次。只有真的換掉整份積木(clear())才應該忘記。
+	_running.clear()
+	_state_last.clear()
 	_translations = {}
 	_translation_by_block = {}
 	_translation_by_text = {}
@@ -536,7 +738,6 @@ func _clear_registrations() -> void:
 	_furniture_hats.clear()
 	_prop_hats.clear()
 	_state_hats.clear()
-	_state_last.clear()
 	_mute_releases.clear()
 	_hat_of_block.clear()
 	if _state_timer != null:
@@ -549,7 +750,6 @@ func _clear_registrations() -> void:
 		timer.queue_free()
 	_timers.clear()
 	_action_hats.clear()
-	_running.clear()
 
 
 func _within_limits(node: Variant, depth: int) -> bool:
@@ -601,8 +801,10 @@ func _register_hat(block: Dictionary) -> void:
 			_furniture_hats.append(block)
 			if _state != null and not _state.furniture_use_changed.is_connected(_on_furniture_use_changed):
 				_state.furniture_use_changed.connect(_on_furniture_use_changed)
-		"event_when_pet_state":
-			# 「當場內有人的狀態是…」:邊緣觸發,只有載入了這類事件才會建立低頻輪詢計時器(沒有就完全不耗效能)。
+		"event_when_pet_state", "event_when_pets_touch", "event_when_pets_follow":
+			# 「當場內有人的狀態是…」「當 A/B 桌寵的判定框接觸時」「當 A 正在跟隨 B 時」共用同一顆低頻
+			# 輪詢計時器跟邊緣觸發機制(_poll_pet_states() 依 hat 的 type 分派給對應的 eval 函式),只有
+			# 載入了這類事件才會建立(沒有就完全不耗效能)。
 			_state_hats.append(block)
 			if _state_timer == null:
 				_state_timer = Timer.new()
@@ -1098,7 +1300,7 @@ func _exec(block: Dictionary, token: int, prev_type: String = "") -> String:
 		"cond_prob_percent", "cond_pet_present", "cond_pet_state", "cond_pet_sleeping", "cond_move_mode", "cond_text_set", "cond_time_between", "cond_date_is", "cond_weekday_is", \
 		"cond_lens_active", "cond_lens_active_over", "cond_holding_prop", "cond_value_compare", "flag_check", "cond_game_stat", "cond_target_is", \
 		"cond_mood_compare", "cond_mood_zone", "cond_energy_compare", "cond_rest_state", "cond_lens_nature", "cond_loss_streak", "cond_ball_play", "cond_timer_running", \
-			"cond_furniture_using", "cond_furniture_sharing", "cond_furniture_state", "cond_is_follower", "cond_is_leader":
+			"cond_furniture_using", "cond_furniture_sharing", "cond_furniture_state", "cond_is_follower", "cond_is_leader", "cond_pet_invisible", "cond_pet_affinity", "cond_pets_touch", "cond_pets_follow":
 			# (積木語法裡狀態鏡條件是回傳布林的值積木,這裡只是同時容許有 DO 語句輸入的寫法)
 			# 條件積木當成「如果…那麼」的 C 型積木使用:成立才執行裡面的積木。
 			if _eval_block(block):
@@ -1160,6 +1362,10 @@ func _exec(block: Dictionary, token: int, prev_type: String = "") -> String:
 			_pet.extend_furniture_use(_number(fields.get("SECONDS", 0.0)))
 		"action_furniture_toggle":
 			_exec_furniture_toggle(fields)
+		"action_invisible":
+			await _exec_invisible(block, token)
+		"action_set_pet_affinity":
+			_exec_set_pet_affinity(fields)
 		_:
 			_warn_once("不支援的積木類型 %s,已略過" % type)
 	return ""
@@ -1541,6 +1747,14 @@ func _eval_block(block: Dictionary) -> Variant:
 			return _furniture_sharing(fields)
 		"cond_furniture_state":
 			return _furniture_state_matches(fields)
+		"cond_pet_invisible":
+			return _any_or_all_pets(fields, func(candidate: Node) -> bool: return candidate.invisible)
+		"cond_pet_affinity":
+			return _eval_pet_affinity(fields)
+		"cond_pets_touch":
+			return _eval_pets_touch(fields)
+		"cond_pets_follow":
+			return _eval_pets_follow(fields)
 		"text":
 			return str(fields.get("TEXT", ""))
 		"logic_boolean":
@@ -1706,14 +1920,23 @@ func _furniture_sharing(fields: Dictionary) -> bool:
 
 ## 「(家具)的觸發狀態為(開/關)」:SELECT 選要看哪件/哪些家具(見 _furniture_candidates),STATE = on(條件成立/conditional)
 ## 或 off(normal);找不到符合的家具一律不成立(跟 _any_or_all_pets 一樣的邏輯:沒有對象就不成立)。
+## STATE = on(觸發狀態開,conditional_0)/ off(平時,不是 conditional_0)/ interacted(2026-10-04 新增:
+## 「正在播放觸發動畫」,即 interacted_0,例如坐下/開箱子那段過場動畫播放中)。
 func _furniture_state_matches(fields: Dictionary) -> bool:
 	var candidates := _furniture_candidates(fields)
 	if candidates.is_empty():
 		return false
-	var wants_on := str(fields.get("STATE", "on")).strip_edges().to_lower() != "off"
+	var check: Callable
+	match str(fields.get("STATE", "on")).strip_edges().to_lower():
+		"interacted":
+			check = func(item: FurnitureItem) -> bool: return item.current_animation() == "interacted_0"
+		"off":
+			check = func(item: FurnitureItem) -> bool: return not item.active()
+		_:
+			check = func(item: FurnitureItem) -> bool: return item.active()
 	if str(fields.get("MATCH", "any")).to_lower() == "all":
-		return candidates.all(func(item: FurnitureItem) -> bool: return item.active() == wants_on)
-	return candidates.any(func(item: FurnitureItem) -> bool: return item.active() == wants_on)
+		return candidates.all(check)
+	return candidates.any(check)
 
 
 ## 家具選擇器(cond_furniture_state、之後的家具相關積木共用):
@@ -1779,6 +2002,59 @@ func _eval_pet_state(fields: Dictionary) -> bool:
 	return _any_or_all_pets(fields, _pet_matches_state.bind(kind, value))
 
 
+## 「與指定/任意桌寵的好感度是…」(cond_pet_affinity):TAGS/INCLUDE_SELF/MATCH 跟 cond_pet_state 同一套
+## 形狀(空白 TAGS = 任意桌寵,看場內所有其他桌寵;填了辨識代號 = 指定桌寵)。LEVEL 是 -3~3 的字串
+## (InteractionRules.PET_PREF_LEVELS),跟 Pet.pet_affinity() 回傳值做「剛好相等」比較,不是「≥」。
+func _eval_pet_affinity(fields: Dictionary) -> bool:
+	var level := int(str(fields.get("LEVEL", "0")))
+	return _any_or_all_pets(fields, func(candidate: Node) -> bool: return _pet.pet_affinity(candidate) == level)
+
+
+## 「A/B 桌寵的判定框接觸」(cond_pets_touch / event_when_pets_touch 共用):A_TAG/B_TAG 各自代表一隻桌寵,
+## 留空或填 "SELF" 代表「自己」(跑這個事件/條件的這隻桌寵),否則用辨識代號找場上的桌寵。兩邊都要找得到
+## 實際存在的桌寵、且不是同一隻,才會去比對判定框(Pet.interaction_rect(),跟好惡判定框接觸——
+## Pet._tick_pet_affinity_contact()——同一套算法)有沒有重疊。
+func _eval_pets_touch(fields: Dictionary) -> bool:
+	var a := _resolve_pet_ref(str(fields.get("A_TAG", "")))
+	var b := _resolve_pet_ref(str(fields.get("B_TAG", "")))
+	if a == null or b == null or a == b:
+		return false
+	return a.interaction_rect().intersects(b.interaction_rect())
+
+
+## 「A 正在跟隨 B」(cond_pets_follow / event_when_pets_follow 共用):A_TAG/B_TAG 跟 cond_pets_touch
+## 同一套「留空或 SELF = 自己」解析規則(見 _resolve_pet_ref());A 要正在跟隨(Pet.is_following())、
+## 且跟隨目標的辨識代號(Pet.follow_target_tag())剛好等於 B 的辨識代號才成立。不比對 A==B(跟隨自己
+## 本來就不可能發生,Pet.start_follow() 已經擋掉),不用額外特判。
+func _eval_pets_follow(fields: Dictionary) -> bool:
+	var a := _resolve_pet_ref(str(fields.get("A_TAG", "")))
+	var b := _resolve_pet_ref(str(fields.get("B_TAG", "")))
+	if a == null or b == null:
+		return false
+	return a.is_following() and a.follow_target_tag() == str(b.recognition_tag)
+
+
+## 給 cond_pets_touch/event_when_pets_touch、cond_pets_follow/event_when_pets_follow 共用:A_TAG/B_TAG
+## 留空或填 "SELF" 代表「自己」(跑這個事件/條件的這隻桌寵),否則用辨識代號找場上的桌寵,找不到回 null。
+func _resolve_pet_ref(tag: String) -> Node:
+	var wanted := tag.strip_edges()
+	if wanted == "" or wanted.to_upper() == "SELF":
+		return _pet
+	for other: Node in get_tree().get_nodes_in_group("pets"):
+		if is_instance_valid(other) and str(other.recognition_tag) == wanted:
+			return other
+	return null
+
+
+## 「改變對某桌寵的好惡」(action_set_pet_affinity):TAG 空白 = 設定 InteractionRules.ALL_PETS_TARGET
+## (全部桌寵的預設好惡),填了辨識代號就設定對那隻特定桌寵的——不需要對方現在在場,好惡存在 _pet 自己的
+## 資料裡。純粹呼叫 Pet.set_pet_affinity(),display_name 留空讓它自己找場上同 tag 的桌寵取名字。
+func _exec_set_pet_affinity(fields: Dictionary) -> void:
+	var tag := str(fields.get("TAG", "")).strip_edges()
+	var level := int(str(fields.get("LEVEL", "0")))
+	_pet.set_pet_affinity(tag if tag != "" else InteractionRules.ALL_PETS_TARGET, level)
+
+
 ## 依 TAGS / INCLUDE_SELF 收集要看的桌寵,再依 MATCH(any / all)套用 matches;沒有任何符合對象的桌寵一律不成立。
 func _any_or_all_pets(fields: Dictionary, matches: Callable) -> bool:
 	var wanted := _character_tags(fields)
@@ -1806,18 +2082,35 @@ func _pet_matches_state(candidate: Node, kind: String, value: String) -> bool:
 	if kind == "move_mode":
 		var wanted_mode := Pet.parse_move_mode(value)
 		return wanted_mode >= 0 and int(candidate.move_mode) == wanted_mode
+	if kind == "game":
+		# KIND="action" 只比對 current_activity()(會播放的動作名稱),棋類/骰子/猜拳對戰、玩球期間角色
+		# 視覺上常常只是待機,這個分支另外查 Pet.game_kind(見 GameChat.enter/leave)跟 PetBallPlay.state,
+		# 2026-10-05 使用者要求「指定桌寵在做某行為」要把這些也算進去。
+		var wanted_kind := value.strip_edges().to_lower()
+		if wanted_kind == "" or wanted_kind == "any":
+			return candidate.is_in_game() or candidate.ball_play.state != ""
+		if wanted_kind == "ball":
+			return candidate.ball_play.state != ""
+		return candidate.is_in_game() and str(candidate.game_kind) == wanted_kind
 	return str(candidate.current_activity()) == value
 
 
-## 每 0.5 秒:檢查每個 event_when_pet_state 的條件,由不成立變成立(EDGE=start,預設)或由成立變不成立(EDGE=end)時觸發一次;
-## 也檢查事件觸發的自主靜音,條件消失就(在設定允許時)自動解除。
+## 每 0.5 秒:檢查每個 event_when_pet_state / event_when_pets_touch 的條件,由不成立變成立(EDGE=start,預設)
+## 或由成立變不成立(EDGE=end)時觸發一次;也檢查事件觸發的自主靜音,條件消失就(在設定允許時)自動解除。
 func _poll_pet_states() -> void:
 	if not is_instance_valid(_pet):
 		return
 	for hat in _state_hats:
 		var fields: Dictionary = hat.get("fields", {})
 		var id := str(hat.get("id", hat.hash()))
-		var now := _eval_pet_state(fields)
+		var hat_type := str(hat.get("type", ""))
+		var now: bool
+		if hat_type == "event_when_pets_touch":
+			now = _eval_pets_touch(fields)
+		elif hat_type == "event_when_pets_follow":
+			now = _eval_pets_follow(fields)
+		else:
+			now = _eval_pet_state(fields)
 		var last: bool = _state_last.get(id, false)
 		_state_last[id] = now
 		var edge := str(fields.get("EDGE", "start")).to_lower()
@@ -1946,6 +2239,71 @@ func _exec_furniture_toggle(fields: Dictionary) -> void:
 	var mode := str(fields.get("MODE", "toggle")).strip_edges().to_lower()
 	for item in _furniture_candidates(fields):
 		item.try_toggle(mode)
+
+
+## 「等待直到…」輪詢間隔與保險上限(action_invisible 用;共用元件,之後其他「等待直到…」類積木可以直接呼叫 _wait_until)。
+const WAIT_UNTIL_POLL_SECONDS := 0.5
+const WAIT_UNTIL_MAX_SECONDS := 86400.0   # 條件真的卡住不成立時,最多等一天強制醒來,不讓桌寵永遠卡住。
+
+
+## 共用元件:每隔 WAIT_UNTIL_POLL_SECONDS 檢查一次 check() 是否成立,成立、被打斷(action_generation 改變)
+## 或超過 timeout_sec 任一先到就返回(用 _wait() 底層,所以依然可被 Pet.interrupted 立刻喚醒)。
+func _wait_until(check: Callable, token: int, timeout_sec: float = WAIT_UNTIL_MAX_SECONDS) -> void:
+	var waited := 0.0
+	while not check.call():
+		if not is_instance_valid(_pet) or _pet.action_generation != token:
+			return
+		if waited >= timeout_sec:
+			return
+		var step := minf(WAIT_UNTIL_POLL_SECONDS, timeout_sec - waited)
+		await _wait(step)
+		waited += step
+
+
+## 「隱形直到幾點」用:距離下一次到達 target_minute(當天第幾分鐘)還有幾秒;已經過了就算明天同一時刻。
+func _seconds_until_minute(target_minute: int) -> float:
+	var now := Time.get_time_dict_from_system()
+	var now_second: int = (now["hour"] * 60 + now["minute"]) * 60 + now["second"]
+	var delta: int = target_minute * 60 - now_second
+	if delta <= 0:
+		delta += 86400
+	return float(delta)
+
+
+## 執行 action_invisible(暫時隱形):可選的 BEFORE_ACTION 播完才真的隱形,UNTIL 決定哪一組欄位是恢復條件,
+## 結束後一律呼叫 set_invisible(false)(就算中途被打斷也要復原,不能讓桌寵卡在隱形狀態),再視情況播 AFTER_ACTION。
+func _exec_invisible(block: Dictionary, token: int) -> void:
+	var fields: Dictionary = block.get("fields", {})
+	var before_action := str(fields.get("BEFORE_ACTION", "")).strip_edges()
+	if before_action != "":
+		_pet.play_action(StringName(before_action), -1, true)
+		await _wait_until(func() -> bool: return str(_pet.current_activity()) != before_action, token, 20.0)
+	if not is_instance_valid(_pet) or _pet.action_generation != token:
+		return
+	_pet.set_invisible(true)
+	match str(fields.get("UNTIL", "duration")):
+		"time":
+			await _wait(maxf(_seconds_until_minute(_minutes_of(str(fields.get("TIME", "00:00")))), 0.0))
+		"flag":
+			var flag_name := str(fields.get("FLAG", ""))
+			var want_on := str(fields.get("FLAG_STATE", "TRUE")).to_upper() != "FALSE"
+			await _wait_until(func() -> bool: return _truthy(_pet.flags.get(flag_name, false)) == want_on, token)
+		"value":
+			var synth := {"type": "cond_value_compare", "fields": {"SCOPE": fields.get("SCOPE", ""), "KEY": fields.get("KEY", ""), "OP": fields.get("OP", "EQ"), "NUM": fields.get("NUM", 0.0)}}
+			await _wait_until(func() -> bool: return _truthy(_eval_block(synth)), token)
+		"action":
+			var action_name := str(fields.get("ACTION", ""))
+			await _wait_until(func() -> bool: return str(_pet.current_activity()) != action_name, token)
+		"furniture":
+			await _wait_until(func() -> bool: return not _pet.is_using_furniture() and str(_pet.held_prop) == "", token)
+		_:
+			await _wait(maxf(_number(fields.get("SEC", 5.0)), 0.0))
+	if not is_instance_valid(_pet):
+		return
+	_pet.set_invisible(false)
+	var after_action := str(fields.get("AFTER_ACTION", "")).strip_edges()
+	if after_action != "" and _pet.action_generation == token:
+		_pet.play_action(StringName(after_action), -1, true)
 
 
 ## 執行 pet_flip(轉身演出):MODE = toggle(轉向另一邊,預設)/ right / left / toward(面向對象:TAG 指定的角色,

@@ -26,6 +26,14 @@ var _prop_action_option: OptionButton
 var _prop_persist_option: OptionButton
 var _prop_list: VBoxContainer
 var _pref_list: VBoxContainer
+var _pet_pref_list: VBoxContainer
+const GAME_DISPLAY_NAMES := {"dice": "拚骰", "rps": "猜拳", "ball": "玩球", "ttt": "井字棋", "blockade": "步步為營", "mastermind": "珠璣妙算"}
+const GAME_AI_KEYS: Array[String] = ["ttt", "blockade", "mastermind"]
+var _game_kind_order: Array[String] = ["dice", "rps", "ball", "ttt", "blockade", "mastermind"]
+var _game_auto_checks: Dictionary = {}
+var _game_accept_checks: Dictionary = {}
+var _game_decline_checks: Dictionary = {}
+var _game_ai_options: Dictionary = {}
 var _nickname_line: LineEdit
 var _ignore_props_check: CheckBox
 var _ignore_furniture_check: CheckBox
@@ -35,6 +43,10 @@ var _reaction_list: VBoxContainer
 var _reaction_boxes: Dictionary = {}   # reactions 陣列索引 → TextEdit
 var _characters: Array[Dictionary] = []
 var _props: Array[PropDef] = []
+var _keyword_edit: TextEdit
+var _keyword_count: Label
+var _user_keyword_edit: TextEdit
+var _user_keyword_count: Label
 
 
 func _ready() -> void:
@@ -48,11 +60,14 @@ func _ready() -> void:
 	_flow.add_theme_constant_override("h_separation", 10)
 	_flow.add_theme_constant_override("v_separation", 10)
 	scroll.add_child(_flow)
-	_build_action_card()
-	_build_nickname_card()
 	_build_toggle_card()
-	_build_character_card()
+	_build_nickname_card()
+	_build_action_card()
+	_build_game_card()
 	_build_reaction_dialogue_card()
+	_build_keyword_card()
+	_build_character_card()
+	_build_pet_pref_card()
 	_build_prop_card()
 	_build_pref_card()
 
@@ -193,6 +208,12 @@ func _build_character_card() -> void:
 ## 只能改對話文字本身(跳一下、發抖這類寫死的動作效果不會被動到);要新增反應情境或調整動作,去「性格」分頁按「編輯性格…」。
 func _build_reaction_dialogue_card() -> void:
 	var box := _new_card("基本反應對話", "列出這隻角色目前用的性格,在「玩球」「被邀請對戰」「休息」等既有反應情境裡已經有的對話內容。這裡只能改「對話文字」本身,跳一下、發抖這類動作不會被動到,也不能新增新的反應情境;要做這些,請到「性格」分頁按「編輯性格…」。")
+	box.add_child(ManagerUi.heading("事件管理"))
+	var event_manager_button := ManagerUi.button("事件管理(查看/暫時停用/移除目前生效的事件)")
+	event_manager_button.tooltip_text = "查看這隻桌寵目前生效的所有事件(閒聊、反應、計時器…),可以暫時停用或移除。跟測試者面板的「事件管理」是同一個視窗,不會寫進檔案、只影響這次執行——性格/交互行為規則帶來的事件下次重新套用或按「儲存」就會恢復,自訂的要重新匯入積木檔才會恢復。"
+	event_manager_button.pressed.connect(func() -> void: ManagerUi.open_event_manager_window(self, _pet))
+	box.add_child(event_manager_button)
+	box.add_child(HSeparator.new())
 	box.add_child(ManagerUi.syntax_row(self, "台詞能用的語法", "這裡的台詞可以用氣泡樣式、數值、名字標記與單字池等既有語法。點右邊的「語法字典」查全部語法並插入/複製。"))
 	_reaction_list = VBoxContainer.new()
 	_reaction_list.add_theme_constant_override("separation", 8)
@@ -306,9 +327,96 @@ func _build_prop_card() -> void:
 
 
 func _build_pref_card() -> void:
-	var box := _new_card("喜歡與不喜歡的道具", "每個道具選「喜歡」、「不喜歡」或「不與此道具交互」(完全無視:不撿、不被摩擦、不成為候選、不被吸引)。喜歡的道具掉在場上,桌寵會自己走過去撿,撿到心情變好;不喜歡的不會自己撿(拖著遞給它還是會收)。道具資料找不到(被刪掉或搬走)的會變成灰色,可以按「重新連結」改指向現有的另一個道具。")
+	var box := _new_card("對道具的好惡", "每個道具選「喜歡」、「不喜歡」或「不與此道具交互」(完全無視:不撿、不被摩擦、不成為候選、不被吸引)。喜歡的道具掉在場上,桌寵會自己走過去撿,撿到心情變好;不喜歡的不會自己撿(拖著遞給它還是會收)。道具資料找不到(被刪掉或搬走)的會變成灰色,可以按「重新連結」改指向現有的另一個道具。")
 	_pref_list = VBoxContainer.new()
 	box.add_child(_pref_list)
+
+
+## 對其他角色的好惡(2026-10-04 使用者要求,簡化成單一欄位省空間;2026-10-05 卡片用詞從「桌寵」改成
+## 「角色」,因為這個設定是依辨識代號/角色身分存的,不是依畫面上哪一隻實體,跟 project-terminology 的
+## 桌寵/角色分工一致):每一列一個對象(「全部角色」或角色庫裡的某個)+ 一個好惡程度下拉選單(普通~超級
+## 喜歡/不喜歡,預設「普通」= 跟沒有這個功能時行為一樣)。「全部角色」那一列是沒被個別指定的其他角色套用
+## 的預設等級;個別指定某個角色會蓋過「全部角色」那一列。
+func _build_pet_pref_card() -> void:
+	var box := _new_card("對其他角色的好惡", "設定對某個角色、或對全部角色的好惡程度,預設「普通」= 跟沒有這個功能時一樣,沒有額外的好惡表現。目前會影響:主動跟隨的候選與機率(討厭的完全不會主動跟著走,喜歡的機率提高、也更容易被選中);閒置時自己發起對戰要不要挑這隻邀請(討厭的機率降低但不是完全不邀,喜歡的機率提高;「跟場上所有桌寵」這種廣播式邀請不受影響);被邀請對戰時答不答應的機率(喜歡的更容易答應,討厭的更容易拒絕,一樣包括廣播式邀請被邀請的那一端)。目前只能在這裡手動調整,不會自動隨時間漲跌;之後計畫補一顆積木讓你自己設計好惡隨什麼條件變化。")
+	_pet_pref_list = VBoxContainer.new()
+	box.add_child(_pet_pref_list)
+
+
+## 「遊戲與對戰」卡片:井字棋/步步為營/珠璣妙算各自的 AI 強度,拚骰/猜拳/玩球/井字棋/步步為營/珠璣妙算
+## 各自的「自動邀請」/「一律接受」/「一律拒絕」。這幾個欄位是 Pet 本體的 plain var(game_auto_invite/
+## game_force_accept/game_force_decline 字典、xxx_ai_level),不是 interaction_rules 的一部分,所以不走
+## _rules()/_apply() 那套,改了直接寫回 _pet 再 emit changed(),跟其他卡片一樣靠管理視窗的「儲存」按鈕落檔。
+func _build_game_card() -> void:
+	var box := _new_card("遊戲與對戰", "井字棋/步步為營/珠璣妙算各自的 AI 強度(數字愈小愈容易犯錯/隨便選,愈大愈接近一定選目前看起來最好的那個)。每種遊戲各自的「自動邀請」是閒置時自己主動邀別人玩這個;「一律接受」/「一律拒絕」是被別人邀請玩這個時的固定反應,兩個都不勾 = 照原本的機率/其他條件決定。跟右鍵選單「對戰與遊戲」裡同名的欄位是同一份資料,改這裡或改選單都一樣。珠璣妙算的題型(3/4 格密碼)在右鍵選單「珠璣妙算 → 題型」調,這張卡片不重複放。")
+	for kind: String in _game_kind_order:
+		var row := VBoxContainer.new()
+		row.add_theme_constant_override("separation", 2)
+		if GAME_AI_KEYS.has(kind):
+			var ai_option := OptionButton.new()
+			for lv: int in GameAiLevel.CHOICES:
+				ai_option.add_item(tr(str(GameAiLevel.NAMES[lv])))
+			ai_option.item_selected.connect(func(_i: int) -> void: _commit_game_prefs())
+			_game_ai_options[kind] = ai_option
+			row.add_child(ManagerUi.labeled("%s · %s" % [tr(str(GAME_DISPLAY_NAMES[kind])), tr("AI 強度")], ai_option))
+		else:
+			var name_label := Label.new()
+			name_label.text = tr(str(GAME_DISPLAY_NAMES[kind]))
+			row.add_child(name_label)
+		var checks := HBoxContainer.new()
+		checks.add_theme_constant_override("separation", 10)
+		var auto_check := CheckBox.new()
+		auto_check.text = tr("自動邀請")
+		auto_check.toggled.connect(func(_p: bool) -> void: _commit_game_prefs())
+		_game_auto_checks[kind] = auto_check
+		checks.add_child(auto_check)
+		var accept_check := CheckBox.new()
+		accept_check.text = tr("一律接受")
+		_game_accept_checks[kind] = accept_check
+		var decline_check := CheckBox.new()
+		decline_check.text = tr("一律拒絕")
+		_game_decline_checks[kind] = decline_check
+		accept_check.toggled.connect(func(pressed: bool) -> void:
+			if pressed:
+				decline_check.button_pressed = false
+			_commit_game_prefs())
+		decline_check.toggled.connect(func(pressed: bool) -> void:
+			if pressed:
+				accept_check.button_pressed = false
+			_commit_game_prefs())
+		checks.add_child(accept_check)
+		checks.add_child(decline_check)
+		row.add_child(checks)
+		box.add_child(row)
+		if kind != _game_kind_order[-1]:
+			box.add_child(HSeparator.new())
+
+
+func _ai_field_name(kind: String) -> String:
+	return "%s_ai_level" % kind
+
+
+func _reload_game_prefs() -> void:
+	for kind: String in _game_kind_order:
+		(_game_auto_checks[kind] as CheckBox).button_pressed = _pet.game_auto_invite_enabled(kind)
+		(_game_accept_checks[kind] as CheckBox).button_pressed = bool(_pet.game_force_accept.get(kind, false))
+		(_game_decline_checks[kind] as CheckBox).button_pressed = bool(_pet.game_force_decline.get(kind, false))
+	for kind: String in GAME_AI_KEYS:
+		var level := int(_pet.get(_ai_field_name(kind)))
+		(_game_ai_options[kind] as OptionButton).select(maxi(GameAiLevel.CHOICES.find(level), 0))
+
+
+func _commit_game_prefs() -> void:
+	if _loading or _pet == null:
+		return
+	for kind: String in _game_kind_order:
+		_pet.game_auto_invite[kind] = (_game_auto_checks[kind] as CheckBox).button_pressed
+		_pet.game_force_accept[kind] = (_game_accept_checks[kind] as CheckBox).button_pressed
+		_pet.game_force_decline[kind] = (_game_decline_checks[kind] as CheckBox).button_pressed
+	for kind: String in GAME_AI_KEYS:
+		var option: OptionButton = _game_ai_options[kind]
+		_pet.set(_ai_field_name(kind), GameAiLevel.CHOICES[option.selected])
+	changed.emit()
 
 
 func set_pet(pet: Node) -> void:
@@ -359,10 +467,118 @@ func _reload() -> void:
 	_prop_action_option.add_item("(不做動作)")
 	for action_name in names:
 		_prop_action_option.add_item(action_name)
+	_reload_game_prefs()
 	_loading = false
 	_rebuild_lists()
 	_reload_reaction_dialogue()
+	_load_keywords()
 
+
+## 關鍵詞庫小板塊:這隻角色會想或提及的事物,一行一個。台詞裡的 {keyword}(隨機一個)與 {kw:1}~{kw:9}(這個事件洗牌後的第幾個,彼此不同)會用到它。
+func _build_keyword_card() -> void:
+	var side := _new_card("關鍵詞庫", tr("簡單地告訴桌寵「你會想到、提到哪些事物」,一行一個(最多 %d 個、每個最多 %d 字)。台詞裡寫 {keyword} 就會隨機換成其中一個,例如「%s似乎在想關於 {keyword} 的事情」「你知道關於 {keyword} 的事嗎?」「oO(有點想念 {keyword} 呀…)」;{kw:1}、{kw:2}… 是同一個事件裡各不相同的幾個,適合做「猜猜我現在最想要什麼?」這種四個選項都是答案的題目。庫是空的就用預設詞(可以寫 {keyword|某件事} 自訂)。改了立刻生效,記得按「儲存」。") % [PetText.MAX_KEYWORDS, PetText.MAX_KEYWORD_LENGTH, "{self}"])
+	side.add_child(ManagerUi.syntax_row(self, "台詞裡怎麼用:{keyword}、{kw:1}", "{keyword} = 隨機一個;{keyword|某件事} = 庫是空的時顯示「某件事」;{kw:1}~{kw:9} = 這個事件洗牌後的第 N 個(1、2、3、4 各不相同)。點右邊的「語法字典」看全部語法。", false))
+	side.add_child(_hint("▍桌寵有興趣的關鍵詞(桌寵向你學到的新知識也會記在這裡)"))
+	_keyword_edit = TextEdit.new()
+	_keyword_edit.custom_minimum_size.y = 96.0
+	_keyword_edit.placeholder_text = tr("一行一個關鍵詞,例如:\n晚餐\n星星\n下雨天")
+	_keyword_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	_keyword_edit.text_changed.connect(_on_keywords_edited)
+	side.add_child(_keyword_edit)
+	var row := HBoxContainer.new()
+	_keyword_count = Label.new()
+	_keyword_count.theme_type_variation = AppSettings.MUTED_LABEL
+	_keyword_count.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(_keyword_count)
+	var suggest := ManagerUi.button("加入建議詞")
+	suggest.tooltip_text = "把一組常見的話題(晚餐、星星、天氣…)加進來,已經有的不會重複;不喜歡的自己刪掉。"
+	suggest.pressed.connect(_add_suggested_keywords)
+	row.add_child(suggest)
+	var clear := ManagerUi.button("清空")
+	clear.pressed.connect(func() -> void:
+		_keyword_edit.text = ""
+		_on_keywords_edited())
+	row.add_child(clear)
+	side.add_child(row)
+	# 第二份:使用者有興趣的關鍵詞。台詞裡用 {keyword:user} / {kw:user:1};桌寵「想更了解你」問到的也會記在這裡。
+	side.add_child(_hint("▍使用者有興趣的關鍵詞(桌寵想更了解你時問到的會記在這裡;台詞裡用 {keyword:user}、{kw:user:1})"))
+	_user_keyword_edit = TextEdit.new()
+	_user_keyword_edit.custom_minimum_size.y = 96.0
+	_user_keyword_edit.placeholder_text = tr("一行一個,例如:\n貓咪\n爵士樂\n登山")
+	_user_keyword_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	_user_keyword_edit.text_changed.connect(_on_user_keywords_edited)
+	side.add_child(_user_keyword_edit)
+	var user_row := HBoxContainer.new()
+	_user_keyword_count = Label.new()
+	_user_keyword_count.theme_type_variation = AppSettings.MUTED_LABEL
+	_user_keyword_count.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	user_row.add_child(_user_keyword_count)
+	var user_clear := ManagerUi.button("清空")
+	user_clear.pressed.connect(func() -> void:
+		_user_keyword_edit.text = ""
+		_on_user_keywords_edited())
+	user_row.add_child(user_clear)
+	side.add_child(user_row)
+
+
+const SUGGESTED_KEYWORDS: Array[String] = ["晚餐", "星星", "天氣", "下雨天", "零食", "午睡", "夕陽", "音樂", "冒險", "遠方的朋友"]
+
+
+func _add_suggested_keywords() -> void:
+	var merged := PetText.sanitize_keywords(_keyword_edit.text)
+	for word in SUGGESTED_KEYWORDS:
+		if not merged.has(word) and merged.size() < PetText.MAX_KEYWORDS:
+			merged.append(word)
+	_keyword_edit.text = "\n".join(merged)
+	_on_keywords_edited()
+
+
+## 使用者改了關鍵詞:整理後寫到這隻桌寵身上(輸入框的文字不重寫,免得打字時游標亂跳;超過上限或重複的下次載入才會被整理掉)。
+func _on_keywords_edited() -> void:
+	if _loading or _pet == null:
+		return
+	_pet.keywords = PetText.sanitize_keywords(_keyword_edit.text)
+	_update_keyword_count()
+	changed.emit()
+
+
+## 使用者有興趣的關鍵詞被編輯:整理後寫到桌寵身上。
+func _on_user_keywords_edited() -> void:
+	if _loading or _pet == null:
+		return
+	_pet.user_keywords = PetText.sanitize_keywords(_user_keyword_edit.text)
+	_update_keyword_count()
+	changed.emit()
+
+
+func _update_keyword_count() -> void:
+	if _pet == null:
+		return
+	_keyword_count.text = tr("目前 %d / %d 個關鍵詞") % [_pet.keywords.size(), PetText.MAX_KEYWORDS]
+	if _user_keyword_count != null:
+		_user_keyword_count.text = tr("目前 %d / %d 個關鍵詞") % [_pet.user_keywords.size(), PetText.MAX_KEYWORDS]
+
+
+func _load_keywords() -> void:
+	if _pet == null or _keyword_edit == null:
+		return
+	var was_loading := _loading
+	_loading = true
+	_keyword_edit.text = "\n".join(_pet.keywords)
+	if _user_keyword_edit != null:
+		_user_keyword_edit.text = "\n".join(_pet.user_keywords)
+	_loading = was_loading
+	_update_keyword_count()
+
+func _hint(text: String) -> Label:
+	var label := Label.new()
+	label.text = text
+	# 見 ManagerUi.hint_row() 旁的說明:換行 Label 沒給 custom_minimum_size.x 會被估出離譜的高度。
+	label.custom_minimum_size.x = 220.0
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.theme_type_variation = AppSettings.MUTED_LABEL
+	return label
 
 func _rules() -> Dictionary:
 	return (_pet.interaction_rules as Dictionary).duplicate(true)
@@ -473,6 +689,7 @@ func _rebuild_lists() -> void:
 			var index := i
 			_char_list.add_child(_row(tr("遇見 %s:「%s」") % [entry["name"], entry["lines"][i]], func() -> void: remove_character_line(tag, index)))
 	_rebuild_prefs(rules)
+	_rebuild_pet_prefs(rules)
 	var rule_index := 0
 	for rule: Dictionary in rules["props"]:
 		var index := rule_index
@@ -565,6 +782,62 @@ func _rebuild_prefs(rules: Dictionary) -> void:
 		remove.pressed.connect(func() -> void: set_preference(old_id, "", ""))
 		row.add_child(remove)
 		_pref_list.add_child(row)
+
+
+## 設定對某隻桌寵(或 InteractionRules.ALL_PETS_TARGET)的好惡等級;0 = 移除這一項(退回普通)。
+## 直接呼叫 Pet.set_pet_affinity(),跟積木「改變對某桌寵的好惡」背後是同一個函式,不是兩套邏輯。
+func set_pet_pref(target: String, display_name: String, level: int) -> void:
+	if _pet == null:
+		return
+	_pet.set_pet_affinity(target, level, display_name)
+	changed.emit()
+	_rebuild_lists()
+
+
+func _add_pet_pref_row(target: String, display_name: String, rules: Dictionary) -> void:
+	var row := HBoxContainer.new()
+	var label := Label.new()
+	label.text = display_name
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.clip_text = true
+	row.add_child(label)
+	var option := OptionButton.new()
+	for level: int in InteractionRules.PET_PREF_LEVELS:
+		option.add_item(tr(str(InteractionRules.PET_PREF_LEVEL_NAMES[level])))
+	option.select(InteractionRules.PET_PREF_LEVELS.find(InteractionRules.direct_pet_pref_level(rules, target)))
+	option.item_selected.connect(func(index: int) -> void: set_pet_pref(target, display_name, InteractionRules.PET_PREF_LEVELS[index]))
+	row.add_child(option)
+	_pet_pref_list.add_child(row)
+
+
+func _rebuild_pet_prefs(rules: Dictionary) -> void:
+	if _pet_pref_list == null or _pet == null:
+		return
+	for child in _pet_pref_list.get_children():
+		child.queue_free()
+	var known := {}
+	known[InteractionRules.ALL_PETS_TARGET] = true
+	_add_pet_pref_row(InteractionRules.ALL_PETS_TARGET, tr("全部角色(預設)"), rules)
+	for character: Dictionary in _characters:
+		var tag := str(character["tag"])
+		known[tag] = true
+		_add_pet_pref_row(tag, str(character["name"]), rules)
+	for entry: Dictionary in rules.get("pet_prefs", []):
+		var target := str(entry.get("target", ""))
+		if known.has(target):
+			continue
+		var row := HBoxContainer.new()
+		var label := Label.new()
+		label.text = tr("%s(%s,找不到這隻桌寵的角色資料)") % [entry.get("name", target), InteractionRules.PET_PREF_LEVEL_NAMES.get(int(entry.get("level", 0)), "")]
+		label.theme_type_variation = AppSettings.MUTED_LABEL
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		label.clip_text = true
+		row.add_child(label)
+		var remove := ManagerUi.button("✕")
+		remove.tooltip_text = "移除這一項"
+		remove.pressed.connect(func() -> void: set_pet_pref(target, "", 0))
+		row.add_child(remove)
+		_pet_pref_list.add_child(row)
 
 
 func _open_relink_menu(anchor: Control, old_id: String) -> void:

@@ -61,6 +61,49 @@ static func _wait(pet: Node, seconds: float) -> void:
 	await pet.get_tree().create_timer(seconds).timeout
 
 
+## 三人以上拚骰(使用者要求,見「全體模式輸出轉到獨立計分板,不洗聊天室」):逐輪細節改寫進這塊小面板,
+## 不再讓每一位參加者都各自開一次對話氣泡——兩人對戰(人數剛好 2)完全不受影響,維持原本的氣泡演出。
+static func _open_scoreboard(initiator: Node, title: String) -> GroupScoreboard:
+	var shell: Node = initiator.get_tree().get_first_node_in_group("desktop_shell")
+	if shell == null:
+		return null
+	var board := GroupScoreboard.new()
+	shell.top_layer().add_child(board)
+	board.setup(shell.action_area, title)
+	return board
+
+
+static func _close_scoreboard(scoreboard: GroupScoreboard) -> void:
+	if scoreboard != null and is_instance_valid(scoreboard):
+		scoreboard.queue_free()
+
+
+## 把 describe() 的 BBCode 去掉,給只會畫純文字的計分板用(dc=0 的群組拚骰只會用到 [b]…[/b] 這一種標籤)。
+static func _plain(text: String) -> String:
+	return text.replace("[b]", "").replace("[/b]", "")
+
+
+## 同一句話要讓 speakers 這群桌寵一起說(內容完全一樣,例如「第 N 局!」「平手!再擲一次!」):有計分板就只
+## 寫一行(不重複、不開氣泡),沒有就照舊讓每一位各自開對話氣泡(simultaneous 是 GameChat.chain_say 的
+## 第 4 參數,SMS 式分組同時顯示用)。
+static func _broadcast_same(speakers: Array, text: String, seconds: float, simultaneous: bool, scoreboard: GroupScoreboard) -> void:
+	if scoreboard != null:
+		if not speakers.is_empty():
+			scoreboard.add_line("", _plain(text))
+		return
+	for pet: Node in speakers:
+		GameChat.chain_say(pet, text, seconds, simultaneous)
+
+
+## 每位桌寵說自己的內容(例如擲出的點數、自己贏/輸了這局):有計分板就寫一行「[名字] 內容」,沒有就照舊開
+## 對話氣泡。
+static func _broadcast_each(pet: Node, text: String, seconds: float, scoreboard: GroupScoreboard) -> void:
+	if scoreboard != null:
+		scoreboard.add_line(pet.get_label(), _plain(text))
+		return
+	GameChat.chain_say(pet, text, seconds)
+
+
 ## 單人擲骰:懸念(桌寵抖一下)→ 擲 → 存結果 → (show)氣泡顯示。回傳結果字典;等待中被打斷回空字典。
 static func roll_and_show(pet: Node, sides: int, count: int, modifier: int, dc: int, key: String, show := true, suspense := SUSPENSE) -> Dictionary:
 	if not is_instance_valid(pet):
@@ -80,7 +123,7 @@ static func roll_and_show(pet: Node, sides: int, count: int, modifier: int, dc: 
 
 ## 一「局」拚骰:每個人依序擲骰,點數最大的贏;並列第一名時 tie_mode = "reroll" 只讓並列的重擲(最多 MAX_TIE_ROUNDS 輪),
 ## "draw" 直接算平手。回傳 {totals: {桌寵 → 點數}, winners: [桌寵…]};被打斷回空字典。
-static func _play_round(initiator: Node, everyone: Array, sides: int, count: int, modifier: int, tie_mode: String, key: String, generations: Dictionary) -> Dictionary:
+static func _play_round(initiator: Node, everyone: Array, sides: int, count: int, modifier: int, tie_mode: String, key: String, generations: Dictionary, scoreboard: GroupScoreboard = null) -> Dictionary:
 	var totals := {}
 	var contenders: Array = everyone.duplicate()
 	var winners: Array = contenders
@@ -95,7 +138,7 @@ static func _play_round(initiator: Node, everyone: Array, sides: int, count: int
 			var result := roll(sides, count, modifier)
 			_store(pet, key, result, 0)
 			totals[pet] = int(result["total"])
-			GameChat.chain_say(pet, describe(result, 0), 3.0)
+			_broadcast_each(pet, describe(result, 0), 3.0, scoreboard)
 			await _wait(initiator, 0.5)
 			if _cancelled(everyone, generations):
 				return {}
@@ -105,8 +148,7 @@ static func _play_round(initiator: Node, everyone: Array, sides: int, count: int
 		winners = contenders.filter(func(p: Node) -> bool: return int(totals[p]) == best)
 		if winners.size() == 1 or tie_mode == "draw" or tie_round >= MAX_TIE_ROUNDS:
 			break
-		for pet: Node in winners:
-			GameChat.chain_say(pet, "平手!再擲一次!", 1.6, true)
+		_broadcast_same(winners, "平手!再擲一次!", 1.6, true, scoreboard)
 		await _wait(initiator, 1.5)
 		if _cancelled(everyone, generations):
 			return {}
@@ -125,7 +167,7 @@ static func contest(initiator: Node, pets: Array, sides: int, count: int, modifi
 		if is_instance_valid(busy) and busy != initiator and busy.is_in_game():
 			GameChat.think_blocked(initiator, busy, TranslationServer.translate("拚骰"))
 			return {}
-	GameChat.enter(pets)
+	GameChat.enter(pets, "dice")
 	var result: Dictionary = await _contest(initiator, pets, sides, count, modifier, tie_mode, key, best_of)
 	GameChat.leave(pets)
 	return result
@@ -137,6 +179,8 @@ static func _contest(initiator: Node, pets: Array, sides: int, count: int, modif
 		GameChat.chain_say(initiator, "一個人沒辦法拚骰啦……", 2.5)
 		return {}
 	var everyone: Array = contenders.duplicate()
+	# 三人以上才用計分板(2 人對戰維持原本的氣泡演出,完全不受影響)。
+	var scoreboard: GroupScoreboard = _open_scoreboard(initiator, TranslationServer.translate("拚骰計分板")) if everyone.size() > 2 else null
 	var generations := {}
 	var wins := {}
 	for pet: Node in everyone:
@@ -149,13 +193,14 @@ static func _contest(initiator: Node, pets: Array, sides: int, count: int, modif
 	while true:
 		rounds += 1
 		if best_of > 1:
-			for pet: Node in everyone:
-				GameChat.chain_say(pet, TranslationServer.translate("第 %d 局!") % rounds, 1.2, true)
+			_broadcast_same(everyone, TranslationServer.translate("第 %d 局!") % rounds, 1.2, true, scoreboard)
 			await _wait(initiator, 1.0)
 			if _cancelled(everyone, generations):
+				_close_scoreboard(scoreboard)
 				return {}
-		var round_result := await _play_round(initiator, everyone, sides, count, modifier, tie_mode, key, generations)
+		var round_result := await _play_round(initiator, everyone, sides, count, modifier, tie_mode, key, generations, scoreboard)
 		if round_result.is_empty():
+			_close_scoreboard(scoreboard)
 			return {}
 		totals = round_result["totals"]
 		winners = round_result["winners"]
@@ -168,9 +213,10 @@ static func _contest(initiator: Node, pets: Array, sides: int, count: int, modif
 			top = maxi(top, int(wins[pet]))
 		for pet: Node in everyone:
 			var line := TranslationServer.translate("[b]贏了這局![/b]") if winners.size() == 1 and winners[0] == pet else (TranslationServer.translate("這局平手") if winners.has(pet) and winners.size() > 1 else TranslationServer.translate("輸了這局……"))
-			GameChat.chain_say(pet, TranslationServer.translate("%s\n(已贏 %d 局)") % [line, wins[pet]], 1.6)
+			_broadcast_each(pet, TranslationServer.translate("%s\n(已贏 %d 局)") % [line, wins[pet]], 1.6, scoreboard)
 		await _wait(initiator, 1.5)
 		if _cancelled(everyone, generations):
+			_close_scoreboard(scoreboard)
 			return {}
 		# 有人拿滿局數就結束;平手局不算分,所以總局數多給幾局,超過就用目前勝局判定。
 		if top >= need or rounds >= best_of + MAX_TIE_ROUNDS:
@@ -217,7 +263,9 @@ static func _contest(initiator: Node, pets: Array, sides: int, count: int, modif
 		pet.game_vars["contest:rounds"] = str(rounds)
 	await _wait(initiator, 0.8)
 	if _cancelled(everyone, generations):
+		_close_scoreboard(scoreboard)
 		return {}
+	_close_scoreboard(scoreboard)
 	for pet: Node in everyone:
 		GameChat.react(pet, "dice_contest", outcomes[pet])
 	return {"outcomes": outcomes, "totals": totals, "wins": wins, "rounds": rounds}

@@ -140,12 +140,18 @@ func invite(item: PropItem) -> bool:
 
 
 ## 別隻桌寵邀請一起玩(只發生在桌寵與桌寵之間):有興趣就加入(說「加入」),否則婉拒(說「不參與」)。回傳有沒有加入。
+## 「遊戲與對戰」設定卡片的「一律接受/一律拒絕」(game_force_accept/game_force_decline,鍵 "ball")優先於
+## 下面原本依 ball_play_chance 算的機率,跟 Pet.game_refusal() 的 kind 覆寫同一套道理。
 func receive_invite(item: PropItem) -> bool:
 	if state != "" or _pet.is_sleeping() or _pet.entering or not _wants(item):
 		return false
+	if bool(_pet.game_force_decline.get("ball", false)):
+		_say(&"ball_decline", true)
+		_decline_protect_left = DECLINE_PROTECT
+		return false
 	if _pet.vitality != null:
 		_pet.vitality.note_invited()
-	if interested() and randf() < 0.35 + minf(_pet.ball_play_chance * 3.0, 0.6):
+	if bool(_pet.game_force_accept.get("ball", false)) or (interested() and randf() < 0.35 + minf(_pet.ball_play_chance * 3.0, 0.6)):
 		_begin(item)
 		_say(&"ball_join", true)
 		return true
@@ -155,7 +161,10 @@ func receive_invite(item: PropItem) -> bool:
 
 
 ## 自己發現球起玩之後,邀請場上其他桌寵(隔 1.5 秒讓對方回應,不會兩個氣泡同時冒出來)。
+## 「遊戲與對戰」設定卡片的「自動邀請」(game_auto_invite,鍵 "ball")關掉時完全不邀請別人。
 func _invite_others(item: PropItem) -> void:
+	if not _pet.game_auto_invite_enabled("ball"):
+		return
 	if _invite_left > 0.0 or Time.get_ticks_msec() - _last_group_invite_msec < int(GROUP_INVITE_COOLDOWN * 1000.0):
 		return
 	var others: Array = []

@@ -122,6 +122,8 @@ func _ready() -> void:
 	_top_layer.name = "TopLayer"
 	_top_layer.layer = 11
 	add_child(_top_layer)
+	## 小遊戲棋盤/記分板/塔羅選牌視窗這類「程式畫的可拖曳面板」(2026-10-04 使用者要求也要蓋在對話氣泡之上)
+	## 共用這一層,見 top_layer()。
 	prop_manager = PropManager.new()
 	prop_manager.name = "PropManager"
 	add_child(prop_manager)
@@ -510,11 +512,18 @@ func _spawn_pack(folder: String, from_roster := false, roster_entry := {}) -> No
 		push_warning(message)
 		PetErrorLog.write("素材包", message + (";開機自動召喚時略過此角色" if from_roster else ""))
 		return null
+	if not from_roster:
+		_warn_about_pack_limits(result)   # 開機自動召喚既有桌寵不跳,避免每次開機都被已知的舊問題煩
 	var meta: Dictionary = result["meta"]
 	var pet := _spawn_sample_pet(str(meta["tag"]), str(meta["name"]), result, roster_entry if not roster_entry.is_empty() else {"kind": "pack", "path": folder})
 	if pet != null and not from_roster:
 		_remember_pack(folder)
 	return pet
+
+
+## 素材包「成功載入,但有些內容沒進去」的提示(跟 result["ok"]==false 的載入失敗是兩回事)。
+func _warn_about_pack_limits(result: Dictionary) -> void:
+	ManagerUi.show_pack_limit_warnings(self, get_window(), result)
 
 
 func _on_add_pack() -> void:
@@ -553,6 +562,7 @@ func _open_character_settings(folder: String) -> void:
 	if not bool(result["ok"]):
 		PetErrorLog.write("角色庫", tr("素材包載入失敗:%s(資料夾:%s)") % [result["report"][0], folder])
 		return
+	_warn_about_pack_limits(result)
 	var meta: Dictionary = result["meta"]
 	var ghost := _spawn_sample_pet(str(meta["tag"]), str(meta["name"]), result, {"kind": "pack", "path": folder}, true)
 	if ghost == null:
@@ -601,6 +611,8 @@ func reload_pack_pets(folder: String) -> int:
 		if not (entry is Dictionary and str(entry.get("kind", "")) == "pack" and str(entry.get("path", "")).replace("\\", "/").trim_suffix("/") == normalized):
 			continue
 		if pack.is_empty():
+			# 「素材太多太大」的提示已經在 PackEditorWindow._warn_about_limits_after_save() 存檔當下
+			# 檢查過一次(不管桌面上有沒有放著桌寵都會跳),這裡不重複跳,避免同一次存檔跳兩次一樣的視窗。
 			pack = SpritePackLoader.load_pack(normalized)   # 載入一次,每隻各自用(SpriteFrames 資源可共用)
 		if not bool(pack.get("ok", false)):
 			PetErrorLog.write("精靈圖編輯器", tr("存檔後重新載入素材包失敗:%s") % ", ".join(PackedStringArray(pack.get("report", []))))
@@ -957,7 +969,9 @@ func _open_container_contents(item: FurnitureItem) -> void:
 	if not is_instance_valid(item):
 		return
 	var existing: Variant = _container_windows.get(item)
-	if existing is ContainerContentsWindow and is_instance_valid(existing):
+	# is_instance_valid() 一定要先檢查:`is` 運算子碰到已釋放的 Object 會直接噴執行期錯誤,不是安全失敗
+	# (跟 manager_ui.gd 的事件管理視窗同一個坑,見那邊的詳細說明)。
+	if is_instance_valid(existing) and existing is ContainerContentsWindow:
 		existing.bring_to_front()
 		return
 	var window := ContainerContentsWindow.new()
@@ -1009,7 +1023,13 @@ func _on_import_logic(pet: Node) -> void:
 						# load_file() 的 clear() 會把性格對話池/反應層、交互行為規則層一起清掉,這裡補回去(見 memory_tab.gd 同樣的補法)。
 						PersonalityApplier.rebuild_layer(pet)
 						pet.set_interaction_rules(pet.interaction_rules)
+						# 雙重重複第 1 類(見 LogicInterpreter.dedupe_top_blocks()),跟 memory_tab.gd 的
+						# import_logic_from() 同一套做法:等性格/規則層補完才能比對,dedupe 真的刪掉東西時要
+						# 把 PetRoster.store_logic() 剛存的原始檔覆蓋成去重後的版本,不然下次開機又長出重複。
+						var skipped: int = pet.logic.dedupe_top_blocks()
 						PetRoster.store_logic(pet.recognition_tag, paths[0], CharacterFiles.folder_of(pet))
+						if skipped > 0:
+							pet.logic.save_user_only_file(PetRoster.logic_path(pet.recognition_tag, CharacterFiles.folder_of(pet)))
 					_tray.refresh_pets())
 
 
@@ -1021,13 +1041,24 @@ func _on_tray_move_mode(pet: Node, mode: int) -> void:
 	pet.set_move_mode(mode)
 
 
-## 行動區重設:視窗重新貼合目前螢幕、行動區重設為預設大小並置中,並通知場上所有桌寵回到中央。
+## 懸浮球/家具/小遊戲棋盤與記分板/塔羅選牌視窗共用的「蓋在桌寵與對話氣泡之上」CanvasLayer(見 _ready()
+## 建立 _top_layer 那段的說明)。
+func top_layer() -> CanvasLayer:
+	return _top_layer
+
+
+## 行動區重設:視窗重新貼合目前螢幕、行動區重設為預設大小並置中,並通知場上所有桌寵回到中央;順便把可能
+## 意外跑到螢幕範圍外的小遊戲棋盤/記分板/塔羅選牌視窗撈回來(見 "screen_clamped_boards" 群組跟各自的
+## recall(),2026-10-04 使用者要求——這些面板平時可以拖出行動區,但不該拖出螢幕,萬一真的跑出去就靠這裡救回)。
 func _on_tray_recall() -> void:
 	_configure_window()
 	var decor := get_tree().root.get_node_or_null("DecorOverlay") as DecorOverlay
 	if decor != null and decor.usable:
 		decor.keep_behind_main()
 	action_area.recenter(Vector2(get_window().size) * 0.5)
+	for board: Node in get_tree().get_nodes_in_group("screen_clamped_boards"):
+		if board.has_method("recall"):
+			board.recall()
 	_shell_state.emergency_recall_requested.emit()
 
 

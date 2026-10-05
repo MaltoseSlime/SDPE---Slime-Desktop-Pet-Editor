@@ -112,6 +112,12 @@ func setup(target_pet: Node, line: Dictionary, show_in_world: bool = true) -> vo
 		var tail_fill: Color = colors["background"]
 		tail_fill.a = maxf(tail_fill.a, 0.9)
 		_tail.setup(tail_fill, colors["border"], float(maxi(_style.border_width, 1)), factor)
+		# ThoughtTail.setup() 把自己設成 top_level(位置要跟著桌寵頭頂走,不跟氣泡本體的座標系):top_level
+		# 節點不會繼承父節點的 modulate(渲染時直接接到畫布根層級,跟一般子節點的顏色疊加路徑不同),所以氣泡
+		# 本體在 show_in_world=false 時設的 modulate.a=0 對它沒有作用,要另外明著把它藏起來
+		# (2026-10-04 使用者回報:「對話集中」開著又沒勾「依舊顯示氣泡」時,尾巴還是獨自露在行動區裡)。
+		if not show_in_world:
+			_tail.visible = false
 
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", int(6 * factor))

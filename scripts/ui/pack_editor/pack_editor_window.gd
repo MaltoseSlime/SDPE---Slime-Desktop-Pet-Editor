@@ -3394,9 +3394,21 @@ func _save() -> void:
 		return
 	var error := _model.save()
 	_status.text = tr("已存檔:%s(舊檔備份為 pack.json.bak)。桌面上用這個素材包的桌寵會馬上換上新圖。") % _model.root.path_join("pack.json") if error == "" else tr("存檔失敗:%s") % error
-	if error == "" and _prop_def == null:
-		saved.emit(_model.root)
+	if error == "":
+		_warn_about_limits_after_save()
+		if _prop_def == null:
+			saved.emit(_model.root)
 	_refresh_frame_labels_only()
+
+
+## 存檔後立刻用 SpritePackLoader.load_pack() 真的載入一次,檢查「素材太多太大」(見
+## SpritePackLoader.limit_warning_dialogs())——跟 saved.emit() 觸發的桌面重新載入(desktop_shell.gd 的
+## reload_pack_pets())是兩條獨立路徑:這裡不管桌面上有沒有已經放著用這個素材包的桌寵都會檢查,不然
+## 「存檔當下還沒放上桌面」的素材包永遠不會被檢查到。角色/道具/家具都走這裡,不特判 _prop_def/_furniture_def。
+func _warn_about_limits_after_save() -> void:
+	var result := SpritePackLoader.load_pack(_model.root)
+	if bool(result.get("ok", false)):
+		ManagerUi.show_pack_limit_warnings(self, get_window(), result)
 
 
 func _on_play_toggled(on: bool) -> void:

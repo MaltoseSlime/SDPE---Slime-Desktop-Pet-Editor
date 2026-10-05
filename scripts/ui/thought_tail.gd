@@ -23,7 +23,8 @@ func setup(fill: Color, line: Color, line_width: float, factor: float) -> void:
 	_factor = factor
 	top_level = true
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	z_index = 1
+	# 2026-10-04 使用者要求:尾巴的圖層順序要跟一般說話氣泡一致——一般氣泡沒有特別設 z_index(純靠加入
+	# 場景樹的先後順序疊放),這裡之前寫死 z_index=1 讓尾巴永遠蓋在所有氣泡最上面,不一致,拿掉。
 
 
 ## 總高度(縮放後):三顆圓直徑加間距。排版時桌寵與泡泡之間要留這麼多空間。

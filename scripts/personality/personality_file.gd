@@ -195,6 +195,8 @@ static func _validate_chat(raw: Variant, report: Array[String]) -> Array:
 		result.append({
 			"tag": tag, "lens": str(item.get("lens", "")).strip_edges().left(40), "say": say, "seq": seq,
 			"chance": clampf(float(item["chance"]), 0.0, 100.0) if item.get("chance") is float or item.get("chance") is int else 100.0,
+			# 觸發率(跟同一個情境池裡其他閒聊事件競爭被抽中的權重,0~200,預設 100;不是獨立機率,見 LogicInterpreter._weighted_pick())。
+			"weight": clampf(float(item["weight"]), 0.0, 200.0) if item.get("weight") is float or item.get("weight") is int else 100.0,
 			"effects": _validate_effects(item),
 		})
 	return result
@@ -300,7 +302,7 @@ static func chat_hats(personality: Dictionary) -> Array:
 	var index := 0
 	for entry: Dictionary in personality["chat"]:
 		var label := _label(personality, "chat/%s" % entry["tag"], entry)
-		var hat := {"type": CHAT_HAT, "id": "pers:%s:chat:%d" % [id, index], "fields": {"TAG": entry["tag"], "LENS": entry["lens"], "NAME": label}}
+		var hat := {"type": CHAT_HAT, "id": "pers:%s:chat:%d" % [id, index], "fields": {"TAG": entry["tag"], "LENS": entry["lens"], "WEIGHT": entry.get("weight", 100.0), "NAME": label}}
 		hat["inputs"] = {"DO": {"block": _body("pers:%s:chat:%d" % [id, index], entry)}}
 		hats.append(hat)
 		index += 1
@@ -550,6 +552,8 @@ static func _store_lines(item: Dictionary, entry: Dictionary) -> void:
 		item["say"] = say[0] if say.size() == 1 else say.duplicate()
 	if float(entry.get("chance", 100.0)) < 100.0:
 		item["chance"] = entry["chance"]
+	if float(entry.get("weight", 100.0)) != 100.0:
+		item["weight"] = entry["weight"]
 	var effects: Dictionary = entry.get("effects", {})
 	for key: String in ["action", "hop", "shiver"]:
 		if effects.has(key):

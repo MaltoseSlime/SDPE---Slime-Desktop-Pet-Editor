@@ -155,6 +155,9 @@ var run_enabled := false
 ## 局部數值與 Flag(邏輯直譯器讀寫);全域數值在 DesktopShellState。存檔系統完成前不持久化。
 var local_values: Dictionary = {}
 var flags: Dictionary = {}
+## 2026-10-04 新增:「暫時隱形」(見積木 action_invisible)期間為 true——只讀旗標,改用 set_invisible() 設定,
+## 不持久化(執行期狀態,重開桌寵一律回 false)。
+var invisible := false
 ## 邏輯直譯器(執行匯入的積木檔)。
 var logic: Node
 ## 精力與情緒(疲勞、休息、睡覺、生氣、開心),預設全關;由性格調整,見 PetVitality。
@@ -232,6 +235,10 @@ var _fly_wait_left := 0.0
 var _fly_rest_left := 0.0
 var _fly_launch_left := 0.0
 var _rise_anim_left := 0.0
+## 飛行降落瞬間(FlyState.LANDING→RESTING)之後,播一次性 land 動作(ONE_SHOT)的持續時間;
+## 給「從高處落下」的動畫演出用,見 _trigger_land()/_fly_landing()/_fly_resting()。
+const LAND_HOLD_SECONDS := 0.6
+var _land_left := 0.0
 var _follow_tag := ""
 var _follow_started := 0
 var _follow_jump_cooldown := 0.0
@@ -251,6 +258,10 @@ var attractable := true
 var _attract_goal: Variant = null
 var _attract_left := 0.0
 var _seek_away := false
+## 好惡判定框接觸(2026-10-05):進入接觸瞬間觸發一次心情增減/移動反應,討厭的對象觸發「遠離」時用,
+## 跟 _seek_away 的滑鼠迴避是同一種「朝反方向跑開」做法,只是對象換成另一隻桌寵、時間長度依好惡等級算。
+var _avoid_pet_tag := ""
+var _avoid_pet_left := 0.0
 ## 正在使用的家具(坐/躺,見 use_furniture());走過去的路上 _furniture_target 不為 null 但 _furniture_seated 是 false,
 ## 走到定位後 _furniture_seated 變 true、原地播 sit/lay,用 hold_still_for 持續佔住不讓自主閒晃/跳舞蓋掉(見 _tick_furniture_seek)。
 var _furniture_target: FurnitureItem = null
@@ -274,6 +285,10 @@ var _state_timer := 0.0
 var _walk_dir := 1
 var _fly_time := 0.0
 var _edge_committed := false
+## 走路走到平臺邊緣,決定「不轉身、不跳上去,就這樣走下去」那一刻設為 true(見 _consider_edge_and_hop()),
+## 讓接下來整段墜落播 downward(不是一般的 fall);落地那一刻清掉(_process_ground()/_process_ground_seek()
+## 的「在地上」分支開頭),不是一次性動作,是跟 rise/fall 同等級、整段墜落期間持續生效的狀態。
+var _fell_off_edge := false
 var _jump_target_x := NAN
 var _edge_probe: RayCast2D
 var _platform_manager: Node
@@ -481,7 +496,29 @@ func uptime_hours() -> float:
 ## 疲勞消耗倍率:在場越久越累,最多加快 UPTIME_CAP_HOURS × UPTIME_FATIGUE_PER_HOUR(= 32%)。
 func uptime_factor() -> float:
 	return 1.0 + minf(uptime_hours(), UPTIME_CAP_HOURS) * UPTIME_FATIGUE_PER_HOUR
-const GAME_KIND_NAMES := {"rps": "猜拳", "dice": "拚骰", "ttt": "井字棋"}
+const GAME_KIND_NAMES := {"rps": "猜拳", "dice": "拚骰", "ttt": "井字棋", "blockade": "步步為營", "mastermind": "珠璣妙算"}
+## AI 強度(井字棋/步步為營/珠璣妙算各自一個,1~4,右鍵選單「AI 強度」子選單或「遊戲與對戰」設定卡片都能調):
+## 數字愈小愈容易犯錯/隨便選,愈大愈接近「一定選目前看起來最好的那個」。三個遊戲共用同一套等級換算
+## (`GameAiLevel.mistake_chance`),不是各自設計一套;預設值見 `GameAiLevel.DEFAULT_LEVEL` 的說明。
+var ttt_ai_level := GameAiLevel.DEFAULT_LEVEL
+var blockade_ai_level := GameAiLevel.DEFAULT_LEVEL
+var mastermind_ai_level := GameAiLevel.DEFAULT_LEVEL
+## 珠璣妙算的題型(密碼長度,3 或 4 格;右鍵選單「題型」可調):跟其他遊戲的賽制一樣,由發起的那隻桌寵
+## 自己的設定決定(見 MastermindGame.play_user/play_pets/play_all)。
+var mastermind_code_length := MastermindGame.DEFAULT_CODE_LENGTH
+## 「遊戲與對戰」設定卡片用:各遊戲(含玩球)各自的「自動邀請」開關跟「一律接受/一律拒絕」覆寫。鍵是
+## `GAME_PREF_KINDS` 其中一個;沒登記過的鍵視為預設值(auto_invite 預設 true、force_accept/force_decline
+## 預設 false = 維持原本機率/邏輯決定),舊存檔沒有這些欄位完全相容,不用遷移。
+const GAME_PREF_KINDS: Array[String] = ["rps", "dice", "ttt", "blockade", "mastermind", "ball"]
+var game_auto_invite: Dictionary = {}
+var game_force_accept: Dictionary = {}
+var game_force_decline: Dictionary = {}
+
+
+## 閒置時自己發起小遊戲(`GameInvite.start_random`)要不要考慮這個種類;跟上面 `auto_game_enabled`
+## 這個總開關不一樣,那個是「要不要自己發起任何對戰」,這個是「哪幾種可以被選中」。
+func game_auto_invite_enabled(kind: String) -> bool:
+	return bool(game_auto_invite.get(kind, true))
 
 
 ## 記一筆戰績(GameChat.react 在每場結束時呼叫)。kind = rps / dice,outcome = win / lose / tie。
@@ -527,7 +564,7 @@ func game_stat_text(kind: String, field: String) -> String:
 
 
 func show_game_record() -> void:
-	GameChat.say(self, tr("[b]我的戰績[/b]\n%s\n%s\n%s") % [game_record_line("rps"), game_record_line("dice"), game_record_line("ttt")], 6.0)
+	GameChat.say(self, tr("[b]我的戰績[/b]\n%s\n%s\n%s\n%s\n%s") % [game_record_line("rps"), game_record_line("dice"), game_record_line("ttt"), game_record_line("blockade"), game_record_line("mastermind")], 6.0)
 
 
 func clear_game_record() -> void:
@@ -638,6 +675,11 @@ func _ask_user_game() -> void:
 ## 現在正忙著嗎(被邀請時不想理人的狀況):被拖曳、入場、跳舞、被互動、動作被佔用、交談/對話中、爬牆。
 ## 正在進行對戰的場數(見 GameChat.enter / leave);> 0 就是「對戰中」,別人的邀請與使用者的遊戲要求都進不來。
 var game_depth := 0
+## 正在玩的遊戲種類(dice/rps/ttt/blockade/mastermind,跟 InteractionTab.GAME_KIND_ORDER 同一套鍵名),
+## GameChat.enter(pets, kind) 設定、game_depth 歸零時清空。玩球不走這裡(見 PetBallPlay.state),積木
+## event_when_pet_state/cond_pet_state 的 KIND="game" 條件用這個查「現在玩哪一種」,見
+## LogicInterpreter._pet_matches_state()。
+var game_kind := ""
 
 
 func is_in_game() -> bool:
@@ -649,11 +691,23 @@ func is_busy_for_game() -> bool:
 			or _dialogue_open or _speaking or _climb != ClimbState.NONE
 
 
-## 被邀請玩遊戲時的反應 {chance = 拒絕機率, reason = sleep / busy / mood / plain}:
+## 被邀請玩遊戲時的反應 {chance = 拒絕機率, reason = sleep / busy / mood / plain}。kind 給了(rps / dice /
+## ttt / blockade / mastermind / ball)就先看「遊戲與對戰」設定卡片的per-game 覆寫(`game_force_decline`/
+## `game_force_accept`);沒給 kind(舊呼叫點、或不分遊戲種類的情境)就跳過這段,只看下面原本的邏輯。
+## 睡覺/隱形一律必定拒絕,覆寫也救不回來(不该在睡覺中或隱形時被硬拉去玩)。
 ## 睡覺必定拒絕(1.0);正忙、處於負面狀態(狀態鏡有「負面」性質:生氣、疲勞、悲傷…)機率更高,兩者疊加。
-func game_refusal() -> Dictionary:
+## inviter 給了的話(2026-10-04 使用者要求):依對這隻邀請者的好惡(pet_affinity)微調拒絕機率,每一級
+## ±12%,廣播式邀請(跟場上所有桌寵)的被邀請者端一樣受這個影響,只是「要不要主動挑誰邀請」那一步
+## (GameInvite.start_random)不受廣播邀請影響,因為廣播邀請本來就沒有「挑誰」這個步驟。
+func game_refusal(kind: String = "", inviter: Node = null) -> Dictionary:
 	if is_sleeping():
 		return {"chance": 1.0, "reason": "sleep"}
+	if invisible:
+		return {"chance": 1.0, "reason": "declined"}   # 隱形期間自動拒絕(跟「一律拒絕」同一套回應)
+	if kind != "" and bool(game_force_decline.get(kind, false)):
+		return {"chance": 1.0, "reason": "declined"}
+	if kind != "" and bool(game_force_accept.get(kind, false)):
+		return {"chance": 0.0, "reason": "plain"}
 	if game_always_refuse:
 		return {"chance": 1.0, "reason": "declined"}
 	if lens_blocks("game"):
@@ -672,6 +726,8 @@ func game_refusal() -> Dictionary:
 		chance += lens_refuse
 		reason = "mood"
 	chance -= lens_add("game_accept")   # 開心、悠哉:更樂意接受邀請
+	if inviter != null:
+		chance -= float(pet_affinity(inviter)) * 0.12   # 對邀請者的好惡:喜歡降低拒絕機率、討厭提高
 	return {"chance": clampf(chance, 0.0, 0.95), "reason": reason}
 
 
@@ -701,6 +757,26 @@ func start_ttt_with(other: Node, best_of := 0) -> void:
 	await TttGame.play_pets(self, other, best_of if BEST_OF_CHOICES.has(best_of) else game_best_of)
 
 
+func start_blockade_with_user() -> void:
+	BlockadeGame.play_user(self, game_best_of)
+
+
+func start_blockade_with(other: Node, best_of := 0) -> void:
+	await BlockadeGame.play_pets(self, other, best_of if BEST_OF_CHOICES.has(best_of) else game_best_of)
+
+
+func start_mastermind_with_user() -> void:
+	MastermindGame.play_user(self)
+
+
+func start_mastermind_with(other: Node) -> void:
+	await MastermindGame.play_pets(self, other)
+
+
+func start_mastermind_all() -> void:
+	MastermindGame.play_all(self)
+
+
 ## 桌寵自己發起對戰時自己決定的賽制(不看右鍵選單的「賽制」,那是使用者叫的遊戲用的);依權重隨機,權重可以調(之後性格預設會改它)。
 var invite_best_of_weights := {1: 0.5, 3: 0.35, 5: 0.15}
 
@@ -726,7 +802,11 @@ func _pet_by_serial(serial: int) -> Node:
 
 
 ## 右鍵選單的「擲骰判定」與「猜拳」子選單。設定(骰面/檢定值/加值)用單選項目,不開任何視窗。
+## 2026-10-03 使用者要求把拚骰/猜拳/井字棋(未來還有步步為營、珠璣妙算)收進一個共用的「對戰與遊戲」子選單,
+## 縮短根選單長度;各遊戲自己的子選單結構不變,只是掛的父選單從 root 換成這裡新建的 battle_menu。
 func _add_game_menus(root: RID) -> void:
+	var battle_menu := NativeMenu.create_menu()
+	_context_rids.append(battle_menu)
 	var others: Array = get_tree().get_nodes_in_group("pets").filter(func(p: Node) -> bool: return p != self and not p.is_queued_for_deletion())
 	var threshold := DiceGame.threshold(dice_sides, 1, dice_dc_percent)
 	var dice_menu := NativeMenu.create_menu()
@@ -759,7 +839,7 @@ func _add_game_menus(root: RID) -> void:
 		NativeMenu.set_item_checked(mod_menu, NativeMenu.add_radio_check_item(mod_menu, ("%+d" % modifier) if modifier != 0 else "0", _on_context_item, Callable(), "dice_mod:%d" % modifier), modifier == dice_mod)
 	NativeMenu.add_submenu_item(dice_menu, tr("加值"), mod_menu)
 	_add_match_items(dice_menu)
-	NativeMenu.add_submenu_item(root, tr("擲骰判定"), dice_menu)
+	NativeMenu.add_submenu_item(battle_menu, tr("擲骰判定"), dice_menu)
 	var rps_menu := NativeMenu.create_menu()
 	_context_rids.append(rps_menu)
 	NativeMenu.add_item(rps_menu, tr("跟我猜拳"), _on_context_item, Callable(), "rps_user")
@@ -773,7 +853,7 @@ func _add_game_menus(root: RID) -> void:
 			NativeMenu.add_item(rps_pets_menu, other.get_label(), _on_context_item, Callable(), "rps_pet:%d" % other.spawn_serial)
 	NativeMenu.add_submenu_item(rps_menu, tr("跟其他桌寵猜拳"), rps_pets_menu)
 	_add_match_items(rps_menu)
-	NativeMenu.add_submenu_item(root, tr("猜拳"), rps_menu)
+	NativeMenu.add_submenu_item(battle_menu, tr("猜拳"), rps_menu)
 	var ttt_menu := NativeMenu.create_menu()
 	_context_rids.append(ttt_menu)
 	NativeMenu.add_item(ttt_menu, tr("跟我玩井字棋"), _on_context_item, Callable(), "ttt_user")
@@ -785,8 +865,56 @@ func _add_game_menus(root: RID) -> void:
 		for other: Node in others:
 			NativeMenu.add_item(ttt_pets_menu, other.get_label(), _on_context_item, Callable(), "ttt_pet:%d" % other.spawn_serial)
 	NativeMenu.add_submenu_item(ttt_menu, tr("跟其他桌寵井字棋"), ttt_pets_menu)
+	_add_ai_level_menu(ttt_menu, "ai_level_ttt", ttt_ai_level)
 	_add_match_items(ttt_menu)
-	NativeMenu.add_submenu_item(root, tr("井字棋"), ttt_menu)
+	NativeMenu.add_submenu_item(battle_menu, tr("井字棋"), ttt_menu)
+	var blockade_menu := NativeMenu.create_menu()
+	_context_rids.append(blockade_menu)
+	NativeMenu.add_item(blockade_menu, tr("跟我玩步步為營"), _on_context_item, Callable(), "blockade_user")
+	var blockade_pets_menu := NativeMenu.create_menu()
+	_context_rids.append(blockade_pets_menu)
+	if others.is_empty():
+		NativeMenu.set_item_disabled(blockade_pets_menu, NativeMenu.add_item(blockade_pets_menu, tr("(場上沒有其他桌寵)")), true)
+	else:
+		for other: Node in others:
+			NativeMenu.add_item(blockade_pets_menu, other.get_label(), _on_context_item, Callable(), "blockade_pet:%d" % other.spawn_serial)
+	NativeMenu.add_submenu_item(blockade_menu, tr("跟其他桌寵步步為營"), blockade_pets_menu)
+	_add_ai_level_menu(blockade_menu, "ai_level_blockade", blockade_ai_level)
+	_add_match_items(blockade_menu)
+	NativeMenu.add_submenu_item(battle_menu, tr("步步為營"), blockade_menu)
+	var mastermind_menu := NativeMenu.create_menu()
+	_context_rids.append(mastermind_menu)
+	NativeMenu.add_item(mastermind_menu, tr("跟我猜珠璣妙算"), _on_context_item, Callable(), "mastermind_user")
+	var mastermind_pets_menu := NativeMenu.create_menu()
+	_context_rids.append(mastermind_pets_menu)
+	NativeMenu.add_item(mastermind_pets_menu, tr("與場上所有桌寵猜珠璣妙算"), _on_context_item, Callable(), "mastermind_all")
+	if others.is_empty():
+		NativeMenu.set_item_disabled(mastermind_pets_menu, NativeMenu.add_item(mastermind_pets_menu, tr("(場上沒有其他桌寵)")), true)
+	else:
+		for other: Node in others:
+			NativeMenu.add_item(mastermind_pets_menu, other.get_label(), _on_context_item, Callable(), "mastermind_pet:%d" % other.spawn_serial)
+	NativeMenu.add_submenu_item(mastermind_menu, tr("跟其他桌寵猜珠璣妙算"), mastermind_pets_menu)
+	var code_length_menu := NativeMenu.create_menu()
+	_context_rids.append(code_length_menu)
+	var code_length_names := {3: "三個密碼", 4: "四個密碼"}
+	for length: int in MastermindGame.CODE_LENGTH_CHOICES:
+		NativeMenu.set_item_checked(code_length_menu, NativeMenu.add_radio_check_item(code_length_menu, tr(str(code_length_names[length])), _on_context_item, Callable(), "mastermind_code_length:%d" % length), length == mastermind_code_length)
+	NativeMenu.add_submenu_item(mastermind_menu, tr("題型"), code_length_menu)
+	_add_ai_level_menu(mastermind_menu, "ai_level_mastermind", mastermind_ai_level)
+	NativeMenu.add_item(mastermind_menu, tr("查看戰績"), _on_context_item, Callable(), "game_record")
+	NativeMenu.add_item(mastermind_menu, tr("清除戰績"), _on_context_item, Callable(), "game_record_clear")
+	NativeMenu.add_submenu_item(battle_menu, tr("珠璣妙算"), mastermind_menu)
+	NativeMenu.add_submenu_item(root, tr("對戰與遊戲"), battle_menu)
+
+
+## 井字棋/步步為營/珠璣妙算各自選單用:「AI 強度」子選單(見 GameAiLevel)。prefix 配合 _on_game_menu_item
+## 的 "ai_level_ttt:%d" / "ai_level_blockade:%d" / "ai_level_mastermind:%d" 這三個鍵。
+func _add_ai_level_menu(menu: RID, prefix: String, level: int) -> void:
+	var level_menu := NativeMenu.create_menu()
+	_context_rids.append(level_menu)
+	for lv: int in GameAiLevel.CHOICES:
+		NativeMenu.set_item_checked(level_menu, NativeMenu.add_radio_check_item(level_menu, tr(str(GameAiLevel.NAMES[lv])), _on_context_item, Callable(), "%s:%d" % [prefix, lv]), lv == level)
+	NativeMenu.add_submenu_item(menu, tr("AI 強度"), level_menu)
 
 
 ## 遊戲選單共用的尾巴:賽制(一戰/三戰兩勝/五戰三勝,猜拳與拚骰共用)、查看戰績、清除戰績。
@@ -859,6 +987,36 @@ func _on_game_menu_item(text: String) -> bool:
 			var ttt_rival := _pet_by_serial(int(argument))
 			if ttt_rival != null and not is_in_game() and not TttGame.has_active_board():
 				GameInvite.invite(self, ttt_rival, "ttt")
+		"blockade_user":
+			if not is_in_game() and not BlockadeGame.has_active_board():
+				start_blockade_with_user()
+		"blockade_pet":
+			var blockade_rival := _pet_by_serial(int(argument))
+			if blockade_rival != null and not is_in_game() and not BlockadeGame.has_active_board():
+				GameInvite.invite(self, blockade_rival, "blockade")
+		"mastermind_user":
+			if not is_in_game():
+				start_mastermind_with_user()
+		"mastermind_all":
+			if not is_in_game():
+				start_mastermind_all()
+		"mastermind_pet":
+			var mastermind_rival := _pet_by_serial(int(argument))
+			if mastermind_rival != null and not is_in_game():
+				GameInvite.invite(self, mastermind_rival, "mastermind")
+		"ai_level_ttt":
+			ttt_ai_level = GameAiLevel.clamp_level(int(argument))
+			PetProfile.save_pet(self)
+		"ai_level_blockade":
+			blockade_ai_level = GameAiLevel.clamp_level(int(argument))
+			PetProfile.save_pet(self)
+		"ai_level_mastermind":
+			mastermind_ai_level = GameAiLevel.clamp_level(int(argument))
+			PetProfile.save_pet(self)
+		"mastermind_code_length":
+			var requested_length := int(argument)
+			mastermind_code_length = requested_length if MastermindGame.CODE_LENGTH_CHOICES.has(requested_length) else MastermindGame.DEFAULT_CODE_LENGTH
+			PetProfile.save_pet(self)
 		_:
 			return false
 	return true
@@ -1112,6 +1270,10 @@ var text_values: Dictionary = {}
 signal memory_reset
 ## 使用者在右鍵選單按「幫我決定」(抽籤);對話介面接手詢問選項並抽出結果。
 signal decide_requested
+## 使用者在右鍵選單「幫我占卜…」裡按「運勢籤」;對話介面接手詢問想問的事(可留空)並抽出結果。
+signal fortune_requested
+## 使用者在右鍵選單「幫我占卜…→塔羅牌」裡選了抽幾張;對話介面接手詢問想問的事(可留空)並抽牌顯示。
+signal tarot_requested(count: int)
 
 
 ## 洗白記憶:局部數值回到宣告的預設值、所有 Flag 與使用者輸入的文字清空。**不動**動作、對話氣泡、狀態鏡定義與介面設定;
@@ -2195,6 +2357,12 @@ func is_following() -> bool:
 	return _follow_tag != ""
 
 
+## 目前跟隨對象的辨識代號(沒在跟隨任何人回傳 "")。給 event_when_pets_follow/cond_pets_follow 用,
+## 不直接讀 _follow_tag(私有)。
+func follow_target_tag() -> String:
+	return _follow_tag
+
+
 ## 目前有沒有任何一隻桌寵正跟著自己走(領路人視角,給積木「當自己作為領路人時」用)。掃場上所有桌寵找
 ## 跟隨目標是自己的,不維護反向索引——路隊人數不多,現掃便宜,也不用煩惱跟隨關係變動時兩邊要同步更新。
 func is_followed() -> bool:
@@ -2263,6 +2431,10 @@ var pet_follow_chance := 0.0
 var pet_follow_duration := Vector2(60.0, 180.0)
 var _auto_pet_follow_left := -1.0
 const AUTO_PET_FOLLOW_CHECK := Vector2(20.0, 45.0)
+## 好惡每一級(見 pet_affinity)對主動跟隨機率的加成比例(2026-10-04 使用者要求「喜歡的機率要提高」)。
+const FOLLOW_AFFINITY_CHANCE_BONUS := 0.25
+## 好惡每一級對候選距離評分的加成(像素);讓喜歡的對象在「挑離自己最近的那隻」時更容易被選到。
+const FOLLOW_AFFINITY_DISTANCE_BONUS := 150.0
 ## 一條路隊(不管是自己選的還是積木/選單叫的)最長維持這麼久,到了自動解散,見 start_follow。
 const FOLLOW_MAX_SECONDS := 480.0
 ## 跟隨中連續這麼久、距離都超過這個範圍碰不到跟隨對象,就放棄這次跟隨。
@@ -2284,28 +2456,92 @@ func _tick_auto_pet_follow(delta: float) -> void:
 	if move_mode == MoveMode.FIXED or move_mode == MoveMode.STATIONARY or is_sleeping() or is_resting_now() \
 			or has_negative_lens() or is_busy_for_game() or dragging or entering or bool(interaction_rules.get("no_follow_source", false)):
 		return
-	if randf() >= pet_follow_chance:
-		return
 	var candidate := _nearest_followable_pet()
 	if candidate == null:
+		return
+	# 2026-10-04 使用者要求:對喜歡的對象提高主動跟隨機率(討厭的已經在 _nearest_followable_pet() 排除掉,
+	# 不會走到這裡)。
+	var chance := pet_follow_chance * (1.0 + float(pet_affinity(candidate)) * FOLLOW_AFFINITY_CHANCE_BONUS)
+	if randf() >= clampf(chance, 0.0, 1.0):
 		return
 	if start_follow(candidate.recognition_tag):
 		_follow_duration_cap = minf(randf_range(minf(pet_follow_duration.x, pet_follow_duration.y), maxf(pet_follow_duration.x, pet_follow_duration.y)), FOLLOW_MAX_SECONDS)
 
 
-## 場上離自己最近、可以跟隨的桌寵(排除自己、正在入場/被收起的、設了「不會被其他桌寵跟隨」的、跟了會形成循環的);找不到回 null。
+## 場上可以跟隨的桌寵裡,「距離 − 好惡加成」評分最低的那隻(排除自己、正在入場/被收起的、設了「不會被其他
+## 桌寵跟隨」的、討厭的對象——好惡等級 < 0 的桌寵完全不會被選到,不是機率降低,見 pet_affinity());找不到回 null。
+## 喜歡的對象(好惡等級 > 0)評分會被拉低,等同「看起來比實際距離更近」,更容易被選中。
 func _nearest_followable_pet() -> Node:
 	var best: Node = null
-	var best_distance := INF
+	var best_score := INF
 	for other: Node in get_tree().get_nodes_in_group("pets"):
 		if other == self or not is_instance_valid(other) or other.is_queued_for_deletion() or other.entering \
 				or bool(other.interaction_rules.get("no_follow_target", false)):
 			continue
-		var distance := global_position.distance_to(other.global_position)
-		if distance < best_distance:
-			best_distance = distance
+		var affinity := pet_affinity(other)
+		if affinity < 0:
+			continue
+		var score := global_position.distance_to(other.global_position) - float(affinity) * FOLLOW_AFFINITY_DISTANCE_BONUS
+		if score < best_score:
+			best_score = score
 			best = other
 	return best
+
+
+# --- 好惡判定框接觸(2026-10-05 使用者要求):兩隻桌寵的判定框(hitbox,見 interaction_rect())重疊時,
+# 依好惡等級觸發一次性的心情增減跟移動反應(喜歡的靠近、討厭的遠離),強弱隨等級幅度調整,不是只有
+# 到頂(±3)才有效果。進入接觸的那一刻觸發一次(邊緣觸發 + 冷卻),不會每影格持續疊加。 ---
+const PET_AFFINITY_CONTACT_COOLDOWN := 20.0
+## 每一級好惡觸發的心情變化基準(走 PetVitality.change_mood(),跟「被摸摸」「贏遊戲」等既有互動同一套
+## 好感度/狀態鏡倍率換算,不是直接加減)。
+const PET_AFFINITY_CONTACT_MOOD_PER_LEVEL := 1.5
+## 討厭的對象觸發「遠離」時,每一級好惡對應幾秒迴避時間,乘上等級絕對值後夾到上限。
+const PET_AFFINITY_AVOID_SECONDS_PER_LEVEL := 8.0
+const PET_AFFINITY_AVOID_SECONDS_MAX := 40.0
+## tag -> 上一次檢查是否重疊(邊緣觸發用) / 還剩多少秒冷卻,不能再觸發同一隻。
+var _pet_contact_touching: Dictionary = {}
+var _pet_contact_cooldown: Dictionary = {}
+
+
+## 依判定框重疊觸發好惡接觸反應,見上面的常數說明。跟 _nearest_followable_pet() 一樣掃場上所有桌寵,
+## 數量不多(桌面上的桌寵),現掃即可不用額外的空間索引。
+func _tick_pet_affinity_contact(delta: float) -> void:
+	for tag: String in _pet_contact_cooldown.keys():
+		_pet_contact_cooldown[tag] = maxf(_pet_contact_cooldown[tag] - delta, 0.0)
+	if entering or is_queued_for_deletion():
+		return
+	var my_rect := interaction_rect()
+	for other: Node in get_tree().get_nodes_in_group("pets"):
+		if other == self or not is_instance_valid(other) or other.is_queued_for_deletion() or other.entering:
+			continue
+		var tag: String = other.recognition_tag
+		var level := pet_affinity(other)
+		if level == 0:
+			_pet_contact_touching[tag] = false
+			continue
+		var touching: bool = my_rect.intersects(other.interaction_rect())
+		var was_touching: bool = _pet_contact_touching.get(tag, false)
+		_pet_contact_touching[tag] = touching
+		if touching and not was_touching and float(_pet_contact_cooldown.get(tag, 0.0)) <= 0.0:
+			_pet_contact_cooldown[tag] = PET_AFFINITY_CONTACT_COOLDOWN
+			_react_to_pet_contact(other, level)
+
+
+## 單次接觸反應:心情(照 change_mood 既有的好感度/狀態鏡倍率);喜歡就嘗試主動跟隨(跟
+## _tick_auto_pet_follow 一樣的可以動/沒在忙才會生效的判斷),討厭就觸發 _avoid_pet_tag 迴避一段時間。
+func _react_to_pet_contact(other: Node, level: int) -> void:
+	if vitality != null:
+		vitality.change_mood(float(level) * PET_AFFINITY_CONTACT_MOOD_PER_LEVEL)
+	var free_to_move := move_mode != MoveMode.FIXED and move_mode != MoveMode.STATIONARY and not is_sleeping() \
+			and not is_resting_now() and not is_busy_for_game() and not dragging and not entering
+	if not free_to_move:
+		return
+	if level > 0:
+		if not is_following() and not has_negative_lens():
+			start_follow(other.recognition_tag)
+	else:
+		_avoid_pet_tag = other.recognition_tag
+		_avoid_pet_left = minf(float(-level) * PET_AFFINITY_AVOID_SECONDS_PER_LEVEL, PET_AFFINITY_AVOID_SECONDS_MAX)
 
 
 ## 路隊的生命週期,對這次跟隨是自己選的還是積木/選單叫的都一體適用:到了時間上限、太久碰不到人、
@@ -2619,6 +2855,39 @@ var _liked_target: PropItem
 var _liked_scan_left := 0.0
 
 
+## 對另一隻桌寵的好惡等級(-3~3,0 = 普通/沒有這個功能時的行為),見 InteractionRules 第 9 點的說明。
+## other 是 null 或自己回 0。
+func pet_affinity(other: Node) -> int:
+	if other == null or not is_instance_valid(other) or other == self:
+		return 0
+	return InteractionRules.pet_pref_level(interaction_rules, str(other.recognition_tag))
+
+
+## 改變對某隻桌寵(或 InteractionRules.ALL_PETS_TARGET = 全部)的好惡等級;level 會夾到 -3~3,0 = 移除
+## 這一項(退回普通)。積木「改變對某桌寵的好惡」用這個,也是 InteractionTab 的「對其他桌寵的好惡」卡片
+## 背後呼叫的同一個函式(不是兩套邏輯)。display_name 空字串時,若 target 不是 ALL_PETS_TARGET,
+## 會嘗試從場上同 tag 的桌寵取名字;都取不到就直接用 target 本身當顯示名稱。
+func set_pet_affinity(target: String, level: int, display_name: String = "") -> void:
+	if target == "":
+		return
+	var rules: Dictionary = interaction_rules.duplicate(true)
+	var list: Array = rules.get("pet_prefs", [])
+	for i in range(list.size() - 1, -1, -1):
+		if str((list[i] as Dictionary).get("target", "")) == target:
+			list.remove_at(i)
+	level = clampi(level, InteractionRules.PET_PREF_LEVELS[0], InteractionRules.PET_PREF_LEVELS[-1])
+	if level != 0:
+		var name := display_name
+		if name == "" and target != InteractionRules.ALL_PETS_TARGET:
+			var other := _find_pet_by_tag(target, false)
+			name = other.get_label() if other != null else target
+		elif name == "":
+			name = target
+		list.append({"target": target, "name": name, "level": level})
+	rules["pet_prefs"] = list
+	set_interaction_rules(rules)
+
+
 ## 交互行為分頁「整體交互開關」的 ignore_props 蓋掉個別道具的喜好設定,對任何道具都當作「不與此道具交互」(ignore)。
 func prop_preference(def: PropDef) -> String:
 	if def == null:
@@ -2790,6 +3059,10 @@ func _movement_goal() -> Variant:
 		if _seek_away:
 			return position + (position - mouse).normalized() * 300.0
 		return mouse
+	if _avoid_pet_left > 0.0:
+		var avoided := _find_pet_by_tag(_avoid_pet_tag, false)
+		if avoided != null:
+			return position + (position - avoided.position).normalized() * 300.0
 	if _follow_tag == "" or move_mode == MoveMode.FIXED or move_mode == MoveMode.STATIONARY:
 		return _secondary_goal()
 	var target := _find_pet_by_tag(_follow_tag)
@@ -2851,31 +3124,13 @@ func _build_context_menu() -> RID:
 	NativeMenu.add_separator(root)
 	var status_index := NativeMenu.add_item(root, tr("查看狀態"), _on_context_item, Callable(), "status")
 	NativeMenu.set_item_disabled(root, status_index, status_requested.get_connections().is_empty())
-	NativeMenu.add_item(root, tr("幫我決定(抽籤)…"), _on_context_item, Callable(), "decide")
-	if pet_timer != null and pet_timer.active():
-		NativeMenu.add_item(root, tr("停止計時(%s)") % pet_timer.status_text(), _on_context_item, Callable(), "timer_stop")
-	else:
-		var timer_disabled := timer_input_requested.get_connections().is_empty()
-		NativeMenu.set_item_disabled(root, NativeMenu.add_item(root, tr("幫我設定計時器…"), _on_context_item, Callable(), "timer_countdown"), timer_disabled)
-		NativeMenu.set_item_disabled(root, NativeMenu.add_item(root, tr("幫我計時(碼表)…"), _on_context_item, Callable(), "timer_stopwatch"), timer_disabled)
-		var sound_menu := NativeMenu.create_menu()
-		_context_rids.append(sound_menu)
-		for sound_name in SoundManager.BUILTIN_SOUNDS:
-			NativeMenu.set_item_checked(sound_menu, NativeMenu.add_radio_check_item(sound_menu, sound_name, _on_context_item, Callable(), "timer_sound:" + sound_name), sound_name == timer_sound)
-		# 使用者在全局設定「音效」分頁匯入的提醒音效(AlarmSounds):不綁定特定桌寵,跟內建音效並列選擇。
-		if not AlarmSounds.list().is_empty():
-			NativeMenu.add_separator(sound_menu)
-			for file_name: String in AlarmSounds.list():
-				NativeMenu.set_item_checked(sound_menu, NativeMenu.add_radio_check_item(sound_menu, AlarmSounds.display_name(file_name), _on_context_item, Callable(), "timer_sound:" + file_name), file_name == timer_sound)
-		NativeMenu.add_submenu_item(root, tr("計時提醒音效"), sound_menu)
+	NativeMenu.add_item(root, tr("幫我決定…"), _on_context_item, Callable(), "decide")
+	_add_fortune_menu(root)
+	_add_timer_menu(root)
 	var say_index := NativeMenu.add_item(root, tr("說點什麼"), _on_context_item, Callable(), "say")
 	NativeMenu.set_item_disabled(root, say_index, logic == null or not logic.has_chat_lines())
 	var repeat_index := NativeMenu.add_item(root, tr("重複前一句"), _on_context_item, Callable(), "repeat")
 	NativeMenu.set_item_disabled(root, repeat_index, repeat_last_requested.get_connections().is_empty())
-	# 2026-10-02 起氣泡固定/解除固定隨時都能用(不再需要先把「對話集中」切成某個特定模式才看得到這一項)。
-	var pin_index := NativeMenu.add_check_item(root, tr("固定氣泡位置"), _on_context_item, Callable(), "bubble_pin")
-	NativeMenu.set_item_checked(root, pin_index, bubble_pinned)
-	NativeMenu.set_item_disabled(root, pin_index, not bubble_pinned and not has_open_bubble)
 	var manage_index := NativeMenu.add_item(root, tr("桌寵管理…"), _on_context_item, Callable(), "manage")
 	NativeMenu.set_item_disabled(root, manage_index, manage_requested.get_connections().is_empty())
 	if can_follow_mouse():
@@ -2893,6 +3148,11 @@ func _build_context_menu() -> RID:
 	_add_accessory_menu(root)
 	_add_game_menus(root)
 	NativeMenu.add_separator(root)
+	# 2026-10-02 起氣泡固定/解除固定隨時都能用(不再需要先把「對話集中」切成某個特定模式才看得到這一項);
+	# 2026-10-03 使用者要求挪到選單最底部、移動模式之上,縮短選單前半段。
+	var pin_index := NativeMenu.add_check_item(root, tr("固定氣泡位置"), _on_context_item, Callable(), "bubble_pin")
+	NativeMenu.set_item_checked(root, pin_index, bubble_pinned)
+	NativeMenu.set_item_disabled(root, pin_index, not bubble_pinned and not has_open_bubble)
 	var modes := NativeMenu.create_menu()
 	_context_rids.append(modes)
 	for mode in MODE_LABELS.size():
@@ -2900,6 +3160,43 @@ func _build_context_menu() -> RID:
 		NativeMenu.set_item_checked(modes, index, mode == move_mode)
 	NativeMenu.add_submenu_item(root, tr("移動模式"), modes)
 	return root
+
+
+## 「幫我占卜…」子選單(2026-10-03 新增運勢籤,2026-10-04 新增塔羅牌)。
+func _add_fortune_menu(root: RID) -> void:
+	var menu := NativeMenu.create_menu()
+	_context_rids.append(menu)
+	var tarot_menu := NativeMenu.create_menu()
+	_context_rids.append(tarot_menu)
+	NativeMenu.add_item(tarot_menu, tr("抽 1 張"), _on_context_item, Callable(), "tarot:1")
+	NativeMenu.add_item(tarot_menu, tr("抽 3 張"), _on_context_item, Callable(), "tarot:3")
+	NativeMenu.add_item(tarot_menu, tr("抽 5 張"), _on_context_item, Callable(), "tarot:5")
+	NativeMenu.add_submenu_item(menu, tr("塔羅牌"), tarot_menu)
+	NativeMenu.add_item(menu, tr("運勢籤"), _on_context_item, Callable(), "fortune_stick")
+	NativeMenu.add_submenu_item(root, tr("幫我占卜…"), menu)
+
+
+## 計時器相關項目收進子選單(2026-10-03 使用者要求,原本是攤開在根選單裡,縮短選單長度)。
+func _add_timer_menu(root: RID) -> void:
+	var menu := NativeMenu.create_menu()
+	_context_rids.append(menu)
+	if pet_timer != null and pet_timer.active():
+		NativeMenu.add_item(menu, tr("停止計時(%s)") % pet_timer.status_text(), _on_context_item, Callable(), "timer_stop")
+	else:
+		var timer_disabled := timer_input_requested.get_connections().is_empty()
+		NativeMenu.set_item_disabled(menu, NativeMenu.add_item(menu, tr("幫我設定計時器…"), _on_context_item, Callable(), "timer_countdown"), timer_disabled)
+		NativeMenu.set_item_disabled(menu, NativeMenu.add_item(menu, tr("幫我計時(碼表)…"), _on_context_item, Callable(), "timer_stopwatch"), timer_disabled)
+		var sound_menu := NativeMenu.create_menu()
+		_context_rids.append(sound_menu)
+		for sound_name in SoundManager.BUILTIN_SOUNDS:
+			NativeMenu.set_item_checked(sound_menu, NativeMenu.add_radio_check_item(sound_menu, sound_name, _on_context_item, Callable(), "timer_sound:" + sound_name), sound_name == timer_sound)
+		# 使用者在全局設定「音效」分頁匯入的提醒音效(AlarmSounds):不綁定特定桌寵,跟內建音效並列選擇。
+		if not AlarmSounds.list().is_empty():
+			NativeMenu.add_separator(sound_menu)
+			for file_name: String in AlarmSounds.list():
+				NativeMenu.set_item_checked(sound_menu, NativeMenu.add_radio_check_item(sound_menu, AlarmSounds.display_name(file_name), _on_context_item, Callable(), "timer_sound:" + file_name), file_name == timer_sound)
+		NativeMenu.add_submenu_item(menu, tr("計時提醒音效"), sound_menu)
+	NativeMenu.add_submenu_item(root, tr("計時器"), menu)
 
 
 ## 「變更配件」:這隻桌寵的素材包有配件(overlays.json 裡 role = part 的部件)才有,每個配件一個開關;詳細調整之後再做。
@@ -2925,6 +3222,9 @@ func _on_context_item(tag: Variant) -> void:
 		var part_name: String = tag.trim_prefix("acc:")
 		set_accessory_enabled(part_name, not _overlays.is_accessory_enabled(part_name))
 		return
+	if tag is String and tag.begins_with("tarot:"):
+		tarot_requested.emit(int(tag.trim_prefix("tarot:")))
+		return
 	if tag is String and tag.begins_with("timer_sound:"):
 		timer_sound = tag.trim_prefix("timer_sound:")
 		get_node("/root/DesktopShellState").sound_requested.emit(self, timer_sound)   # 選了就播一下試聽
@@ -2944,6 +3244,8 @@ func _on_context_item(tag: Variant) -> void:
 				follow_mouse()
 		"decide":
 			decide_requested.emit()
+		"fortune_stick":
+			fortune_requested.emit()
 		"timer_countdown":
 			timer_input_requested.emit(PetTimer.Kind.COUNTDOWN)
 		"timer_stopwatch":
@@ -3062,8 +3364,19 @@ func has_lens(lens_name: String) -> bool:
 	return _find_lens(lens_name) != null
 
 
+## 設定「暫時隱形」(action_invisible 專用入口,其他地方不要直接改 invisible):切視覺顯示、判定框跟著
+## effective_hitbox_size/offset 的早退縮到極小,碰撞體(CharacterBody2D 本體)維持原樣只是不擋互動。
+func set_invisible(value: bool) -> void:
+	if invisible == value:
+		return
+	invisible = value
+	_visual_root.visible = not value
+
+
 ## 目前生效的判定框大小(縮放前像素):使用者設定 > 素材包設定 > 待機幀本體大小。
 func effective_hitbox_size() -> Vector2:
+	if invisible:
+		return Vector2.ONE
 	if hitbox_size != Vector2.ZERO:
 		return hitbox_size
 	var pack_size: Variant = _sprite.sprite_frames.get_meta("hitbox_size", Vector2.ZERO) if _sprite != null and _sprite.sprite_frames != null else Vector2.ZERO
@@ -3254,6 +3567,11 @@ func _physics_process(delta: float) -> void:
 		_play(&"drag", -1, ActionPriority.INTERACTION)
 		_offscreen_seconds = 0.0
 		return
+	if invisible:
+		# 暫時隱形期間:原地凍結、不跑自主閒聊/遊戲邀請等任何背景檢查,省效能也符合「隱形時不打擾」的設計。
+		velocity = Vector2.ZERO
+		_offscreen_seconds = 0.0
+		return
 	if entering:
 		_offscreen_seconds = 0.0
 	elif _bounds().grow(OFFSCREEN_MARGIN).has_point(position):
@@ -3273,14 +3591,17 @@ func _physics_process(delta: float) -> void:
 			_tick_ask_user_game(delta)
 	_interact_left = maxf(_interact_left - delta, 0.0)
 	_converse_left = maxf(_converse_left - delta, 0.0)
+	_land_left = maxf(_land_left - delta, 0.0)
 	_airborne_grace = maxf(_airborne_grace - delta, 0.0)
 	_seek_left = maxf(_seek_left - delta, 0.0)
+	_avoid_pet_left = maxf(_avoid_pet_left - delta, 0.0)
 	_prop_still_left = maxf(_prop_still_left - delta, 0.0)
 	_tick_drop_through(delta)
 	_tick_prop_action(delta)
 	_tick_auto_mouse_follow(delta)
 	_tick_auto_pet_follow(delta)
 	_tick_pet_follow_lifecycle(delta)
+	_tick_pet_affinity_contact(delta)
 	_tick_furniture_seek()
 	_tick_container_seek(delta)
 	if _attract_left > 0.0:
@@ -3324,6 +3645,7 @@ func _process_ground_seek(delta: float, goal: Vector2) -> void:
 	maybe_drop_through(goal, delta)
 	velocity.y = minf(velocity.y + _gravity * params.gravity_scale * _lens_gravity * delta, params.terminal_fall_velocity)
 	if is_on_floor() and _airborne_grace <= 0.0:
+		_fell_off_edge = false
 		_jump_target_x = NAN
 		var dx := goal.x - position.x
 		if absf(dx) > FOLLOW_DEADZONE and _interact_left <= 0.0 and _hold_left <= 0.0 and _converse_left <= 0.0:
@@ -3360,11 +3682,19 @@ func _process_ground_seek(delta: float, goal: Vector2) -> void:
 	if entering:
 		_play(&"enter", -1, ActionPriority.SYSTEM)
 	elif not is_on_floor():
-		play_action(&"rise" if velocity.y < 0.0 else &"fall")
+		play_action(_fall_action())
 	elif _ground_state == GroundState.WALK:
 		play_action(&"run" if is_running() else &"walk")
 	else:
 		_play_locomotion(&"idle")
+
+
+## 在空中時該播哪個動作:走出平臺邊緣掉下去(_fell_off_edge)整段墜落播 downward(不是一般的 fall),
+## 其餘仍照原本的上升/下降判斷。downward 跟 rise/fall 是系統動作裡的同一個等級,不是一次性演出。
+func _fall_action() -> StringName:
+	if _fell_off_edge and velocity.y >= 0.0:
+		return &"downward"
+	return &"rise" if velocity.y < 0.0 else &"fall"
 
 
 ## 現在是不是在奔跑:積木/測試者開了 run,或有啟用中的狀態鏡勾了「啟用期間奔跑」。
@@ -3414,6 +3744,7 @@ func _process_ground(delta: float) -> void:
 		_state_timer = 0.0
 	velocity.y = minf(velocity.y + _gravity * params.gravity_scale * _lens_gravity * delta, params.terminal_fall_velocity)
 	if is_on_floor() and _airborne_grace <= 0.0:
+		_fell_off_edge = false
 		_jump_target_x = NAN
 		_state_timer -= delta
 		_dance_left = maxf(_dance_left - delta, 0.0)
@@ -3454,7 +3785,7 @@ func _process_ground(delta: float) -> void:
 	if entering:
 		_play(&"enter", -1, ActionPriority.SYSTEM)
 	elif not is_on_floor():
-		play_action(&"rise" if velocity.y < 0.0 else &"fall")
+		play_action(_fall_action())
 	elif _ground_state == GroundState.WALK and _interact_left <= 0.0 and _converse_left <= 0.0:
 		play_action(&"run" if is_running() else &"walk")
 	else:
@@ -3734,6 +4065,8 @@ func _consider_edge_and_hop(delta: float) -> void:
 			_walk_dir = -_walk_dir
 			_face(_walk_dir)
 			_edge_committed = false
+		else:
+			_fell_off_edge = true   # 沒轉身、沒跳上去,就這樣走出邊緣讓重力接手——整段墜落播 downward。
 	else:
 		_edge_committed = false
 		if randf() < params.hop_chance_per_second * delta:
@@ -4024,18 +4357,31 @@ func _fly_landing(delta: float) -> void:
 		_fly_state = FlyState.RESTING
 		_fly_rest_left = randf_range(params.fly_rest_duration_min, params.fly_rest_duration_max)
 		velocity = Vector2.ZERO
+		_trigger_land()
 
 
-## 休息:站在平臺上原地播放 sit(素材沒有就退回 idle);腳下平臺消失就順著重力落下,落到新的站立面再繼續休息。
-## 休息完耐力補滿,往上起飛(播放 rise)。
+## 飛行降落瞬間觸發一次性的 land 動作:讓 _fly_resting() 接下來 LAND_HOLD_SECONDS 內改播 land(不是直接
+## 跳 sit),時間到自動退回 sit。不用像 tired/wake 那樣額外呼叫 logic.fire_event()——land 本身就是真的會
+## 被 _play_locomotion() 播放的動作,_requested_action 變成 &"land" 時 _play() 自己就會 announce 一次
+## action_started(跟 rise/fall/walk 一樣靠既有機制),這裡再手動補發一次反而會讓 event_when_action(ACTION=
+## "land") 誤觸發兩次(已經在 t204 實測到這個雙重觸發的坑)。
+func _trigger_land() -> void:
+	_land_left = LAND_HOLD_SECONDS
+
+
+## 休息:站在平臺上原地播放 sit(素材沒有就退回 idle);腳下平臺消失就順著重力落下,落到新的站立面再繼續休息
+## (重新落地那一刻一樣算一次 land)。休息完耐力補滿,往上起飛(播放 rise)。
 func _fly_resting(delta: float) -> void:
+	var was_on_floor := is_on_floor()
 	velocity.y = minf(velocity.y + _gravity * params.gravity_scale * _lens_gravity * delta, params.terminal_fall_velocity)
 	velocity.x = 0.0
 	move_and_slide()
 	if not is_on_floor():
 		_play_locomotion(&"fly")
 		return
-	_play_locomotion(&"sit")
+	if not was_on_floor:
+		_trigger_land()
+	_play_locomotion(&"land" if _land_left > 0.0 else &"sit")
 	if _prop_still_left > 0.0 or is_resting_now():
 		_fly_rest_left = maxf(_fly_rest_left, 0.5)   # 道具交互還沒結束,先不起飛
 	_fly_rest_left -= delta

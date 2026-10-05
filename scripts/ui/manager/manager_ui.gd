@@ -147,7 +147,8 @@ static func syntax_row(host: Node, short_text: String, tip: String, can_insert :
 static func open_syntax_dictionary(host: Node, can_insert := true) -> SyntaxDictionaryWindow:
 	if host.has_meta("syntax_dictionary_window"):
 		var existing: Variant = host.get_meta("syntax_dictionary_window")
-		if existing is SyntaxDictionaryWindow and is_instance_valid(existing):
+		# is_instance_valid() 要先檢查,見下面事件管理視窗那段的詳細說明。
+		if is_instance_valid(existing) and existing is SyntaxDictionaryWindow:
 			(existing as SyntaxDictionaryWindow).bring_to_front()
 			return existing
 	var window := SyntaxDictionaryWindow.new()
@@ -163,6 +164,60 @@ static func open_syntax_dictionary(host: Node, can_insert := true) -> SyntaxDict
 			(focused as LineEdit).insert_text_at_caret(syntax)
 		else:
 			DisplayServer.clipboard_set(syntax))
+	return window
+
+
+## 開「系統保留數值」視窗(host 底下已經有就叫到前景)——列出 ReservedPetValues.ENTRIES,給數值管理分頁用。
+static func open_reserved_values_window(host: Node) -> ReservedValuesWindow:
+	if host.has_meta("reserved_values_window"):
+		var existing: Variant = host.get_meta("reserved_values_window")
+		# is_instance_valid() 要先檢查,見下面事件管理視窗那段的詳細說明。
+		if is_instance_valid(existing) and existing is ReservedValuesWindow:
+			(existing as ReservedValuesWindow).bring_to_front()
+			return existing
+	var window := ReservedValuesWindow.new()
+	host.add_child(window)
+	window.setup()
+	host.set_meta("reserved_values_window", window)
+	return window
+
+
+## 素材包「成功載入,但有些內容沒進去」的提示(跟載入失敗是兩回事)——跳出 SpritePackLoader.
+## limit_warning_dialogs(result) 組好的 0~2 則訊息,給桌面放上桌寵/角色庫/精靈圖編輯器存檔共用,
+## 不用各自重複寫 AcceptDialog 的建立邏輯。parent/top_window 的意義見 FloatingWindow.popup_child_dialog()
+## 的說明,呼叫端一律傳 (self, get_window())(DesktopShell 跟其他 FloatingWindow 子類別都一樣,是這個
+## 專案既有的呼叫慣例)。
+static func show_pack_limit_warnings(parent: Node, top_window: Window, result: Dictionary) -> void:
+	for entry: Dictionary in SpritePackLoader.limit_warning_dialogs(result):
+		var dialog := AcceptDialog.new()
+		dialog.title = str(entry["title"])
+		dialog.exclusive = false
+		dialog.transient = false
+		dialog.theme = make_theme()
+		dialog.dialog_text = str(entry["message"])
+		dialog.dialog_autowrap = true
+		FloatingWindow.popup_child_dialog(parent, top_window, dialog, Vector2i(480, 320))
+
+
+## 開「事件管理」視窗(查看/暫時停用/移除某隻桌寵目前生效的事件,見 EventManagerWindow):同一隻桌寵已經
+## 開著就叫到前景,不同桌寵各自開一個。交互行為分頁跟測試者面板都呼叫這個共用函式(2026-10-04 使用者
+## 要求兩邊都要有,不是只掛在某一邊)。pet 是 null 或已經不在場上就不開,直接回傳 null。
+static func open_event_manager_window(host: Node, pet: Node) -> EventManagerWindow:
+	if pet == null or not is_instance_valid(pet):
+		return null
+	var key := "event_manager_window_%d" % pet.get_instance_id()
+	if host.has_meta(key):
+		var existing: Variant = host.get_meta(key)
+		# 2026-10 使用者實機回報:`existing is EventManagerWindow` 寫在 `is_instance_valid()` 前面時,
+		# 視窗被關閉釋放後舊的 meta 還留著同一個已釋放的 Object 參照,`is` 運算子碰到已釋放的實例會直接
+		# 噴執行期錯誤(跟呼叫已釋放物件的方法不同,`is` 不會安全失敗)。is_instance_valid() 一定要先檢查。
+		if is_instance_valid(existing) and existing is EventManagerWindow:
+			(existing as EventManagerWindow).bring_to_front()
+			return existing
+	var window := EventManagerWindow.new()
+	host.add_child(window)
+	window.setup(pet)
+	host.set_meta(key, window)
 	return window
 
 

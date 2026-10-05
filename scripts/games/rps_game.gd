@@ -32,6 +32,41 @@ static func _wait(pet: Node, seconds: float) -> void:
 	await pet.get_tree().create_timer(seconds).timeout
 
 
+## 大逃殺三人(含使用者)以上才用計分板(使用者要求,跟 DiceGame 同一套做法,見那邊的說明);一般的
+## 「使用者 vs 一隻桌寵」單挑完全不受影響,維持原本逐輪開氣泡的演出。
+static func _open_scoreboard(initiator: Node, title: String) -> GroupScoreboard:
+	var shell: Node = initiator.get_tree().get_first_node_in_group("desktop_shell")
+	if shell == null:
+		return null
+	var board := GroupScoreboard.new()
+	shell.top_layer().add_child(board)
+	board.setup(shell.action_area, title)
+	return board
+
+
+static func _close_scoreboard(scoreboard: GroupScoreboard) -> void:
+	if scoreboard != null and is_instance_valid(scoreboard):
+		scoreboard.queue_free()
+
+
+## 同一句話讓 speakers 這群桌寵一起說(內容完全一樣):有計分板就只寫一行,沒有就照舊讓每一位各自開對話氣泡。
+static func _broadcast_same(speakers: Array, text: String, seconds: float, simultaneous: bool, scoreboard: GroupScoreboard) -> void:
+	if scoreboard != null:
+		if not speakers.is_empty():
+			scoreboard.add_line("", text)
+		return
+	for pet: Node in speakers:
+		GameChat.chain_say(pet, text, seconds, simultaneous)
+
+
+## 每位桌寵說自己的內容(例如自己出的手勢):有計分板就寫一行「[名字] 內容」,沒有就照舊開對話氣泡。
+static func _broadcast_each(pet: Node, text: String, seconds: float, scoreboard: GroupScoreboard) -> void:
+	if scoreboard != null:
+		scoreboard.add_line(pet.get_label(), text)
+		return
+	GameChat.chain_say(pet, text, seconds)
+
+
 static func _flip(outcome: String) -> String:
 	return "lose" if outcome == "win" else ("win" if outcome == "lose" else "draw")
 
@@ -82,7 +117,7 @@ static func play_pets(a: Node, b: Node, best_of := 1) -> Dictionary:
 		if b.is_in_game():
 			GameChat.think_blocked(a, b, TranslationServer.translate("猜拳"))
 			return {}
-	GameChat.enter([a, b])
+	GameChat.enter([a, b], "rps")
 	var result: Dictionary = await _play_pets(a, b, best_of)
 	GameChat.leave([a, b])
 	return result
@@ -154,7 +189,7 @@ static func _play_pets(a: Node, b: Node, best_of := 1) -> Dictionary:
 static func play_user(pet: Node, best_of := 1) -> Dictionary:
 	if is_instance_valid(pet) and pet.is_in_game():
 		return {}   # 玩家的遊戲要求:桌寵正在對戰,直接無效
-	GameChat.enter([pet])
+	GameChat.enter([pet], "rps")
 	var result: Dictionary = await _play_user(pet, best_of)
 	GameChat.leave([pet])
 	return result
@@ -264,7 +299,7 @@ static func play_battle_royale(host: Node) -> Dictionary:
 				continue
 			if other.vitality != null:
 				other.vitality.note_invited()
-			var refusal: Dictionary = other.game_refusal()
+			var refusal: Dictionary = other.game_refusal("rps", host)
 			if randf() < float(refusal["chance"]):
 				GameChat.chain_say(other, other.speak_tr(str((GameInvite.REFUSE_LINES[str(refusal["reason"])] as Array).pick_random())), 2.2)
 			else:
@@ -275,7 +310,7 @@ static func play_battle_royale(host: Node) -> Dictionary:
 			return {}
 	# 沒人願意加入(或場上本來就只有發起者)一樣能跑完:_play_battle_royale() 只有一隻桌寵時本來就會退化成
 	# 「使用者 vs 這隻桌寵」單挑(檔頭⑤的說明),不用另外處理「全部拒絕」的收場台詞。
-	GameChat.enter(pets)
+	GameChat.enter(pets, "rps")
 	var result: Dictionary = await _play_battle_royale(pets)
 	GameChat.leave(pets)
 	return result
@@ -290,40 +325,44 @@ static func _play_battle_royale(pets: Array) -> Dictionary:
 		generations[pet] = pet.action_generation
 	var user_alive := true
 	var round_num := 0
+	# 三人(含使用者)以上才用計分板,用開局當下的人數判斷就好,不隨淘汰動態拔掉(避免面板忽隱忽現)。
+	var scoreboard: GroupScoreboard = _open_scoreboard(alive[0], TranslationServer.translate("猜拳大逃殺計分板")) if alive.size() + int(user_alive) > 2 else null
 	while alive.size() + int(user_alive) > 1:
 		round_num += 1
 		var speaker: Node = alive[0]
-		for pet: Node in alive:
-			GameChat.chain_say(pet, TranslationServer.translate("第 %d 輪!還剩 %d 位") % [round_num, alive.size() + int(user_alive)], 1.4, true)
+		_broadcast_same(alive, TranslationServer.translate("第 %d 輪!還剩 %d 位") % [round_num, alive.size() + int(user_alive)], 1.4, true, scoreboard)
 		await _wait(speaker, 1.2)
 		if _cancelled(alive, generations):
+			_close_scoreboard(scoreboard)
 			return {}
 		var user_choice := -1
 		if user_alive:
 			user_choice = await GameChat.ask(speaker, "剪刀石頭布!你要出什麼?", [gesture(0), gesture(1), gesture(2), "不玩了"], 60.0)
 			if not is_instance_valid(speaker) or _cancelled(alive, generations):
+				_close_scoreboard(scoreboard)
 				return {}
 			if user_choice < 0 or user_choice > 2:
 				user_alive = false
 				if user_choice == 3:
-					for pet: Node in alive:
-						GameChat.chain_say(pet, "使用者棄權啦!", 1.6, true)
+					_broadcast_same(alive, "使用者棄權啦!", 1.6, true, scoreboard)
 					await _wait(speaker, 1.2)
 					if _cancelled(alive, generations):
+						_close_scoreboard(scoreboard)
 						return {}
 		for word in ["剪刀…", "石頭…", "布!"]:
-			for pet: Node in alive:
-				GameChat.chain_say(pet, word, COUNTDOWN_STEP + 0.3, true)
+			_broadcast_same(alive, word, COUNTDOWN_STEP + 0.3, true, scoreboard)
 			await _wait(speaker, COUNTDOWN_STEP)
 			if _cancelled(alive, generations):
+				_close_scoreboard(scoreboard)
 				return {}
 		var gestures := {}
 		for pet: Node in alive:
 			gestures[pet] = randi() % 3
 		for pet: Node in alive:
-			GameChat.chain_say(pet, gesture(gestures[pet]), 2.2)
+			_broadcast_each(pet, gesture(gestures[pet]), 2.2, scoreboard)
 		await _wait(speaker, 1.3)
 		if _cancelled(alive, generations):
+			_close_scoreboard(scoreboard)
 			return {}
 		var distinct := {}
 		for value: int in gestures.values():
@@ -332,17 +371,19 @@ static func _play_battle_royale(pets: Array) -> Dictionary:
 			distinct[user_choice] = true
 		if distinct.size() != 2:
 			# 平手(全部一樣或三種都出現):全員晉級,重來一輪。打到第 20 輪還是平手(一個都還沒淘汰)就直接
-			# 結束,不要無止盡玩下去(2026-09-30 使用者要求)。
+			# 結束,不要無止盡玩下去(2026-09-30 使用者要求)。這句收場白(跟下面冠軍宣布一樣)算整場的
+			# 結果,不是逐輪雜訊,就算有計分板也照舊開對話氣泡。
 			if round_num >= 20:
 				var giveup_line := TranslationServer.translate("這樣下去似乎沒完沒了……下次再比吧?")
 				for pet: Node in alive:
 					GameChat.chain_say(pet, giveup_line, 1.8)
 				await _wait(speaker, 1.6)
+				_close_scoreboard(scoreboard)
 				return {"winner": ""}
-			for pet: Node in alive:
-				GameChat.chain_say(pet, "平手!全員晉級,再猜一次!", 1.4)
+			_broadcast_same(alive, "平手!全員晉級,再猜一次!", 1.4, false, scoreboard)
 			await _wait(speaker, 1.2)
 			if _cancelled(alive, generations):
+				_close_scoreboard(scoreboard)
 				return {}
 			continue
 		var values: Array = distinct.keys()
@@ -352,6 +393,8 @@ static func _play_battle_royale(pets: Array) -> Dictionary:
 			if gestures[pet] == winning_gesture:
 				survivors.append(pet)
 			else:
+				# 被淘汰是這隻桌寵自己的個人時刻(一輩子只會發生一次),不是「每輪每個人都要講」的雜訊,
+				# 照舊開對話氣泡,不受計分板影響。
 				GameChat.chain_say(pet, "被淘汰了……下次加油!", 1.8)
 				GameChat.react(pet, "rps", "lose")
 				GameChat.leave([pet])
@@ -361,7 +404,9 @@ static func _play_battle_royale(pets: Array) -> Dictionary:
 		if not alive.is_empty():
 			await _wait(alive[0], 1.4)
 			if _cancelled(alive, generations):
+				_close_scoreboard(scoreboard)
 				return {}
+	_close_scoreboard(scoreboard)
 	var winner: Node = alive[0] if alive.size() == 1 else null
 	if winner != null:
 		GameChat.chain_say(winner, "[wave]我是冠軍!![/wave]", 3.0)

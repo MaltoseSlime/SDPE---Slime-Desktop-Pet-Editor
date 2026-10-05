@@ -475,11 +475,13 @@
       },
       {
         "say": "你知道嗎?{tips}",
-        "tag": "chat"
+        "tag": "chat",
+        "weight": 200
       },
       {
         "say": "跟你說喔!{tips}",
-        "tag": "chat"
+        "tag": "chat",
+        "weight": 200
       },
       {
         "say": "其實我偶爾也在想,你告訴過我的那些事情……",

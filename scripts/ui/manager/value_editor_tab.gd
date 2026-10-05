@@ -53,6 +53,10 @@ func _build_list_side() -> void:
 	side.custom_minimum_size.x = 230.0
 	add_child(side)
 	side.add_child(ManagerUi.heading("數值列表"))
+	var reserved_button := ManagerUi.button("保留名稱一覽")
+	reserved_button.tooltip_text = "查詢哪些數值名稱已經被引擎用來驅動內建行為(例如「好感度」),取名時避開或是清楚知道效果。"
+	reserved_button.pressed.connect(func() -> void: ManagerUi.open_reserved_values_window(self))
+	side.add_child(reserved_button)
 	_list = ItemList.new()
 	_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_list.item_selected.connect(_on_item_selected)
@@ -265,6 +269,11 @@ func _commit_key() -> void:
 		store.erase(def.key)
 	def.key = new_key
 	_list.set_item_text(_entries.find(def), _item_text(def))
+	if ReservedPetValues.is_reserved(new_key):
+		# 保留名稱清單見 ReservedPetValues(跟「保留名稱一覽」小彈窗共用同一份);之後增加新的保留名稱
+		# 不用再改這裡,只要往那份清單加一筆就會自動套用。
+		var info := ReservedPetValues.entry_of(new_key)
+		message.emit(tr("「%s」是保留名稱:%s 如果你想做別的用途,建議換一個名稱(可以按「保留名稱一覽」查詢完整清單)。") % [new_key, str(info.get("effect", ""))])
 	changed.emit()
 
 

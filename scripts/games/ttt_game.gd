@@ -27,7 +27,9 @@ static func _find_shell(pet: Node) -> Node:
 
 static func _spawn_board(shell: Node) -> TttBoard:
 	var board := TttBoard.new()
-	shell.add_child(board)
+	# 2026-10-04 使用者要求:棋盤要蓋在對話氣泡之上,掛進 shell 的 top_layer(CanvasLayer=11,懸浮球/
+	# 家具同一層)而不是 shell 自己(基礎 2D 世界,跟 UiManager 的對話氣泡 CanvasLayer=10 比起來在下面)。
+	shell.top_layer().add_child(board)
 	board.setup(shell.action_area)
 	active_board = board
 	return board
@@ -58,21 +60,28 @@ static func _find_winning_move(cells: Array, mark: int) -> int:
 	return -1
 
 
-## 簡單但不笨的走法:能贏先贏、擋對方的贏、搶中間、搶角落,最後隨機找空格。
-static func _ai_move(cells: Array, mark: int, opp: int) -> int:
-	var win := _find_winning_move(cells, mark)
-	if win >= 0:
-		return win
-	var block := _find_winning_move(cells, opp)
-	if block >= 0:
-		return block
-	if int(cells[4]) == 0:
+## 簡單但不笨的走法:能贏先贏、擋對方的贏、搶中間、搶角落,最後隨機找空格。level(見 GameAiLevel)控制
+## 每一步「明明看得到最好的選擇,卻隨便選」的機率;level 不給(= 4)時完全不犯錯,跟原本的寫死行為一致
+## ——t166 的純邏輯斷言(`_ai_move(...)` 不帶 level 直接呼叫)靠這個預設維持跟以前一樣的確定結果。
+## 實際對戰(`_play_pets`/`_play_user`)一律帶上桌寵自己的 `ttt_ai_level`(預設 3,不是這裡的函式預設 4)。
+static func _ai_move(cells: Array, mark: int, opp: int, level := 4) -> int:
+	var mistake := GameAiLevel.mistake_chance(level)
+	if randf() >= mistake:
+		var win := _find_winning_move(cells, mark)
+		if win >= 0:
+			return win
+	if randf() >= mistake:
+		var block := _find_winning_move(cells, opp)
+		if block >= 0:
+			return block
+	if randf() >= mistake and int(cells[4]) == 0:
 		return 4
-	var corners: Array = [0, 2, 6, 8]
-	corners.shuffle()
-	for i: int in corners:
-		if int(cells[i]) == 0:
-			return i
+	if randf() >= mistake:
+		var corners: Array = [0, 2, 6, 8]
+		corners.shuffle()
+		for i: int in corners:
+			if int(cells[i]) == 0:
+				return i
 	var empties: Array = []
 	for i in 9:
 		if int(cells[i]) == 0:
@@ -127,7 +136,7 @@ static func play_pets(a: Node, b: Node, best_of := 1) -> Dictionary:
 	if b.is_in_game():
 		GameChat.think_blocked(a, b, TranslationServer.translate("井字棋"))
 		return {}
-	GameChat.enter([a, b])
+	GameChat.enter([a, b], "ttt")
 	var result: Dictionary = await _play_pets(a, b, best_of)
 	GameChat.leave([a, b])
 	return result
@@ -157,7 +166,7 @@ static func _play_pets(a: Node, b: Node, best_of := 1) -> Dictionary:
 				_cleanup_board(board)
 				return {}
 			var cells: Array = board.board
-			var move := _ai_move(cells, mark, 3 - mark)
+			var move := _ai_move(cells, mark, 3 - mark, a.ttt_ai_level if mark == 1 else b.ttt_ai_level)
 			if move < 0:
 				break
 			cells[move] = mark
@@ -190,7 +199,7 @@ static func _play_pets(a: Node, b: Node, best_of := 1) -> Dictionary:
 static func play_user(pet: Node, best_of := 1) -> Dictionary:
 	if not is_instance_valid(pet) or pet.is_in_game() or has_active_board():
 		return {}
-	GameChat.enter([pet])
+	GameChat.enter([pet], "ttt")
 	var result: Dictionary = await _play_user(pet, best_of)
 	GameChat.leave([pet])
 	return result
@@ -227,7 +236,7 @@ static func _play_user(pet: Node, best_of := 1) -> Dictionary:
 				if flags["cancelled"] or flags["surrendered"] or not is_instance_valid(board):
 					break
 				var cells: Array = board.board
-				var move := _ai_move(cells, 1, 2)
+				var move := _ai_move(cells, 1, 2, pet.ttt_ai_level)
 				if move < 0:
 					break
 				cells[move] = 1

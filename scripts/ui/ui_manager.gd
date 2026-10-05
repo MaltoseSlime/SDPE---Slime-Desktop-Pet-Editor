@@ -94,6 +94,8 @@ func _connect_pet(pet: Node) -> void:
 	_connected_pets[pet] = true
 	pet.status_requested.connect(_toggle_status.bind(pet))
 	pet.decide_requested.connect(_on_decide.bind(pet))
+	pet.fortune_requested.connect(_on_fortune_stick.bind(pet))
+	pet.tarot_requested.connect(_on_tarot_draw.bind(pet))
 	pet.timer_input_requested.connect(_on_timer_input.bind(pet))
 	pet.tree_exiting.connect(_forget_pet.bind(pet))
 	pet.interrupted.connect(_drop_queued.bind(pet))
@@ -403,6 +405,80 @@ func _on_decide(pet: Node) -> void:
 	_on_line_requested(pet, line, null)
 
 
+## 運勢籤結果(大吉最好、凶最差),抽籤機率沒有刻意加權,六選一等機率。
+const FORTUNE_STICK_RESULTS: Array[String] = ["大吉", "吉", "中吉", "小吉", "末吉", "凶"]
+
+## 右鍵選單「幫我占卜…→運勢籤」:先問使用者想問什麼(可以留空,純抽籤)→ 桌寵抖一下 → 說出抽到的籤。
+## 只有使用者按「取消/略過」整個關掉輸入視窗才不抽;文字留空照樣送出也算要抽(accepted = true 就抽)。
+func _on_fortune_stick(pet: Node) -> void:
+	var ticket := InputTicket.new()
+	_on_text_input(pet, {"prompt": tr("想問什麼呢?(可以留空,純抽籤)"), "default": "", "max_length": PetText.HARD_MAX_LENGTH}, ticket)
+	var got: Array = [ticket.closed, false]
+	if not ticket.closed:
+		got = await ticket.finished
+	if not bool(got[1]) or not is_instance_valid(pet):
+		return
+	var question := str(got[0]).strip_edges()
+	pet.shiver(DECIDE_SUSPENSE)
+	await get_tree().create_timer(DECIDE_SUSPENSE).timeout
+	if not is_instance_valid(pet):
+		return
+	var result := tr(FORTUNE_STICK_RESULTS.pick_random())
+	var line := {"typewriter": true, "auto_seconds": 6.0, "options": []}
+	if question != "":
+		line["text"] = tr("關於「%s」,抽到的籤是:[b]%s[/b]!") % [PetText.escape_bbcode(question), result]
+	else:
+		line["text"] = tr("抽到的籤是:[b]%s[/b]!") % result
+	_on_line_requested(pet, line, null)
+
+
+## 右鍵選單「幫我占卜…→塔羅牌→抽 N 張」:先問使用者想問什麼(可以留空,純抽牌)→ 開選牌小視窗
+## (TarotPickBoard,22 張牌背讓使用者自己點選要抽的張數,閒置 10 分鐘比照小遊戲棋盤自動收)→ 選完才翻開
+## 懸浮面板顯示(不解讀,面板目前用色塊佔位卡圖,見 TarotPanel 的說明)。使用者取消輸入視窗或選牌視窗都不抽。
+func _on_tarot_draw(count: int, pet: Node) -> void:
+	var ticket := InputTicket.new()
+	_on_text_input(pet, {"prompt": tr("想問什麼呢?(可以留空,純抽牌)"), "default": "", "max_length": PetText.HARD_MAX_LENGTH}, ticket)
+	var got: Array = [ticket.closed, false]
+	if not ticket.closed:
+		got = await ticket.finished
+	if not bool(got[1]) or not is_instance_valid(pet):
+		return
+	var question := str(got[0]).strip_edges()
+	var shell := pet.get_tree().get_first_node_in_group("desktop_shell")
+	if shell == null:
+		return
+	var deck := TarotDeck.shuffled_deck()
+	var board := TarotPickBoard.new()
+	# 2026-10-04 使用者要求:選牌面板要蓋在對話氣泡之上,掛進 shell 的 top_layer(CanvasLayer=11)。
+	shell.top_layer().add_child(board)
+	board.setup(shell.action_area, count, question)
+	var outcome: Array = await board.finished
+	board.queue_free()
+	if bool(outcome[0]) or not is_instance_valid(pet):
+		return
+	var picked_cards: Array[Dictionary] = []
+	for index: int in (outcome[1] as Array):
+		picked_cards.append(deck[index])
+	_open_tarot_panel(pet, question, picked_cards)
+
+
+func _open_tarot_panel(pet: Node, question: String, cards: Array[Dictionary]) -> void:
+	if _panels.has(pet):
+		var existing: Control = _panels[pet]
+		_order.erase(existing)
+		existing.queue_free()
+		_panels.erase(pet)
+	var panel := TarotPanel.new()
+	add_child(panel)
+	panel.setup(pet, question, cards)
+	panel.modulate.a = _passthrough_alpha   # 理由同 _show_bubble() 的氣泡
+	_panels[pet] = panel
+	_order.append(panel)
+	panel.closed.connect(_on_status_closed.bind(pet, panel))
+	set_process(true)
+	_layout()
+
+
 # --- Status 面板 ---
 
 ## 右鍵選單「查看狀態」:再按一次就收起(切換)。
@@ -421,7 +497,8 @@ func _toggle_status(pet: Node) -> void:
 	_layout()
 
 
-func _on_status_closed(pet: Node, panel: StatusPanel) -> void:
+## 型別故意寫 Control 不是 StatusPanel:TarotPanel 關閉時也共用這個收尾(2026-10-04)。
+func _on_status_closed(pet: Node, panel: Control) -> void:
 	if _panels.get(pet) == panel:
 		_panels.erase(pet)
 	_order.erase(panel)
@@ -429,8 +506,10 @@ func _on_status_closed(pet: Node, panel: StatusPanel) -> void:
 	set_process(not _order.is_empty())
 
 
+## 型別故意寫 Control 不是 StatusPanel:這隻桌寵目前開著的可能是 TarotPanel(2026-10-04 起 _panels
+## 共用同一個字典,一隻桌寵同時最多一個懸浮面板,不分種類)。
 func _close_status(pet: Node) -> void:
-	var panel: StatusPanel = _panels.get(pet)
+	var panel: Control = _panels.get(pet)
 	if panel != null and is_instance_valid(panel):
 		panel.close()
 
@@ -487,7 +566,13 @@ func _layout() -> void:
 		# 名字標籤有一半跨在介面上緣之外,可用的螢幕範圍上緣要扣掉這一段,標籤才不會被螢幕頂端裁掉。
 		var overhang: float = control.tag_overhang()
 		# 對話框可以畫在行動區框架外,但一定要留在「桌寵所在的那一個螢幕」裡(多螢幕時不會跨到兩個螢幕之間或螢幕外)。
+		# 2026-10-04 全局設定「對話氣泡不超出行動區」開著時,這個夾住範圍改用行動區的框架取代整個螢幕
+		# (action_area_rect 是桌面絕對座標,換算成這個視窗的畫布座標要扣掉視窗位置,跟 monitor_rects() 同一套做法)。
 		var monitor := screen_rect_for(pet.get_body_rect(), monitors, full_screen)
+		if control is DialogueBubble and AppSettings.bubble_clamp_to_action_area() and _state != null:
+			var action_global: Rect2 = _state.action_area_rect
+			if action_global.size != Vector2.ZERO:
+				monitor = Rect2(action_global.position - Vector2(get_window().position), action_global.size)
 		var screen := Rect2(monitor.position + Vector2(0.0, overhang), monitor.size - Vector2(0.0, overhang))
 		control.reset_size()
 		var obstacles: Array[Rect2] = placed.duplicate()
@@ -499,7 +584,7 @@ func _layout() -> void:
 		var body: Rect2 = pet.get_body_rect()
 		var rect: Rect2
 		var had_offset_before := _last_offsets.has(control)
-		if control is StatusPanel:
+		if control is StatusPanel or control is TarotPanel:
 			rect = _place_beside(control.size, body, control.flipped, screen, obstacles)
 			control.flipped = rect.get_center().x < body.get_center().x
 		else:

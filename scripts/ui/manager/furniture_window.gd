@@ -50,6 +50,28 @@ var _placed_list: ItemList
 var _placed_move_up: Button
 var _placed_move_down: Button
 var _placed_remove: Button
+## 效果(見 FurnitureDef.aura_effects):目標/篩選的 OptionButton 選項統一用 metadata 編碼成
+## "stat:<key>" 或 "value:local"/"value:global","不篩選" 用 "none"(只有篩選用得到這個選項)。
+var _aura_list: ItemList
+var _aura_target_option: OptionButton
+var _aura_target_value_key: LineEdit
+var _aura_target_number: SpinBox
+var _aura_filter_option: OptionButton
+var _aura_filter_value_key: LineEdit
+var _aura_filter_op_option: OptionButton
+var _aura_filter_number: SpinBox
+var _aura_add: Button
+var _aura_delete: Button
+## 性格相關數值(stat)的下拉選單顯示文字;鍵是 FurnitureDef.AURA_STAT_KEYS 的元素。
+const AURA_STAT_LABELS := {
+	"vitality.energy": "精力", "vitality.mood": "心情",
+	"vitality.fatigue_rate": "疲勞速率(每分鐘消耗精力的速度)", "vitality.rest_recovery_rate": "休息恢復速率",
+	"vitality.tired_threshold": "疲勞閾值(精力低於這個值就算疲勞,調高 = 更容易疲勞/入睡)",
+	"vitality.exhausted_threshold": "精疲力竭閾值",
+	"vitality.mood_happy_threshold": "心情愉快閾值", "vitality.mood_angry_threshold": "心情生氣閾值",
+	"vitality.mood_sad_threshold": "心情低落閾值",
+	"sociability": "社交意願(影響主動邀約/跟隨機率)", "game_refuse_base": "拒絕遊戲的基礎機率",
+}
 ## 使用者要在精靈圖編輯器的家具區編輯這件家具的進階貼圖(參數 = 家具資料夾名稱)。
 signal edit_sprite_requested(furniture_id: String)
 
@@ -267,7 +289,7 @@ func _build_form_column() -> Control:
 		_condition_option.add_item(FurnitureCondition.label_of(kind))
 		_condition_option.set_item_metadata(_condition_option.item_count - 1, kind)
 	_condition_option.item_selected.connect(func(_i: int) -> void: _edit_condition())
-	_form_root.add_child(ManagerUi.hint_row("觸發方式", "「一直啟用」= 只有 normal 這個狀態,平時就是它。「指定時間段」與「有桌寵正在做某個動作」= 平時播 normal,條件成立時切到 conditional(例如檯燈的燈亮起來、迪斯可燈開始轉)。這批的條件種類還不多,之後會照積木能用的條件慢慢補。"))
+	_form_root.add_child(ManagerUi.hint_row("觸發方式", "「一直啟用」= 只有 normal 這個狀態,平時就是它。「指定時間段」「有桌寵正在做某個動作」「有桌寵正在使用這件家具」「所有座位都被佔滿」= 平時播 normal,條件成立時切到 conditional(例如檯燈的燈亮起來、迪斯可燈開始轉、有人坐著時指示燈亮、滿座時亮起慶祝燈效)。這批的條件種類還不多,之後會照積木能用的條件慢慢補。"))
 	_form_root.add_child(ManagerUi.labeled("觸發方式", _condition_option))
 	_time_start_hour = ManagerUi.spin(1.0, 0.0, 23.0)
 	_time_start_minute = ManagerUi.spin(1.0, 0.0, 59.0)
@@ -326,6 +348,7 @@ func _build_form_column() -> Control:
 	_container_delete = ManagerUi.button("刪除這項")
 	_container_delete.pressed.connect(_on_container_delete_pressed)
 	_form_root.add_child(_container_delete)
+	_build_aura_section(_form_root)
 	_sprite_label = Label.new()
 	_sprite_label.theme_type_variation = AppSettings.MUTED_LABEL
 	_form_root.add_child(_sprite_label)
@@ -395,6 +418,7 @@ func _select(def: FurnitureDef, focus_list: bool) -> void:
 	_updating = false
 	_sync_condition_visibility()
 	_refresh_container_list()
+	_refresh_aura_list()
 	_sprite_label.text = tr("有進階貼圖(normal%s%s)") % [
 			"、conditional" if FurnitureLibrary.load_sprite(def) != null and (FurnitureLibrary.load_sprite(def) as SpriteFrames).has_animation(&"conditional_0") else "",
 			"、interacted" if FurnitureLibrary.load_sprite(def) != null and (FurnitureLibrary.load_sprite(def) as SpriteFrames).has_animation(&"interacted_0") else ""] \
@@ -470,6 +494,190 @@ func _edit_tags() -> void:
 	_mark_dirty(_current.id)
 
 
+## 選單共用:value/stat 兩種 kind 的選項統一塞進一顆 OptionButton,metadata 編碼成 "stat:<key>" 或
+## "value:local"/"value:global"(可選加一顆 "none" 當「不篩選」);AURA_STAT_LABELS 沒有的 key 用原始字串頂替。
+func _add_key_options(option: OptionButton, include_none: bool) -> void:
+	option.clear()
+	if include_none:
+		option.add_item(tr("不篩選"))
+		option.set_item_metadata(0, "none")
+	for key: String in FurnitureDef.AURA_STAT_KEYS:
+		option.add_item(tr(str(AURA_STAT_LABELS.get(key, key))))
+		option.set_item_metadata(option.item_count - 1, "stat:%s" % key)
+	option.add_item(tr("使用者自訂數值(局部)"))
+	option.set_item_metadata(option.item_count - 1, "value:local")
+	option.add_item(tr("使用者自訂數值(全域)"))
+	option.set_item_metadata(option.item_count - 1, "value:global")
+
+
+func _build_aura_section(parent: Control) -> void:
+	parent.add_child(ManagerUi.heading_with_info("效果", tr("這件家具「條件成立」的期間(見上面的觸發方式),對行動區裡所有桌寵套用的持續效果,例如小夜燈讓低精力的桌寵更容易入睡(目標選「疲勞閾值」調高、篩選選「精力」小於某個數)。套用的是「覆蓋成指定值」,家具關閉、被收走、桌寵離開篩選範圍,或這筆效果被刪掉時都會自動還原回桌寵原本的值,不會留著回不去。可以調整使用者自訂的局部/全域數值,也可以調整桌寵內建、性格會用到的參數(清單裡列出的那些)。最多 %d 筆。") % FurnitureDef.MAX_AURA_EFFECTS))
+	_aura_list = ItemList.new()
+	_aura_list.custom_minimum_size.y = 84.0
+	_aura_list.item_selected.connect(_on_aura_selected)
+	parent.add_child(_aura_list)
+	parent.add_child(ManagerUi.labeled("效果目標", _build_aura_target_row()))
+	_aura_target_number = ManagerUi.spin(1.0, FurnitureDef.AURA_VALUE_RANGE.x, FurnitureDef.AURA_VALUE_RANGE.y)
+	parent.add_child(ManagerUi.labeled("套用時的數值", _aura_target_number))
+	parent.add_child(ManagerUi.labeled("篩選條件(選填)", _build_aura_filter_row()))
+	_aura_add = ManagerUi.button("＋ 新增/更新這筆效果")
+	_aura_add.pressed.connect(_on_aura_add_pressed)
+	parent.add_child(_aura_add)
+	_aura_delete = ManagerUi.button("刪除這筆效果")
+	_aura_delete.pressed.connect(_on_aura_delete_pressed)
+	parent.add_child(_aura_delete)
+
+
+func _build_aura_target_row() -> Control:
+	var row := HBoxContainer.new()
+	_aura_target_option = OptionButton.new()
+	_add_key_options(_aura_target_option, false)
+	_aura_target_option.item_selected.connect(func(_i: int) -> void: _sync_aura_field_visibility())
+	row.add_child(_aura_target_option)
+	_aura_target_value_key = ManagerUi.line_edit("自訂數值的 key")
+	row.add_child(_aura_target_value_key)
+	return row
+
+
+func _build_aura_filter_row() -> Control:
+	var row := HBoxContainer.new()
+	_aura_filter_option = OptionButton.new()
+	_add_key_options(_aura_filter_option, true)
+	_aura_filter_option.item_selected.connect(func(_i: int) -> void: _sync_aura_field_visibility())
+	row.add_child(_aura_filter_option)
+	_aura_filter_value_key = ManagerUi.line_edit("自訂數值的 key")
+	row.add_child(_aura_filter_value_key)
+	_aura_filter_op_option = OptionButton.new()
+	for op: String in FurnitureDef.AURA_FILTER_OPS:
+		_aura_filter_op_option.add_item(op)
+	row.add_child(_aura_filter_op_option)
+	_aura_filter_number = ManagerUi.spin(1.0, FurnitureDef.AURA_VALUE_RANGE.x, FurnitureDef.AURA_VALUE_RANGE.y)
+	row.add_child(_aura_filter_number)
+	return row
+
+
+## 自訂數值的 key 輸入框只有在選到「使用者自訂數值」那兩個選項時才顯示,stat 模式用不到(直接從下拉選單讀 key)。
+func _sync_aura_field_visibility() -> void:
+	if is_instance_valid(_aura_target_value_key) and _aura_target_option.selected >= 0:
+		_aura_target_value_key.visible = str(_aura_target_option.get_item_metadata(_aura_target_option.selected)).begins_with("value:")
+	if is_instance_valid(_aura_filter_value_key) and _aura_filter_option.selected >= 0:
+		var filter_meta := str(_aura_filter_option.get_item_metadata(_aura_filter_option.selected))
+		_aura_filter_value_key.visible = filter_meta.begins_with("value:")
+		var has_filter := filter_meta != "none"
+		_aura_filter_op_option.visible = has_filter
+		_aura_filter_number.visible = has_filter
+
+
+## metadata("stat:<key>"/"value:local"/"value:global")拆成 {kind, stat_key, scope}。
+func _split_key_metadata(meta: String) -> Dictionary:
+	var parts := meta.split(":", true, 1)
+	if parts[0] == "value":
+		return {"kind": "value", "scope": parts[1] if parts.size() > 1 else "local", "stat_key": ""}
+	return {"kind": "stat", "scope": "local", "stat_key": parts[1] if parts.size() > 1 else ""}
+
+
+func _aura_effect_summary(effect: Dictionary) -> String:
+	var target_kind := str(effect.get("target_kind", "value"))
+	var target_label: String = AURA_STAT_LABELS.get(str(effect.get("target_key", "")), str(effect.get("target_key", ""))) if target_kind == "stat" else tr("自訂數值「%s」(%s)") % [effect.get("target_key", ""), tr("局部") if str(effect.get("scope", "local")) == "local" else tr("全域")]
+	var text := tr("%s → %s") % [target_label, str(effect.get("value", 0.0))]
+	var filter_kind := str(effect.get("filter_kind", ""))
+	if filter_kind != "":
+		var filter_label: String = AURA_STAT_LABELS.get(str(effect.get("filter_key", "")), str(effect.get("filter_key", ""))) if filter_kind == "stat" else tr("自訂數值「%s」") % effect.get("filter_key", "")
+		text += tr("(當 %s %s %s 時)") % [filter_label, effect.get("filter_op", "<"), effect.get("filter_value", 0.0)]
+	return text
+
+
+func _refresh_aura_list() -> void:
+	if not is_instance_valid(_aura_list):
+		return
+	_aura_list.clear()
+	if _current != null:
+		for effect: Dictionary in _current.aura_effects:
+			_aura_list.add_item(_aura_effect_summary(effect))
+	_sync_aura_buttons()
+	_sync_aura_field_visibility()
+
+
+## 選取既有一筆效果時,把目標/篩選欄位填回去,方便改完按「新增/更新」直接覆蓋這一筆(不用重新全部填一次)。
+func _on_aura_selected(index: int) -> void:
+	if _current == null or index < 0 or index >= _current.aura_effects.size():
+		_sync_aura_buttons()
+		return
+	var effect: Dictionary = _current.aura_effects[index]
+	var target_kind := str(effect.get("target_kind", "value"))
+	var target_meta := "value:%s" % str(effect.get("scope", "local")) if target_kind == "value" else "stat:%s" % str(effect.get("target_key", ""))
+	for i in _aura_target_option.item_count:
+		if str(_aura_target_option.get_item_metadata(i)) == target_meta:
+			_aura_target_option.select(i)
+			break
+	_aura_target_value_key.text = str(effect.get("target_key", "")) if target_kind == "value" else ""
+	_aura_target_number.value = float(effect.get("value", 0.0))
+	var filter_kind := str(effect.get("filter_kind", ""))
+	var filter_meta := "none" if filter_kind == "" else ("value:%s" % str(effect.get("filter_scope", "local")) if filter_kind == "value" else "stat:%s" % str(effect.get("filter_key", "")))
+	for i in _aura_filter_option.item_count:
+		if str(_aura_filter_option.get_item_metadata(i)) == filter_meta:
+			_aura_filter_option.select(i)
+			break
+	_aura_filter_value_key.text = str(effect.get("filter_key", "")) if filter_kind == "value" else ""
+	for i in _aura_filter_op_option.item_count:
+		if _aura_filter_op_option.get_item_text(i) == str(effect.get("filter_op", "<")):
+			_aura_filter_op_option.select(i)
+			break
+	_aura_filter_number.value = float(effect.get("filter_value", 0.0))
+	_sync_aura_field_visibility()
+	_sync_aura_buttons()
+
+
+func _sync_aura_buttons() -> void:
+	_aura_delete.disabled = _aura_list.get_selected_items().is_empty()
+	_aura_add.disabled = _current != null and _current.aura_effects.size() >= FurnitureDef.MAX_AURA_EFFECTS and _aura_list.get_selected_items().is_empty()
+
+
+## 新增一筆效果(最多 MAX_AURA_EFFECTS 筆,滿了且沒有選取既有項目時 _aura_add 會被停用擋下);
+## 按「儲存」後才會同步桌面上已經放置的同一件家具實例(FurnitureItem.apply_def() 會先還原舊效果)。
+func _on_aura_add_pressed() -> void:
+	if _current == null or _aura_target_option.selected < 0:
+		return
+	var target_meta := _split_key_metadata(str(_aura_target_option.get_item_metadata(_aura_target_option.selected)))
+	var target_key := str(_aura_target_value_key.text).strip_edges() if target_meta["kind"] == "value" else str(target_meta["stat_key"])
+	var raw := {
+		"target_kind": target_meta["kind"], "target_key": target_key, "scope": target_meta["scope"],
+		"value": _aura_target_number.value,
+	}
+	if _aura_filter_option.selected >= 0:
+		var filter_meta_raw := str(_aura_filter_option.get_item_metadata(_aura_filter_option.selected))
+		if filter_meta_raw != "none":
+			var filter_meta := _split_key_metadata(filter_meta_raw)
+			raw["filter_kind"] = filter_meta["kind"]
+			raw["filter_key"] = str(_aura_filter_value_key.text).strip_edges() if filter_meta["kind"] == "value" else str(filter_meta["stat_key"])
+			raw["filter_scope"] = filter_meta["scope"]
+			raw["filter_op"] = str(_aura_filter_op_option.get_item_text(_aura_filter_op_option.selected))
+			raw["filter_value"] = _aura_filter_number.value
+	var items := _current.aura_effects.duplicate(true)
+	var selected := _aura_list.get_selected_items()
+	if not selected.is_empty() and selected[0] < items.size():
+		items[selected[0]] = raw
+	elif items.size() < FurnitureDef.MAX_AURA_EFFECTS:
+		items.append(raw)
+	else:
+		_status.text = tr("效果最多只能設 %d 筆。") % FurnitureDef.MAX_AURA_EFFECTS
+		return
+	_current.aura_effects = FurnitureDef.clean_aura_effects(items)
+	_mark_dirty(_current.id)
+	_refresh_aura_list()
+
+
+func _on_aura_delete_pressed() -> void:
+	var selected := _aura_list.get_selected_items()
+	if selected.is_empty() or _current == null:
+		return
+	var items := _current.aura_effects.duplicate(true)
+	items.remove_at(selected[0])
+	_current.aura_effects = FurnitureDef.clean_aura_effects(items)
+	_mark_dirty(_current.id)
+	_refresh_aura_list()
+
+
 func _reload_container_props() -> void:
 	_container_props = PropLibrary.list()
 	_container_prop_option.clear()
@@ -533,7 +741,12 @@ func _on_add_pressed() -> void:
 		_status.text = "新增失敗。"
 		return
 	reload()
-	_select(def, true)
+	# 2026-10-04 修掉一個潛藏的存檔漏洞:reload() 會把 _defs 整份換成剛剛從磁碟重讀出來的「另一份」物件
+	# (跟上面 create_from_template() 回傳的 def 不是同一個參考),如果這裡直接拿 def 當 _current,之後
+	# _save_all() 透過 _def_by_id() 找到的卻是 _defs 裡那份沒被编輯過的舊物件──新增後馬上編輯(容器內容物、
+	# 效果…)按儲存會悄悄存回編輯前的樣子。改成選 reload() 之後、_defs 裡 id 相同的那一份,讓 _current 跟
+	# _defs 共用同一個物件參考,編輯才真的會被存到。
+	_select(_def_by_id(def.id), true)
 	_status.text = tr("已新增「%s」,記得按「編輯素材…」放圖進去。") % def.display_name
 
 

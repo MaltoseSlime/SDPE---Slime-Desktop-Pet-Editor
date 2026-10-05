@@ -322,6 +322,23 @@ static func set_bubble_display_mode(mode: String) -> void:
 	config.save(SETTINGS_PATH)
 
 
+## 桌寵自己平常用的對話氣泡(不是上面的聊天室式/簡訊式視窗)要不要被限制在行動區範圍內——預設 false,
+## 跟原本一樣只夾在「桌寵所在的那一個螢幕」裡(見 UiManager._layout());開啟後改夾在行動區的框架內,
+## 不會跑到行動區外面。存在 [dialogue] 的 bubble_clamp_to_action_area。
+static func bubble_clamp_to_action_area() -> bool:
+	var config := ConfigFile.new()
+	if config.load(SETTINGS_PATH) == OK:
+		return bool(config.get_value("dialogue", "bubble_clamp_to_action_area", false))
+	return false
+
+
+static func set_bubble_clamp_to_action_area(enabled: bool) -> void:
+	var config := ConfigFile.new()
+	config.load(SETTINGS_PATH)
+	config.set_value("dialogue", "bubble_clamp_to_action_area", enabled)
+	config.save(SETTINGS_PATH)
+
+
 ## 聊天室/簡訊式視窗每則訊息底下要不要顯示時間戳(2026-10-02 使用者要求):none = 不顯示(預設)、
 ## 12h/24h = 12 或 24 小時制,寫的是裝置目前的系統時間(記錄當下,不是回放時重算)。存在 [dialogue] 的
 ## timestamp_mode。

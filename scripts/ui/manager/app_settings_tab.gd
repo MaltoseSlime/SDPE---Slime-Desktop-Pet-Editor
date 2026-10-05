@@ -26,6 +26,7 @@ var _lights_check: CheckBox
 var _on_top_check: CheckBox
 var _bubble_pin_check: CheckBox
 var _bubble_mode_option: OptionButton
+var _bubble_clamp_check: CheckBox
 var _timestamp_option: OptionButton
 var _firefly_mode: OptionButton
 var _firefly_start_hour: SpinBox
@@ -241,6 +242,16 @@ func _build_performance() -> void:
 		get_tree().call_group("dialogue_display", "refresh_setting")
 		message.emit(tr("對話集中方式已設成「%s」。") % str(bubble_mode_labels[mode])))
 	add_child(ManagerUi.labeled("集中方式", _bubble_mode_option))
+	_bubble_clamp_check = CheckBox.new()
+	_bubble_clamp_check.text = "對話氣泡不超出行動區"
+	_bubble_clamp_check.tooltip_text = "桌寵自己平常用的對話氣泡(不是上面的對話集中視窗)預設只夾在「桌寵所在的那一個螢幕」裡,可以跑到行動區外面。開啟後改夾在行動區的框架內,不會跑到行動區外面。"
+	_bubble_clamp_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_bubble_clamp_check.toggled.connect(func(on: bool) -> void:
+		if _updating:
+			return
+		AppSettings.set_bubble_clamp_to_action_area(on)
+		message.emit("對話氣泡已限制在行動區範圍內。" if on else "對話氣泡不超出行動區已關閉,改回只夾在螢幕範圍內。"))
+	add_child(_bubble_clamp_check)
 	_timestamp_option = OptionButton.new()
 	_timestamp_option.tooltip_text = "聊天室式/簡訊式視窗裡,每則訊息底下要不要用小小的灰色字顯示時間(裝置目前的系統時間,記下來的當下時間,不是每次開視窗才重算)。跟上面的「對話集中」開不開沒有關係,選了就一直生效。"
 	var timestamp_labels := {"none": "不顯示時間戳", "12h": "12 小時制時間戳", "24h": "24 小時制時間戳"}
@@ -542,6 +553,7 @@ func _load_into_widgets() -> void:
 	for i in _bubble_mode_option.item_count:
 		if str(_bubble_mode_option.get_item_metadata(i)) == current_mode:
 			_bubble_mode_option.select(i)
+	_bubble_clamp_check.button_pressed = AppSettings.bubble_clamp_to_action_area()
 	var current_timestamp_mode := AppSettings.chatroom_timestamp_mode()
 	for i in _timestamp_option.item_count:
 		if str(_timestamp_option.get_item_metadata(i)) == current_timestamp_mode:

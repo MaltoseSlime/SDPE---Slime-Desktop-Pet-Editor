@@ -20,10 +20,6 @@ var _ignore_reactions: CheckBox
 var _overwrite_params: CheckBox
 var _preview: TextEdit
 var _vitality_label: Label
-var _keyword_edit: TextEdit
-var _keyword_count: Label
-var _user_keyword_edit: TextEdit
-var _user_keyword_count: Label
 var _params_panel: PersonalityParamsPanel
 var _mood_lens_lists: Dictionary = {}   # true = 心情高、false = 心情低 → ItemList(可複選)
 var _personalities: Array[Dictionary] = []
@@ -110,17 +106,18 @@ func _build_left() -> void:
 		_section_desc[section] = description
 
 	side.add_child(HSeparator.new())
-	side.add_child(ManagerUi.heading_with_info("心情與狀態鏡", "心情偏高(超過「開心門檻」)或偏低(低於「生氣門檻」)時,桌寵會進入哪一個狀態鏡:在這裡指定(可以複選,每次要進入時從你勾的裡面隨機挑一個);一個都不勾就從有勾「可以被心情門檻叫出來」的正面 / 負面狀態鏡裡隨機挑一個。要不要被心情叫出來,在「狀態鏡」分頁每個狀態鏡的勾選項裡設定。心情門檻與起伏程度在下面的參數裡。"))
+	side.add_child(ManagerUi.heading_with_info("心情與狀態鏡", "心情偏高(超過「開心門檻」)或偏低(低於「生氣門檻」)時,桌寵會進入哪一個狀態鏡:在這裡勾選要「亮起來」的(可以勾好幾個,每次要進入時從亮起來的裡面隨機擇一);一個都不勾就從有勾「可以被心情門檻叫出來」的正面 / 負面狀態鏡裡隨機挑一個。要不要被心情叫出來,在「狀態鏡」分頁每個狀態鏡的勾選項裡設定。心情門檻與起伏程度在下面的參數裡。"))
 	for high: bool in [true, false]:
 		side.add_child(ManagerUi.heading("心情高時" if high else "心情低時"))
-		var mood_list := ItemList.new()
-		mood_list.select_mode = ItemList.SELECT_MULTI
-		mood_list.custom_minimum_size.y = 70.0
-		mood_list.multi_selected.connect(func(_index: int, _selected: bool) -> void: _on_mood_lens_picked(high))
-		side.add_child(mood_list)
+		# 2026-10-06:改成逐項勾選(點一下就亮起/熄滅),原本的 ItemList 多選要 Ctrl+點擊,使用者不容易發現可以複選。
+		var mood_scroll := ScrollContainer.new()
+		mood_scroll.custom_minimum_size.y = 90.0
+		mood_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		side.add_child(mood_scroll)
+		var mood_list := VBoxContainer.new()
+		mood_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		mood_scroll.add_child(mood_list)
 		_mood_lens_lists[high] = mood_list
-	side.add_child(HSeparator.new())
-	_build_keywords(side)
 	side.add_child(HSeparator.new())
 	side.add_child(ManagerUi.heading_with_info("這隻桌寵的參數", "直接改下面的方塊,馬上套用在這隻桌寵身上(記得按「儲存」)。你改過的參數,之後換性格時預設會保留。每列右邊的 ↺ 回到預設值。滑過名稱看完整說明。"))
 	_params_panel = PersonalityParamsPanel.new()
@@ -128,101 +125,6 @@ func _build_left() -> void:
 	side.add_child(_params_panel)
 
 
-## 關鍵詞庫小板塊:這隻角色會想或提及的事物,一行一個。台詞裡的 {keyword}(隨機一個)與 {kw:1}~{kw:9}(這個事件洗牌後的第幾個,彼此不同)會用到它。
-func _build_keywords(side: VBoxContainer) -> void:
-	side.add_child(ManagerUi.heading_with_info("關鍵詞庫", tr("簡單地告訴桌寵「你會想到、提到哪些事物」,一行一個(最多 %d 個、每個最多 %d 字)。台詞裡寫 {keyword} 就會隨機換成其中一個,例如「%s似乎在想關於 {keyword} 的事情」「你知道關於 {keyword} 的事嗎?」「oO(有點想念 {keyword} 呀…)」;{kw:1}、{kw:2}… 是同一個事件裡各不相同的幾個,適合做「猜猜我現在最想要什麼?」這種四個選項都是答案的題目。庫是空的就用預設詞(可以寫 {keyword|某件事} 自訂)。改了立刻生效,記得按「儲存」。") % [PetText.MAX_KEYWORDS, PetText.MAX_KEYWORD_LENGTH, "{self}"]))
-	side.add_child(ManagerUi.syntax_row(self, "台詞裡怎麼用:{keyword}、{kw:1}", "{keyword} = 隨機一個;{keyword|某件事} = 庫是空的時顯示「某件事」;{kw:1}~{kw:9} = 這個事件洗牌後的第 N 個(1、2、3、4 各不相同)。點右邊的「語法字典」看全部語法。", false))
-	side.add_child(_hint("▍桌寵有興趣的關鍵詞(桌寵向你學到的新知識也會記在這裡)"))
-	_keyword_edit = TextEdit.new()
-	_keyword_edit.custom_minimum_size.y = 96.0
-	_keyword_edit.placeholder_text = tr("一行一個關鍵詞,例如:\n晚餐\n星星\n下雨天")
-	_keyword_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
-	_keyword_edit.text_changed.connect(_on_keywords_edited)
-	side.add_child(_keyword_edit)
-	var row := HBoxContainer.new()
-	_keyword_count = Label.new()
-	_keyword_count.theme_type_variation = AppSettings.MUTED_LABEL
-	_keyword_count.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(_keyword_count)
-	var suggest := ManagerUi.button("加入建議詞")
-	suggest.tooltip_text = "把一組常見的話題(晚餐、星星、天氣…)加進來,已經有的不會重複;不喜歡的自己刪掉。"
-	suggest.pressed.connect(_add_suggested_keywords)
-	row.add_child(suggest)
-	var clear := ManagerUi.button("清空")
-	clear.pressed.connect(func() -> void:
-		_keyword_edit.text = ""
-		_on_keywords_edited())
-	row.add_child(clear)
-	side.add_child(row)
-	# 第二份:使用者有興趣的關鍵詞。台詞裡用 {keyword:user} / {kw:user:1};桌寵「想更了解你」問到的也會記在這裡。
-	side.add_child(_hint("▍使用者有興趣的關鍵詞(桌寵想更了解你時問到的會記在這裡;台詞裡用 {keyword:user}、{kw:user:1})"))
-	_user_keyword_edit = TextEdit.new()
-	_user_keyword_edit.custom_minimum_size.y = 96.0
-	_user_keyword_edit.placeholder_text = tr("一行一個,例如:\n貓咪\n爵士樂\n登山")
-	_user_keyword_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
-	_user_keyword_edit.text_changed.connect(_on_user_keywords_edited)
-	side.add_child(_user_keyword_edit)
-	var user_row := HBoxContainer.new()
-	_user_keyword_count = Label.new()
-	_user_keyword_count.theme_type_variation = AppSettings.MUTED_LABEL
-	_user_keyword_count.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	user_row.add_child(_user_keyword_count)
-	var user_clear := ManagerUi.button("清空")
-	user_clear.pressed.connect(func() -> void:
-		_user_keyword_edit.text = ""
-		_on_user_keywords_edited())
-	user_row.add_child(user_clear)
-	side.add_child(user_row)
-
-
-const SUGGESTED_KEYWORDS: Array[String] = ["晚餐", "星星", "天氣", "下雨天", "零食", "午睡", "夕陽", "音樂", "冒險", "遠方的朋友"]
-
-
-func _add_suggested_keywords() -> void:
-	var merged := PetText.sanitize_keywords(_keyword_edit.text)
-	for word in SUGGESTED_KEYWORDS:
-		if not merged.has(word) and merged.size() < PetText.MAX_KEYWORDS:
-			merged.append(word)
-	_keyword_edit.text = "\n".join(merged)
-	_on_keywords_edited()
-
-
-## 使用者改了關鍵詞:整理後寫到這隻桌寵身上(輸入框的文字不重寫,免得打字時游標亂跳;超過上限或重複的下次載入才會被整理掉)。
-func _on_keywords_edited() -> void:
-	if _updating or _pet == null:
-		return
-	_pet.keywords = PetText.sanitize_keywords(_keyword_edit.text)
-	_update_keyword_count()
-	changed.emit()
-
-
-## 使用者有興趣的關鍵詞被編輯:整理後寫到桌寵身上。
-func _on_user_keywords_edited() -> void:
-	if _updating or _pet == null:
-		return
-	_pet.user_keywords = PetText.sanitize_keywords(_user_keyword_edit.text)
-	_update_keyword_count()
-	changed.emit()
-
-
-func _update_keyword_count() -> void:
-	if _pet == null:
-		return
-	_keyword_count.text = tr("目前 %d / %d 個關鍵詞") % [_pet.keywords.size(), PetText.MAX_KEYWORDS]
-	if _user_keyword_count != null:
-		_user_keyword_count.text = tr("目前 %d / %d 個關鍵詞") % [_pet.user_keywords.size(), PetText.MAX_KEYWORDS]
-
-
-func _load_keywords() -> void:
-	if _pet == null or _keyword_edit == null:
-		return
-	var was_updating := _updating
-	_updating = true
-	_keyword_edit.text = "\n".join(_pet.keywords)
-	if _user_keyword_edit != null:
-		_user_keyword_edit.text = "\n".join(_pet.user_keywords)
-	_updating = was_updating
-	_update_keyword_count()
 
 
 func _hint(text: String) -> Label:
@@ -343,7 +245,6 @@ func set_pet(pet: Node) -> void:
 	_ignore_reactions.button_pressed = bool(state["ignore_own"].get("reactions", false))
 	_overwrite_params.button_pressed = false
 	_updating = false
-	_load_keywords()
 	_reload_mood_lens_options()
 	_refresh_preview()
 
@@ -355,24 +256,29 @@ func _reload_mood_lens_options() -> void:
 		return
 	_updating = true
 	for high: bool in _mood_lens_lists:
-		var list: ItemList = _mood_lens_lists[high]
-		list.clear()
+		var list: VBoxContainer = _mood_lens_lists[high]
+		for old in list.get_children():
+			list.remove_child(old)
+			old.queue_free()
 		var chosen := PersonalityApplier.mood_lens_choices(_pet, high)
 		for lens: PetStateLens in _pet.state_lenses:
 			if lens.has_nature("正面" if high else "負面") and lens.lens_name != PetVitality.TIRED_LENS:
-				list.add_item(lens.lens_name)
-				if chosen.has(lens.lens_name):
-					list.select(list.item_count - 1, false)
+				var check := CheckBox.new()
+				check.text = lens.lens_name
+				check.button_pressed = chosen.has(lens.lens_name)
+				check.toggled.connect(func(_on: bool) -> void: _on_mood_lens_picked(high))
+				list.add_child(check)
 	_updating = false
 
 
 func _on_mood_lens_picked(high: bool) -> void:
 	if _updating or _pet == null:
 		return
-	var list: ItemList = _mood_lens_lists[high]
+	var list: VBoxContainer = _mood_lens_lists[high]
 	var names: Array[String] = []
-	for index in list.get_selected_items():
-		names.append(list.get_item_text(index))
+	for check: CheckBox in list.get_children():
+		if check.button_pressed:
+			names.append(check.text)
 	PersonalityApplier.set_mood_lens_choices(_pet, high, names)
 	changed.emit()
 	message.emit(tr("已改心情%s時的狀態鏡。記得按「儲存」。") % (tr("高") if high else tr("低")))

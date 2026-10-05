@@ -9,8 +9,10 @@ const INVITE_LINES := {
 	"rps": ["要不要來玩剪刀石頭布?", "要不要跟我猜個拳?", "無聊耶……來猜拳好不好?"],
 	"dice": ["要不要來拚骰子,比誰的點數大?", "要不要擲骰子比一場?", "要不要跟我賭一把運氣?"],
 	"ttt": ["要不要來下一盤井字棋?", "來玩井字棋好不好?", "無聊耶……陪我玩井字棋嘛?"],
+	"blockade": ["要不要來下一盤步步為營?", "來玩步步為營好不好?", "無聊耶……陪我玩步步為營嘛?"],
+	"mastermind": ["要不要來猜猜珠璣妙算?", "來猜暗碼好不好?我出一組顏色給你猜!"],
 }
-const GAME_NAMES := {"rps": "猜拳", "dice": "拚骰", "ttt": "井字棋"}
+const GAME_NAMES := {"rps": "猜拳", "dice": "拚骰", "ttt": "井字棋", "blockade": "步步為營", "mastermind": "珠璣妙算"}
 const GROUP_LINES: Array[String] = ["要不要一起拚骰子,比誰的點數大?", "要不要一起擲骰子比一場?"]
 const ACCEPT_LINES: Array[String] = ["好啊,來吧!", "嘿嘿,奉陪!", "來就來,誰怕誰!"]
 const REFUSE_LINES := {
@@ -23,6 +25,28 @@ const REFUSE_LINES := {
 const DECLINED_LINES: Array[String] = ["(被拒絕了……)", "嘖,好吧。", "那下次再約囉。"]
 
 
+## 依好惡加權抽一個邀請對象(2026-10-04 使用者要求「要不要主動邀請對方」受好惡影響):討厭的機率被壓低、
+## 喜歡的機率提高,但不是硬性排除(跟跟隨不一樣,跟隨那邊討厭的直接整個排除掉)。每一級好惡 ±30% 權重,
+## 夾在 0.1~3.0 之間,普通(0 級)權重 1.0 跟完全沒有這個功能時一樣。
+static func _affinity_weight(inviter: Node, candidate: Node) -> float:
+	return clampf(1.0 + float(inviter.pet_affinity(candidate)) * 0.3, 0.1, 3.0)
+
+
+static func _weighted_pick(inviter: Node, candidates: Array) -> Node:
+	var weights: Array[float] = []
+	var total := 0.0
+	for candidate: Node in candidates:
+		var weight := _affinity_weight(inviter, candidate)
+		weights.append(weight)
+		total += weight
+	var roll := randf() * total
+	for i in candidates.size():
+		roll -= weights[i]
+		if roll <= 0.0:
+			return candidates[i]
+	return candidates[-1]
+
+
 ## 隨機挑場上一隻別的桌寵和一種遊戲,發起邀請(不等它結束)。沒有合適的對象回 false。
 ## 賽制由邀請者自己決定(Pet.pick_invite_best_of,不看右鍵選單的「賽制」);設了「一律拒絕對戰邀請」的桌寵不會被自動挑來邀請(反正必被拒)。
 static func start_random(inviter: Node) -> bool:
@@ -30,10 +54,18 @@ static func start_random(inviter: Node) -> bool:
 		func(p: Node) -> bool: return p != inviter and not p.is_queued_for_deletion() and not p.entering and not p.game_always_refuse)
 	if candidates.is_empty():
 		return false
-	var kinds: Array[String] = ["rps", "dice"]
-	if not TttGame.has_active_board():   # 棋盤全場只能有一塊,已經有的話這次自動邀請不考慮井字棋(見 TttGame 的說明)。
+	var kinds: Array[String] = []
+	for kind: String in ["rps", "dice", "mastermind"]:
+		if inviter.game_auto_invite_enabled(kind):
+			kinds.append(kind)
+	# 棋盤全場只能有一塊,已經有的話這次自動邀請不考慮井字棋/步步為營(見 TttGame/BlockadeGame 的說明)。
+	if not TttGame.has_active_board() and inviter.game_auto_invite_enabled("ttt"):
 		kinds.append("ttt")
-	invite(inviter, candidates.pick_random(), kinds.pick_random(), inviter.pick_invite_best_of())
+	if not BlockadeGame.has_active_board() and inviter.game_auto_invite_enabled("blockade"):
+		kinds.append("blockade")
+	if kinds.is_empty():   # 「遊戲與對戰」設定卡片把全部種類的自動邀請都關了。
+		return false
+	invite(inviter, _weighted_pick(inviter, candidates), kinds.pick_random(), inviter.pick_invite_best_of())
 	return true
 
 
@@ -72,8 +104,10 @@ static func invite(inviter: Node, invitee: Node, kind: String, best_of := 0, wai
 	if invitee.is_in_game():
 		GameChat.think_blocked(inviter, invitee, TranslationServer.translate(str(GAME_NAMES.get(kind, "遊戲"))))
 		return {"accepted": false, "reason": "in_game"}
-	# 井字棋全場同時只能有一塊棋盤(使用者要求):已經有的話,新的井字棋邀請(自動或手動指定)一律擋下。
+	# 井字棋/步步為營全場同時只能有一塊棋盤(使用者要求):已經有的話,新的邀請(自動或手動指定)一律擋下。
 	if kind == "ttt" and TttGame.has_active_board():
+		return {"accepted": false, "reason": "board_busy"}
+	if kind == "blockade" and BlockadeGame.has_active_board():
 		return {"accepted": false, "reason": "board_busy"}
 	var generations := {inviter: inviter.action_generation, invitee: invitee.action_generation}
 	if not inviter.BEST_OF_CHOICES.has(best_of):
@@ -92,7 +126,7 @@ static func invite(inviter: Node, invitee: Node, kind: String, best_of := 0, wai
 		return {}
 	if invitee.vitality != null:
 		invitee.vitality.note_invited()
-	var refusal: Dictionary = invitee.game_refusal()
+	var refusal: Dictionary = invitee.game_refusal(kind, inviter)
 	if randf() < float(refusal["chance"]):
 		var reason := str(refusal["reason"])
 		if await _invitee_event(invitee, inviter, kind, "refuse"):
@@ -118,12 +152,20 @@ static func invite(inviter: Node, invitee: Node, kind: String, best_of := 0, wai
 			await inviter.start_rps_with(invitee, best_of)
 		elif kind == "ttt":
 			await inviter.start_ttt_with(invitee, best_of)
+		elif kind == "blockade":
+			await inviter.start_blockade_with(invitee, best_of)
+		elif kind == "mastermind":
+			await inviter.start_mastermind_with(invitee)
 		else:
 			await inviter.start_dice_contest([invitee], best_of)
 	elif kind == "rps":
 		inviter.start_rps_with(invitee, best_of)
 	elif kind == "ttt":
 		inviter.start_ttt_with(invitee, best_of)
+	elif kind == "blockade":
+		inviter.start_blockade_with(invitee, best_of)
+	elif kind == "mastermind":
+		inviter.start_mastermind_with(invitee)
 	else:
 		inviter.start_dice_contest([invitee], best_of)
 	return {"accepted": true, "reason": ""}
@@ -157,7 +199,7 @@ static func invite_all_dice(inviter: Node, best_of := 0) -> Dictionary:
 			continue
 		if other.vitality != null:
 			other.vitality.note_invited()
-		var refusal: Dictionary = other.game_refusal()
+		var refusal: Dictionary = other.game_refusal("dice", inviter)
 		if randf() < float(refusal["chance"]):
 			GameChat.say(other, other.speak_tr(str((REFUSE_LINES[str(refusal["reason"])] as Array).pick_random())), 2.2)
 		else:

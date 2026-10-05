@@ -96,6 +96,7 @@ func _build() -> void:
 	_event_option.clip_text = true
 	card.add_child(_event_option)
 	card.add_child(_action_button("強制觸發這個事件", _force_event))
+	card.add_child(_action_button("事件管理(查看/停用/移除)", func() -> void: ManagerUi.open_event_manager_window(self, _pet)))
 
 	# 說點什麼
 	card = _new_card("說點什麼(隨機閒聊)")
