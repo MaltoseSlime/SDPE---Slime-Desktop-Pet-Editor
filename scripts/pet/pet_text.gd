@@ -30,6 +30,16 @@ static func sanitize(text: String, max_length := DEFAULT_MAX_LENGTH) -> String:
 const MAX_KEYWORDS := 60
 const MAX_KEYWORD_LENGTH := 16
 const DEFAULT_KEYWORD := "某個東西"
+## 關鍵詞標籤(2026-10-06 使用者要求):詞彙可以標記成這些類別之一,閒聊文本用 {tag:愛好} 這類語法引用同一類的詞。
+## 沒有標籤的舊資料一律視為「話題」(DEFAULT_TAG)。
+const KEYWORD_TAGS: Array[String] = ["話題", "問候語", "愛好", "食物", "人物", "作品", "日常事務", "習慣", "格言", "約定", "願望", "重要的事", "寶物", "秘密", "待辦事項"]
+const DEFAULT_TAG := "話題"
+
+
+## 把標籤整理成清單內的合法值;不認得的(含空白)一律回到 DEFAULT_TAG。
+static func clean_tag(tag: Variant) -> String:
+	var text := str(tag).strip_edges()
+	return text if KEYWORD_TAGS.has(text) else DEFAULT_TAG
 
 
 static func sanitize_keywords(raw: Variant) -> PackedStringArray:

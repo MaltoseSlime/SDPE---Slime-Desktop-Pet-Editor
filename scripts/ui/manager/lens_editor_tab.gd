@@ -151,11 +151,11 @@ func _build_form_side() -> void:
 	_form.add_child(ManagerUi.labeled("最多幾輪", _rounds_spin))
 	_form.add_child(ManagerUi.hint_row("延續執行判定", "逾時到期時擲骰決定要不要再延續一輪(時間重新在上面的區間內抽):機率 = 延續機率 × 每輪衰減^(已完成輪數 − 1),一輪比一輪低,滿「最多幾輪」一定結束(和睡覺的「再睡一輪」同一種做法)。延續機率 0 = 不延續。要先設自動逾時才有作用。"))
 	_force_run_check = CheckBox.new()
-	_force_run_check.text = "啟用期間奔跑(走路變成 run 動作與奔跑速度,疲勞消耗也比較多)"
+	_force_run_check.text = tr("啟用期間奔跑(走路變成 run 動作與奔跑速度,疲勞消耗也比較多)")
 	_force_run_check.toggled.connect(_on_field_changed)
 	_form.add_child(_force_run_check)
 	_mood_callable_check = CheckBox.new()
-	_mood_callable_check.text = "可以被心情門檻叫出來(心情偏高 / 偏低時,依「正面 / 負面」性質挑選)"
+	_mood_callable_check.text = tr("可以被心情門檻叫出來(心情偏高 / 偏低時,依「正面 / 負面」性質挑選)")
 	_mood_callable_check.toggled.connect(_on_field_changed)
 	_form.add_child(_mood_callable_check)
 	_form.add_child(ManagerUi.hint_row("「奔跑」狀態鏡", "名字叫「奔跑」的狀態鏡是桌寵「自己決定跑一下」時啟用的那一個:跑多久、要不要延續、跑多快都在這裡調;什麼時候會自己起跑由性格參數決定(活潑的不管心情、其他的開心或贏了遊戲時才判定,有的性格完全不跑)。"))
@@ -414,5 +414,5 @@ func _update_active_ui() -> void:
 		return
 	var active: bool = _pet.is_lens_active(lens.lens_name)
 	var top: String = _pet.current_lens_name()
-	_active_label.text = tr("這個狀態鏡:%s;目前實際生效的鏡片:%s") % ["啟用中" if active else "未啟用", top if top != "" else "無"]
-	_toggle_button.text = "解除這個狀態鏡" if active else "啟用這個狀態鏡"
+	_active_label.text = tr("這個狀態鏡:%s;目前實際生效的鏡片:%s") % [tr("啟用中") if active else tr("未啟用"), top if top != "" else tr("無")]
+	_toggle_button.text = tr("解除這個狀態鏡") if active else tr("啟用這個狀態鏡")

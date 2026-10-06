@@ -77,14 +77,14 @@ func _ready() -> void:
 func _build_audio() -> void:
 	add_child(ManagerUi.heading_with_info("音效", "全部桌寵共用的音效設定。音量是整個程式的總音量(說話聲與效果音一起調),靜音會讓所有桌寵都不出聲;每隻桌寵自己的靜音在測試者面板與桌寵管理裡。改了立刻生效,下次開機也會沿用。"))
 	_mute_check = CheckBox.new()
-	_mute_check.text = "靜音(全部桌寵)"
+	_mute_check.text = tr("靜音(全部桌寵)")
 	_mute_check.toggled.connect(func(on: bool) -> void:
 		if not _updating:
 			audio_setting_requested.emit("mute", on)
 			message.emit("已靜音。" if on else "已解除靜音。"))
 	add_child(_mute_check)
 	_speak_check = CheckBox.new()
-	_speak_check.text = "說話音效(對話氣泡打字時的聲音)"
+	_speak_check.text = tr("說話音效(對話氣泡打字時的聲音)")
 	_speak_check.toggled.connect(func(on: bool) -> void:
 		if not _updating:
 			audio_setting_requested.emit("speak", on)
@@ -197,7 +197,7 @@ func _build_performance() -> void:
 		message.emit(tr("最高影格率已設成 %d fps。") % int(value)))
 	add_child(ManagerUi.labeled("最高影格率", _fps_spin))
 	_lights_check = CheckBox.new()
-	_lights_check.text = "啟用光源(角色身上的發光效果;關掉可以省效能)"
+	_lights_check.text = tr("啟用光源(角色身上的發光效果;關掉可以省效能)")
 	_lights_check.toggled.connect(func(on: bool) -> void:
 		if _updating:
 			return
@@ -207,9 +207,9 @@ func _build_performance() -> void:
 		message.emit("光源已開啟。" if on else "光源已關閉。"))
 	add_child(_lights_check)
 	_on_top_check = CheckBox.new()
-	_on_top_check.text = "浮動視窗保持在最上層"
+	_on_top_check.text = tr("浮動視窗保持在最上層")
 	_on_top_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_on_top_check.tooltip_text = "管理視窗、編輯器等浮動視窗永遠蓋在其他程式上面。浮動視窗被其他程式蓋住的話,也可以用系統匣的「浮動視窗重設」拉回來。"
+	_on_top_check.tooltip_text = tr("管理視窗、編輯器等浮動視窗永遠蓋在其他程式上面。浮動視窗被其他程式蓋住的話,也可以用系統匣的「浮動視窗重設」拉回來。")
 	_on_top_check.toggled.connect(func(on: bool) -> void:
 		if _updating:
 			return
@@ -219,7 +219,7 @@ func _build_performance() -> void:
 	add_child(_on_top_check)
 	add_child(ManagerUi.heading_with_info("對話集中", "關閉時氣泡照舊貼在桌寵旁邊移動(預設)。開啟後從下面選一種集中方式:聊天室式——不用等你互動的句子(閒聊、狀態播報)改成寫進一個可收合的聊天室視窗(拖它標題列移動、拖右下角調整大小、按一下收合成小圖示),一行純文字「桌寵名字: 台詞」;簡訊式——跟聊天室式同一個視窗、同一套規則,只是每句話改畫成圓角訊息氣泡,底色是那隻桌寵原本的泡泡外框色。不管選哪種,需要你選選項或回答的句子都還是照舊用浮動氣泡,不然沒辦法在聊天室裡點選項。之後會再加其他集中款式。個別桌寵的氣泡固定/解除固定是另一件事,隨時都能用(見桌寵右鍵選單「固定氣泡位置」),不受這裡影響。"))
 	_bubble_pin_check = CheckBox.new()
-	_bubble_pin_check.text = "對話集中"
+	_bubble_pin_check.text = tr("對話集中")
 	_bubble_pin_check.toggled.connect(func(on: bool) -> void:
 		if _updating:
 			return
@@ -243,8 +243,8 @@ func _build_performance() -> void:
 		message.emit(tr("對話集中方式已設成「%s」。") % str(bubble_mode_labels[mode])))
 	add_child(ManagerUi.labeled("集中方式", _bubble_mode_option))
 	_bubble_clamp_check = CheckBox.new()
-	_bubble_clamp_check.text = "對話氣泡不超出行動區"
-	_bubble_clamp_check.tooltip_text = "桌寵自己平常用的對話氣泡(不是上面的對話集中視窗)預設只夾在「桌寵所在的那一個螢幕」裡,可以跑到行動區外面。開啟後改夾在行動區的框架內,不會跑到行動區外面。"
+	_bubble_clamp_check.text = tr("對話氣泡不超出行動區")
+	_bubble_clamp_check.tooltip_text = tr("桌寵自己平常用的對話氣泡(不是上面的對話集中視窗)預設只夾在「桌寵所在的那一個螢幕」裡,可以跑到行動區外面。開啟後改夾在行動區的框架內,不會跑到行動區外面。")
 	_bubble_clamp_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_bubble_clamp_check.toggled.connect(func(on: bool) -> void:
 		if _updating:
@@ -253,7 +253,7 @@ func _build_performance() -> void:
 		message.emit("對話氣泡已限制在行動區範圍內。" if on else "對話氣泡不超出行動區已關閉,改回只夾在螢幕範圍內。"))
 	add_child(_bubble_clamp_check)
 	_timestamp_option = OptionButton.new()
-	_timestamp_option.tooltip_text = "聊天室式/簡訊式視窗裡,每則訊息底下要不要用小小的灰色字顯示時間(裝置目前的系統時間,記下來的當下時間,不是每次開視窗才重算)。跟上面的「對話集中」開不開沒有關係,選了就一直生效。"
+	_timestamp_option.tooltip_text = tr("聊天室式/簡訊式視窗裡,每則訊息底下要不要用小小的灰色字顯示時間(裝置目前的系統時間,記下來的當下時間,不是每次開視窗才重算)。跟上面的「對話集中」開不開沒有關係,選了就一直生效。")
 	var timestamp_labels := {"none": "不顯示時間戳", "12h": "12 小時制時間戳", "24h": "24 小時制時間戳"}
 	for mode: String in ["none", "12h", "24h"]:
 		_timestamp_option.add_item(str(timestamp_labels[mode]))
@@ -307,10 +307,10 @@ func _refresh_monitor_options() -> void:
 func _build_startup() -> void:
 	add_child(ManagerUi.heading_with_info("開機", "電腦開機、登入 Windows 之後自動打開這個程式。寫在「目前使用者」的開機清單裡,不需要系統管理員權限,關掉這個選項或在系統的「啟動應用程式」設定裡關掉都可以取消。只支援 Windows;在還沒匯出成 exe 的開發專案裡開這個開關,開機時打開的會是 Godot 編輯器本身,不是遊戲。"))
 	_autostart_check = CheckBox.new()
-	_autostart_check.text = "開機時自動啟動(預設關閉)"
+	_autostart_check.text = tr("開機時自動啟動(預設關閉)")
 	_autostart_check.disabled = not AutoStart.supported()
 	if not AutoStart.supported():
-		_autostart_check.tooltip_text = "這台系統不支援(只有 Windows 才有)。"
+		_autostart_check.tooltip_text = tr("這台系統不支援(只有 Windows 才有)。")
 	_autostart_check.toggled.connect(func(on: bool) -> void:
 		if _updating:
 			return
@@ -376,7 +376,7 @@ func _build_fireflies() -> void:
 	_firefly_glow_strength.value_changed.connect(func(_v: float) -> void: _save_fireflies())
 	add_child(ManagerUi.labeled("真光光暈濃度(倍)", _firefly_glow_strength))
 	_firefly_lights = CheckBox.new()
-	_firefly_lights.text = "啟用光源(真光畫光暈;不勾就只畫粒子假光。上面「效能」的總光源開關關著時也一樣只畫粒子)"
+	_firefly_lights.text = tr("啟用光源(真光畫光暈;不勾就只畫粒子假光。上面「效能」的總光源開關關著時也一樣只畫粒子)")
 	_firefly_lights.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_firefly_lights.toggled.connect(func(_on: bool) -> void: _save_fireflies())
 	add_child(_firefly_lights)
@@ -449,7 +449,7 @@ func _build_appearance() -> void:
 	for id: String in AppSettings.PRESETS:
 		_preset_option.add_item(str((AppSettings.PRESETS[id] as Dictionary)["name"]))
 		_preset_option.set_item_metadata(_preset_option.item_count - 1, id)
-	_preset_option.add_item("自訂")
+	_preset_option.add_item(tr("自訂"))
 	_preset_option.set_item_metadata(_preset_option.item_count - 1, CUSTOM_ID)
 	_preset_option.item_selected.connect(_on_preset_selected)
 	add_child(ManagerUi.labeled("配色組", _preset_option))
@@ -471,11 +471,11 @@ func _build_appearance() -> void:
 	_size_spin.value_changed.connect(func(_v: float) -> void: _apply_appearance(_current_preset_id()))
 	add_child(ManagerUi.labeled("字級", _size_spin))
 	_sample = Label.new()
-	_sample.text = "字型預覽:全局設定 — 數值、狀態鏡與性格\nABC abc 123 你好,這是一段範例文字。"
+	_sample.text = tr("字型預覽:全局設定 — 數值、狀態鏡與性格\nABC abc 123 你好,這是一段範例文字。")
 	_sample.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	add_child(ManagerUi.labeled("預覽", _sample))
 	_title_check = CheckBox.new()
-	_title_check.text = "使用自訂標題列(可以調色;取消勾選就用系統標題列。之後新開的視窗生效)"
+	_title_check.text = tr("使用自訂標題列(可以調色;取消勾選就用系統標題列。之後新開的視窗生效)")
 	_title_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_title_check.toggled.connect(func(on: bool) -> void:
 		if _updating:
@@ -485,7 +485,7 @@ func _build_appearance() -> void:
 		message.emit(tr("標題列%s(之後新開的視窗生效)。") % ("改用自訂標題列" if on else "改用系統標題列")))
 	add_child(_title_check)
 	_title_auto_check = CheckBox.new()
-	_title_auto_check.text = "標題列顏色自動跟著配色組"
+	_title_auto_check.text = tr("標題列顏色自動跟著配色組")
 	_title_auto_check.toggled.connect(func(on: bool) -> void:
 		if _updating:
 			return
@@ -510,7 +510,7 @@ func _build_appearance() -> void:
 	_title_text_picker.color_changed.connect(func(_color: Color) -> void: _on_title_color_edited())
 	add_child(ManagerUi.labeled("標題列文字", _title_text_picker))
 	var copy_colors := ManagerUi.button("複製目前配色代碼")
-	copy_colors.tooltip_text = "把目前的六個顏色複製成文字(bg=#… 一行一個),做好新配色組之後貼給開發者加進預設。"
+	copy_colors.tooltip_text = tr("把目前的六個顏色複製成文字(bg=#… 一行一個),做好新配色組之後貼給開發者加進預設。")
 	copy_colors.pressed.connect(func() -> void:
 		var lines: PackedStringArray = []
 		for key in AppSettings.COLOR_KEYS:

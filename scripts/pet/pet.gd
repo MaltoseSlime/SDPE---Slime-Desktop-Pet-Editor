@@ -127,6 +127,35 @@ var keywords: PackedStringArray = PackedStringArray()
 ## 使用者有興趣的關鍵詞(桌寵「想更了解你」時記下來的、或使用者自己在桌寵管理裡維護;台詞裡用 {keyword:user} / {kw:user:1});存在角色設定檔的 "userKeywords"。
 ## keywords 則是「桌寵有興趣的」(桌寵向使用者學來的新知識也記在這裡)。
 var user_keywords: PackedStringArray = PackedStringArray()
+## 關鍵詞的標籤(2026-10-06):詞 → 標籤(見 PetText.KEYWORD_TAGS)。沒記錄的詞視為「話題」。兩份關鍵詞各一份。
+var keyword_tags: Dictionary = {}
+var user_keyword_tags: Dictionary = {}
+## 話題文本(2026-10-06):每句 {tag, text};閒聊時會引用關鍵詞標籤(見 PetText.KEYWORD_TAGS)。預設由性格提供,使用者可改寫。
+## 使用者在交互行為改過的話題文本(null = 沒改過,跟著生效的性格走)。實際使用一律透過 topic_lines_effective()。
+var topic_custom: Variant = null
+
+
+## 目前生效的話題文本:使用者改過的 → 生效性格檔的 topicLines → 通用池(content/topic_pool.json)。
+func topic_lines_effective() -> Array:
+	if topic_custom is Array:
+		return (topic_custom as Array).duplicate(true)
+	# 話題文本有自己的性格選擇(區段 topicLines,跟對話池等一樣可以獨立切換);沒選過的舊桌寵沿用對話池的選擇。
+	var id := PersonalityApplier.choice_of(self, "topicLines")
+	if id != "":
+		var lines: Variant = PersonalityApplier.personality_of(self, id).get("topicLines", [])
+		if lines is Array and not (lines as Array).is_empty():
+			return (lines as Array).duplicate(true)
+	return TopicPool.defaults()
+
+
+func set_topic_custom(lines: Array) -> void:
+	topic_custom = lines.duplicate(true)
+
+
+## 某個關鍵詞的標籤(owner = "pet" 或 "user")。
+func keyword_tag_of(word: String, owner: String) -> String:
+	var tags: Dictionary = user_keyword_tags if owner == "user" else keyword_tags
+	return PetText.clean_tag(tags.get(word, PetText.DEFAULT_TAG))
 ## 睡著時頭上飄出的 Zzz(用角色字體畫,見 PetSleepZ)。
 var sleep_z: PetSleepZ
 ## 程式繪製的角色特效(愛心、火苗、水滴、閃光、小花、發光、殘影…,見 PetEffects)。
@@ -241,6 +270,8 @@ const LAND_HOLD_SECONDS := 0.6
 var _land_left := 0.0
 var _follow_tag := ""
 var _follow_started := 0
+# 2026-10-06:跟隨者是否已經「到達」跟隨範圍內(見 _movement_goal())。有遲滯,避免貼近時在走/停之間來回切換、走路動畫從頭重播。
+var _follow_arrived := false
 var _follow_jump_cooldown := 0.0
 ## 這次跟隨最長維持幾秒(見 start_follow/_tick_pet_follow_lifecycle);不管誰發起的都不會超過 FOLLOW_MAX_SECONDS。
 var _follow_duration_cap := 0.0
@@ -513,6 +544,41 @@ const GAME_PREF_KINDS: Array[String] = ["rps", "dice", "ttt", "blockade", "maste
 var game_auto_invite: Dictionary = {}
 var game_force_accept: Dictionary = {}
 var game_force_decline: Dictionary = {}
+
+## 桌寵對指定桌寵(辨識代號)的「對桌寵的好感度」(2026-10-06 使用者要求):-500~1000,0 = 中性,沒記錄的對象視為 0。
+## 跟「好惡等級」(InteractionRules.pet_prefs,-3~3,交互行為頁籤設定)是兩件事:這是事件積木手動增減的原始量,
+## 讓做事件的人自己決定何時把它換算成好惡等級(用 action_set_pet_affinity 套用)。不自動變動、不影響好惡等級。
+const FAVOR_MIN := -500.0
+const FAVOR_MAX := 1000.0
+var pet_favors: Dictionary = {}
+
+
+func favor_of(tag: String) -> float:
+	return float(pet_favors.get(tag, 0.0))
+
+
+## 增減對某隻桌寵的好感度(夾在 FAVOR_MIN ~ FAVOR_MAX 之間);回到 0 的對象會從字典移除,存檔保持乾淨。自己不能對自己設定。
+## 好感度自動增減的數值冷卻(PetFavor.bond)。key = 對象 + 原因,記的是「可以再改數值的毫秒時間」(不存檔,重開就歸零)。
+var _favor_cooldown_until: Dictionary = {}
+var _favor_contact_time: Dictionary = {}
+
+
+func favor_cooldown_ready(tag: String, reason: String) -> bool:
+	return Time.get_ticks_msec() >= int(_favor_cooldown_until.get(tag + "|" + reason, 0))
+
+
+func start_favor_cooldown(tag: String, reason: String, seconds: float) -> void:
+	_favor_cooldown_until[tag + "|" + reason] = Time.get_ticks_msec() + int(seconds * 1000.0)
+
+
+func change_favor(tag: String, delta: float) -> void:
+	if tag == "" or tag == recognition_tag:
+		return
+	var value := clampf(favor_of(tag) + delta, FAVOR_MIN, FAVOR_MAX)
+	if is_zero_approx(value):
+		pet_favors.erase(tag)
+	else:
+		pet_favors[tag] = value
 
 
 ## 閒置時自己發起小遊戲(`GameInvite.start_random`)要不要考慮這個種類;跟上面 `auto_game_enabled`
@@ -1437,6 +1503,9 @@ func _on_petted() -> void:
 				vitality.on_petted()
 		return
 	effects.play_interaction("pet")
+	# 2026-10-06:摸摸:好感度最少量(冷卻 20 分鐘),好感度真的有加才順便讓心情變好一點。
+	if PetFavor.user_bond(self, "pet", PetFavor.USER_MINIMAL, PetFavor.USER_PET_COOLDOWN) and vitality != null:
+		vitality.change_mood(3.0)
 	_last_user_msec = Time.get_ticks_msec()
 	release_hold()
 	_dance_left = 0.0
@@ -2341,6 +2410,9 @@ func start_follow(tag: String) -> bool:
 	_follow_leader_resting = false
 	_follow_leader_seeking_mouse = false
 	interaction.follow_count += 1
+	var leader := _find_pet_by_tag(tag)
+	if leader != null:
+		PetFavor.follow_started(self, leader)
 	return true
 
 
@@ -2351,6 +2423,7 @@ func follow_stamp() -> int:
 
 func stop_follow() -> void:
 	_follow_tag = ""
+	_follow_arrived = false
 
 
 func is_following() -> bool:
@@ -2440,6 +2513,19 @@ const FOLLOW_MAX_SECONDS := 480.0
 ## 跟隨中連續這麼久、距離都超過這個範圍碰不到跟隨對象,就放棄這次跟隨。
 const FOLLOW_STUCK_SECONDS := 20.0
 const FOLLOW_STUCK_DISTANCE := 260.0
+## 到達判定(2026-10-06):跟隨者與領路人的距離進入「排位距離 × FOLLOW_ARRIVE_RATIO」內就算到了、原地待機;
+## 要超過「排位距離 × FOLLOW_LEAVE_RATIO」才重新走。兩個門檻不同 = 遲滯,領路人小幅移動不會讓它一直走停停。
+const FOLLOW_ARRIVE_RATIO := 1.2
+const FOLLOW_LEAVE_RATIO := 1.6
+## 跟隨時判定「同一層」的垂直距離(像素):超過就視為領路人在別的平台,改用跳躍/跳下去的方式接近。
+const FOLLOW_SAME_LEVEL_Y := 40.0
+## 跟隨落腳點:每次偏移的距離、與其他桌寵保持的水平/垂直最小距離(像素)。
+const FOLLOW_SPOT_STEP := 50.0
+const FOLLOW_SPOT_CLEARANCE := 40.0
+const FOLLOW_SPOT_CLEARANCE_Y := 60.0
+## 滿座時改坐地面:走過去的時限,與到了之後停留的秒數。
+const FURNITURE_FALLBACK_WALK_SECONDS := 12.0
+const FURNITURE_FALLBACK_SECONDS := 15.0
 
 
 ## 依性格偶爾自己決定跟著場上另一隻桌寵走:已經在跟(不管誰叫的)、跟著滑鼠、睡著、忙著、心情差時不會抽。
@@ -2522,6 +2608,14 @@ func _tick_pet_affinity_contact(delta: float) -> void:
 		var touching: bool = my_rect.intersects(other.interaction_rect())
 		var was_touching: bool = _pet_contact_touching.get(tag, false)
 		_pet_contact_touching[tag] = touching
+		# 2026-10-06:討厭的對象碰撞箱接觸累計超過 3 分鐘 → 降低好感(冷卻見 PetFavor.CONTACT_COOLDOWN)。
+		if level < 0 and touching:
+			_favor_contact_time[tag] = float(_favor_contact_time.get(tag, 0.0)) + delta
+			if float(_favor_contact_time[tag]) >= PetFavor.CONTACT_SECONDS:
+				_favor_contact_time[tag] = 0.0
+				PetFavor.contact_strain(self, other, level)
+		else:
+			_favor_contact_time[tag] = 0.0
 		if touching and not was_touching and float(_pet_contact_cooldown.get(tag, 0.0)) <= 0.0:
 			_pet_contact_cooldown[tag] = PET_AFFINITY_CONTACT_COOLDOWN
 			_react_to_pet_contact(other, level)
@@ -2598,6 +2692,11 @@ func _react_to_leader_resting() -> void:
 	if vitality == null or is_resting_now() or is_busy_for_game() or not is_ground_mode() \
 			or randf() >= clampf(sociability, 0.0, 1.0) or not vitality.force_rest():
 		stop_follow()
+		return
+	# 跟隨中一起休息:雙方依各自對對方的好惡增減好感(見 PetFavor.mutual_bond)。
+	var leader := _find_pet_by_tag(_follow_tag)
+	if leader != null:
+		PetFavor.mutual_bond(self, leader, "rest")
 
 
 ## 跟隨對象開始使用家具:跟著用同一件(用同一種錨點類型);滿座用不了就離開跟隨。不管用不用得了這次跟隨都結束——
@@ -2653,11 +2752,17 @@ func use_furniture(item: FurnitureItem, wanted_type: String) -> bool:
 	stop_using_furniture()
 	var anchor := item.claim_anchor(self, wanted_type)
 	if anchor < 0:
+		# 2026-10-06:滿座時不直接放棄,先找旁邊沒人的地面落腳處坐/躺(見 _start_furniture_fallback)。
+		if _start_furniture_fallback(item, wanted_type):
+			return true
 		GameChat.think(self, tr("雖然想加入,但看來已經滿座了……"))
 		return false
 	_furniture_target = item
 	_furniture_anchor = anchor
 	_furniture_seated = false
+	# 跟同一件家具上的其他桌寵一起使用:雙方依好惡增減好感(見 PetFavor.mutual_bond)。
+	for other: Node in item.other_holders(self):
+		PetFavor.mutual_bond(self, other, "furniture")
 	_furniture_use_left = -1.0
 	# 面向:"both" 每次使用時隨機擇一方向(不是左右來回切換,選定後這次使用期間不會再變),"left"/"right" 固定面向。
 	match item.anchor_facing(anchor):
@@ -2670,8 +2775,60 @@ func use_furniture(item: FurnitureItem, wanted_type: String) -> bool:
 	return true
 
 
+## 2026-10-06:家具錨點坐滿時,在家具附近找一個沒人擠的地面位置(先試正對錨點,再左右每 60px 試到 ±180px),
+## 走過去後照要的姿勢(sit/lay)停留 FURNITURE_FALLBACK_SECONDS 秒。找不到空位回傳 false(呼叫端照原本的泡泡回應)。
+var _furniture_spot: Variant = null
+var _furniture_spot_kind := ""
+var _furniture_spot_left := 0.0
+var _furniture_spot_hold := 0.0
+
+
+func _start_furniture_fallback(item: FurnitureItem, wanted_type: String) -> bool:
+	if item.def == null:
+		return false
+	var base_world := Vector2.INF
+	for i in item.def.anchors.size():
+		if str((item.def.anchors[i] as Dictionary).get("type")) == wanted_type:
+			base_world = item.anchor_global_position(i)
+			break
+	if base_world == Vector2.INF:
+		return false
+	var base: Vector2 = get_parent().to_local(base_world) if get_parent() is Node2D else base_world
+	for offset: float in [0.0, 60.0, -60.0, 120.0, -120.0, 180.0, -180.0]:
+		var candidate := Vector2(base.x + offset, position.y)
+		if not _spot_crowded(candidate, null):
+			_furniture_spot = candidate
+			_furniture_spot_kind = wanted_type
+			_furniture_spot_left = FURNITURE_FALLBACK_WALK_SECONDS
+			_furniture_spot_hold = 0.0
+			return true
+	return false
+
+
+## 走到落腳處(或走太久)就擺姿勢停留;停留時間到就解除。沒有落腳處回傳 null。
+func _furniture_spot_goal() -> Variant:
+	if not (_furniture_spot is Vector2):
+		return null
+	var dt := get_physics_process_delta_time()
+	if _furniture_spot_hold > 0.0:
+		_furniture_spot_hold -= dt
+		if _furniture_spot_hold <= 0.0:
+			_furniture_spot = null
+			return null
+		return position
+	var spot := _furniture_spot as Vector2
+	_furniture_spot_left -= dt
+	if absf(position.x - spot.x) <= FOLLOW_DEADZONE or _furniture_spot_left <= 0.0:
+		_furniture_spot_hold = FURNITURE_FALLBACK_SECONDS
+		_play_locomotion(StringName(_furniture_spot_kind))
+		return position
+	return spot
+
+
 ## 結束使用家具(不管還在走過去的路上,還是已經坐/躺著):讓出錨點、恢復正常自主行為。沒在用什麼都不做。
 func stop_using_furniture() -> void:
+	_furniture_spot = null
+	_furniture_spot_hold = 0.0
 	if _furniture_target == null:
 		return
 	var was_seated := _furniture_seated
@@ -2872,20 +3029,52 @@ func set_pet_affinity(target: String, level: int, display_name: String = "") -> 
 		return
 	var rules: Dictionary = interaction_rules.duplicate(true)
 	var list: Array = rules.get("pet_prefs", [])
+	var no_mention := false
+	var old_name := ""
 	for i in range(list.size() - 1, -1, -1):
 		if str((list[i] as Dictionary).get("target", "")) == target:
+			no_mention = bool((list[i] as Dictionary).get("no_mention", false))
+			old_name = str((list[i] as Dictionary).get("name", ""))
 			list.remove_at(i)
 	level = clampi(level, InteractionRules.PET_PREF_LEVELS[0], InteractionRules.PET_PREF_LEVELS[-1])
-	if level != 0:
-		var name := display_name
+	if level != 0 or no_mention:
+		var name := display_name if display_name != "" else old_name
 		if name == "" and target != InteractionRules.ALL_PETS_TARGET:
 			var other := _find_pet_by_tag(target, false)
 			name = other.get_label() if other != null else target
 		elif name == "":
 			name = target
-		list.append({"target": target, "name": name, "level": level})
+		list.append({"target": target, "name": name, "level": level, "no_mention": no_mention})
 	rules["pet_prefs"] = list
 	set_interaction_rules(rules)
+
+
+## 「不提及此桌寵」(2026-10-06):自己的話題文本不會提到這隻桌寵。好惡等級不受影響,設定會保留在 pet_prefs 裡。
+func set_pet_no_mention(target: String, flag: bool) -> void:
+	if target == "" or target == InteractionRules.ALL_PETS_TARGET:
+		return
+	var rules: Dictionary = interaction_rules.duplicate(true)
+	var list: Array = rules.get("pet_prefs", [])
+	var level := 0
+	var name := target
+	for i in range(list.size() - 1, -1, -1):
+		var entry := list[i] as Dictionary
+		if str(entry.get("target", "")) == target:
+			level = int(entry.get("level", 0))
+			name = str(entry.get("name", target))
+			list.remove_at(i)
+	if level != 0 or flag:
+		list.append({"target": target, "name": name, "level": level, "no_mention": flag})
+	rules["pet_prefs"] = list
+	set_interaction_rules(rules)
+
+
+## 這隻桌寵是否把「不提及」設在某對象上。
+func no_mention_of(target: String) -> bool:
+	for entry: Variant in interaction_rules.get("pet_prefs", []):
+		if entry is Dictionary and str((entry as Dictionary).get("target", "")) == target:
+			return bool((entry as Dictionary).get("no_mention", false))
+	return false
 
 
 ## 交互行為分頁「整體交互開關」的 ignore_props 蓋掉個別道具的喜好設定,對任何道具都當作「不與此道具交互」(ignore)。
@@ -3054,6 +3243,12 @@ func _movement_goal() -> Variant:
 	var furniture_goal: Variant = _furniture_goal()
 	if furniture_goal != null:
 		return furniture_goal
+	var spot_goal: Variant = _furniture_spot_goal()
+	if spot_goal != null:
+		return spot_goal
+	var rest_goal: Variant = _ground_rest_goal()
+	if rest_goal != null:
+		return rest_goal
 	if _seek_left > 0.0:
 		var mouse := Vector2(DisplayServer.mouse_get_position()) - Vector2(get_window().position)
 		if _seek_away:
@@ -3079,7 +3274,67 @@ func _movement_goal() -> Variant:
 	var goal: Vector2 = target.position + Vector2(side * follow_distance * (1 + slot), 0.0)
 	if move_mode != MoveMode.GROUND:
 		goal.y -= 60.0
+	# 不在同一層(領路人在上/下一層平台):直接瞄準領路人的 x,不套排位偏移——偏移會讓目標落在平台邊緣外面,
+	# 跳上去/跳下去的判定(見 maybe_drop_through() 的水平範圍)就不成立,跟隨者只會在原地踏步。
+	# 同時也不能算到達(2D 距離夠近但其實還在下面一層,會卡住不下去)。
+	var same_level := absf(target.position.y - position.y) < FOLLOW_SAME_LEVEL_Y
+	if not same_level and move_mode == MoveMode.GROUND:
+		goal = Vector2(target.position.x, target.position.y)
+		_follow_arrived = false
+		return goal
+	var arrive_radius := follow_distance * (1 + slot)
+	var gap := position.distance_to(target.position)
+	if _follow_arrived:
+		if gap > arrive_radius * FOLLOW_LEAVE_RATIO:
+			_follow_arrived = false
+	elif gap <= arrive_radius * FOLLOW_ARRIVE_RATIO:
+		_follow_arrived = true
+	if _follow_arrived:
+		# 已經到達:目標設成自己的位置(不是 null,null 會落到自主漫步),原地待機。
+		return position
+	return _spaced_goal(goal, target)
+
+
+## 2026-10-06:跟隨的目標點若已經被別隻桌寵佔住,往左右偏移到空的位置(每次 FOLLOW_SPOT_STEP,最多兩步),
+## 不要重疊到別人的碰撞箱。都擠滿就維持原本的目標點(真的沒有落腳點才跟別人擠擠)。
+func _spaced_goal(goal: Vector2, target: Node) -> Vector2:
+	for step: int in [0, 1, -1, 2, -2]:
+		var candidate := goal + Vector2(float(step) * FOLLOW_SPOT_STEP, 0.0)
+		if not _spot_crowded(candidate, target):
+			return candidate
 	return goal
+
+
+func _spot_crowded(spot: Vector2, target: Node) -> bool:
+	for other: Node in get_tree().get_nodes_in_group("pets"):
+		if other == self or other == target or not is_instance_valid(other):
+			continue
+		if absf(other.position.x - spot.x) < FOLLOW_SPOT_CLEARANCE and absf(other.position.y - spot.y) < FOLLOW_SPOT_CLEARANCE_Y:
+			return true
+	return false
+
+
+## 2026-10-06:地面休息(不是家具)時,落腳處若被別隻桌寵擠住,先走到旁邊的空位再坐/躺下;沒擠就原地休息。
+## 只在地面模式、真的在休息時才生效;休息結束就忘記這次的落腳點。
+var _rest_spot: Variant = null
+
+
+func _ground_rest_goal() -> Variant:
+	if not is_resting_now() or not is_ground_mode():
+		_rest_spot = null
+		return null
+	if _rest_spot == null:
+		var here := position
+		_rest_spot = here
+		if _spot_crowded(here, null):
+			for offset: float in [60.0, -60.0, 120.0, -120.0, 180.0, -180.0]:
+				var candidate := here + Vector2(offset, 0.0)
+				if not _spot_crowded(candidate, null):
+					_rest_spot = candidate
+					break
+	if _rest_spot is Vector2 and absf(position.x - (_rest_spot as Vector2).x) > FOLLOW_DEADZONE:
+		return _rest_spot
+	return position
 
 
 func _find_pet_by_tag(tag: String, exclude_self: bool = true) -> Node:

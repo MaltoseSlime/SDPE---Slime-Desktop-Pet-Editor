@@ -48,7 +48,7 @@ func setup(item: FurnitureItem) -> void:
 
 func _refresh() -> void:
 	if not is_instance_valid(_item) or _item.def == null:
-		_status.text = "這件家具已經不在桌面上了。"
+		_status.text = tr("這件家具已經不在桌面上了。")
 		_list.clear()
 		_refill_button.disabled = true
 		return
@@ -68,5 +68,5 @@ func _on_refill_pressed() -> void:
 		return
 	_item.container_refill()
 	_item.play_interacted()
-	_status.text = "已補滿。"
+	_status.text = tr("已補滿。")
 	_refresh()

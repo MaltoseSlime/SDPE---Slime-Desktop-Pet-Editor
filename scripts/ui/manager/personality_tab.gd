@@ -58,7 +58,7 @@ func _build_left() -> void:
 
 	var all_row := HBoxContainer.new()
 	var all_label := Label.new()
-	all_label.text = "整組選同一個:"
+	all_label.text = tr("整組選同一個:")
 	# 換行 Label 要給個 custom_minimum_size.x 當換行估算的底線寬度,不然會被估出離譜的高度、
 	# 整個左側欄位被吃掉(見 ManagerUi.hint_row() 旁的說明,這裡是同一個坑)。
 	all_label.custom_minimum_size.x = 120.0
@@ -160,18 +160,18 @@ func _build_right() -> void:
 	apply.pressed.connect(_apply)
 	_apply_button = apply
 	var clear := ManagerUi.button("取消所有性格(還原)")
-	clear.tooltip_text = "參數還原成套用前的值、移除性格加入且沒被你改過的數值定義與狀態鏡、停用性格的事件;你自己的內容不動。"
+	clear.tooltip_text = tr("參數還原成套用前的值、移除性格加入且沒被你改過的數值定義與狀態鏡、停用性格的事件;你自己的內容不動。")
 	clear.pressed.connect(_clear_all)
 	var edit := ManagerUi.button("編輯性格…")
-	edit.tooltip_text = "打開性格編輯器,改這個性格的參數、閒聊台詞與反應台詞,存成自訂性格。改內建的預設性格會存成新的自訂性格,不會動到原檔。"
+	edit.tooltip_text = tr("打開性格編輯器,改這個性格的參數、閒聊台詞與反應台詞,存成自訂性格。改內建的預設性格會存成新的自訂性格,不會動到原檔。")
 	edit.pressed.connect(_open_editor)
 	var reset_copy := ManagerUi.button("重設此性格副本")
-	reset_copy.tooltip_text = "每隻角色都帶著自己的一份性格(套用時複製的),在性格編輯器改「這隻角色的版本」只影響這一隻。這個按鈕丟掉改動、重新複製共用的原版。"
+	reset_copy.tooltip_text = tr("每隻角色都帶著自己的一份性格(套用時複製的),在性格編輯器改「這隻角色的版本」只影響這一隻。這個按鈕丟掉改動、重新複製共用的原版。")
 	reset_copy.pressed.connect(_reset_own_copy)
 	var import := ManagerUi.button("匯入自訂性格…")
 	import.pressed.connect(_import)
 	var export := ManagerUi.button("匯出目前設定為性格檔…")
-	export.tooltip_text = "把這隻的參數、數值定義、狀態鏡與你自己的閒聊/反應事件存成性格檔,可以分享或當備份。不含數值目前值、Flag、戰績。"
+	export.tooltip_text = tr("把這隻的參數、數值定義、狀態鏡與你自己的閒聊/反應事件存成性格檔,可以分享或當備份。不含數值目前值、Flag、戰績。")
 	export.pressed.connect(_export)
 	for button in [apply, clear, edit, reset_copy, import, export]:
 		buttons.add_child(button)
@@ -210,8 +210,8 @@ func _update_apply_button() -> void:
 	if _apply_button == null:
 		return
 	var pending := has_pending_apply()
-	_apply_button.text = "套用 ●" if pending else "套用"
-	_apply_button.tooltip_text = "你選的性格還沒套用到這隻桌寵身上,按這裡套用。" if pending else "套用上面選的性格。"
+	_apply_button.text = tr("套用 ●") if pending else tr("套用")
+	_apply_button.tooltip_text = tr("你選的性格還沒套用到這隻桌寵身上,按這裡套用。") if pending else tr("套用上面選的性格。")
 	if pending:
 		var accent: Color = AppSettings.appearance()["colors"]["accent"]
 		for state_name in ["normal", "hover", "pressed"]:
@@ -290,12 +290,13 @@ func _reload_options() -> void:
 	_personalities = PersonalityFile.list_all()
 	_updating = true
 	_all_option.clear()
-	_all_option.add_item("(選一個,五個區塊一起設成它)")
+	_all_option.add_item(tr("(選一個,五個區塊一起設成它)"))
 	_all_option.set_item_metadata(0, NONE_ID)
 	for section: String in PersonalityApplier.SECTIONS:
 		var option: OptionButton = _section_options[section]
 		option.clear()
-		option.add_item("(不套用)")
+		# 話題文本的「不套用」就是通用預設(content/topic_pool.json),直接寫清楚。
+		option.add_item(tr("預設(通用話題文本)") if section == "topicLines" else tr("(不套用)"))
 		option.set_item_metadata(0, NONE_ID)
 	for item in _personalities:
 		var text := str(item["name"]) if item["builtin"] else tr("自訂:%s") % item["name"]
@@ -352,14 +353,14 @@ func _refresh_preview() -> void:
 	for section: String in PersonalityApplier.SECTIONS:
 		var current := PersonalityApplier.choice_of(_pet, section)
 		var label: Label = _section_state[section]
-		label.text = tr("目前:%s") % _name_of(current) if current != "" else "目前:沒有套用"
+		label.text = tr("目前:%s") % _name_of(current) if current != "" else tr("目前:沒有套用")
 		var chosen := str(wanted[section])
 		var description: Label = _section_desc[section]
 		description.text = ""
 		if chosen != "":
 			var chosen_personality := PersonalityApplier.personality_of(_pet, chosen)
 			if not chosen_personality.is_empty():
-				description.text = tr("選了「%s」%s→ %s") % [_name_of(chosen), "(這隻角色改過的版本)" if PersonalityApplier.is_edited(_pet, chosen) else "", PersonalityFile.section_description(chosen_personality, section, false)]
+				description.text = tr("選了「%s」%s→ %s") % [_name_of(chosen), tr("(這隻角色改過的版本)") if PersonalityApplier.is_edited(_pet, chosen) else "", PersonalityFile.section_description(chosen_personality, section, false)]
 	_preview.text = preview_text(_pet, wanted, _options())
 	_vitality_label.text = vitality_text(_pet)
 	_sync_params()
@@ -445,7 +446,7 @@ static func preview_text(pet: Node, wanted: Dictionary, options: Dictionary) -> 
 					if text != "":
 						lines.append("  「%s」%s" % [step["name"], text])
 				if lines.is_empty():
-					lines.append("  沒有變化")
+					lines.append(TranslationServer.translate("  沒有變化"))
 				body.append_array(lines)
 			"chat", "reactions":
 				var ignore := bool(options.get("ignore_own_" + section, false))
@@ -587,7 +588,7 @@ func _reset_own_copy() -> void:
 		names.append(_name_of(id))
 	var names_text := "、".join(PackedStringArray(names))
 	var dialog := ConfirmationDialog.new()
-	dialog.title = "重設性格副本"
+	dialog.title = tr("重設性格副本")
 	dialog.dialog_text = tr("要把這隻角色目前套用的所有性格(%s)%s重設成共用的原版嗎?\n這隻角色改過的台詞與參數設定會消失,而且這些性格管的參數會一併同步成原版的值(連你手動調過的也會換掉;數值定義與狀態鏡沒改過的換成新版、你自己建的不動)。") % [names_text, "(有改過)" if any_edited else ""]
 	dialog.ok_button_text = "重設"
 	dialog.cancel_button_text = "取消"

@@ -1,0 +1,1272 @@
+[
+  {
+    "condition": "",
+    "text": "{tag:問候語},{user},你今天過得好嗎?",
+    "en": "{tag:問候語}, {user}, how has your day been?"
+  },
+  {
+    "condition": "",
+    "text": "{tag:問候語},{you}在這裡呀。今天也請多指教。",
+    "en": "{tag:問候語}, {you} are here! Let's make today a good one."
+  },
+  {
+    "condition": "使用者好感度大於100",
+    "text": "{tag:問候語},{user}。看到{user}來了,我就放心了。",
+    "en": "{tag:問候語}, {user}. Seeing {user} come by sets my mind at ease."
+  },
+  {
+    "condition": "當喜好對象在行動區內",
+    "text": "{tag:問候語},{liked},你今天過得好嗎?",
+    "en": "{tag:問候語}, {liked}, how has your day been?"
+  },
+  {
+    "condition": "當喜好對象在行動區內",
+    "text": "{tag:問候語},{liked}。今天也請多指教。",
+    "en": "{tag:問候語}, {liked}. Let's make today a good one."
+  },
+  {
+    "condition": "當厭惡對象在行動區內,且好惡等級為討厭或有點討厭",
+    "text": "……{tag:問候語},{disliked}。我只是禮貌上說一聲而已。",
+    "en": "……{tag:問候語}, {disliked}. I'm only saying it out of politeness."
+  },
+  {
+    "condition": "當厭惡對象在行動區內,且好惡等級為非常討厭",
+    "text": "{tag:問候語},{user}。看來{you}的桌面上沾到了點{disliked}。",
+    "en": "{tag:問候語}, {user}. It looks like {you} picked up some {disliked} on the desktop."
+  },
+  {
+    "condition": "",
+    "text": "{tag:pet:問候語}!——嗯,這個打招呼的方式還不錯吧?",
+    "en": "{tag:pet:問候語}! ——Hm, this way of saying hello isn't bad, is it?"
+  },
+  {
+    "condition": "好感度30～99",
+    "text": "{you}平常都做些什麼呢?我有點好奇。",
+    "en": "What do {you} usually do? I'm a little curious."
+  },
+  {
+    "condition": "好感度30～99",
+    "text": "{tag:user:話題|user:愛好|user:日常事務}…下次可以多告訴我一些嗎?",
+    "en": "{tag:user:話題|user:愛好|user:日常事務}… could you tell me a bit more next time?"
+  },
+  {
+    "condition": "好感度30～99",
+    "text": "{you}喜歡{tag:user:食物|user:愛好|user:作品}嗎?我想多了解{you}一點。",
+    "en": "Do {you} like {tag:user:食物|user:愛好|user:作品}? I'd like to get to know {you} better."
+  },
+  {
+    "condition": "好感度30～99",
+    "text": "oO（慢慢熟悉起來了呢…這樣的相處也不壞。）",
+    "en": "oO（Getting to know each other slowly… this isn't bad at all.）"
+  },
+  {
+    "condition": "好感度30～99",
+    "text": "{you}今天過得還順利嗎?",
+    "en": "Has your day gone smoothly so far, {you}?"
+  },
+  {
+    "condition": "好感度30～99",
+    "text": "{tag:pet:愛好|pet:日常事務|pet:習慣},是我平常打發時間的方式。{you}呢?",
+    "en": "{tag:pet:愛好|pet:日常事務|pet:習慣} is how I usually pass the time. What about {you}?"
+  },
+  {
+    "condition": "好感度30～99",
+    "text": "{tag:pet:格言}…{you}聽過這句話嗎?",
+    "en": "{tag:pet:格言}… have {you} ever heard that saying?"
+  },
+  {
+    "condition": "好感度100～149",
+    "text": "{user},今天也辛苦了。",
+    "en": "{user}, thanks for all your hard work today."
+  },
+  {
+    "condition": "好感度100～149",
+    "text": "{user}說過的{tag:user:食物|user:愛好|user:習慣|user:日常事務},我都有記在心上喔。",
+    "en": "I've kept every {tag:user:食物|user:愛好|user:習慣|user:日常事務} you mentioned, {user}."
+  },
+  {
+    "condition": "好感度100～149",
+    "text": "oO（跟{user}待在一起,不知不覺就放鬆下來了。）",
+    "en": "oO（Being with {user}, I've relaxed without even noticing.）"
+  },
+  {
+    "condition": "好感度100～149",
+    "text": "{user},下次也跟我聊聊{tag:user:話題|user:人物|user:作品}吧。",
+    "en": "{user}, next time talk to me about {tag:user:話題|user:人物|user:作品} too, okay?"
+  },
+  {
+    "condition": "好感度100～149",
+    "text": "雖然沒有特別的事…但{user}在這裡,我就覺得不錯。",
+    "en": "Nothing in particular… but having {user} here makes it feel pretty nice."
+  },
+  {
+    "condition": "好感度100～149",
+    "text": "oO（{user}說過,{tag:user:格言}…我也記住了。）",
+    "en": "oO（{user} once said: {tag:user:格言}… I'll remember that too.）"
+  },
+  {
+    "condition": "好感度150～199",
+    "text": "{user},最近有沒有累到?要記得休息喔。",
+    "en": "{user}, have you been too tired lately? Remember to rest."
+  },
+  {
+    "condition": "好感度150～199",
+    "text": "我開始有點期待{user}來的時間了。這件事,別笑我喔。",
+    "en": "I've started looking forward to the times {user} comes by. Don't laugh at me for that."
+  },
+  {
+    "condition": "好感度150～199",
+    "text": "{user}提過的{tag:user:願望|user:待辦事項|user:重要的事},進展得怎麼樣了?",
+    "en": "How is the {tag:user:願望|user:待辦事項|user:重要的事} you mentioned, {user}? Making progress?"
+  },
+  {
+    "condition": "好感度150～199",
+    "text": "oO（想多知道一點{user}的事…是不是有點貪心了?）",
+    "en": "oO（I want to know more about {user}… am I being greedy?）"
+  },
+  {
+    "condition": "好感度150～199",
+    "text": "我想分享一件小事——最近{tag:pet:愛好|pet:日常事務|pet:習慣|pet:食物}讓我心情很好。",
+    "en": "I want to share something small: lately {tag:pet:愛好|pet:日常事務|pet:習慣|pet:食物} has been making me really happy."
+  },
+  {
+    "condition": "好感度150～199",
+    "text": "{user},我可以告訴你一個願望嗎?……我想{tag:pet:願望}。",
+    "en": "{user}, may I tell you a wish? …I want to {tag:pet:願望}."
+  },
+  {
+    "condition": "好感度150～199",
+    "text": "{user}跟我說過的「{tag:user:約定}」,我會努力記著的。",
+    "en": "The promise {user} made with me, \"{tag:user:約定}\", I'll keep working to remember it."
+  },
+  {
+    "condition": "好感度200～249",
+    "text": "{user}在身邊的時候,我不太需要逞強。這樣的感覺……很難得。",
+    "en": "When {user} is around, I don't have to force myself to be tough. That feeling is… rare."
+  },
+  {
+    "condition": "好感度200～249",
+    "text": "{user}告訴過我的「{tag:user:秘密|user:約定|user:寶物|user:願望}」,我會好好守著。",
+    "en": "The \"{tag:user:秘密|user:約定|user:寶物|user:願望}\" {user} told me, I'll guard it well."
+  },
+  {
+    "condition": "好感度200～249",
+    "text": "要是{user}有煩惱,不嫌棄的話,可以跟我說說。",
+    "en": "If {user} has any worries and you don't mind, you can tell me about them."
+  },
+  {
+    "condition": "好感度200～249",
+    "text": "oO（能遇到{user},真是幸運。）",
+    "en": "oO（Getting to meet {user} is really lucky.）"
+  },
+  {
+    "condition": "好感度200～249",
+    "text": "其實我也有想珍惜的東西——{tag:pet:寶物|pet:約定|pet:重要的事}。對我來說,那很重要。",
+    "en": "I have things I want to cherish too—{tag:pet:寶物|pet:約定|pet:重要的事}. To me, they matter a lot."
+  },
+  {
+    "condition": "好感度200～249",
+    "text": "其實我有個秘密——{tag:pet:秘密}。……不可以說出去喔。",
+    "en": "I have a secret—{tag:pet:秘密}… please don't tell anyone."
+  },
+  {
+    "condition": "好感度200～249",
+    "text": "{user}的秘密,我一個字都不會洩露。這是我的原則。",
+    "en": "I won't let a single word of {user}'s secrets slip. That's my principle."
+  },
+  {
+    "condition": "好感度250～299",
+    "text": "其實,{you}對我而言很重要……",
+    "en": "Honestly, {you} mean a lot to me…"
+  },
+  {
+    "condition": "好感度250～299",
+    "text": "{user},我想老實說：{you}已經是我身邊不可或缺的人了。",
+    "en": "{user}, I want to be honest: {you} have become someone I can't do without."
+  },
+  {
+    "condition": "好感度250～299",
+    "text": "不管{user}今天心情如何,我都會在這裡。",
+    "en": "No matter how {user} feels today, I'll be right here."
+  },
+  {
+    "condition": "好感度250～299",
+    "text": "oO（光是有{user}在,一天就變得很完整。）",
+    "en": "oO（Just having {user} here makes the whole day feel complete.）"
+  },
+  {
+    "condition": "好感度250～299",
+    "text": "如果有一天{user}不見了……不,我不想去想這種事。",
+    "en": "If one day {user} were gone… no, I don't want to think about that."
+  },
+  {
+    "condition": "好感度250～299",
+    "text": "{user}要去哪裡都好,只是…回來的時候,記得跟我說一聲。",
+    "en": "Wherever {user} goes is fine. Just remember to tell me when you come back."
+  },
+  {
+    "condition": "好感度250～299",
+    "text": "有些話平常不太好意思說——謝謝{user}一直陪著我。",
+    "en": "Some things are hard to say out loud—thank you, {user}, for staying with me all this time."
+  },
+  {
+    "condition": "好感度250～299",
+    "text": "{user},我們之間的約定,「{tag:user:約定|pet:約定}」,我一定會守住的。",
+    "en": "{user}, the promise between us, \"{tag:user:約定|pet:約定}\", I will definitely keep."
+  },
+  {
+    "condition": "好感度300以上",
+    "text": "{user},我們認識這麼久了呢。我想一直這樣下去。",
+    "en": "{user}, we've known each other for so long now. I want it to last like this forever."
+  },
+  {
+    "condition": "好感度300以上",
+    "text": "{user}不需要特地做什麼。光是在這裡,對我就已經足夠了。",
+    "en": "{user} doesn't need to do anything special. Just being here is enough for me."
+  },
+  {
+    "condition": "好感度300以上",
+    "text": "oO（如果要用一句話形容{user}…大概是「我最信任的人」吧。）",
+    "en": "oO（If I had to describe {user} in one sentence… probably \"the one I trust most.\"）"
+  },
+  {
+    "condition": "好感度300以上",
+    "text": "{user}想做的事,我都會支持。不管那是{tag:user:願望|user:待辦事項|user:愛好|user:話題},還是別的什麼。",
+    "en": "Whatever {user} wants to do, I'll support it—whether it's {tag:user:願望|user:待辦事項|user:愛好|user:話題} or something else."
+  },
+  {
+    "condition": "好感度300以上",
+    "text": "我的{tag:pet:秘密|pet:願望|pet:寶物},只有{user}知道喔。這是約定。",
+    "en": "My {tag:pet:秘密|pet:願望|pet:寶物} is something only {user} knows. That's a promise."
+  },
+  {
+    "condition": "好感度300以上",
+    "text": "oO（{user}說過,{tag:user:格言}。現在我懂這句話的重量了。）",
+    "en": "oO（{user} once said: {tag:user:格言}. Now I understand how much those words weigh.）"
+  },
+  {
+    "condition": "",
+    "text": "我其實一直很好奇{you}告訴過我的,關於{tag:user:食物|user:作品|user:習慣|user:格言|user:話題}的事……",
+    "en": "I've always been curious about what {you} told me about {tag:user:食物|user:作品|user:習慣|user:格言|user:話題}…"
+  },
+  {
+    "condition": "",
+    "text": "你曾告訴過我的「{tag:user:秘密|user:寶物|user:約定|user:格言}」,我至今仍銘記於心。",
+    "en": "The \"{tag:user:秘密|user:寶物|user:約定|user:格言}\" you once told me, I still keep it deep in my heart."
+  },
+  {
+    "condition": "",
+    "text": "{user},你還記得{tag:user:待辦事項}的事嗎?",
+    "en": "{user}, do you still remember the {tag:user:待辦事項}?"
+  },
+  {
+    "condition": "",
+    "text": "oO（我是不是也應該嘗試看看{tag:user:習慣|user:愛好}呢…?）",
+    "en": "oO（Maybe I should try {tag:user:習慣|user:愛好} too…?）"
+  },
+  {
+    "condition": "",
+    "text": "oO（{user}說過,{tag:user:格言}…）",
+    "en": "oO（{user} said: {tag:user:格言}…）"
+  },
+  {
+    "condition": "",
+    "text": "oO（要記得幫{user}留意有關{tag:user:寶物|user:愛好|user:待辦事項|user:習慣|user:作品|user:重要的事}的事物呢…）",
+    "en": "oO（I should keep an eye out for anything about {tag:user:寶物|user:愛好|user:待辦事項|user:習慣|user:作品|user:重要的事} for {user}…）"
+  },
+  {
+    "condition": "",
+    "text": "{user},{tag:user:愛好|user:食物|user:作品|user:寶物}是什麼樣的?",
+    "en": "{user}, what is {tag:user:愛好|user:食物|user:作品|user:寶物} like?"
+  },
+  {
+    "condition": "",
+    "text": "{you}之前提過的{tag:user:人物},後來還好嗎?",
+    "en": "The {tag:user:人物} {you} mentioned before, are things okay with them now?"
+  },
+  {
+    "condition": "",
+    "text": "提到{tag:user:人物}的時候,{you}的語氣好像特別不一樣呢。",
+    "en": "Whenever {tag:user:人物} comes up, {you} sound a little different."
+  },
+  {
+    "condition": "",
+    "text": "要是有機會,我也想見見{tag:user:人物}。",
+    "en": "If I get the chance, I'd like to meet {tag:user:人物} too."
+  },
+  {
+    "condition": "",
+    "text": "oO（{you}口中的{tag:user:人物},會是個什麼樣的人呢…）",
+    "en": "oO（What kind of person is the {tag:user:人物} {you} talk about…?）"
+  },
+  {
+    "condition": "",
+    "text": "{tag:user:人物}對{you}來說,一定是很特別的存在吧。",
+    "en": "{tag:user:人物} must be someone very special to {you}."
+  },
+  {
+    "condition": "",
+    "text": "{you}說過想{tag:user:願望}……我偷偷在心裡替{you}加油喔。",
+    "en": "{you} said you want to {tag:user:願望}… I'm secretly cheering {you} on."
+  },
+  {
+    "condition": "",
+    "text": "如果{tag:user:願望}實現了,{you}第一件事想做什麼呢?",
+    "en": "If {tag:user:願望} came true, what would {you} do first?"
+  },
+  {
+    "condition": "好感度大於100",
+    "text": "{user}的願望,總有一天會實現的。我是這麼相信的。",
+    "en": "{user}'s wish will come true someday. That's what I believe."
+  },
+  {
+    "condition": "",
+    "text": "oO（{tag:user:願望}…如果我能幫上忙就好了。）",
+    "en": "oO（{tag:user:願望}… I wish I could help.）"
+  },
+  {
+    "condition": "",
+    "text": "{you}喜歡{tag:user:愛好}對吧?下次可以多跟我說說。",
+    "en": "{you} like {tag:user:愛好}, right? Tell me more about it next time."
+  },
+  {
+    "condition": "",
+    "text": "{tag:user:愛好}的事,{you}講起來總是特別有精神呢。",
+    "en": "Whenever {you} talk about {tag:user:愛好}, you always seem so lively."
+  },
+  {
+    "condition": "",
+    "text": "{tag:user:食物}聽起來好好吃…我也想嘗嘗看。",
+    "en": "{tag:user:食物} sounds delicious… I'd like to try it too."
+  },
+  {
+    "condition": "",
+    "text": "{you}今天有吃{tag:user:食物}嗎?……我只是好奇而已。",
+    "en": "Did {you} have {tag:user:食物} today? …Just curious, that's all."
+  },
+  {
+    "condition": "",
+    "text": "{tag:user:作品},我有點在意。可以的話,告訴我更多吧。",
+    "en": "{tag:user:作品}, I'm a little interested. If you don't mind, tell me more."
+  },
+  {
+    "condition": "",
+    "text": "{tag:user:作品}給人的感覺是什麼樣的呢?我想聽{you}形容看看。",
+    "en": "What's {tag:user:作品} like? I'd love to hear how {you} would describe it."
+  },
+  {
+    "condition": "",
+    "text": "{tag:user:寶物},{you}一定很珍惜吧。",
+    "en": "{tag:user:寶物}, {you} must treasure it a lot."
+  },
+  {
+    "condition": "",
+    "text": "oO（{tag:user:寶物}…對{you}來說一定是很重要的東西。）",
+    "en": "oO（{tag:user:寶物}… it must be something very important to {you}.）"
+  },
+  {
+    "condition": "",
+    "text": "{tag:user:重要的事}——我記得。{you}看起來很重視它。",
+    "en": "{tag:user:重要的事}—I remember. {you} seem to value it a lot."
+  },
+  {
+    "condition": "",
+    "text": "{you}說{tag:user:重要的事}很重要,那它對我來說也算重要。",
+    "en": "{you} said {tag:user:重要的事} matters, so it matters to me too."
+  },
+  {
+    "condition": "",
+    "text": "{you}的{tag:user:日常事務},今天進行得順利嗎?",
+    "en": "How did your {tag:user:日常事務} go today, {you}?"
+  },
+  {
+    "condition": "",
+    "text": "{tag:user:日常事務},每天都在做,{you}很了不起呢。",
+    "en": "{tag:user:日常事務}, something you do every day—{you} are really amazing."
+  },
+  {
+    "condition": "",
+    "text": "{tag:user:習慣}這個習慣,我也有點好奇。",
+    "en": "{tag:user:習慣}—I'm a little curious about this habit."
+  },
+  {
+    "condition": "",
+    "text": "{you}可別忘了{tag:user:待辦事項}喔。",
+    "en": "{you} shouldn't forget the {tag:user:待辦事項}."
+  },
+  {
+    "condition": "",
+    "text": "{tag:user:待辦事項},需要我陪{you}一起想想怎麼安排嗎?",
+    "en": "{tag:user:待辦事項}—do you want me to help {you} figure out how to plan it?"
+  },
+  {
+    "condition": "",
+    "text": "oO（{tag:user:習慣}…看著{you}這樣,我也想養成類似的習慣。）",
+    "en": "oO（{tag:user:習慣}… watching {you} like this, I'd like to build a similar habit too.）"
+  },
+  {
+    "condition": "",
+    "text": "{tag:user:格言}——{you}說過的這句話,我常常想起。",
+    "en": "{tag:user:格言}—the saying {you} once told me, I think about it often."
+  },
+  {
+    "condition": "",
+    "text": "oO（「{tag:user:格言}」…{you}是在什麼時候領悟到這句話的呢?）",
+    "en": "oO（\"{tag:user:格言}\"… when did {you} come to understand that?）"
+  },
+  {
+    "condition": "",
+    "text": "{you}的座右銘讓我印象很深。「{tag:user:格言}」,我也想當作參考。",
+    "en": "The motto {you} live by left a strong impression on me. \"{tag:user:格言}\"—I'd like to use it as a reference too."
+  },
+  {
+    "condition": "好感度大於150",
+    "text": "{user}答應過我的「{tag:user:約定}」,我可是很期待的喔。",
+    "en": "{user}, I'm really looking forward to the \"{tag:user:約定}\" you promised me."
+  },
+  {
+    "condition": "好感度大於150",
+    "text": "oO（「{tag:user:約定}」…得提醒自己,別讓這件事不知不覺淡掉。）",
+    "en": "oO（\"{tag:user:約定}\"… I have to remind myself not to let this quietly fade away.）"
+  },
+  {
+    "condition": "好感度大於200",
+    "text": "{user}托付給我的「{tag:user:秘密}」,我會一直放在心底。",
+    "en": "The \"{tag:user:秘密}\" {user} entrusted to me, I'll keep it close to my heart."
+  },
+  {
+    "condition": "好感度大於200",
+    "text": "oO（{tag:user:秘密}…能被信任,真的很開心。）",
+    "en": "oO（{tag:user:秘密}… being trusted like this really makes me happy.）"
+  },
+  {
+    "condition": "",
+    "text": "說到{tag:user:話題},{you}願意再多說一點嗎?",
+    "en": "Speaking of {tag:user:話題}, would {you} be willing to say a bit more?"
+  },
+  {
+    "condition": "",
+    "text": "{tag:話題}…{you}有什麼想法嗎?",
+    "en": "{tag:話題}… what do {you} think about it?"
+  },
+  {
+    "condition": "",
+    "text": "反正也是閒著…來聊聊{tag:話題|愛好|食物|作品|習慣}的事怎麼樣?",
+    "en": "Since we have time anyway… how about we talk about {tag:話題|愛好|食物|作品|習慣}?"
+  },
+  {
+    "condition": "",
+    "text": "{user},你吃過{tag:食物}嗎?",
+    "en": "{user}, have you ever had {tag:食物}?"
+  },
+  {
+    "condition": "",
+    "text": "說到我的興趣…{tag:pet:愛好}可以讓我沉浸好一陣子呢。",
+    "en": "As for my hobbies… {tag:pet:愛好} can keep me absorbed for quite a while."
+  },
+  {
+    "condition": "",
+    "text": "oO（好無聊,好想{tag:pet:愛好|pet:日常事務|pet:習慣}…）",
+    "en": "oO（So bored… I really want to {tag:pet:愛好|pet:日常事務|pet:習慣}…）"
+  },
+  {
+    "condition": "",
+    "text": "oO（今天的{tag:pet:日常事務},還沒做呢。）",
+    "en": "oO（I haven't done today's {tag:pet:日常事務} yet.）"
+  },
+  {
+    "condition": "",
+    "text": "不知不覺又{tag:pet:習慣}了。習慣真是可怕呢。",
+    "en": "Before I knew it, I'd {tag:pet:習慣} again. Habits really are scary."
+  },
+  {
+    "condition": "",
+    "text": "要不要跟我一起{tag:pet:愛好|pet:習慣}?……只是隨口問問。",
+    "en": "Want to {tag:pet:愛好|pet:習慣} with me? …Just asking."
+  },
+  {
+    "condition": "",
+    "text": "啊~不知道這裡能不能找到{tag:pet:食物|pet:作品|pet:寶物}。",
+    "en": "Ah, I wonder if I can find any {tag:pet:食物|pet:作品|pet:寶物} around here."
+  },
+  {
+    "condition": "",
+    "text": "oO（最近好像特別想吃{tag:pet:食物}…）",
+    "en": "oO（Lately I've been craving {tag:pet:食物} so much…）"
+  },
+  {
+    "condition": "",
+    "text": "{tag:pet:作品},不管看幾次都覺得很棒。{you}看過嗎?",
+    "en": "{tag:pet:作品}, no matter how many times I see it, it's wonderful. Have {you} seen it?"
+  },
+  {
+    "condition": "",
+    "text": "oO（我的{tag:pet:寶物},要好好收著才行。）",
+    "en": "oO（My {tag:pet:寶物} needs to be kept safe.）"
+  },
+  {
+    "condition": "",
+    "text": "{tag:pet:寶物}對我來說,是不能弄丟的東西。",
+    "en": "{tag:pet:寶物} is something I can't afford to lose."
+  },
+  {
+    "condition": "",
+    "text": "oO（晚點要不要{tag:pet:待辦事項}呢?）",
+    "en": "oO（Should I {tag:pet:待辦事項} later?）"
+  },
+  {
+    "condition": "",
+    "text": "等一下得去{tag:pet:待辦事項}才行。",
+    "en": "I've got to go {tag:pet:待辦事項} soon."
+  },
+  {
+    "condition": "",
+    "text": "對我來說,{tag:pet:重要的事}是很重要的事。",
+    "en": "To me, {tag:pet:重要的事} is something very important."
+  },
+  {
+    "condition": "",
+    "text": "oO（答應過的事,「{tag:pet:約定}」,可不能忘記。）",
+    "en": "oO（The promise I made, \"{tag:pet:約定}\", I mustn't forget.）"
+  },
+  {
+    "condition": "",
+    "text": "「{tag:pet:約定}」——這是我很在意的事。能做到的話,我會很開心。",
+    "en": "\"{tag:pet:約定}\"—this is something I care about a lot. If I can keep it, I'd be really happy."
+  },
+  {
+    "condition": "",
+    "text": "oO（{tag:pet:人物}…一想到這個人,心情就莫名平靜下來。）",
+    "en": "oO（{tag:pet:人物}… just thinking of this person somehow calms my mind.）"
+  },
+  {
+    "condition": "",
+    "text": "{tag:pet:人物}教過我不少事。我想{you}也會喜歡這個人的。",
+    "en": "{tag:pet:人物} taught me quite a few things. I think {you} would like this person too."
+  },
+  {
+    "condition": "",
+    "text": "我很喜歡這句話——「{tag:pet:格言}」。{you}覺得呢?",
+    "en": "I really like this saying: \"{tag:pet:格言}\". What do {you} think?"
+  },
+  {
+    "condition": "",
+    "text": "oO（「{tag:pet:格言}」…每次想到,都會稍微振作起來。）",
+    "en": "oO（\"{tag:pet:格言}\"… every time I think of it, I feel a little more encouraged.）"
+  },
+  {
+    "condition": "",
+    "text": "oO（如果可以的話,真想{tag:pet:願望}啊…）",
+    "en": "oO（If only I could really {tag:pet:願望}…）"
+  },
+  {
+    "condition": "",
+    "text": "我偶爾會想,要是能{tag:pet:願望}就好了。這件事,先別告訴別人喔。",
+    "en": "Sometimes I wish I could {tag:pet:願望}. Please don't tell anyone about this, okay?"
+  },
+  {
+    "condition": "好感度大於200",
+    "text": "其實我有個秘密——{tag:pet:秘密}。……不可以說出去喔。",
+    "en": "I have a secret—{tag:pet:秘密}… please don't tell anyone."
+  },
+  {
+    "condition": "好感度大於250",
+    "text": "oO（{tag:pet:秘密}…居然會想把這件事告訴{user},我也嚇了一跳。）",
+    "en": "oO（{tag:pet:秘密}… I didn't expect to want to tell {user} this. Even I'm surprised.）"
+  },
+  {
+    "condition": "喜好對象在行動區內,好惡等級超級喜歡",
+    "text": "{liked}在的時候,總覺得做什麼都很有趣。",
+    "en": "{liked} is here, and everything feels more fun somehow."
+  },
+  {
+    "condition": "喜好對象在行動區內,好惡等級超級喜歡",
+    "text": "一看到{liked},心情就自然好起來了。",
+    "en": "The moment I see {liked}, my mood just lifts on its own."
+  },
+  {
+    "condition": "喜好對象在行動區內,好惡等級超級喜歡",
+    "text": "{liked},要不要一起{tag:pet:愛好|pet:日常事務|pet:習慣}?",
+    "en": "{liked}, want to {tag:pet:愛好|pet:日常事務|pet:習慣} together?"
+  },
+  {
+    "condition": "喜好對象在行動區內,好惡等級超級喜歡",
+    "text": "有{liked}在真好。這句話我可是認真的。",
+    "en": "It's great to have {liked} here. I mean that sincerely."
+  },
+  {
+    "condition": "喜好對象在行動區內,好惡等級超級喜歡,使用者好感度大於100",
+    "text": "能有{liked}在這裡陪我真是太好了。",
+    "en": "Having {liked} here with me is really wonderful."
+  },
+  {
+    "condition": "喜好對象不在行動區,好惡等級超級喜歡",
+    "text": "oO（{liked}現在在哪裡呢…想一起玩。）",
+    "en": "oO（Where is {liked} right now… I want to play together.）"
+  },
+  {
+    "condition": "喜好對象不在行動區,好惡等級超級喜歡",
+    "text": "oO（要是{liked}在,這種時候一定會很熱鬧。）",
+    "en": "oO（If {liked} were here, it would definitely be lively at a time like this.）"
+  },
+  {
+    "condition": "好惡等級超級喜歡,使用者好感度大於100",
+    "text": "{user},我可以多聊聊{liked}嗎?跟{liked}在一起的時候,總是很開心。",
+    "en": "{user}, may I talk more about {liked}? Being with {liked} always makes me happy."
+  },
+  {
+    "condition": "喜好對象在行動區內,好惡等級喜歡",
+    "text": "啊,{liked}來了。今天也一起慢慢過吧。",
+    "en": "Ah, {liked} is here. Let's take it slow together today too."
+  },
+  {
+    "condition": "喜好對象在行動區內,好惡等級喜歡",
+    "text": "{liked},要不要一起聊聊{tag:話題|愛好|食物|作品}?",
+    "en": "{liked}, want to talk about {tag:話題|愛好|食物|作品} together?"
+  },
+  {
+    "condition": "喜好對象在行動區內,好惡等級喜歡",
+    "text": "跟{liked}一起的時候,時間過得特別快。",
+    "en": "Time flies when I'm with {liked}."
+  },
+  {
+    "condition": "喜好對象在行動區內,好惡等級喜歡",
+    "text": "{liked}在的時候,總覺得氣氛特別柔和。",
+    "en": "When {liked} is around, the atmosphere always feels so gentle."
+  },
+  {
+    "condition": "喜好對象不在行動區,好惡等級喜歡",
+    "text": "oO（{liked}最近還好嗎…）",
+    "en": "oO（I hope {liked} has been doing okay lately…）"
+  },
+  {
+    "condition": "喜好對象不在行動區,好惡等級喜歡",
+    "text": "oO（不知道{liked}現在在做什麼…）",
+    "en": "oO（I wonder what {liked} is doing right now…）"
+  },
+  {
+    "condition": "喜好對象不在行動區,好惡等級喜歡",
+    "text": "oO（下次遇到{liked},想跟{liked}說說{tag:pet:待辦事項|pet:日常事務|pet:愛好}的事。）",
+    "en": "oO（Next time I see {liked}, I want to tell {liked} about my {tag:pet:待辦事項|pet:日常事務|pet:愛好}.）"
+  },
+  {
+    "condition": "喜好對象在行動區內,好惡等級有點喜歡",
+    "text": "{liked}也在啊。嗯,這樣挺好的。",
+    "en": "Oh, {liked} is here too. Well, that's nice."
+  },
+  {
+    "condition": "喜好對象在行動區內,好惡等級有點喜歡",
+    "text": "{liked},今天過得如何?",
+    "en": "{liked}, how has today been for you?"
+  },
+  {
+    "condition": "喜好對象在行動區內,好惡等級有點喜歡",
+    "text": "有{liked}在,感覺比較不無聊。",
+    "en": "With {liked} around, it's less boring."
+  },
+  {
+    "condition": "喜好對象不在行動區,好惡等級有點喜歡",
+    "text": "oO（{liked}不知道在做什麼…算了,晚點再看看吧。）",
+    "en": "oO（I don't know what {liked} is up to… I'll check later.）"
+  },
+  {
+    "condition": "普通對象在行動區內",
+    "text": "嗯,{neutral}也在。",
+    "en": "Hmm, {neutral} is here too."
+  },
+  {
+    "condition": "普通對象在行動區內",
+    "text": "{neutral},早。……就這樣。",
+    "en": "{neutral}, good morning. …That's all."
+  },
+  {
+    "condition": "普通對象在行動區內",
+    "text": "oO（{neutral}…算是個不錯的鄰居吧。）",
+    "en": "oO（{neutral}… a decent neighbor, I'd say.）"
+  },
+  {
+    "condition": "普通對象不在行動區",
+    "text": "oO（好像有一陣子沒看到{neutral}了。）",
+    "en": "oO（It's been a while since I last saw {neutral}.）"
+  },
+  {
+    "condition": "普通對象在行動區內",
+    "text": "{neutral},你知道{tag:話題|食物|作品}嗎?……沒什麼,只是隨便問問。",
+    "en": "{neutral}, do you know anything about {tag:話題|食物|作品}? …Never mind, just asking."
+  },
+  {
+    "condition": "心情閾值低或者好惡-3、-2、-1的對象判定箱接觸",
+    "text": "oO（…{disliked}…那傢伙總是…唉。）",
+    "en": "oO（…{disliked}… that guy is always… ugh.）"
+  },
+  {
+    "condition": "心情閾值低且好惡-3、-2、-1的對象判定箱接觸",
+    "text": "oO（嘖,偏偏是{disliked}嗎…!）",
+    "en": "oO（Tch, of all people it had to be {disliked}…!）"
+  },
+  {
+    "condition": "厭惡對象在行動區內,好惡等級有點討厭",
+    "text": "{disliked}那種做法…我還是不太認同。",
+    "en": "{disliked}'s way of doing things… I still don't agree with it."
+  },
+  {
+    "condition": "厭惡對象在行動區內,好惡等級有點討厭",
+    "text": "哼,{disliked}老是在我面前晃來晃去,我不是不能做得更好。",
+    "en": "Hmph, {disliked} keeps wandering in front of me. It's not that I couldn't do better."
+  },
+  {
+    "condition": "厭惡對象在行動區內,好惡等級有點討厭",
+    "text": "oO（為什麼{disliked}老是能引人注意…我也不差吧。）",
+    "en": "oO（Why does {disliked} always draw attention? I'm not bad either.）"
+  },
+  {
+    "condition": "厭惡對象在行動區內,好惡等級有點討厭",
+    "text": "oO（…{disliked}也在啊。算了,當作沒看見吧。）",
+    "en": "oO（…{disliked} is here too. Well, I'll pretend I didn't see.）"
+  },
+  {
+    "condition": "厭惡對象不在行動區,好惡等級有點討厭",
+    "text": "oO（{disliked}不在的時候,確實比較安靜。）",
+    "en": "oO（When {disliked} isn't around, it really is quieter.）"
+  },
+  {
+    "condition": "厭惡對象在行動區內,好惡等級討厭",
+    "text": "{disliked},能不能別老是出現在我視線範圍內?",
+    "en": "{disliked}, could you please stop showing up right in front of me?"
+  },
+  {
+    "condition": "厭惡對象在行動區內,好惡等級討厭",
+    "text": "{disliked}要是少說兩句,我也不用這麼累。",
+    "en": "If {disliked} said two fewer words, I wouldn't have to be this tired."
+  },
+  {
+    "condition": "厭惡對象在行動區內,好惡等級討厭",
+    "text": "這次我可不會輸給{disliked}。",
+    "en": "This time I won't lose to {disliked}."
+  },
+  {
+    "condition": "厭惡對象不在行動區,好惡等級討厭",
+    "text": "oO（想到{disliked},就覺得胸口悶悶的。）",
+    "en": "oO（Just thinking of {disliked} makes my chest feel heavy.）"
+  },
+  {
+    "condition": "厭惡對象不在行動區,好惡等級討厭",
+    "text": "oO（總有一天,我會讓{disliked}刮目相看。）",
+    "en": "oO（Someday I'll make {disliked} look at me differently.）"
+  },
+  {
+    "condition": "厭惡對象不在行動區,好惡等級討厭",
+    "text": "oO（{disliked}不在…真是清靜。）",
+    "en": "oO（{disliked} is gone… what a relief.）"
+  },
+  {
+    "condition": "厭惡對象在行動區內,好惡等級超級討厭",
+    "text": "……{disliked},請離我遠一點。",
+    "en": "……{disliked}, please stay away from me."
+  },
+  {
+    "condition": "厭惡對象在行動區內,好惡等級超級討厭",
+    "text": "oO（為什麼{disliked}偏偏在這裡…!）",
+    "en": "oO（Why is {disliked} here of all places…!）"
+  },
+  {
+    "condition": "厭惡對象在行動區內,好惡等級超級討厭",
+    "text": "我就是無法接受{disliked}的做法。再怎麼說都一樣。",
+    "en": "I just can't accept {disliked}'s way of doing things. No matter how you put it, it's the same."
+  },
+  {
+    "condition": "厭惡對象在行動區內,好惡等級超級討厭,使用者好感度大於150",
+    "text": "oO（{user},我非得和{disliked}待在一塊嗎?）",
+    "en": "oO（{user}, do I really have to stay in the same place as {disliked}?）"
+  },
+  {
+    "condition": "厭惡對象不在行動區,好惡等級超級討厭",
+    "text": "oO（光是提到{disliked},就想嘆氣。）",
+    "en": "oO（Just mentioning {disliked} makes me want to sigh.）"
+  },
+  {
+    "condition": "厭惡對象不在行動區,好惡等級超級討厭",
+    "text": "oO（剛才不小心想到{disliked}了…心情都變差了。）",
+    "en": "oO（I accidentally thought of {disliked} again… my mood just dropped.）"
+  },
+  {
+    "condition": "厭惡對象不在行動區,好惡等級超級討厭",
+    "text": "oO（{disliked}不在,今天真是個好日子。）",
+    "en": "oO（{disliked} isn't here, so today is a good day.）"
+  },
+  {
+    "condition": "好惡等級超級討厭,使用者好感度大於150",
+    "text": "{user},如果我又跟{disliked}起爭執了…{you}會站在我這邊吧?",
+    "en": "{user}, if I end up arguing with {disliked} again… {you} will side with me, right?"
+  },
+  {
+    "condition": "當喜好對象好感度比使用者高,且喜好對象不在行動區",
+    "text": "oO（…有點想念{liked}了。）",
+    "en": "oO（…I kind of miss {liked}.）"
+  },
+  {
+    "condition": "當喜好對象好感度比使用者好感度高,且好惡等級是喜歡以上",
+    "text": "有時候{you}會讓我想起{liked}呢。",
+    "en": "Sometimes {you} remind me of {liked}."
+  },
+  {
+    "condition": "喜好對象好感度高於使用者,使用者好感度大於100",
+    "text": "{user},我最近很常想到{liked}。請不要吃醋喔,只是覺得跟{liked}在一起很開心。",
+    "en": "{user}, I've been thinking about {liked} a lot lately. Please don't get jealous—I just enjoy being with {liked}."
+  },
+  {
+    "condition": "使用者好感度高於喜好對象,且喜好對象不在行動區",
+    "text": "oO（比起{liked},現在更想待在{user}身邊呢。）",
+    "en": "oO（Compared to {liked}, right now I'd rather stay by {user}'s side.）"
+  },
+  {
+    "condition": "使用者好感度大於100,且使用者好感度高於喜好對象",
+    "text": "oO（有{user}在身邊,就很安心了。）",
+    "en": "oO（With {user} by my side, I feel so safe.）"
+  },
+  {
+    "condition": "使用者好感度大於100,且喜好對象與使用者同時在行動區內",
+    "text": "{user}和{liked}都在,感覺好熱鬧。",
+    "en": "{user} and {liked} are both here. It feels so lively."
+  },
+  {
+    "condition": "使用者好感度大於150,且厭惡對象在行動區內",
+    "text": "{user}在的時候,我就不太在意{disliked}了。",
+    "en": "When {user} is here, I don't worry about {disliked} as much."
+  },
+  {
+    "condition": "喜好對象與厭惡對象同時在行動區內,好惡等級喜歡以上與討厭以下",
+    "text": "有{liked}在,我就能撐得住{disliked}了。",
+    "en": "With {liked} here, I can handle {disliked}."
+  },
+  {
+    "condition": "喜好對象與厭惡對象同時在行動區內,好惡等級喜歡以上與討厭以下",
+    "text": "{liked}和{disliked}都在…唉,今天註定是特別的一天。",
+    "en": "{liked} and {disliked} are both here… ugh, today is going to be a special day, for sure."
+  },
+  {
+    "condition": "喜好對象、厭惡對象與使用者同時在行動區內,使用者好感度大於150",
+    "text": "{user}、{liked}、{disliked}都在,這場面可真是複雜。",
+    "en": "{user}, {liked}, and {disliked} are all here. What a complicated scene."
+  },
+  {
+    "condition": "",
+    "text": "最近常聽到有人在說{tag:話題},{you}有聽說過嗎?",
+    "en": "Lately I keep hearing people talk about {tag:話題}. Have {you} heard about it?"
+  },
+  {
+    "condition": "",
+    "text": "{tag:話題}這件事,我只知道一點皮毛…{you}懂的話,可以教教我嗎?",
+    "en": "I only know a little about {tag:話題}… if {you} understand it, could you teach me?"
+  },
+  {
+    "condition": "",
+    "text": "oO（{tag:話題}…好像常常被提起,是這麼有意思的事嗎?）",
+    "en": "oO（{tag:話題}… it seems to come up often. Is it really that interesting?）"
+  },
+  {
+    "condition": "",
+    "text": "聽說{tag:愛好}很容易讓人入迷,是真的嗎?",
+    "en": "They say {tag:愛好} can really pull people in. Is that true?"
+  },
+  {
+    "condition": "",
+    "text": "oO（{tag:愛好}…就算我不太熟悉,也想試試看。）",
+    "en": "oO（{tag:愛好}… even though I'm not very familiar with it, I'd still like to try.）"
+  },
+  {
+    "condition": "",
+    "text": "{tag:日常事務}這種事,每天做的話,其實也有它的樂趣吧。",
+    "en": "{tag:日常事務}—if you do it every day, I suppose there's a joy in it too."
+  },
+  {
+    "condition": "",
+    "text": "oO（{tag:日常事務},不管誰都得做呢…真是辛苦。）",
+    "en": "oO（{tag:日常事務}, everyone has to do it… it really is tiring.）"
+  },
+  {
+    "condition": "",
+    "text": "聽說有人把{tag:習慣}當成每天的儀式。這樣的生活,感覺也不錯。",
+    "en": "I've heard some people turn {tag:習慣} into a daily ritual. That kind of life seems nice too."
+  },
+  {
+    "condition": "",
+    "text": "oO（{tag:習慣}要養成不容易,要放棄也不容易呢。）",
+    "en": "oO（{tag:習慣} isn't easy to form, and giving it up isn't easy either.）"
+  },
+  {
+    "condition": "",
+    "text": "{you}吃過{tag:食物}嗎?聽說味道很不錯。",
+    "en": "Have {you} tried {tag:食物}? I hear it tastes really good."
+  },
+  {
+    "condition": "",
+    "text": "oO（{tag:食物}…光是想像就有點餓了。）",
+    "en": "oO（{tag:食物}… just imagining it makes me a little hungry.）"
+  },
+  {
+    "condition": "",
+    "text": "要是有機會吃到{tag:食物},我一定會好好品嘗。",
+    "en": "If I get a chance to try {tag:食物}, I'll savor every bite."
+  },
+  {
+    "condition": "",
+    "text": "聽說{tag:食物}有人愛有人不愛,{you}是哪一邊的呢?",
+    "en": "They say some people love {tag:食物} and some don't. Which side is {you} on?"
+  },
+  {
+    "condition": "",
+    "text": "oO（說到{tag:食物},總覺得應該有什麼特別的吃法…）",
+    "en": "oO（Whenever I think of {tag:食物}, there must be some special way to eat it…）"
+  },
+  {
+    "condition": "",
+    "text": "{tag:作品}…我只聽過名字,卻一直很在意。",
+    "en": "{tag:作品}… I've only heard the name, but I've always been curious."
+  },
+  {
+    "condition": "",
+    "text": "有人跟我提過{tag:作品},說是值得一看。{you}知道嗎?",
+    "en": "Someone told me about {tag:作品} and said it's worth a look. Do {you} know it?"
+  },
+  {
+    "condition": "",
+    "text": "oO（{tag:作品}到底是什麼樣的呢…有點好奇。）",
+    "en": "oO（What exactly is {tag:作品}? I'm a bit curious.）"
+  },
+  {
+    "condition": "",
+    "text": "要是有機會接觸{tag:作品},我想自己親眼確認看看。",
+    "en": "If I get the chance to come across {tag:作品}, I'd like to see it for myself."
+  },
+  {
+    "condition": "",
+    "text": "{you}知道{tag:人物}嗎?我聽過一些傳聞,但不確定是真是假。",
+    "en": "Do {you} know {tag:人物}? I've heard some rumors, but I'm not sure they're true."
+  },
+  {
+    "condition": "",
+    "text": "{tag:人物},似乎是個有名的人呢。",
+    "en": "{tag:人物} seems to be quite a well-known person."
+  },
+  {
+    "condition": "",
+    "text": "oO（{tag:人物}…不知道實際見面會是什麼印象。）",
+    "en": "oO（{tag:人物}… I wonder what it would be like to meet them in person.）"
+  },
+  {
+    "condition": "",
+    "text": "有人說過{tag:人物}的事,我一直記得。",
+    "en": "Someone once mentioned {tag:人物} to me, and I've remembered it ever since."
+  },
+  {
+    "condition": "",
+    "text": "{tag:問候語}——人與人之間,有時一句話就夠了。",
+    "en": "{tag:問候語}—between people, sometimes one line is enough."
+  },
+  {
+    "condition": "",
+    "text": "oO（{tag:問候語}…說出口的時候,心情也會輕鬆一點。）",
+    "en": "oO（{tag:問候語}… when I say it out loud, I feel a little lighter too.）"
+  },
+  {
+    "condition": "",
+    "text": "{you}知道嗎?光是說一句{tag:問候語},氣氛就會不一樣。",
+    "en": "Did {you} know? Just saying \"{tag:問候語}\" can change the whole atmosphere."
+  },
+  {
+    "condition": "",
+    "text": "有一句話是這麼說的：「{tag:格言}」。我偶爾會拿來想一想。",
+    "en": "There's a saying that goes: \"{tag:格言}\". Every now and then I think about it."
+  },
+  {
+    "condition": "",
+    "text": "oO（「{tag:格言}」…聽起來簡單,要做到卻不容易。）",
+    "en": "oO（\"{tag:格言}\"… it sounds simple, but it's not easy to live by.）"
+  },
+  {
+    "condition": "",
+    "text": "「{tag:格言}」——{you}覺得這句話有道理嗎?",
+    "en": "\"{tag:格言}\"—do {you} think this saying makes sense?"
+  },
+  {
+    "condition": "",
+    "text": "不知道是誰先說出「{tag:格言}」的,但這句話意外地讓人印象深刻。",
+    "en": "I don't know who first said \"{tag:格言}\", but it has left a surprisingly strong impression on me."
+  },
+  {
+    "condition": "",
+    "text": "「{tag:約定}」…這種約定,聽起來就讓人不想違背。",
+    "en": "\"{tag:約定}\"… a promise like this makes you not want to break it."
+  },
+  {
+    "condition": "",
+    "text": "oO（「{tag:約定}」,被誰記著的話,應該會很開心吧。）",
+    "en": "oO（\"{tag:約定}\"—if someone remembers it, I imagine they'd be happy.）"
+  },
+  {
+    "condition": "",
+    "text": "有些約定,即使時間過去了,也不會輕易忘掉。像是「{tag:約定}」。",
+    "en": "Some promises stay with you even after a long time, like \"{tag:約定}\"."
+  },
+  {
+    "condition": "",
+    "text": "{you}也有過一定要遵守的約定嗎?比如「{tag:約定}」之類的。",
+    "en": "Do {you} have a promise you must keep too? Something like \"{tag:約定}\"?"
+  },
+  {
+    "condition": "",
+    "text": "oO（{tag:願望}…光是有這樣的願望,就很了不起了。）",
+    "en": "oO（{tag:願望}… just having a wish like that is already impressive.）"
+  },
+  {
+    "condition": "",
+    "text": "聽說有人一直想{tag:願望}。要是能實現就好了。",
+    "en": "I've heard some people have always wanted to {tag:願望}. I hope it comes true."
+  },
+  {
+    "condition": "",
+    "text": "{you}覺得,{tag:願望}這種願望,需要多久才能實現呢?",
+    "en": "How long do {you} think a wish like {tag:願望} takes to come true?"
+  },
+  {
+    "condition": "",
+    "text": "願望說出口之後,好像就會比較有勇氣去實現。像是{tag:願望}這樣的。",
+    "en": "Once a wish is spoken aloud, it seems easier to find the courage to chase it. Like {tag:願望}."
+  },
+  {
+    "condition": "",
+    "text": "對每個人來說,都有各自的「重要的事」呢。像是{tag:重要的事}。",
+    "en": "Everyone has their own \"important things.\" For example, {tag:重要的事}."
+  },
+  {
+    "condition": "",
+    "text": "oO（{tag:重要的事}…被這樣放在心上的事,應該都很珍貴。）",
+    "en": "oO（{tag:重要的事}… something kept so close to the heart must be precious.）"
+  },
+  {
+    "condition": "",
+    "text": "{tag:寶物}這種東西,要是弄丟了,一定會很難過吧。",
+    "en": "{tag:寶物}—if it were lost, it would be really sad."
+  },
+  {
+    "condition": "",
+    "text": "oO（{tag:寶物}…一想到有人把它當成寶貝,就覺得有點溫暖。）",
+    "en": "oO（{tag:寶物}… knowing someone treats it as a treasure makes me feel a little warm.）"
+  },
+  {
+    "condition": "",
+    "text": "有人說過,{tag:寶物}比什麼都值得珍惜。我想我能理解。",
+    "en": "Someone once said that {tag:寶物} is worth cherishing more than anything. I think I understand that."
+  },
+  {
+    "condition": "好感度大於150",
+    "text": "有人說「{tag:秘密}」是不能說出口的。……我是不是已經說太多了?",
+    "en": "Someone once said \"{tag:秘密}\" should never be spoken out loud… Have I already said too much?"
+  },
+  {
+    "condition": "好感度大於150",
+    "text": "oO（{tag:秘密}…有些事,放在心裡就好。）",
+    "en": "oO（{tag:秘密}… some things are best kept in your heart.）"
+  },
+  {
+    "condition": "",
+    "text": "{tag:待辦事項},不趕快做的話,可是會越積越多的。",
+    "en": "{tag:待辦事項}—if we don't take care of it soon, it'll only pile up."
+  },
+  {
+    "condition": "",
+    "text": "oO（{tag:待辦事項}…想想就有點頭痛。）",
+    "en": "oO（{tag:待辦事項}… just thinking about it gives me a headache.）"
+  },
+  {
+    "condition": "",
+    "text": "要不要一起去{tag:待辦事項}?有人陪的話,應該比較輕鬆。",
+    "en": "Want to go {tag:待辦事項} together? It's probably easier with someone there."
+  },
+  {
+    "condition": "",
+    "text": "{tag:待辦事項}做完之後,應該會很有成就感吧。",
+    "en": "Once {tag:待辦事項} is done, it should feel like a real accomplishment."
+  },
+  {
+    "condition": "使用者好感度低於100,喜好對象在行動區內",
+    "text": "{you}剛來沒多久吧?跟{liked}相處久了的話,大概就會習慣這裡了。",
+    "en": "{you} just arrived not long ago, right? Spend some time with {liked} and you'll get used to this place."
+  },
+  {
+    "condition": "使用者好感度低於100,喜好對象在行動區內",
+    "text": "{liked}是這裡我最熟悉的人。有問題的話,也可以問問{liked}。",
+    "en": "{liked} is the person I know best around here. If you have questions, you can ask {liked} too."
+  },
+  {
+    "condition": "使用者好感度低於100,喜好對象在行動區內",
+    "text": "{liked}和我很合得來。{you}要不要也試著聊聊看?",
+    "en": "{liked} and I get along well. Why don't {you} try talking with them too?"
+  },
+  {
+    "condition": "使用者好感度低於100,喜好對象不在行動區",
+    "text": "oO（{liked}不在…總覺得少了點什麼。）",
+    "en": "oO（{liked} isn't here… somehow something feels missing.）"
+  },
+  {
+    "condition": "使用者好感度低於100,喜好對象不在行動區",
+    "text": "{you}要是看到{liked},幫我問聲好吧。",
+    "en": "If {you} see {liked}, could you say hi for me?"
+  },
+  {
+    "condition": "使用者好感度低於100,喜好對象不在行動區",
+    "text": "說起來,{you}還不太認識{liked}呢。哪天介紹給{you}吧。",
+    "en": "Now that I think of it, {you} haven't really met {liked} yet. Maybe I'll introduce {you} someday."
+  },
+  {
+    "condition": "使用者好感度低於100,好惡等級喜歡以上",
+    "text": "{liked}教過我很多事,我想{liked}也會是{you}的好朋友。",
+    "en": "{liked} taught me a lot. I think {liked} would make a good friend for {you} too."
+  },
+  {
+    "condition": "使用者好感度低於100,好惡等級喜歡以上",
+    "text": "跟{liked}一起的時候,我比較不會緊張。{you}也可以試試。",
+    "en": "When I'm with {liked}, I don't get nervous as easily. {you} could try that too."
+  },
+  {
+    "condition": "使用者好感度低於100,好惡等級超級喜歡",
+    "text": "對我來說,{liked}是特別的存在。{you}以後應該就會懂了。",
+    "en": "To me, {liked} is someone special. {you} will understand that someday."
+  },
+  {
+    "condition": "使用者好感度低於100,普通對象在行動區內",
+    "text": "{neutral}也在這裡。嗯,我跟{neutral}還算熟,{you}有問題的話可以問問。",
+    "en": "{neutral} is here too. I'm fairly familiar with {neutral}, so if {you} have questions, you can ask."
+  },
+  {
+    "condition": "使用者好感度低於100,普通對象在行動區內",
+    "text": "{neutral}是個不錯的人,雖然我們不常聊就是了。",
+    "en": "{neutral} is a good person, though we don't talk much."
+  },
+  {
+    "condition": "使用者好感度低於100,普通對象不在行動區",
+    "text": "oO（{neutral}最近在忙什麼呢…）",
+    "en": "oO（I wonder what {neutral} has been busy with lately…）"
+  },
+  {
+    "condition": "使用者好感度低於100,普通對象不在行動區",
+    "text": "{you}認識{neutral}嗎?不熟的話,也沒關係。",
+    "en": "Do {you} know {neutral}? If not, that's fine too."
+  },
+  {
+    "condition": "使用者好感度低於100,厭惡對象在行動區內",
+    "text": "{you}剛來,還是先提醒一聲：和{disliked}相處,要有點心理準備。",
+    "en": "{you} are new here, so I'd better warn you first: being around {disliked} means you need to be a little prepared."
+  },
+  {
+    "condition": "使用者好感度低於100,厭惡對象在行動區內",
+    "text": "{disliked}那邊…算了,{you}自己判斷就好。",
+    "en": "{disliked} over there… never mind, I'll let {you} judge for yourself."
+  },
+  {
+    "condition": "使用者好感度低於100,厭惡對象在行動區內",
+    "text": "對不起,我和{disliked}有點不太合。{you}別太在意。",
+    "en": "Sorry, {disliked} and I don't really get along. Please don't let {you} worry too much about it."
+  },
+  {
+    "condition": "使用者好感度低於100,厭惡對象不在行動區",
+    "text": "oO（{disliked}不在,總算能安靜一下。）",
+    "en": "oO（{disliked} isn't here, so at least I can have some quiet.）"
+  },
+  {
+    "condition": "使用者好感度低於100,厭惡對象不在行動區",
+    "text": "{you}要是遇到{disliked},記得別被牽著走。……我只是隨口說說。",
+    "en": "If {you} run into {disliked}, remember not to get pulled along… just saying."
+  },
+  {
+    "condition": "使用者好感度低於100,好惡等級討厭以下",
+    "text": "我和{disliked}之間,有點意見不合。{you}不用管。",
+    "en": "{disliked} and I have some disagreements. {you} don't need to worry about it."
+  },
+  {
+    "condition": "使用者好感度低於100,好惡等級超級討厭",
+    "text": "說實話,我不太想在{you}面前提到{disliked}。換個話題吧。",
+    "en": "To be honest, I don't really want to bring up {disliked} in front of {you}. Let's change the subject."
+  },
+  {
+    "condition": "使用者好感度低於100,喜好對象與厭惡對象同時在行動區內",
+    "text": "{you}來得真是時候,這裡有我喜歡的人,也有我不喜歡的人。",
+    "en": "{you} came at just the right time. Here there's someone I like, and someone I don't."
+  },
+  {
+    "condition": "使用者好感度低於100,喜好對象與普通對象同時在行動區內",
+    "text": "{liked}和{neutral}都在,今天挺熱鬧的。{you}也一起吧。",
+    "en": "{liked} and {neutral} are both here. It's pretty lively today. {you} should join us too."
+  },
+  {
+    "condition": "使用者好感度低於100,喜好對象在行動區內",
+    "text": "{liked}看起來挺開心的。{you}也可以去打聲招呼。",
+    "en": "{liked} looks happy. {you} could go say hello."
+  },
+  {
+    "condition": "使用者好感度低於100,喜好對象在行動區內",
+    "text": "{liked}之前跟我聊過不少事。{you}有想知道的嗎?",
+    "en": "{liked} has talked with me about quite a few things before. Is there anything {you} want to know?"
+  },
+  {
+    "condition": "使用者好感度低於100,喜好對象不在行動區",
+    "text": "oO（要是{liked}在就好了,大概會很熱鬧。）",
+    "en": "oO（If {liked} were here, it would probably be quite lively.）"
+  },
+  {
+    "condition": "使用者好感度低於100,普通對象在行動區內",
+    "text": "{neutral}最近還好嗎?……只是隨口問問。",
+    "en": "How has {neutral} been lately? …Just asking."
+  },
+  {
+    "condition": "使用者好感度低於100,厭惡對象在行動區內",
+    "text": "{disliked}那傢伙老是吵吵鬧鬧,我已經聽膩了。",
+    "en": "That {disliked} is always making a racket. I'm already tired of hearing it."
+  },
+  {
+    "condition": "使用者好感度低於100,厭惡對象不在行動區",
+    "text": "oO（{disliked}要是在,大概又要吵起來了吧…）",
+    "en": "oO（If {disliked} were here, they'd probably start a fight again…）"
+  },
+  {
+    "condition": "",
+    "text": "{you}在的時候,這裡好像比較熱鬧。",
+    "en": "When {you} are here, this place feels livelier."
+  },
+  {
+    "condition": "",
+    "text": "今天好像很平靜呢。",
+    "en": "Today feels really calm."
+  },
+  {
+    "condition": "",
+    "text": "oO（發呆也是一種休息吧。）",
+    "en": "oO（Spacing out is a kind of rest too.）"
+  },
+  {
+    "condition": "",
+    "text": "oO（不知道外面現在是什麼天氣…）",
+    "en": "oO（I wonder what the weather is like outside right now…）"
+  },
+  {
+    "condition": "",
+    "text": "有時候什麼都不做,也是一種享受。",
+    "en": "Sometimes doing nothing at all is a kind of enjoyment."
+  },
+  {
+    "condition": "",
+    "text": "oO（今天要做點什麼好呢…）",
+    "en": "oO（What should I do today…?）"
+  },
+  {
+    "condition": "",
+    "text": "時間過得真快。",
+    "en": "Time really flies."
+  },
+  {
+    "condition": "",
+    "text": "{you}有沒有覺得,今天的空氣特別安靜?",
+    "en": "Does {you} feel that the air is especially quiet today?"
+  }
+]

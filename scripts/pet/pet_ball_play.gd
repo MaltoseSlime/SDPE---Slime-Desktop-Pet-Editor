@@ -22,12 +22,16 @@ const REWARD_INTERVAL := 8.0
 const BALANCE_CHANCE := 0.45
 const INVITE_CHANCE := 0.75
 const AFFINITY_KEY := "好感度"
+## 玩球時使用者碰過球的好感度獎勵量(目前固定 +1),跟「滿強度」所需的量,兩者的比值就是愛心特效的強度。
+const REWARD_AFFINITY_GAIN := 1.0
+const REWARD_AFFINITY_FULL := 2.0
 const SAY_COOLDOWN := 7.0
-const INVITE_COOLDOWN := 120.0
-## 全場任何桌寵發出邀請後,這麼久之內沒有別的桌寵再發邀請(球很多、很多隻同時起玩也不會一直邀請)。
-const GROUP_INVITE_COOLDOWN := 90.0
-## 婉拒玩球邀請之後,這麼多秒內不會再被邀請(免得一直問同一隻沒興趣的)。
-const DECLINE_PROTECT := 240.0
+const INVITE_COOLDOWN := 300.0
+## 全場任何桌寵發出邀請後,這麼久之內沒有別的桌寵再發邀請(2026-10-06 使用者要求:發出過邀請就給明確的 5 分鐘,
+## 不會 A 邀請後馬上換 B 邀請)。
+const GROUP_INVITE_COOLDOWN := 300.0
+## 婉拒玩球邀請之後,這麼多秒內不會再被邀請(2026-10-06 使用者要求:5 分鐘)。
+const DECLINE_PROTECT := 300.0
 ## 「發現球」的對話最短間隔(不論場上有幾顆球)。
 const FOUND_COOLDOWN := 120.0
 ## 全場最後一次發邀請的時間(msec)。
@@ -351,9 +355,10 @@ func _reward_if_user_involved() -> void:
 	if _reward_left > 0.0 or Time.get_ticks_msec() - ball.user_touch_msec > USER_WINDOW_MSEC:
 		return
 	_reward_left = REWARD_INTERVAL
-	ValueGateway.modify_value(_pet, AFFINITY_KEY, 1.0, "local")
+	# 2026-10-06:一起玩球的好感度最少量,冷卻 1 小時(數值);心情與小愛心特效照常。
+	PetFavor.user_bond(_pet, "ball", PetFavor.USER_MINIMAL, PetFavor.USER_BALL_COOLDOWN)
 	if _pet.vitality != null:
 		_pet.vitality.change_mood(3.0)
 	if _pet.effects != null:
-		_pet.effects.play("hearts", 1.5)
+		_pet.effects.play("hearts", 1.5, clampf(REWARD_AFFINITY_GAIN / REWARD_AFFINITY_FULL, 0.0, 1.0))
 

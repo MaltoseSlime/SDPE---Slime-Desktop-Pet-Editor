@@ -39,13 +39,18 @@ var _ignore_props_check: CheckBox
 var _ignore_furniture_check: CheckBox
 var _no_follow_target_check: CheckBox
 var _no_follow_source_check: CheckBox
+var _no_topic_mention_check: CheckBox
 var _reaction_list: VBoxContainer
+var _reaction_window: ReactionDialogueWindow
 var _reaction_boxes: Dictionary = {}   # reactions 陣列索引 → TextEdit
 var _characters: Array[Dictionary] = []
 var _props: Array[PropDef] = []
-var _keyword_edit: TextEdit
+var _keyword_rows: KeywordRows
 var _keyword_count: Label
-var _user_keyword_edit: TextEdit
+var _user_keyword_rows: KeywordRows
+var _topic_rows: TopicRows
+var _topic_window: TopicLinesWindow
+var _topic_button: Button
 var _user_keyword_count: Label
 
 
@@ -150,27 +155,32 @@ func _commit_nickname() -> void:
 func _build_toggle_card() -> void:
 	var box := _new_card("整體交互開關", "整隻桌寵層級的總開關。「不主動」只是不會自己發起——使用者手動拖曳互動(拖道具給它、拖它去用家具),或積木明確指定的使用,都不受影響。")
 	_ignore_props_check = CheckBox.new()
-	_ignore_props_check.text = "不與道具交互(完全無視:不撿、不被摩擦、不成為候選、不被吸引)"
+	_ignore_props_check.text = tr("不與道具交互(完全無視:不撿、不被摩擦、不成為候選、不被吸引)")
 	_ignore_props_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_ignore_props_check.toggled.connect(func(_pressed: bool) -> void: _commit_toggles())
 	box.add_child(_ignore_props_check)
 	_ignore_furniture_check = CheckBox.new()
-	_ignore_furniture_check.text = "不主動使用家具(目前只有容器類的自主拿取行為;坐/躺類本來就沒有自主機制)"
+	_ignore_furniture_check.text = tr("不主動使用家具(目前只有容器類的自主拿取行為;坐/躺類本來就沒有自主機制)")
 	_ignore_furniture_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_ignore_furniture_check.toggled.connect(func(_pressed: bool) -> void: _commit_toggles())
 	box.add_child(_ignore_furniture_check)
 	_no_follow_target_check = CheckBox.new()
-	_no_follow_target_check.text = "不會被其他桌寵跟隨(別隻桌寵自己決定要跟著誰走時不會選到這隻)"
+	_no_follow_target_check.text = tr("不會被其他桌寵跟隨(別隻桌寵自己決定要跟著誰走時不會選到這隻)")
 	_no_follow_target_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_no_follow_target_check.toggled.connect(func(_pressed: bool) -> void: _commit_toggles())
 	box.add_child(_no_follow_target_check)
 	_no_follow_source_check = CheckBox.new()
-	_no_follow_source_check.text = "不跟隨其他桌寵(自己不會主動決定跟著誰走)"
+	_no_follow_source_check.text = tr("不跟隨其他桌寵(自己不會主動決定跟著誰走)")
 	_no_follow_source_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_no_follow_source_check.toggled.connect(func(_pressed: bool) -> void: _commit_toggles())
 	box.add_child(_no_follow_source_check)
+	_no_topic_mention_check = CheckBox.new()
+	_no_topic_mention_check.text = tr("不被其他桌寵的話題文本提及(其他桌寵閒聊時不會提到這隻;只對在場的桌寵生效)")
+	_no_topic_mention_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_no_topic_mention_check.toggled.connect(func(_pressed: bool) -> void: _commit_toggles())
+	box.add_child(_no_topic_mention_check)
 	var follow_note := Label.new()
-	follow_note.text = "固定模式底下這兩個「不跟隨」開關與「不主動使用家具」都會自動打開,靜止模式只自動打開這兩個「不跟隨」開關(拖去用家具還是會用);切回其他模式後會換回你在這裡自己設定的值。"
+	follow_note.text = tr("固定模式底下這兩個「不跟隨」開關與「不主動使用家具」都會自動打開,靜止模式只自動打開這兩個「不跟隨」開關(拖去用家具還是會用);切回其他模式後會換回你在這裡自己設定的值。")
 	follow_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	follow_note.custom_minimum_size.x = CARD_WIDTH
 	follow_note.theme_type_variation = AppSettings.MUTED_LABEL
@@ -185,6 +195,7 @@ func _commit_toggles() -> void:
 	rules["ignore_furniture"] = _ignore_furniture_check.button_pressed
 	rules["no_follow_target"] = _no_follow_target_check.button_pressed
 	rules["no_follow_source"] = _no_follow_source_check.button_pressed
+	rules["no_topic_mention"] = _no_topic_mention_check.button_pressed
 	_apply(rules)
 
 
@@ -207,21 +218,40 @@ func _build_character_card() -> void:
 ## 基本反應對話:列出這隻角色目前用的「反應」性格裡,基於預設反應情境(玩球、被邀請、休息等)已經有的對話內容。
 ## 只能改對話文字本身(跳一下、發抖這類寫死的動作效果不會被動到);要新增反應情境或調整動作,去「性格」分頁按「編輯性格…」。
 func _build_reaction_dialogue_card() -> void:
-	var box := _new_card("基本反應對話", "列出這隻角色目前用的性格,在「玩球」「被邀請對戰」「休息」等既有反應情境裡已經有的對話內容。這裡只能改「對話文字」本身,跳一下、發抖這類動作不會被動到,也不能新增新的反應情境;要做這些,請到「性格」分頁按「編輯性格…」。")
+	var box := _new_card(tr("對話事件"), "列出這隻角色目前用的性格,在「玩球」「被邀請對戰」「休息」等既有反應情境裡已經有的對話內容。這裡只能改「對話文字」本身,跳一下、發抖這類動作不會被動到,也不能新增新的反應情境;要做這些,請到「性格」分頁按「編輯性格…」。")
 	box.add_child(ManagerUi.heading("事件管理"))
 	var event_manager_button := ManagerUi.button("事件管理(查看/暫時停用/移除目前生效的事件)")
-	event_manager_button.tooltip_text = "查看這隻桌寵目前生效的所有事件(閒聊、反應、計時器…),可以暫時停用或移除。跟測試者面板的「事件管理」是同一個視窗,不會寫進檔案、只影響這次執行——性格/交互行為規則帶來的事件下次重新套用或按「儲存」就會恢復,自訂的要重新匯入積木檔才會恢復。"
+	event_manager_button.tooltip_text = tr("查看這隻桌寵目前生效的所有事件(閒聊、反應、計時器…),可以暫時停用或移除。跟測試者面板的「事件管理」是同一個視窗,不會寫進檔案、只影響這次執行——性格/交互行為規則帶來的事件下次重新套用或按「儲存」就會恢復,自訂的要重新匯入積木檔才會恢復。")
 	event_manager_button.pressed.connect(func() -> void: ManagerUi.open_event_manager_window(self, _pet))
 	box.add_child(event_manager_button)
 	box.add_child(HSeparator.new())
-	box.add_child(ManagerUi.syntax_row(self, "台詞能用的語法", "這裡的台詞可以用氣泡樣式、數值、名字標記與單字池等既有語法。點右邊的「語法字典」查全部語法並插入/複製。"))
-	_reaction_list = VBoxContainer.new()
-	_reaction_list.add_theme_constant_override("separation", 8)
-	box.add_child(_reaction_list)
+	# 基本反應對話:標題 + 圈圈i(格式同事件管理),台詞清單收進獨立視窗(內容長,放在這一頁會拖慢讀取)。
+	box.add_child(ManagerUi.heading_with_info(tr("基本反應對話"), tr("列出這隻角色目前用的性格,在「玩球」「被邀請對戰」「休息」等既有反應情境裡已經有的對話內容。這裡只能改「對話文字」本身,跳一下、發抖這類動作不會被動到,也不能新增新的反應情境;要做這些,請到「性格」分頁按「編輯性格…」。")))
+	var reactions_button := ManagerUi.button(tr("基本反應對話…"))
+	reactions_button.pressed.connect(_open_reaction_window)
+	box.add_child(reactions_button)
+	box.add_child(HSeparator.new())
+	# 話題文本:標題 + 圈圈i(說明含「好感度達到 30 才會調用」),列表同樣收進獨立視窗。
+	box.add_child(ManagerUi.heading_with_info(tr("話題文本"), tr("閒聊時會說的句子。需要該桌寵的使用者好感度達到 30 才會開始調用這些話題文本。句中用 {tag:愛好} 引用同標籤的詞、{liked} / {disliked} 引用場上喜歡/討厭的對象;句中引用的標籤沒有詞、或沒有對應的對象時,這句就不會被說。")))
+	box.add_child(_hint(tr("閒聊時說的句子(好感度 ≥ 30 才會開始說)")))
+	_topic_button = ManagerUi.button("")
+	_topic_button.pressed.connect(_open_topic_window)
+	box.add_child(_topic_button)
+	_update_topic_button()
+
+
+## 打開基本反應對話視窗並重新載入目前桌寵的台詞(每次打開都重新載入,保證跟桌寵一致)。
+func _open_reaction_window() -> void:
+	if _pet == null:
+		return
+	_reaction_window = ManagerUi.open_reaction_dialogue_window(self)
+	_reaction_list = _reaction_window.list
+	_reload_reaction_dialogue()
 
 
 func _reload_reaction_dialogue() -> void:
-	if _reaction_list == null:
+	# 視窗沒開過(或還沒打開)就不用載入,等打開時再載入。
+	if _reaction_list == null or _reaction_window == null or not _reaction_window.visible:
 		return
 	for child in _reaction_list.get_children():
 		child.queue_free()
@@ -269,11 +299,35 @@ func _add_reaction_row(index: int, entry: Dictionary) -> void:
 
 
 ## 把某一條反應的對話文字(索引 index,對應 reactions 陣列)存回這隻角色自己的性格副本;action/hop/shiver 等其他欄位原樣保留。
+## 台詞跟目前生效的性格版本一樣(或清單是空的)就回傳 true。純讀取,不會複製性格。
+func _reaction_unchanged(index: int, id: String) -> bool:
+	var source: Array = PersonalityApplier.personality_of(_pet, id).get("reactions", [])
+	if index < 0 or index >= source.size() or not _reaction_boxes.has(index):
+		return true
+	var lines: Array[String] = []
+	for line: String in (_reaction_boxes[index] as TextEdit).text.split("
+"):
+		if line.strip_edges() != "" and lines.size() < PersonalityFile.MAX_LINES_PER_ENTRY:
+			lines.append(line.strip_edges().left(PersonalityFile.MAX_LINE_CHARS))
+	var old_say: Array = (source[index] as Dictionary).get("say", [])
+	if lines.is_empty():
+		# 不能把整條反應清成沒有台詞:退回原本的內容(不改性格、不發 changed)。
+		(_reaction_boxes[index] as TextEdit).text = "
+".join(PackedStringArray(old_say))
+		return true
+	return "
+".join(PackedStringArray(old_say)) == "
+".join(PackedStringArray(lines))
+
+
 func _commit_reaction_dialogue(index: int) -> void:
 	if _loading or _pet == null or not _reaction_boxes.has(index):
 		return
 	var id := PersonalityApplier.choice_of(_pet, "reactions")
 	if id == "":
+		return
+	# 台詞沒真的改就不動(點進去又離開不算改動:不複製性格、不發 changed)。
+	if _reaction_unchanged(index, id):
 		return
 	PersonalityApplier.ensure_own(_pet, id)
 	var personality: Dictionary = PersonalityApplier.personality_of(_pet, id).duplicate(true)
@@ -316,8 +370,8 @@ func _build_prop_card() -> void:
 	_prop_action_option = OptionButton.new()
 	box.add_child(ManagerUi.labeled("動作", _prop_action_option))
 	_prop_persist_option = OptionButton.new()
-	_prop_persist_option.add_item("只做一次")
-	_prop_persist_option.add_item("持續到道具用完 / 離開判定")
+	_prop_persist_option.add_item(tr("只做一次"))
+	_prop_persist_option.add_item(tr("持續到道具用完 / 離開判定"))
 	box.add_child(ManagerUi.labeled("動作進行方式", _prop_persist_option))
 	var add := ManagerUi.button("＋ 新增這條反應")
 	add.pressed.connect(_on_add_prop_pressed)
@@ -433,6 +487,7 @@ func _reload() -> void:
 	var names: Array[String] = _pet.action_names()
 	var rules: Dictionary = _pet.interaction_rules
 	_ignore_props_check.button_pressed = bool(rules.get("ignore_props", false))
+	_no_topic_mention_check.button_pressed = bool(rules.get("no_topic_mention", false))
 	_ignore_furniture_check.button_pressed = bool(rules.get("ignore_furniture", false))
 	_no_follow_target_check.button_pressed = bool(rules.get("no_follow_target", false))
 	_no_follow_source_check.button_pressed = bool(rules.get("no_follow_source", false))
@@ -464,7 +519,7 @@ func _reload() -> void:
 	for def in _props:
 		_prop_option.add_item(def.display_name)
 	_prop_action_option.clear()
-	_prop_action_option.add_item("(不做動作)")
+	_prop_action_option.add_item(tr("(不做動作)"))
 	for action_name in names:
 		_prop_action_option.add_item(action_name)
 	_reload_game_prefs()
@@ -479,35 +534,29 @@ func _build_keyword_card() -> void:
 	var side := _new_card("關鍵詞庫", tr("簡單地告訴桌寵「你會想到、提到哪些事物」,一行一個(最多 %d 個、每個最多 %d 字)。台詞裡寫 {keyword} 就會隨機換成其中一個,例如「%s似乎在想關於 {keyword} 的事情」「你知道關於 {keyword} 的事嗎?」「oO(有點想念 {keyword} 呀…)」;{kw:1}、{kw:2}… 是同一個事件裡各不相同的幾個,適合做「猜猜我現在最想要什麼?」這種四個選項都是答案的題目。庫是空的就用預設詞(可以寫 {keyword|某件事} 自訂)。改了立刻生效,記得按「儲存」。") % [PetText.MAX_KEYWORDS, PetText.MAX_KEYWORD_LENGTH, "{self}"])
 	side.add_child(ManagerUi.syntax_row(self, "台詞裡怎麼用:{keyword}、{kw:1}", "{keyword} = 隨機一個;{keyword|某件事} = 庫是空的時顯示「某件事」;{kw:1}~{kw:9} = 這個事件洗牌後的第 N 個(1、2、3、4 各不相同)。點右邊的「語法字典」看全部語法。", false))
 	side.add_child(_hint("▍桌寵有興趣的關鍵詞(桌寵向你學到的新知識也會記在這裡)"))
-	_keyword_edit = TextEdit.new()
-	_keyword_edit.custom_minimum_size.y = 96.0
-	_keyword_edit.placeholder_text = tr("一行一個關鍵詞,例如:\n晚餐\n星星\n下雨天")
-	_keyword_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
-	_keyword_edit.text_changed.connect(_on_keywords_edited)
-	side.add_child(_keyword_edit)
+	_keyword_rows = KeywordRows.new()
+	_keyword_rows.changed.connect(_on_keywords_edited)
+	side.add_child(_keyword_rows)
 	var row := HBoxContainer.new()
 	_keyword_count = Label.new()
 	_keyword_count.theme_type_variation = AppSettings.MUTED_LABEL
 	_keyword_count.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(_keyword_count)
 	var suggest := ManagerUi.button("加入建議詞")
-	suggest.tooltip_text = "把一組常見的話題(晚餐、星星、天氣…)加進來,已經有的不會重複;不喜歡的自己刪掉。"
+	suggest.tooltip_text = tr("把一組常見的話題(晚餐、星星、天氣…)加進來,已經有的不會重複;不喜歡的自己刪掉。")
 	suggest.pressed.connect(_add_suggested_keywords)
 	row.add_child(suggest)
 	var clear := ManagerUi.button("清空")
 	clear.pressed.connect(func() -> void:
-		_keyword_edit.text = ""
+		_keyword_rows.set_data(PackedStringArray(), {})
 		_on_keywords_edited())
 	row.add_child(clear)
 	side.add_child(row)
 	# 第二份:使用者有興趣的關鍵詞。台詞裡用 {keyword:user} / {kw:user:1};桌寵「想更了解你」問到的也會記在這裡。
 	side.add_child(_hint("▍使用者有興趣的關鍵詞(桌寵想更了解你時問到的會記在這裡;台詞裡用 {keyword:user}、{kw:user:1})"))
-	_user_keyword_edit = TextEdit.new()
-	_user_keyword_edit.custom_minimum_size.y = 96.0
-	_user_keyword_edit.placeholder_text = tr("一行一個,例如:\n貓咪\n爵士樂\n登山")
-	_user_keyword_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
-	_user_keyword_edit.text_changed.connect(_on_user_keywords_edited)
-	side.add_child(_user_keyword_edit)
+	_user_keyword_rows = KeywordRows.new()
+	_user_keyword_rows.changed.connect(_on_user_keywords_edited)
+	side.add_child(_user_keyword_rows)
 	var user_row := HBoxContainer.new()
 	_user_keyword_count = Label.new()
 	_user_keyword_count.theme_type_variation = AppSettings.MUTED_LABEL
@@ -515,7 +564,7 @@ func _build_keyword_card() -> void:
 	user_row.add_child(_user_keyword_count)
 	var user_clear := ManagerUi.button("清空")
 	user_clear.pressed.connect(func() -> void:
-		_user_keyword_edit.text = ""
+		_user_keyword_rows.set_data(PackedStringArray(), {})
 		_on_user_keywords_edited())
 	user_row.add_child(user_clear)
 	side.add_child(user_row)
@@ -525,28 +574,36 @@ const SUGGESTED_KEYWORDS: Array[String] = ["晚餐", "星星", "天氣", "下雨
 
 
 func _add_suggested_keywords() -> void:
-	var merged := PetText.sanitize_keywords(_keyword_edit.text)
+	var data: Dictionary = _keyword_rows.get_data()
+	var merged: PackedStringArray = data["words"]
+	var tags: Dictionary = data["tags"]
 	for word in SUGGESTED_KEYWORDS:
 		if not merged.has(word) and merged.size() < PetText.MAX_KEYWORDS:
 			merged.append(word)
-	_keyword_edit.text = "\n".join(merged)
+	_keyword_rows.set_data(merged, tags)
 	_on_keywords_edited()
 
 
 ## 使用者改了關鍵詞:整理後寫到這隻桌寵身上(輸入框的文字不重寫,免得打字時游標亂跳;超過上限或重複的下次載入才會被整理掉)。
+## 使用者改了關鍵詞(文字或標籤):整理後寫到這隻桌寵身上。
 func _on_keywords_edited() -> void:
 	if _loading or _pet == null:
 		return
-	_pet.keywords = PetText.sanitize_keywords(_keyword_edit.text)
+	var data: Dictionary = _keyword_rows.get_data()
+	_pet.keywords = data["words"]
+	_pet.keyword_tags = data["tags"]
 	_update_keyword_count()
 	changed.emit()
 
 
 ## 使用者有興趣的關鍵詞被編輯:整理後寫到桌寵身上。
+## 使用者有興趣的關鍵詞被編輯:整理後寫到桌寵身上。
 func _on_user_keywords_edited() -> void:
 	if _loading or _pet == null:
 		return
-	_pet.user_keywords = PetText.sanitize_keywords(_user_keyword_edit.text)
+	var data: Dictionary = _user_keyword_rows.get_data()
+	_pet.user_keywords = data["words"]
+	_pet.user_keyword_tags = data["tags"]
 	_update_keyword_count()
 	changed.emit()
 
@@ -560,15 +617,19 @@ func _update_keyword_count() -> void:
 
 
 func _load_keywords() -> void:
-	if _pet == null or _keyword_edit == null:
+	if _pet == null or _keyword_rows == null:
 		return
 	var was_loading := _loading
 	_loading = true
-	_keyword_edit.text = "\n".join(_pet.keywords)
-	if _user_keyword_edit != null:
-		_user_keyword_edit.text = "\n".join(_pet.user_keywords)
+	_keyword_rows.set_data(_pet.keywords, _pet.keyword_tags)
+	if _user_keyword_rows != null:
+		_user_keyword_rows.set_data(_pet.user_keywords, _pet.user_keyword_tags)
+	_update_topic_button()
+	if _topic_window != null and _topic_window.visible:
+		_topic_rows.set_data(_pet.topic_lines_effective())
 	_loading = was_loading
 	_update_keyword_count()
+
 
 func _hint(text: String) -> Label:
 	var label := Label.new()
@@ -753,10 +814,10 @@ func _rebuild_prefs(rules: Dictionary) -> void:
 		label.clip_text = true
 		row.add_child(label)
 		var option := OptionButton.new()
-		option.add_item("沒特別")
-		option.add_item("喜歡")
-		option.add_item("不喜歡")
-		option.add_item("不與此道具交互")
+		option.add_item(tr("沒特別"))
+		option.add_item(tr("喜歡"))
+		option.add_item(tr("不喜歡"))
+		option.add_item(tr("不與此道具交互"))
 		option.select(["", "like", "dislike", "ignore"].find(current))
 		var prop_id := def.id
 		var prop_name := def.display_name
@@ -778,7 +839,7 @@ func _rebuild_prefs(rules: Dictionary) -> void:
 		relink.pressed.connect(func() -> void: _open_relink_menu(relink, old_id))
 		row.add_child(relink)
 		var remove := ManagerUi.button("✕")
-		remove.tooltip_text = "移除這一項"
+		remove.tooltip_text = tr("移除這一項")
 		remove.pressed.connect(func() -> void: set_preference(old_id, "", ""))
 		row.add_child(remove)
 		_pref_list.add_child(row)
@@ -801,12 +862,30 @@ func _add_pet_pref_row(target: String, display_name: String, rules: Dictionary) 
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	label.clip_text = true
 	row.add_child(label)
+	# 2026-10-06:桌寵對這隻桌寵的好感度(參數,不影響好惡等級)。預設列(全部角色)沒有單一對象,不顯示。
+	if target != InteractionRules.ALL_PETS_TARGET and _pet != null:
+		var favor := Label.new()
+		favor.text = tr("當前好感度:%d") % int(roundf(_pet.favor_of(target)))
+		favor.theme_type_variation = AppSettings.MUTED_LABEL
+		favor.tooltip_text = tr("這隻桌寵對這隻桌寵的好感度(-500~1000)。只是提供的參數,不會自動影響好惡等級;要不要用它做事件,由你自己的積木決定。")
+		row.add_child(favor)
 	var option := OptionButton.new()
 	for level: int in InteractionRules.PET_PREF_LEVELS:
 		option.add_item(tr(str(InteractionRules.PET_PREF_LEVEL_NAMES[level])))
 	option.select(InteractionRules.PET_PREF_LEVELS.find(InteractionRules.direct_pet_pref_level(rules, target)))
 	option.item_selected.connect(func(index: int) -> void: set_pet_pref(target, display_name, InteractionRules.PET_PREF_LEVELS[index]))
 	row.add_child(option)
+	# 2026-10-06:「不提及此桌寵」(自己的話題文本不會提到它;好惡等級不受影響)。預設列沒有單一對象,不顯示。
+	if target != InteractionRules.ALL_PETS_TARGET and _pet != null:
+		# 只顯示 🔇 圖示,說明寫在 hover 裡(折行)。
+		var no_mention := ManagerUi.button("🔇")
+		no_mention.toggle_mode = true
+		no_mention.button_pressed = _pet.no_mention_of(target)
+		no_mention.tooltip_text = InfoIcon.wrap_text(tr("不提及此桌寵:其他桌寵閒聊時,話題文本不會提到這隻(只對在場的桌寵生效)。好惡等級不受影響。"), InfoIcon.TIP_WIDTH)
+		no_mention.toggled.connect(func(pressed: bool) -> void:
+			_pet.set_pet_no_mention(target, pressed)
+			changed.emit())
+		row.add_child(no_mention)
 	_pet_pref_list.add_child(row)
 
 
@@ -834,7 +913,7 @@ func _rebuild_pet_prefs(rules: Dictionary) -> void:
 		label.clip_text = true
 		row.add_child(label)
 		var remove := ManagerUi.button("✕")
-		remove.tooltip_text = "移除這一項"
+		remove.tooltip_text = tr("移除這一項")
 		remove.pressed.connect(func() -> void: set_pet_pref(target, "", 0))
 		row.add_child(remove)
 		_pet_pref_list.add_child(row)
@@ -851,7 +930,7 @@ func _open_relink_menu(anchor: Control, old_id: String) -> void:
 			candidates.append(def)
 			menu.add_item(def.display_name)
 	if candidates.is_empty():
-		menu.add_item("(沒有可以連結的道具)")
+		menu.add_item(tr("(沒有可以連結的道具)"))
 		menu.set_item_disabled(0, true)
 	menu.index_pressed.connect(func(index: int) -> void:
 		relink_preference(old_id, candidates[index])
@@ -870,7 +949,37 @@ func _row(text: String, on_remove: Callable) -> HBoxContainer:
 	label.custom_minimum_size.x = CARD_WIDTH - 90.0
 	row.add_child(label)
 	var remove := ManagerUi.button("✕")
-	remove.tooltip_text = "刪除這一條"
+	remove.tooltip_text = tr("刪除這一條")
 	remove.pressed.connect(on_remove)
 	row.add_child(remove)
 	return row
+
+
+## 按鈕文字:話題文本的句數。
+func _update_topic_button() -> void:
+	if _topic_button == null:
+		return
+	var count: int = _pet.topic_lines_effective().size() if _pet != null else 0
+	_topic_button.text = tr("話題文本…(%d 句)") % count
+
+
+## 打開話題文本視窗並載入目前桌寵的話題文本(每次打開都重新載入,保證跟桌寵一致)。
+func _open_topic_window() -> void:
+	if _pet == null:
+		return
+	_topic_window = ManagerUi.open_topic_lines_window(self)
+	_topic_rows = _topic_window.rows
+	if not _topic_window.changed.is_connected(_on_topics_edited):
+		_topic_window.changed.connect(_on_topics_edited)
+	_loading = true
+	_topic_rows.set_data(_pet.topic_lines_effective())
+	_loading = false
+	_update_topic_button()
+
+
+## 話題文本被編輯:整理後寫到桌寵身上(見 TopicRows.get_data)。
+func _on_topics_edited() -> void:
+	if _loading or _pet == null:
+		return
+	_pet.set_topic_custom(_topic_rows.get_data())
+	changed.emit()

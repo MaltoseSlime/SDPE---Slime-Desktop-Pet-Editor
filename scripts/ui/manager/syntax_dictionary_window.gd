@@ -16,7 +16,7 @@ var _can_insert := true
 ## can_insert = false 時只有「複製」(例如在沒有文字框的頁面開的字典)。
 func setup(can_insert := true) -> void:
 	_can_insert = can_insert
-	setup_floating("語法字典", Vector2i(680, 560), Vector2i(460, 360))
+	setup_floating(tr("語法字典"), Vector2i(680, 560), Vector2i(460, 360))
 	_build()
 	_refresh()
 
@@ -38,7 +38,7 @@ func _build() -> void:
 	_search.text_changed.connect(func(_t: String) -> void: _refresh())
 	bar.add_child(_search)
 	_category_option = OptionButton.new()
-	_category_option.add_item("全部類別")
+	_category_option.add_item(tr("全部類別"))
 	for category in SyntaxDictionary.categories():
 		_category_option.add_item(category)
 	_category_option.item_selected.connect(func(_i: int) -> void: _refresh())
@@ -54,7 +54,7 @@ func _build() -> void:
 	scroll.add_child(_list)
 	_status = Label.new()
 	_status.theme_type_variation = AppSettings.MUTED_LABEL
-	_status.text = "點「插入」把語法放進文字框游標處,「複製」放進剪貼簿。語法區分大小寫,{ } 和 [ ] 要用半形。"
+	_status.text = tr("點「插入」把語法放進文字框游標處,「複製」放進剪貼簿。語法區分大小寫,{ } 和 [ ] 要用半形。")
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	page.add_child(_status)
 
@@ -73,7 +73,7 @@ func _refresh() -> void:
 		_list.add_child(_row(entry))
 	if _list.get_child_count() == 0:
 		var empty := Label.new()
-		empty.text = "沒有符合的語法。"
+		empty.text = tr("沒有符合的語法。")
 		empty.theme_type_variation = AppSettings.MUTED_LABEL
 		_list.add_child(empty)
 

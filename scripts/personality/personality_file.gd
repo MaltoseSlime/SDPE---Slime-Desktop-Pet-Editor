@@ -70,6 +70,7 @@ static func validate(data: Dictionary) -> Dictionary:
 		"lenses": _validate_definitions(sections.get("lenses"), false, report),
 		"chat": _validate_chat(sections.get("chat"), report),
 		"reactions": _validate_reactions(sections.get("reactions"), report),
+		"topicLines": _validate_topic_lines(sections.get("topicLines")),
 		"blocks": _validate_blocks(sections.get("blocks"), report),
 		"dialogueTranslations": _validate_translations(data.get("dialogueTranslations"), report),
 	}
@@ -231,6 +232,11 @@ static func _validate_reactions(raw: Variant, report: Array[String]) -> Array:
 
 
 ## 台詞之外的動作效果:action(播放動作)、hop(小跳幾下)、shiver(發抖幾秒)。
+## 話題文本(性格檔 sections.topicLines,2026-10-06):每句 {condition, text},格式同桌寵的話題文本。
+static func _validate_topic_lines(raw: Variant) -> Array:
+	return PetProfile._topic_line_list(raw) if raw is Array else []
+
+
 static func _validate_effects(item: Dictionary) -> Dictionary:
 	var effects := {}
 	if item.get("action") is String and str(item["action"]).strip_edges() != "":
@@ -533,6 +539,8 @@ static func to_file_data(personality: Dictionary) -> Dictionary:
 		reactions.append(item)
 	if not reactions.is_empty():
 		sections["reactions"] = reactions
+	if not (personality.get("topicLines", []) as Array).is_empty():
+		sections["topicLines"] = (personality["topicLines"] as Array).duplicate(true)
 	var result := {
 		"fileType": FILE_TYPE, "personalityVersion": VERSION, "id": personality["id"], "name": personality["name"],
 		"description": personality.get("description", ""), "author": personality.get("author", ""), "revision": int(personality.get("revision", 1)),
@@ -647,7 +655,7 @@ static func export_pet(pet: Node, id: String, display_name: String, description 
 			blocks.append(block)
 	return {
 		"fileType": FILE_TYPE, "personalityVersion": VERSION, "id": clean_id(id) if clean_id(id) != "" else "custom", "name": display_name, "description": description,
-		"revision": 1, "sections": {"params": params, "valueDefs": value_defs, "lenses": lenses, "blocks": blocks},
+		"revision": 1, "sections": {"params": params, "valueDefs": value_defs, "lenses": lenses, "blocks": blocks, "topicLines": pet.topic_lines_effective()},
 	}
 
 

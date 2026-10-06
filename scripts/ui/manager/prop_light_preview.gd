@@ -18,7 +18,7 @@ func _init() -> void:
 	custom_minimum_size = VIEW_SIZE
 	clip_contents = true
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	tooltip_text = "在圖上按一下或拖曳,設定光源的位置(十字標記)。"
+	tooltip_text = tr("在圖上按一下或拖曳,設定光源的位置(十字標記)。")
 
 
 func set_state(light: Dictionary, texture: Texture2D) -> void:

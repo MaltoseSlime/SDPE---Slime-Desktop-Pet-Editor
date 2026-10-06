@@ -125,11 +125,11 @@ func _ready() -> void:
 	form.add_child(HSeparator.new())
 	form.add_child(ManagerUi.heading("狀態面板"))
 	_status_energy_check = CheckBox.new()
-	_status_energy_check.text = "顯示精力條(標出「累了」與「累到睡著」的門檻,底下寫目前的休息階段)"
+	_status_energy_check.text = tr("顯示精力條(標出「累了」與「累到睡著」的門檻,底下寫目前的休息階段)")
 	_status_energy_check.toggled.connect(_on_field_changed)
 	form.add_child(_status_energy_check)
 	_status_mood_check = CheckBox.new()
-	_status_mood_check.text = "顯示心情條(標出「生氣」與「開心」的門檻)"
+	_status_mood_check.text = tr("顯示心情條(標出「生氣」與「開心」的門檻)")
 	_status_mood_check.toggled.connect(_on_field_changed)
 	form.add_child(_status_mood_check)
 	form.add_child(ManagerUi.hint_row("說明", "狀態面板預設只顯示創作者勾選的數值(避免洩露彩蛋),這兩條也一樣預設不顯示。精力條要角色有疲勞機制(套用有疲勞參數的性格);心情條隨時都有,但要套用有「心情起伏」參數的性格,心情才會讓角色進入開心/生氣狀態。"))
@@ -155,7 +155,7 @@ func _ready() -> void:
 	form.add_child(ManagerUi.labeled("字級", _font_scale_option))
 	form.add_child(ManagerUi.hint_row("說明", "只放大/縮小文字本身,不像「介面縮放率」連框體、間距一起變大;像素體 Sliver 看起來比其他字體小是已知現象,已經私底下補了視覺大小,不用為了 Sliver 特別調高這裡。"))
 	_dialogue_locale_option = OptionButton.new()
-	_dialogue_locale_option.add_item("預設(原始語言)")
+	_dialogue_locale_option.add_item(tr("預設(原始語言)"))
 	_dialogue_locale_option.set_item_metadata(0, "")
 	for code: String in AppSettings.available_languages():
 		if code == AppSettings.DEFAULT_LANGUAGE:
@@ -172,14 +172,14 @@ func _ready() -> void:
 
 	form = _new_card("聊天室設定")
 	_chatroom_bubble_check = CheckBox.new()
-	_chatroom_bubble_check.text = "即使存在聊天室也顯示氣泡(全局設定的對話集中是「聊天室式」或「簡訊式」時才有作用)"
+	_chatroom_bubble_check.text = tr("即使存在聊天室也顯示氣泡(全局設定的對話集中是「聊天室式」或「簡訊式」時才有作用)")
 	_chatroom_bubble_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_chatroom_bubble_check.toggled.connect(_on_field_changed)
 	form.add_child(_chatroom_bubble_check)
 	_sms_direction_option = OptionButton.new()
-	_sms_direction_option.add_item("左")
+	_sms_direction_option.add_item(tr("左"))
 	_sms_direction_option.set_item_metadata(0, "left")
-	_sms_direction_option.add_item("右")
+	_sms_direction_option.add_item(tr("右"))
 	_sms_direction_option.set_item_metadata(1, "right")
 	_sms_direction_option.item_selected.connect(_on_field_changed)
 	form.add_child(ManagerUi.labeled("簡訊式發言方向", _sms_direction_option))
@@ -202,19 +202,19 @@ func _ready() -> void:
 	form.add_child(ManagerUi.labeled("角色縮放倍率", _body_scale_spin))
 	form.add_child(ManagerUi.hint_row("說明", "整隻角色(含碰撞箱與可點擊範圍)的大小倍率。"))
 	_flip_check = CheckBox.new()
-	_flip_check.text = "翻轉整隻(左右鏡像;素材原本朝向和慣例(朝右)相反時用)"
+	_flip_check.text = tr("翻轉整隻(左右鏡像;素材原本朝向和慣例(朝右)相反時用)")
 	_flip_check.toggled.connect(_on_field_changed)
 	form.add_child(_flip_check)
 	_drag_fixed_check = CheckBox.new()
-	_drag_fixed_check.text = "固定模式下也能隨時拖曳(貼底的半身立繪只能沿底邊左右拖)"
+	_drag_fixed_check.text = tr("固定模式下也能隨時拖曳(貼底的半身立繪只能沿底邊左右拖)")
 	_drag_fixed_check.toggled.connect(_on_field_changed)
 	form.add_child(_drag_fixed_check)
 	_climb_check = CheckBox.new()
-	_climb_check.text = "允許攀爬"
+	_climb_check.text = tr("允許攀爬")
 	_climb_check.toggled.connect(_on_field_changed)
 	form.add_child(_climb_check)
 	_breath_check = CheckBox.new()
-	_breath_check.text = "呼吸動畫"
+	_breath_check.text = tr("呼吸動畫")
 	_breath_check.toggled.connect(_on_field_changed)
 	form.add_child(_breath_check)
 	form = _new_card("判定框(可點擊範圍)")
@@ -229,7 +229,7 @@ func _ready() -> void:
 
 	form = _new_card("自動閒聊")
 	_chat_check = CheckBox.new()
-	_chat_check.text = "讓這隻桌寵隔一段時間自己「說點什麼」"
+	_chat_check.text = tr("讓這隻桌寵隔一段時間自己「說點什麼」")
 	_chat_check.toggled.connect(_on_field_changed)
 	form.add_child(_chat_check)
 	_chat_min_spin = ManagerUi.spin(10.0, PetProfile.MIN_AUTO_CHAT_SECONDS, 86400.0)
@@ -244,7 +244,7 @@ func _ready() -> void:
 
 	form = _new_card("自動跳舞")
 	_dance_check = CheckBox.new()
-	_dance_check.text = "沒有負面狀態時,待機結束有機率自己跳一段舞"
+	_dance_check.text = tr("沒有負面狀態時,待機結束有機率自己跳一段舞")
 	_dance_check.toggled.connect(_on_field_changed)
 	form.add_child(_dance_check)
 	_dance_spin = ManagerUi.spin(1.0, 0.0, 100.0)
@@ -252,25 +252,25 @@ func _ready() -> void:
 	_dance_spin.value_changed.connect(_on_field_changed)
 	form.add_child(ManagerUi.labeled("每次待機結束的機率", _dance_spin))
 	_dance_follow_check = CheckBox.new()
-	_dance_follow_check.text = "看到場內別的桌寵在跳舞時,自己也考慮跟著跳"
+	_dance_follow_check.text = tr("看到場內別的桌寵在跳舞時,自己也考慮跟著跳")
 	_dance_follow_check.toggled.connect(_on_field_changed)
 	form.add_child(_dance_follow_check)
 	form.add_child(ManagerUi.hint_row("說明", "需要角色有 dance 動作素材才會跳(沒有就不會觸發);身上有任何「負面」狀態鏡(疲憊等)時不跳,跳到一半出現負面狀態也會立刻收舞。"))
 
 	form = _new_card("道具互動")
 	_land_check = CheckBox.new()
-	_land_check.text = "飛行模式:道具交互時降落(被拿來洗澡、使用道具時先降落,結束再起飛;取消 = 原地懸停)"
+	_land_check.text = tr("飛行模式:道具交互時降落(被拿來洗澡、使用道具時先降落,結束再起飛;取消 = 原地懸停)")
 	_land_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_land_check.toggled.connect(_on_field_changed)
 	form.add_child(_land_check)
 	_fly_option = OptionButton.new()
 	for label in ["總是飛行", "會落地", "行走與飛行兼具"]:
 		_fly_option.add_item(label)
-	_fly_option.tooltip_text = "總是飛行:做什麼都不落地,休息、睡覺也在空中。\n會落地:累了、道具交互等某些時候才落地,其餘時候在飛。\n行走與飛行兼具:以地面行為為主;大跳躍、從平臺下來、偶爾(心情好機率高)會改成飛行一小段,再降落。"
+	_fly_option.tooltip_text = tr("總是飛行:做什麼都不落地,休息、睡覺也在空中。\n會落地:累了、道具交互等某些時候才落地,其餘時候在飛。\n行走與飛行兼具:以地面行為為主;大跳躍、從平臺下來、偶爾(心情好機率高)會改成飛行一小段,再降落。")
 	_fly_option.item_selected.connect(_on_field_changed)
 	form.add_child(ManagerUi.labeled("飛行模式的行為", _fly_option))
 	_no_fatigue_check = CheckBox.new()
-	_no_fatigue_check.text = "桌寵不計算疲勞值(不會累、不會自己休息或睡覺,也不會因疲勞陷入負面狀態;奔跑最多持續 15 秒)"
+	_no_fatigue_check.text = tr("桌寵不計算疲勞值(不會累、不會自己休息或睡覺,也不會因疲勞陷入負面狀態;奔跑最多持續 15 秒)")
 	_no_fatigue_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_no_fatigue_check.toggled.connect(_on_field_changed)
 	form.add_child(_no_fatigue_check)
@@ -302,7 +302,7 @@ func _ready() -> void:
 	form.add_child(HSeparator.new())
 	form.add_child(ManagerUi.heading("自主靜音"))
 	_unmute_check = CheckBox.new()
-	_unmute_check.text = "允許自主解除靜音(事件觸發的靜音,在觸發條件消失時自動解除)"
+	_unmute_check.text = tr("允許自主解除靜音(事件觸發的靜音,在觸發條件消失時自動解除)")
 	_unmute_check.toggled.connect(_on_field_changed)
 	form.add_child(_unmute_check)
 	form.add_child(ManagerUi.hint_row("說明", "關閉後,事件觸發的靜音只會被積木的「解除靜音」或逾時解除;此設定只影響這隻桌寵自己的說話聲與效果音。"))
@@ -311,11 +311,11 @@ func _ready() -> void:
 
 	form = _new_card("角色特效")
 	_effects_check = CheckBox.new()
-	_effects_check.text = "啟用角色特效(愛心、火苗、冒汗、閃光、小花、發光、殘影)"
+	_effects_check.text = tr("啟用角色特效(愛心、火苗、冒汗、閃光、小花、發光、殘影)")
 	_effects_check.toggled.connect(_on_field_changed)
 	form.add_child(_effects_check)
 	_effects_auto_check = CheckBox.new()
-	_effects_auto_check.text = "狀態鏡自動觸發(開心 → 小愛心與閃光、生氣 → 火苗、疲憊 → 冒汗)"
+	_effects_auto_check.text = tr("狀態鏡自動觸發(開心 → 小愛心與閃光、生氣 → 火苗、疲憊 → 冒汗)")
 	_effects_auto_check.toggled.connect(_on_field_changed)
 	form.add_child(_effects_auto_check)
 	form.add_child(ManagerUi.hint_row("說明", "特效大小依角色身高自動換算。由積木「播放特效」呼叫;下拉選單的名稱來自 Schema。"))
@@ -330,7 +330,7 @@ func _ready() -> void:
 	form.add_child(HSeparator.new())
 	form.add_child(ManagerUi.heading("睡覺 Zzz"))
 	_sleep_z_check = CheckBox.new()
-	_sleep_z_check.text = "睡著時頭上飄出 Zzz(用這隻角色的字體,從小 z 到大 Z,邊飄邊放大)"
+	_sleep_z_check.text = tr("睡著時頭上飄出 Zzz(用這隻角色的字體,從小 z 到大 Z,邊飄邊放大)")
 	_sleep_z_check.toggled.connect(_on_field_changed)
 	form.add_child(_sleep_z_check)
 	form.add_child(ManagerUi.hint_row("說明", "純裝飾的小特效,不需要素材;字體跟「字體與對話」的預設對話字體一致,字級跟著角色大小與介面縮放率。"))
@@ -339,7 +339,7 @@ func _ready() -> void:
 	form.add_child(ManagerUi.hint_row("說明", "使用者互動時自動播的特效(不用寫積木)。例如「被觸摸 → 幸福」。積木的事件照常執行,兩邊可以同時作用;上面「啟用角色特效」關掉時這裡也不會播。"))
 	for kind: String in PetEffects.LINK_KEYS:
 		var link_option := OptionButton.new()
-		link_option.add_item("(不播)")
+		link_option.add_item(tr("(不播)"))
 		for effect_label in PetEffects.CATALOG:
 			link_option.add_item(effect_label)
 		link_option.item_selected.connect(_on_field_changed)
@@ -678,7 +678,7 @@ func _apply_voice_tuning() -> void:
 
 
 func _update_voice_label() -> void:
-	_voice_label.text = tr("目前:自訂聲音(%s)") % _pet.voice_file if _pet.voice_stream != null else "目前:內建說話聲音"
+	_voice_label.text = tr("目前:自訂聲音(%s)") % _pet.voice_file if _pet.voice_stream != null else tr("目前:內建說話聲音")
 
 
 func _browse_voice() -> void:

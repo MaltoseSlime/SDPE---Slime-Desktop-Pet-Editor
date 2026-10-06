@@ -153,6 +153,7 @@ static func _play_pets(a: Node, b: Node, best_of := 1) -> Dictionary:
 	var rounds := 0
 	var board := _spawn_board(shell)
 	var first_mark := 1 if randf() < 0.5 else 2   # 1 = a、2 = b
+	var levels := [GameAiLevel.match_level(a, b, a.ttt_ai_level), GameAiLevel.match_level(b, a, b.ttt_ai_level)]   # 好惡影響,整場擲一次
 	while wins_a < need and wins_b < need and rounds < maxi(best_of, 1) + 2:
 		rounds += 1
 		board.board = [0, 0, 0, 0, 0, 0, 0, 0, 0]
@@ -166,7 +167,7 @@ static func _play_pets(a: Node, b: Node, best_of := 1) -> Dictionary:
 				_cleanup_board(board)
 				return {}
 			var cells: Array = board.board
-			var move := _ai_move(cells, mark, 3 - mark, a.ttt_ai_level if mark == 1 else b.ttt_ai_level)
+			var move := _ai_move(cells, mark, 3 - mark, levels[0] if mark == 1 else levels[1])
 			if move < 0:
 				break
 			cells[move] = mark
@@ -202,6 +203,8 @@ static func play_user(pet: Node, best_of := 1) -> Dictionary:
 	GameChat.enter([pet], "ttt")
 	var result: Dictionary = await _play_user(pet, best_of)
 	GameChat.leave([pet])
+	if not result.is_empty():   # 跟使用者的 1v1 打完一場(取消的不算)
+		PetFavor.user_bond(pet, "duel", PetFavor.USER_SMALL, PetFavor.USER_DUEL_COOLDOWN)
 	return result
 
 

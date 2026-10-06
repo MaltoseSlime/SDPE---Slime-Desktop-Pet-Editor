@@ -23,6 +23,8 @@ static func set_result_context(a: Node, b: Node, result_a: String) -> void:
 		else:
 			pet.clear_counterpart("winner")
 			pet.clear_counterpart("loser")
+	# 2026-10-06:1v1 對戰的好感度增減(喜歡的對手無論輸贏增加,討厭的對手輸了才減少,見 PetFavor.duel)。
+	PetFavor.duel(a, b, result_a)
 
 
 ## 這些桌寵開始 / 結束一場對戰(計數,同一隻同時參加幾場就加幾)。不管這場對戰是誰發起的(自己主動找、
@@ -127,6 +129,14 @@ static func ask(pet: Node, text: String, options: Array, patience := 60.0) -> in
 
 ## 這隻桌寵的遊戲結果有積木事件(event_when_dice_contest / event_when_rps)就交給積木,沒有就用內建反應:
 ## 贏了開心跳一下、輸了氣得發抖(連輸越氣)、平手不服氣。kind = "dice_contest" 或 "rps",outcome = win / lose / tie(draw)。
+## 遊戲獲勝的慶祝(2026-10-06 使用者要求):閃閃發光(尊重桌寵的特效開關,沒開就不播)+ 蹦跳 5 下。
+## 所有遊戲的獲勝分支都走這裡(GameChat.react / 珠璣妙算 / 步步為營),不要各自寫一份。
+static func celebrate_win(pet: Node) -> void:
+	pet.perform_hops(5, false)
+	if pet.effects != null:
+		pet.effects.play("sparkle")
+
+
 static func react(pet: Node, kind: String, outcome: String, vs_user := false) -> void:
 	if not is_instance_valid(pet):
 		return
@@ -142,7 +152,7 @@ static func react(pet: Node, kind: String, outcome: String, vs_user := false) ->
 		return
 	match normalized:
 		"win":
-			pet.perform_hops(1, false)
+			celebrate_win(pet)
 			say(pet, "[wave]%s[/wave]" % WIN_LINES.pick_random(), 3.0)
 		"lose":
 			var streak: int = pet.game_losses_in_row

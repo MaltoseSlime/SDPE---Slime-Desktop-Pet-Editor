@@ -120,7 +120,7 @@ static func _react(pet: Node, outcome: String, vs_user: bool) -> void:
 		pet.vitality.on_game_result(outcome, vs_user)
 	match outcome:
 		"win":
-			pet.perform_hops(1, false)
+			GameChat.celebrate_win(pet)
 		"lose":
 			pet.shiver(1.5)
 
@@ -128,7 +128,7 @@ static func _react(pet: Node, outcome: String, vs_user: bool) -> void:
 ## 核心流程:participants 是 Node(桌寵)或字串 "USER" 的陣列,輪流猜同一組暗碼。code_length = 3 或 4
 ## (題型,見 Pet.mastermind_code_length,由發起的那隻桌寵自己的設定決定)。
 ## 回傳 {winner}(Node、"USER" 或 ""(沒人猜中));中途被打斷回空字典。
-static func _run(participants: Array, code_length := DEFAULT_CODE_LENGTH) -> Dictionary:
+static func _run(participants: Array, code_length := DEFAULT_CODE_LENGTH, levels := {}) -> Dictionary:
 	var length: int = code_length if CODE_LENGTH_CHOICES.has(code_length) else DEFAULT_CODE_LENGTH
 	var pets: Array = participants.filter(func(p: Variant) -> bool: return p is Node)
 	if pets.is_empty():
@@ -209,7 +209,7 @@ static func _run(participants: Array, code_length := DEFAULT_CODE_LENGTH) -> Dic
 			if not is_instance_valid(board):
 				_cleanup_board(board)
 				return {}
-			guess = _pet_guess(pools[actor], length, (actor as Node).mastermind_ai_level)
+			guess = _pet_guess(pools[actor], length, levels.get(actor, (actor as Node).mastermind_ai_level))
 		var result := evaluate_guess(secret, guess)
 		attempts_left -= 1
 		var guesser_label: String = TranslationServer.translate("你") if actor_is_user else str((actor as Node).get_label())
@@ -257,6 +257,8 @@ static func play_user(pet: Node) -> Dictionary:
 	GameChat.enter([pet], "mastermind")
 	var result: Dictionary = await _run(["USER", pet], pet.mastermind_code_length)
 	GameChat.leave([pet])
+	if not result.is_empty():   # 跟使用者的 1v1 打完一場(取消的不算)
+		PetFavor.user_bond(pet, "duel", PetFavor.USER_SMALL, PetFavor.USER_DUEL_COOLDOWN)
 	return result
 
 
@@ -270,8 +272,19 @@ static func play_pets(a: Node, b: Node) -> Dictionary:
 		GameChat.think_blocked(a, b, TranslationServer.translate("珠璣妙算"))
 		return {}
 	GameChat.enter([a, b], "mastermind")
-	var result: Dictionary = await _run([a, b], a.mastermind_code_length)
+	# 好惡影響 AI 等級:整場開頭每隻擲一次(見 GameAiLevel.match_level)。
+	var levels := {a: GameAiLevel.match_level(a, b, a.mastermind_ai_level), b: GameAiLevel.match_level(b, a, b.mastermind_ai_level)}
+	var result: Dictionary = await _run([a, b], a.mastermind_code_length, levels)
 	GameChat.leave([a, b])
+	# 2026-10-06:1v1 好感度增減(見 PetFavor.duel);猜中的那方贏,另一方輸,沒人猜中是平手。
+	var winner_tag: String = str(result.get("winner", ""))
+	var result_a := "tie"
+	if winner_tag == a.recognition_tag:
+		result_a = "win"
+	elif winner_tag == b.recognition_tag:
+		result_a = "lose"
+	if not result.is_empty():   # 取消/中斷(空結果)不算對戰
+		PetFavor.duel(a, b, result_a)
 	return result
 
 
@@ -320,6 +333,7 @@ static func play_all(host: Node, ask_user := true) -> Dictionary:
 		user_joins = choice == 0
 	if user_joins:
 		participants.append("USER")
+		PetFavor.user_group(pets)   # 2026-10-06:使用者參與全體珠璣妙算
 	GameChat.enter(pets, "mastermind")
 	var result: Dictionary = await _run(participants, host.mastermind_code_length)
 	GameChat.leave(pets)

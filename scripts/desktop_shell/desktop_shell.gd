@@ -155,8 +155,8 @@ func _ready() -> void:
 	save_scheduler.name = "SaveScheduler"
 	add_child(save_scheduler)
 	if spawn_sample_pet:
+		# 名單是分批放置的(見 _restore_roster 內的 await),預設組更新的檢查要等全部放好才做,不然只看得到先放的那幾隻。
 		_restore_roster()
-		_check_defaults_update.call_deferred()
 		_maybe_offer_language_choice.call_deferred()
 	_check_resolution_change_after_boot()
 
@@ -219,7 +219,7 @@ func _maybe_offer_language_choice() -> void:
 ## 不強迫使用者一定要按按鈕)。
 func make_language_choice_dialog() -> ConfirmationDialog:
 	var dialog := ConfirmationDialog.new()
-	dialog.title = "選擇語言 / Choose Language"
+	dialog.title = tr("選擇語言 / Choose Language")
 	dialog.exclusive = false
 	dialog.transient = false
 	dialog.theme = ManagerUi.make_theme()
@@ -400,6 +400,7 @@ func _restore_roster() -> void:
 	if get_tree().get_nodes_in_group("pets").is_empty():
 		_spawn_default_pet()
 	_save_roster()
+	_check_defaults_update.call_deferred()
 
 
 ## 開機名單是空的(或全部失敗)時放的預設桌寵:開發專案放範例 Mal;發行版沒有測試素材,改放角色庫裡的預設活動桌寵(第一次會先把預設角色裝進角色庫),都放不出來就什麼都不放。
@@ -793,17 +794,17 @@ func _add_sample_values(pet: Node) -> void:
 		coins.sort_weight = 2
 		coins.suffix = " G"
 		_shell_state.global_value_defs.append(coins)
-	pet.add_value_def(_make_sample_value("好感度", 50.0, 100.0, 0, "", true, PetValueDef.DisplayMode.BAR))
+	pet.add_value_def(_make_sample_value("好感度", 0.0, PetVitality.AFFINITY_MAX, 0, "", true, PetValueDef.DisplayMode.BAR, PetVitality.AFFINITY_MIN))
 	pet.add_value_def(_make_sample_value("飽食度", 80.0, 100.0, 1, "%", true, PetValueDef.DisplayMode.BAR))
 	pet.add_value_def(_make_sample_value("心情", 65.0, 100.0, 2, "", true, PetValueDef.DisplayMode.GAUGE))
 	pet.add_value_def(_make_sample_value("神秘彩蛋", 0.0, 1.0, 9, "", false, PetValueDef.DisplayMode.TEXT))
 
 
-func _make_sample_value(key: String, default_value: float, max_value: float, weight: int, suffix: String, in_status: bool, mode: PetValueDef.DisplayMode) -> PetValueDef:
+func _make_sample_value(key: String, default_value: float, max_value: float, weight: int, suffix: String, in_status: bool, mode: PetValueDef.DisplayMode, min_value := 0.0) -> PetValueDef:
 	var def := PetValueDef.new()
 	def.key = key
 	def.default_value = default_value
-	def.min_value = 0.0
+	def.min_value = min_value
 	def.max_value = max_value
 	def.sort_weight = weight
 	def.suffix = suffix

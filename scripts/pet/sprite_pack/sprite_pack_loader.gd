@@ -1019,7 +1019,7 @@ static func limit_warning_dialogs(result: Dictionary) -> Array[Dictionary]:
 		var lines := PackedStringArray()
 		for action_name: String in incomplete:
 			var entry: Dictionary = incomplete[action_name]
-			lines.append("%s(%d/%d 幀)" % [action_name, int(entry["added"]), int(entry["expected"])])
+			lines.append(TranslationServer.translate("%s(%d/%d 幀)") % [action_name, int(entry["added"]), int(entry["expected"])])
 		dialogs.append({
 			"title": TranslationServer.translate("素材包太大,沒有完整匯入"),
 			"message": TranslationServer.translate("這個素材包的圖片總像素超過上限(%d),以下動作沒有完整匯入,目前顯示成缺材質的棋盤格:\n%s\n請把動作拆成幾批分次匯入(例如先完成一半的動作、存檔,再匯入剩下的)。") % [MAX_TOTAL_PIXELS, "\n".join(lines)],

@@ -11,7 +11,7 @@ extends FloatingWindow
 ## 使用者要求「交互行為」分頁跟測試者面板都要能開這個視窗,所以做成共用元件,透過
 ## ManagerUi.open_event_manager_window(host, pet) 開啟,不是只掛在某一邊。
 
-const LAYER_LABELS := {"user": "自訂", "personality": "性格", "rule": "交互行為規則", "placeholder": "佔位閒聊"}
+const LAYER_LABELS := {"user": "自訂", "personality": "性格", "rule": "交互行為規則", "placeholder": "佔位閒聊", "topic": "話題"}
 
 var _pet: Node
 var _list: VBoxContainer
@@ -35,7 +35,7 @@ func setup(pet: Node) -> void:
 	page.add_theme_constant_override("separation", 6)
 	margin.add_child(page)
 	var intro := Label.new()
-	intro.text = tr("這隻桌寵目前生效的所有事件(閒聊、反應、計時器…)。「停用」只影響這次執行、不寫檔。「自訂」的事件按移除會寫回積木檔、永久刪除;性格/交互行為規則帶來的事件移除只影響這次執行,下次性格重新套用或按交互行為「儲存」就會恢復。")
+	intro.text = tr("這隻桌寵目前生效的所有事件(閒聊、反應、計時器、話題…)。左邊的勾選框:打勾 = 生效(會自己觸發),取消勾選 = 暫時停用(不會自己觸發)。停用只影響這次執行、不寫檔,下次開啟或套用性格就會恢復。「自訂」的事件按移除會寫回積木檔、永久刪除;性格/交互行為規則帶來的事件移除只影響這次執行,下次性格重新套用或按交互行為「儲存」就會恢復。")
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	intro.theme_type_variation = AppSettings.MUTED_LABEL
 	page.add_child(intro)
@@ -149,6 +149,8 @@ func _save_user_layer() -> bool:
 ## 用 VBoxContainer 包著(不是直接回傳 HBoxContainer),提示那一行才能自然往下換行,不會擠壓到上面那排
 ## 的勾選框/文字/按鈕的橫向空間。
 func _row(entry: Dictionary, same_trigger_count: int = 1) -> Control:
+	if str(entry.get("kind", "")) == "topic":
+		return _topic_row(entry)
 	var container := VBoxContainer.new()
 	container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	container.add_theme_constant_override("separation", 2)
@@ -212,3 +214,50 @@ func _row(entry: Dictionary, same_trigger_count: int = 1) -> Control:
 	box.add_child(remove_button)
 	container.add_child(box)
 	return container
+
+
+## 話題文本的一列(2026-10-06):說一句(強制)與移除(按兩次確定)。
+func _topic_row(entry: Dictionary) -> Control:
+	var box := HBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_theme_constant_override("separation", 6)
+	var check := CheckBox.new()
+	check.button_pressed = not bool(entry.get("disabled", false))
+	check.tooltip_text = tr("取消勾選 = 暫時停用這句話題(閒聊不會挑中它),只影響這次執行、不寫檔。")
+	check.toggled.connect(func(pressed: bool) -> void:
+		if _pet == null or not is_instance_valid(_pet):
+			return
+		_pet.logic.set_topic_disabled(int(entry["topic_index"]), not pressed)
+		_status.text = tr("已%s:%s") % [tr("啟用") if pressed else tr("停用"), str(entry.get("label", ""))])
+	box.add_child(check)
+	var label := Label.new()
+	label.text = "[%s] %s" % [tr("話題"), str(entry.get("label", ""))]
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_child(label)
+	var play_button := ManagerUi.button("▶")
+	play_button.tooltip_text = tr("強制說這一句話題(不看條件,跟測試者面板的強制說話一樣)。")
+	play_button.pressed.connect(func() -> void:
+		if _pet == null or not is_instance_valid(_pet):
+			return
+		_pet.logic.play_topic(int(entry["topic_index"]))
+		_status.text = tr("強制說話題:%s") % str(entry.get("label", "")))
+	box.add_child(play_button)
+	var remove_button := ManagerUi.button(tr("移除"))
+	remove_button.tooltip_text = tr("從話題文本移除這一句(按兩次確定),會寫回積木檔與桌寵設定。")
+	var armed := [false]
+	remove_button.pressed.connect(func() -> void:
+		if _pet == null or not is_instance_valid(_pet):
+			return
+		if not armed[0]:
+			armed[0] = true
+			remove_button.text = tr("確定移除")
+			return
+		if _pet.logic.remove_topic(int(entry["topic_index"])):
+			_save_user_layer()
+			PetProfile.save_pet(_pet)
+			_status.text = tr("已移除話題:%s") % str(entry.get("label", ""))
+		_refresh())
+	box.add_child(remove_button)
+	return box
+

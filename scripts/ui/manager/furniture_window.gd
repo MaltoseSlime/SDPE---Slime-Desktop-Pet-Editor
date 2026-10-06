@@ -81,7 +81,7 @@ const FLOATING_BAR_HEIGHT := 46
 
 func setup(manager: FurnitureManager) -> void:
 	_manager = manager
-	setup_floating("家具庫", Vector2i(760, 620), Vector2i(600, 420))
+	setup_floating(tr("家具庫"), Vector2i(760, 620), Vector2i(600, 420))
 	_manager.placed_changed.connect(_refresh_placed_list)
 	var background := PanelContainer.new()
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -103,12 +103,12 @@ func setup(manager: FurnitureManager) -> void:
 	_status = Label.new()
 	_status.theme_type_variation = AppSettings.MUTED_LABEL
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_status.text = "貼圖(平時的樣子、條件成立時的樣子、以後給桌寵使用時的樣子)在「編輯素材」的精靈圖編輯器裡準備:動作槽 normal / conditional / interacted。"
+	_status.text = tr("貼圖(平時的樣子、條件成立時的樣子、以後給桌寵使用時的樣子)在「編輯素材」的精靈圖編輯器裡準備:動作槽 normal / conditional / interacted。")
 	page.add_child(_status)
 	_build_floating_bar()
 	_confirm = ConfirmationDialog.new()
 	# 不設 always_on_top,見 manager_ui.gd 的 ask_name() 說明(跟置頂衝突,會把視窗卡死)。
-	_confirm.title = "尚未儲存的變更"
+	_confirm.title = tr("尚未儲存的變更")
 	_confirm.dialog_text = "檢測到尚未儲存的變更,是否儲存後離開?"
 	_confirm.ok_button_text = "儲存後離開"
 	_confirm.cancel_button_text = "取消"
@@ -176,7 +176,7 @@ func _build_floating_bar() -> void:
 func _mark_dirty(id: String) -> void:
 	_dirty = true
 	_dirty_ids[id] = true
-	_status_bar.text = "有尚未儲存的變更。"
+	_status_bar.text = tr("有尚未儲存的變更。")
 
 
 func _request_save(after := Callable()) -> void:
@@ -198,7 +198,7 @@ func _save_all() -> void:
 			_manager.refresh_def(id)
 	_dirty_ids.clear()
 	_dirty = false
-	_status_bar.text = "存檔失敗,請檢查磁碟空間或權限。" if failed else "已儲存。"
+	_status_bar.text = tr("存檔失敗,請檢查磁碟空間或權限。") if failed else tr("已儲存。")
 
 
 func _def_by_id(id: String) -> FurnitureDef:
@@ -244,7 +244,7 @@ func _build_list_column() -> Control:
 	column.add_child(HSeparator.new())
 	column.add_child(ManagerUi.heading_with_info("編輯桌面上的家具", "開啟「家具編輯模式」才能把家具放到桌面、搬動已經放好的、右鍵移除(定義還在家具庫裡,之後可以再放一次);平常家具是純裝飾,滑鼠完全穿透。編輯模式開著時桌面上會多一塊「家具欄」,把裡面的圖示拖出來就是放置。下面的清單是目前桌面上的家具,由上到下 = 由底到面(清單愈下面的蓋住愈上面的),用 ▲▼ 調整。"))
 	_edit_mode_button = CheckButton.new()
-	_edit_mode_button.text = "家具編輯模式"
+	_edit_mode_button.text = tr("家具編輯模式")
 	_edit_mode_button.toggled.connect(_on_edit_mode_toggled)
 	column.add_child(_edit_mode_button)
 	_placed_list = ItemList.new()
@@ -253,11 +253,11 @@ func _build_list_column() -> Control:
 	column.add_child(_placed_list)
 	var placed_buttons := HBoxContainer.new()
 	_placed_move_up = ManagerUi.button("▲")
-	_placed_move_up.tooltip_text = "往上一層(蓋住原本在它上面的家具;只影響家具彼此,不影響桌寵或介面)。"
+	_placed_move_up.tooltip_text = tr("往上一層(蓋住原本在它上面的家具;只影響家具彼此,不影響桌寵或介面)。")
 	_placed_move_up.pressed.connect(func() -> void: _move_placed(true))
 	placed_buttons.add_child(_placed_move_up)
 	_placed_move_down = ManagerUi.button("▼")
-	_placed_move_down.tooltip_text = "往下一層(被原本在它上面的家具蓋住)。"
+	_placed_move_down.tooltip_text = tr("往下一層(被原本在它上面的家具蓋住)。")
 	_placed_move_down.pressed.connect(func() -> void: _move_placed(false))
 	placed_buttons.add_child(_placed_move_down)
 	_placed_remove = ManagerUi.button("從桌面移除")
@@ -277,7 +277,7 @@ func _build_form_column() -> Control:
 	_form_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(_form_root)
 	_empty_label = Label.new()
-	_empty_label.text = "選一件家具,或先新增一個。"
+	_empty_label.text = tr("選一件家具,或先新增一個。")
 	_empty_label.theme_type_variation = AppSettings.MUTED_LABEL
 	_form_root.add_child(_empty_label)
 	_name_edit = ManagerUi.line_edit("家具名稱")
@@ -353,7 +353,7 @@ func _build_form_column() -> Control:
 	_sprite_label.theme_type_variation = AppSettings.MUTED_LABEL
 	_form_root.add_child(_sprite_label)
 	var sprite_button := ManagerUi.button("編輯素材…")
-	sprite_button.tooltip_text = "開精靈圖編輯器的家具區,準備 normal(平時)、conditional(條件成立時)、interacted(以後給桌寵用時)三個動作槽的圖;坐/躺位置(錨點)與光源也在那邊編輯,可以直接在畫布上對著貼圖拖曳,看得到實際位置。"
+	sprite_button.tooltip_text = tr("開精靈圖編輯器的家具區,準備 normal(平時)、conditional(條件成立時)、interacted(以後給桌寵用時)三個動作槽的圖;坐/躺位置(錨點)與光源也在那邊編輯,可以直接在畫布上對著貼圖拖曳,看得到實際位置。")
 	sprite_button.pressed.connect(func() -> void:
 		if _current != null:
 			edit_sprite_requested.emit(_current.id))
@@ -738,7 +738,7 @@ func _on_add_pressed() -> void:
 	var template_id := str(_template_option.get_item_metadata(_template_option.selected))
 	var def := FurnitureLibrary.create_from_template(template_id)
 	if def == null:
-		_status.text = "新增失敗。"
+		_status.text = tr("新增失敗。")
 		return
 	reload()
 	# 2026-10-04 修掉一個潛藏的存檔漏洞:reload() 會把 _defs 整份換成剛剛從磁碟重讀出來的「另一份」物件
@@ -780,13 +780,13 @@ func _on_place_pressed() -> void:
 	if fresh != null:
 		_current = fresh
 	var item := _manager.spawn(_current)
-	_status.text = tr("已放上桌面。") if item != null else "這件家具還沒有素材(normal 狀態),先按「編輯素材…」放圖進去。"
+	_status.text = tr("已放上桌面。") if item != null else tr("這件家具還沒有素材(normal 狀態),先按「編輯素材…」放圖進去。")
 
 
 func _on_edit_mode_toggled(on: bool) -> void:
 	if _manager != null:
 		_manager.set_edit_mode(on)
-	_status.text = "家具編輯模式開啟:桌面左上角多了「家具欄」,拖裡面的家具到桌面上放置;已經放好的可以直接拖動、右鍵收回。" if on \
+	_status.text = tr("家具編輯模式開啟:桌面左上角多了「家具欄」,拖裡面的家具到桌面上放置;已經放好的可以直接拖動、右鍵收回。") if on \
 			else "家具編輯模式已關閉,家具恢復純裝飾(滑鼠完全穿透)。"
 
 

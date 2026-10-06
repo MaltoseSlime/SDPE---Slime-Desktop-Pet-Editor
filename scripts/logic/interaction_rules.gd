@@ -161,11 +161,12 @@ static func clean(raw: Variant) -> Dictionary:
 			var target := _text(entry.get("target", ""))
 			var level_raw: Variant = entry.get("level")
 			var level := int(level_raw) if (level_raw is int or level_raw is float) else 0
-			if target == "" or not PET_PREF_LEVELS.has(level) or level == 0 or seen_targets.has(target):
+			var no_mention := bool(entry.get("no_mention", false))
+			if target == "" or not PET_PREF_LEVELS.has(level) or (level == 0 and not no_mention) or seen_targets.has(target):
 				continue
 			seen_targets[target] = true
-			result["pet_prefs"].append({"target": target, "name": _text(entry.get("name", target)), "level": level})
-	for key in ["ignore_props", "ignore_furniture", "no_follow_target", "no_follow_source", "show_bubble_in_chatroom"]:
+			result["pet_prefs"].append({"target": target, "name": _text(entry.get("name", target)), "level": level, "no_mention": no_mention})
+	for key in ["ignore_props", "ignore_furniture", "no_follow_target", "no_follow_source", "show_bubble_in_chatroom", "no_topic_mention"]:
 		var value_raw: Variant = raw.get(key, false)
 		result[key] = value_raw if value_raw is bool else false
 	var direction := str(raw.get("sms_direction", "left"))

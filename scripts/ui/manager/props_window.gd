@@ -51,7 +51,7 @@ signal edit_sprite_requested(prop_id: String)
 
 func setup(manager: PropManager) -> void:
 	_manager = manager
-	setup_floating("道具管理", Vector2i(900, 700), Vector2i(700, 460))
+	setup_floating(tr("道具管理"), Vector2i(900, 700), Vector2i(700, 460))
 	var background := PanelContainer.new()
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)
@@ -70,7 +70,7 @@ func setup(manager: PropManager) -> void:
 	_status = Label.new()
 	_status.theme_type_variation = AppSettings.MUTED_LABEL
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_status.text = "改了就立刻存起來。圖片由你自己匯入;沒有圖片的道具在桌面上會用程式畫的替代圖示。"
+	_status.text = tr("改了就立刻存起來。圖片由你自己匯入;沒有圖片的道具在桌面上會用程式畫的替代圖示。")
 	page.add_child(_status)
 	reload()
 
@@ -85,10 +85,10 @@ func _build_list_column() -> Control:
 	column.add_child(_list)
 	var order_row := HBoxContainer.new()
 	var up := ManagerUi.button("▲ 往前")
-	up.tooltip_text = "調整這個道具在物品欄與道具欄裡的順序。"
+	up.tooltip_text = tr("調整這個道具在物品欄與道具欄裡的順序。")
 	up.pressed.connect(func() -> void: move_current(-1))
 	var down := ManagerUi.button("▼ 往後")
-	down.tooltip_text = "調整這個道具在物品欄與道具欄裡的順序。"
+	down.tooltip_text = tr("調整這個道具在物品欄與道具欄裡的順序。")
 	down.pressed.connect(func() -> void: move_current(1))
 	order_row.add_child(up)
 	order_row.add_child(down)
@@ -116,7 +116,7 @@ func _build_form_column() -> Control:
 	var holder := VBoxContainer.new()
 	holder.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_empty_label = Label.new()
-	_empty_label.text = "左邊還沒有道具:選一個模板按「從模板新增」。"
+	_empty_label.text = tr("左邊還沒有道具:選一個模板按「從模板新增」。")
 	_empty_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	holder.add_child(_empty_label)
 	var scroll := ScrollContainer.new()
@@ -145,7 +145,7 @@ func _build_form_column() -> Control:
 	_sprite_label.clip_text = true
 	sprite_row.add_child(_sprite_label)
 	var edit_sprite := ManagerUi.button("進階貼圖…")
-	edit_sprite.tooltip_text = "開啟精靈圖編輯器的道具區:替預設、被使用、拖曳中做動畫。"
+	edit_sprite.tooltip_text = tr("開啟精靈圖編輯器的道具區:替預設、被使用、拖曳中做動畫。")
 	edit_sprite.pressed.connect(func() -> void:
 		if _current != null:
 			edit_sprite_requested.emit(_current.id))
@@ -160,8 +160,8 @@ func _build_form_column() -> Control:
 	_consume_check = _check("摩擦後一次性消耗(不勾 = 回到物品欄可重複使用)", func(on: bool) -> void: _edit(func() -> void: _current.consume_on_rub = on))
 	form.add_child(_consume_check)
 	_reaction_option = OptionButton.new()
-	_reaction_option.add_item("拾取(播放 gather 動作後移除)")
-	_reaction_option.add_item("無(單純消失)")
+	_reaction_option.add_item(tr("拾取(播放 gather 動作後移除)"))
+	_reaction_option.add_item(tr("無(單純消失)"))
 	_reaction_option.item_selected.connect(func(index: int) -> void: _edit(func() -> void: _current.default_reaction = "pickup" if index == 0 else "none"))
 	form.add_child(ManagerUi.labeled("預設交互反應", _reaction_option))
 	form.add_child(ManagerUi.hint_row("預設反應只是保底", "桌寵沒有寫「當拾取這個道具」的事件積木、這個道具也沒有設定下面的數值或狀態綁定時,才用這裡的預設反應。"))
@@ -179,13 +179,13 @@ func _build_form_column() -> Control:
 	_shakes_spin.value_changed.connect(func(value: float) -> void: _edit(func() -> void: _current.use_shakes = clampi(int(value), PropDef.MIN_SHAKES, PropDef.MAX_SHAKES)))
 	form.add_child(ManagerUi.labeled("搖晃次數", _shakes_spin))
 	_effect_option = OptionButton.new()
-	_effect_option.add_item("無")
+	_effect_option.add_item(tr("無"))
 	for effect_label in PetEffects.CATALOG:
 		_effect_option.add_item(effect_label)
 	_effect_option.item_selected.connect(func(index: int) -> void: _edit(func() -> void: _current.effect = "" if index == 0 else PetEffects.resolve(PetEffects.CATALOG[index - 1])))
 	form.add_child(ManagerUi.labeled("連帶觸發特效", _effect_option))
 	_effect_after_option = OptionButton.new()
-	_effect_after_option.add_item("無")
+	_effect_after_option.add_item(tr("無"))
 	for effect_label in PetEffects.CATALOG:
 		_effect_after_option.add_item(effect_label)
 	_effect_after_option.item_selected.connect(func(index: int) -> void: _edit(func() -> void: _current.effect_after = "" if index == 0 else PetEffects.resolve(PetEffects.CATALOG[index - 1])))
@@ -196,13 +196,13 @@ func _build_form_column() -> Control:
 	_hold_check = _check("可持有:被拾取後不消失,記成這隻桌寵正拿著的道具", func(on: bool) -> void: _edit(func() -> void: _current.holdable = on))
 	form.add_child(_hold_check)
 	_hold_place_option = OptionButton.new()
-	_hold_place_option.add_item("拿在手上(素材包的持有錨點)")
-	_hold_place_option.add_item("頂在頭上(判定框頭頂位置)")
+	_hold_place_option.add_item(tr("拿在手上(素材包的持有錨點)"))
+	_hold_place_option.add_item(tr("頂在頭上(判定框頭頂位置)"))
 	_hold_place_option.item_selected.connect(func(index: int) -> void: _edit(func() -> void: _current.hold_place = PropDef.HOLD_PLACES[index]))
 	form.add_child(ManagerUi.labeled("持有時放在", _hold_place_option))
 	_shape_option = OptionButton.new()
-	_shape_option.add_item("方形(一般道具)")
-	_shape_option.add_item("圓球(會彈跳滾動旋轉,桌寵會追著玩、拋、頂在頭上)")
+	_shape_option.add_item(tr("方形(一般道具)"))
+	_shape_option.add_item(tr("圓球(會彈跳滾動旋轉,桌寵會追著玩、拋、頂在頭上)"))
 	_shape_option.item_selected.connect(func(index: int) -> void: _edit(func() -> void: _current.shape = PropDef.SHAPES[index]))
 	form.add_child(ManagerUi.labeled("碰撞形狀", _shape_option))
 	form.add_child(ManagerUi.hint_row("圓球", "圓球不會被桌寵自動撿走;有興趣的桌寵(性格「玩球意願」)會追球、把球往上往旁邊拋、或頂在頭上再拋高。桌寵玩球時球不計自動消失;在球上按右鍵可以手動收回。使用者也參與(抓球、丟球)時桌寵會得到好感度回饋;心情不好或不愛玩的性格不會加入。"))
@@ -359,7 +359,7 @@ func _on_delete_pressed() -> void:
 	if _current == null:
 		return
 	var dialog := ConfirmationDialog.new()
-	dialog.title = "刪除道具"
+	dialog.title = tr("刪除道具")
 	dialog.dialog_text = tr("要刪除「%s」嗎?\n它的資料夾會搬到備份資料夾,不會直接消失。") % _current.display_name
 	dialog.ok_button_text = "刪除"
 	dialog.cancel_button_text = "取消"
@@ -397,8 +397,8 @@ func _show_prop(def: PropDef) -> void:
 	_toss_button.disabled = def == null
 	if def != null:
 		_name_edit.text = def.display_name
-		_thumb_label.text = def.thumbnail if def.thumbnail != "" else "(沒有,桌面上用替代圖示)"
-		_desktop_label.text = def.desktop_texture if def.desktop_texture != "" else "(沿用縮圖)"
+		_thumb_label.text = def.thumbnail if def.thumbnail != "" else tr("(沒有,桌面上用替代圖示)")
+		_desktop_label.text = def.desktop_texture if def.desktop_texture != "" else tr("(沿用縮圖)")
 		_toss_check.button_pressed = def.toss
 		_rub_check.button_pressed = def.rub
 		_consume_check.button_pressed = def.consume_on_rub
@@ -521,8 +521,8 @@ func _value_row(index: int) -> Control:
 	var binding: Dictionary = _current.value_bindings[index]
 	var row := HBoxContainer.new()
 	var scope := OptionButton.new()
-	scope.add_item("局部")
-	scope.add_item("全域")
+	scope.add_item(tr("局部"))
+	scope.add_item(tr("全域"))
 	scope.select(1 if str(binding["scope"]) == "global" else 0)
 	scope.item_selected.connect(func(i: int) -> void: _edit(func() -> void: _current.value_bindings[index]["scope"] = "global" if i == 1 else "local"))
 	row.add_child(scope)
@@ -549,8 +549,8 @@ func _lens_row(index: int) -> Control:
 	var binding: Dictionary = _current.lens_bindings[index]
 	var row := HBoxContainer.new()
 	var op := OptionButton.new()
-	op.add_item("啟用")
-	op.add_item("解除")
+	op.add_item(tr("啟用"))
+	op.add_item(tr("解除"))
 	op.select(1 if str(binding["op"]) == "disable" else 0)
 	op.item_selected.connect(func(i: int) -> void: _edit(func() -> void: _current.lens_bindings[index]["op"] = "disable" if i == 1 else "enable"))
 	row.add_child(op)

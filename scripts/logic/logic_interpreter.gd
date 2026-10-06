@@ -89,6 +89,8 @@ const MAX_STRIKES := 3
 const STRIKE_WINDOW_MSEC := 600000
 var _rates: Dictionary = {}
 var _disabled_hats: Dictionary = {}
+## 話題文本停用(key = _topic_key,只影響這次執行、不寫檔,同 _disabled_hats 的規則)。
+var _disabled_topics: Dictionary = {}
 var _strikes: Array[int] = []
 var _ejected := false
 var _budget_frame := -1
@@ -178,6 +180,9 @@ func _index_translations() -> void:
 ## 讀積木檔的選用頂層欄位 knownCharacters(HTML 端的角色名單),並對「積木引用了、但不在名單也不在場」的辨識代號警告一次
 ## (不阻擋,只是提醒創作者可能打錯字)。沒有名單就完全不檢查。
 func _load_known_characters(data: Dictionary) -> void:
+	# 話題文本(2026-10-06):積木檔的選用欄位 topicLines,匯入時整份取代桌寵目前的話題文本;沒有這個欄位就不動。
+	if data.has("topicLines") and data["topicLines"] is Array:
+		_pet.set_topic_custom(PetProfile._topic_line_list(data["topicLines"]))
 	var roster: Variant = data.get("knownCharacters")
 	if not roster is Array:
 		return
@@ -233,6 +238,276 @@ func _placeholder_chat_hats() -> Array[Dictionary]:
 	return hats
 
 
+## 話題文本(2026-10-06,預設內容見 content/topic_pool.json,撰稿範本見 docs/關鍵詞閒聊文本池範本.md):一般閒聊時有 TOPIC_CHANCE 的機率,在好感度
+## 達到 TOPIC_MIN_FAVOR 後,從「條件成立且句中引用都能解析」的話題句裡挑一句說。
+const TOPIC_CHANCE := 0.3
+const TOPIC_MIN_FAVOR := 30.0
+const TOPIC_LEVEL_VALUES := {"超級喜歡": 3, "喜歡": 2, "有點喜歡": 1, "有點討厭": -1, "討厭": -2, "超級討厭": -3, "非常討厭": -3}
+
+
+## 目前能說出口的話題句(條件成立、句中引用都能解析)。
+func usable_topic_lines() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for line: Variant in _pet.topic_lines_effective():
+		if not line is Dictionary:
+			continue
+		var entry := line as Dictionary
+		if _disabled_topics.has(_topic_key(entry)):
+			continue
+		if _topic_condition_ok(str(entry.get("condition", ""))) and _topic_usable(_topic_text(entry)):
+			result.append(entry)
+	return result
+
+
+## 話題句目前要說的文字:桌寵語系(dialogue_locale)優先,沒設就跟介面語系走;英文語系用 en 版(沒有就用原文)。
+func _topic_text(entry: Dictionary) -> String:
+	var locale: String = _pet.dialogue_locale if _pet.dialogue_locale != "" else TranslationServer.get_locale()
+	return TopicPool.text_for(entry, locale)
+
+
+## 事件管理:暫時停用/啟用第 index 句話題(只影響這次執行、不寫檔;停用的句子不會被閒聊挑中,強制說還是可以)。
+func set_topic_disabled(index: int, disabled: bool) -> void:
+	var topics: Array = _pet.topic_lines_effective()
+	if index < 0 or index >= topics.size():
+		return
+	var key := _topic_key(topics[index] as Dictionary)
+	if disabled:
+		_disabled_topics[key] = true
+	else:
+		_disabled_topics.erase(key)
+
+
+## 話題句的識別 key:條件加文字(同一句的停用狀態跨重新排序仍然對得上)。
+func _topic_key(entry: Dictionary) -> String:
+	return str(entry.get("condition", "")) + "
+" + str(entry.get("text", ""))
+
+
+## 話題句的文字(測試與除錯用)。
+func usable_topic_texts() -> Array[String]:
+	var result: Array[String] = []
+	for entry in usable_topic_lines():
+		result.append(_topic_text(entry))
+	return result
+
+
+## 條件語法:「或者」分開的各組任一成立即可;同一組內以「且」「,」「，」連接,全部成立才算。空白 = 沒有條件。
+func _topic_condition_ok(condition: String) -> bool:
+	var c := condition.strip_edges()
+	if c == "":
+		return true
+	c = c.replace("並且", "且").replace("，", "且").replace(",", "且")
+	for group: String in c.split("或者"):
+		var all_ok := true
+		for atom: String in group.split("且"):
+			if not _topic_atom_ok(atom):
+				all_ok = false
+				break
+		if all_ok:
+			return true
+	return false
+
+
+## 句中提到的對象(依出現順序)。回傳 [[位置, 名稱], ...]。
+func _subject_mentions(atom: String) -> Array:
+	var found: Array = []
+	for name: String in ["使用者", "喜好對象", "厭惡對象", "普通對象"]:
+		var at := atom.find(name)
+		if at >= 0:
+			found.append([at, name])
+	found.sort_custom(func(x: Array, y: Array) -> bool: return int(x[0]) < int(y[0]))
+	return found
+
+
+## 對象的好感度數值:使用者 = 使用者好感度;喜好/厭惡對象 = 桌寵對它的好感度(不在場也有數值)。拿不到就是 NAN。
+func _subject_favor(name: String) -> float:
+	if name == "使用者":
+		return float(ValueGateway.get_value(_pet, "好感度"))
+	if name == "喜好對象" or name == "厭惡對象":
+		var fav := _favorite(name == "喜好對象")
+		return _pet.favor_of(str(fav["tag"])) if not fav.is_empty() else NAN
+	return NAN
+
+
+## 單一條件:好感度區間/比較、對象在不在行動區、好惡等級、心情閾值。認不得的條件一律不成立(保守,不亂說)。
+func _topic_atom_ok(atom: String) -> bool:
+	var a := atom.strip_edges()
+	if a == "":
+		return true
+	# 條件設定視窗(網頁端)的標準寫法:好惡分級/心情/入場/判定箱接觸等,認得就直接回傳。
+	var special: Variant = _special_atom(a)
+	if special != null:
+		return special
+	# 好感度比較(2026-10-06 使用者同意內建):兩個對象的好感度大小,使用者 = 使用者好感度;喜好/厭惡對象 = 桌寵對它的好感度。
+	var mentions := _subject_mentions(a)
+	if mentions.size() == 2 and a.contains("好感度") and (a.contains("比") or a.contains("高") or a.contains("大於") or a.contains("低") or a.contains("小於")):
+		var left := _subject_favor(str(mentions[0][1]))
+		var right := _subject_favor(str(mentions[1][1]))
+		if is_nan(left) or is_nan(right):
+			return false
+		return left < right if (a.contains("低") or a.contains("小於")) else left > right
+	var favor: float = ValueGateway.get_value(_pet, "好感度")
+	var range_match := RegEx.create_from_string("^(使用者)?好感度\\s*(\\d+)\\s*[～~\\-]\\s*(\\d+)$").search(a)
+	if range_match != null:
+		return favor >= float(range_match.get_string(2)) and favor <= float(range_match.get_string(3))
+	var compare_match := RegEx.create_from_string("^(使用者)?好感度\\s*(大於|高於|低於|小於|等於)\\s*(-?\\d+)$").search(a)
+	if compare_match != null:
+		var value := float(compare_match.get_string(3))
+		match compare_match.get_string(2):
+			"大於", "高於":
+				return favor > value
+			"等於":
+				return is_equal_approx(favor, value)
+		return favor < value
+	var ok := true
+	var judged := false
+	if a.contains("好惡等級"):
+		judged = true
+		for level_match: RegExMatch in RegEx.create_from_string("好惡等級\\s*(超級喜歡|喜歡|有點喜歡|有點討厭|討厭|超級討厭|非常討厭)\\s*(以上|以下)?").search_all(a):
+			var value: int = TOPIC_LEVEL_VALUES[level_match.get_string(1)]
+			var fav := _favorite(value > 0)
+			if fav.is_empty():
+				return false
+			var fav_level := int(fav["level"])
+			var bound := level_match.get_string(2)
+			if bound == "以上":
+				ok = ok and fav_level >= value
+			elif bound == "以下":
+				ok = ok and fav_level <= value
+			else:
+				ok = ok and fav_level == value
+	if a.contains("在行動區內") or a.contains("不在行動區"):
+		judged = true
+		var expected := not a.contains("不在行動區")
+		for subject: String in ["喜好對象", "厭惡對象", "普通對象"]:
+			if not a.contains(subject):
+				continue
+			var present: bool
+			if subject == "普通對象":
+				present = _normal_pet() != null
+				if not expected:
+					return false   # 不在場的普通對象沒有紀錄,不說
+			else:
+				var fav := _favorite(subject == "喜好對象")
+				if fav.is_empty():
+					return false
+				present = fav["present"] != null
+			ok = ok and present == expected
+	if a.contains("心情閾值低"):
+		judged = true
+		ok = ok and _pet.vitality != null and _pet.vitality.mood <= _pet.vitality.mood_angry_threshold
+	return ok and judged
+
+
+## 條件設定視窗的標準寫法(2026-10-06):
+##  好惡-3,1的對象在行動區內 / 不在行動區內 / 判定箱接觸   (「遭遇時」舊寫法 = 判定箱接觸)
+##  使用者好感度高於|等於|低於好惡-3,1的對象   (對象的好感度 = 桌寵對它的好感度)
+##  心情閾值高 / 心情閾值低                      (開心門檻以上 / 生氣門檻以下)
+## 不認得回傳 null(交給原本的條件處理)。
+func _special_atom(a: String) -> Variant:
+	var level_match := RegEx.create_from_string("^好惡((?:-?\\d)(?:、-?\\d)*)的對象(在行動區內|不在行動區內|遭遇時|判定箱接觸)$").search(a)
+	if level_match != null:
+		var levels: Array = []
+		for part: String in level_match.get_string(1).split("、"):
+			levels.append(int(part))
+		var candidates := _name_candidates(levels)
+		match level_match.get_string(2):
+			"在行動區內":
+				for candidate: Dictionary in candidates:
+					if candidate["present"] != null:
+						return true
+				return false
+			"不在行動區內":
+				for candidate: Dictionary in candidates:
+					if candidate["present"] == null:
+						return true
+				return false
+			"判定箱接觸", "遭遇時":
+				for candidate: Dictionary in candidates:
+					var present: Node = candidate["present"]
+					if present != null and _pet.interaction_rect().intersects(present.interaction_rect()):
+						return true
+				return false
+	var favor_match := RegEx.create_from_string("^使用者好感度(高於|等於|低於)好惡((?:-?\\d)(?:、-?\\d)*)的對象$").search(a)
+	if favor_match != null:
+		var user_favor: float = ValueGateway.get_value(_pet, "好感度")
+		var wanted: Array = []
+		for part: String in favor_match.get_string(2).split("、"):
+			wanted.append(int(part))
+		for candidate: Dictionary in _name_candidates(wanted):
+			var theirs: float = _pet.favor_of(str(candidate["tag"]))
+			var holds: bool
+			match favor_match.get_string(1):
+				"高於":
+					holds = user_favor > theirs
+				"等於":
+					holds = is_equal_approx(user_favor, theirs)
+				_:
+					holds = user_favor < theirs
+			if holds:
+				return true
+		return false
+	var mood_match := RegEx.create_from_string("^心情閾值(高|低)$").search(a)
+	if mood_match != null and _pet.vitality != null:
+		var mood: float = _pet.vitality.mood
+		if mood_match.get_string(1) == "高":
+			return mood >= _pet.vitality.mood_happy_threshold
+		return mood <= _pet.vitality.mood_angry_threshold
+	return null
+
+
+## 話題句的引用能不能解析:{tag:…} 要有詞、{liked}/{disliked}/{neutral} 要有對象。其他引用照原本的規則處理。
+func _topic_usable(text: String) -> bool:
+	for match_result: RegExMatch in RegEx.create_from_string("\\{([^{}]+)\\}").search_all(text):
+		var inner := match_result.get_string(1).strip_edges()
+		if _name_spec_kind(inner) != "":
+			if _name_candidates(_name_levels(inner)).is_empty():
+				return false
+		elif inner.begins_with("tag:"):
+			var options := _tag_options(inner.substr(4))
+			if options.is_empty():
+				return false
+			var any := false
+			for option: Array in options:
+				if not _tag_pool(str(option[0]), str(option[1])).is_empty():
+					any = true
+			if not any:
+				return false
+	return true
+
+
+## {tag:…} 的選項:每個選項是 [owner, tag];owner = "user" / "pet" / ""(兩份都算)。不認得的標籤回傳空陣列。
+func _tag_options(body: String) -> Array:
+	var result: Array = []
+	for part: String in body.split("|"):
+		var option := part.strip_edges()
+		var owner := ""
+		if option.begins_with("user:"):
+			owner = "user"
+			option = option.substr(5)
+		elif option.begins_with("pet:"):
+			owner = "pet"
+			option = option.substr(4)
+		if not PetText.KEYWORD_TAGS.has(option):
+			return []
+		result.append([owner, option])
+	return result
+
+
+## 某個標籤(與 owner)底下的關鍵詞。
+func _tag_pool(owner: String, tag: String) -> Array[String]:
+	var pool: Array[String] = []
+	if owner != "user":
+		for word: String in _pet.keywords:
+			if _pet.keyword_tag_of(word, "pet") == tag:
+				pool.append(word)
+	if owner != "pet":
+		for word: String in _pet.user_keywords:
+			if _pet.keyword_tag_of(word, "user") == tag:
+				pool.append(word)
+	return pool
+
+
 ## 說點什麼:從「當閒聊時」事件裡挑一個符合目前情境的,隨機抽一個執行。
 ## 情境標籤:chat 閒聊(平常)、rest 休息中(沒有專屬的休息中對話時退回閒聊)、sleep 睡眠中(不退回閒聊,
 ## 睡著了就不該講平常的話)、lens 特殊差分(狀態鏡生效中;LENS 空白代表任何鏡片,否則要是目前生效的那個)。
@@ -242,6 +517,12 @@ func _placeholder_chat_hats() -> Array[Dictionary]:
 func say_something(context_override := "") -> bool:
 	if _chat_running and context_override == "":
 		return false
+	# 2026-10-06 話題文本:好感度達到門檻後,一般閒聊有 TOPIC_CHANCE 機率改從話題句裡挑一句說(不是抽獎池的事件)。
+	if context_override == "" and randf() < TOPIC_CHANCE and ValueGateway.get_value(_pet, "好感度") >= TOPIC_MIN_FAVOR:
+		var lines := usable_topic_lines()
+		if not lines.is_empty():
+			_run_chat(_topic_hat(lines.pick_random()))
+			return true
 	var pool := _eligible_chat_hats(context_override)
 	if pool.is_empty():
 		return false
@@ -255,6 +536,15 @@ func say_something(context_override := "") -> bool:
 ## 用事件的「觸發率」(fields.WEIGHT,0~200,沒寫就是 100)當權重抽一個,不是均勻抽選——這是跟同一個抽獎池
 ## 裡其他事件競爭被抽中的相對權重,不是這顆事件自己觸發的獨立機率(200 不代表一定選中)。全部權重加起來是 0
 ## (例如整池都被設成 0)就退回均勻亂抽,不讓抽獎池整個抽不出東西。
+## 話題句包成一顆臨時的閒聊事件積木(「oO（…）」開頭的句子用思考泡泡)。
+func _topic_hat(entry: Dictionary) -> Dictionary:
+	var text := _topic_text(entry)
+	var thought := text.begins_with("oO（") and text.ends_with("）")
+	if thought:
+		text = text.substr(3, text.length() - 4)
+	return {"type": "event_when_chat", "id": "topic_line", "fields": {"TAG": "chat"}, "inputs": {"DO": {"block": {"type": "dialogue_line", "id": "topic_text", "fields": {"TEXT": text, "BUBBLE": "thought" if thought else "speech", "TYPEWRITER": true, "AUTOSEC": 3.0}}}}}
+
+
 func _weighted_pick(hats: Array[Dictionary]) -> Dictionary:
 	if hats.size() == 1:
 		return hats[0]
@@ -327,6 +617,15 @@ func list_events() -> Array[Dictionary]:
 		var lens := str(fields.get("LENS", ""))
 		var suffix := " · " + lens if lens != "" else ""
 		events.append(_event_entry("chat", _named(tr("閒聊 [%s%s] · %s") % [tag, suffix, _first_text(hat)], hat), hat))
+	# 話題文本(2026-10-06):性格檔(或桌寵改過的版本)裡的話題句也列出來,可以強制說一句或移除。
+	var topics: Array = _pet.topic_lines_effective()
+	for index in topics.size():
+		var topic: Dictionary = topics[index]
+		var topic_condition := str(topic.get("condition", "")).strip_edges()
+		var topic_text := str(topic.get("text", "")).replace("
+", " ").left(30)
+		var topic_label := "%s — %s" % [topic_condition, topic_text] if topic_condition != "" else topic_text
+		events.append({"kind": "topic", "label": topic_label, "hat": {}, "id": "topic:%d" % index, "disabled": _disabled_topics.has(_topic_key(topic)), "layer": "topic", "trigger_sig": "topic:%d" % index, "topic_index": index})
 	return events
 
 
@@ -443,6 +742,26 @@ func remove_user_hat(hat: Dictionary) -> bool:
 	return true
 
 
+## 事件管理:強制說第 index 句話題(先中止目前的內容,跟強制觸發事件一樣;不看條件)。
+func play_topic(index: int) -> void:
+	var topics: Array = _pet.topic_lines_effective()
+	if index < 0 or index >= topics.size():
+		return
+	_pet.interrupt_scripts()
+	_chat_running = false
+	_run_chat(_topic_hat(topics[index]))
+
+
+## 事件管理:移除第 index 句話題。改動的是桌寵自己的話題版本(會從生效的性格複製一份再移除)。
+func remove_topic(index: int) -> bool:
+	var topics: Array = _pet.topic_lines_effective()
+	if index < 0 or index >= topics.size():
+		return false
+	topics.remove_at(index)
+	_pet.set_topic_custom(topics)
+	return true
+
+
 ## 強制播放單獨一句對話積木(含它的選項與 GOTO,但不接後面的 next)。
 func force_dialogue(block: Dictionary) -> void:
 	var single := block.duplicate(false)
@@ -500,7 +819,7 @@ func _eligible_chat_hats(context_override := "") -> Array[Dictionary]:
 const PURE_CONDITION_TYPES: Array[String] = [
 	"cond_pet_present", "cond_pet_state", "cond_pet_sleeping", "cond_move_mode", "cond_holding_prop", "cond_text_set", "cond_time_between", "cond_date_is", "cond_weekday_is", "cond_value_compare", "flag_check",
 	"cond_game_stat", "cond_target_is", "cond_lens_active", "cond_lens_active_over", "cond_mood_compare", "cond_mood_zone", "cond_energy_compare", "cond_rest_state", "cond_lens_nature", "cond_loss_streak", "cond_ball_play", "cond_timer_running", "logic_compare", "logic_operation", "logic_boolean", "math_number", "math_random_between", "text",
-	"cond_furniture_using", "cond_furniture_sharing", "cond_furniture_state", "cond_is_follower", "cond_is_leader", "cond_pet_invisible", "cond_pet_affinity", "cond_pets_touch", "cond_pets_follow",
+	"cond_furniture_using", "cond_furniture_sharing", "cond_furniture_state", "cond_is_follower", "cond_is_leader", "cond_pet_invisible", "cond_pet_affinity", "cond_pet_favor", "cond_pets_touch", "cond_pets_follow",
 ]
 
 
@@ -576,6 +895,7 @@ func to_data() -> Dictionary:
 		"dialogueTranslations": _translations.duplicate(true),
 		"workspaceState": {"blocks": {"languageVersion": 0, "blocks": _top_blocks + _personality_blocks + _rule_blocks}},
 		"knownCharacters": _known_characters.values(),
+		"topicLines": _pet.topic_lines_effective(),
 	}
 
 
@@ -668,6 +988,7 @@ func save_user_only_file(path: String) -> Error:
 		"dialogueTranslations": _translations.duplicate(true),
 		"workspaceState": {"blocks": {"languageVersion": 0, "blocks": _top_blocks}},
 		"knownCharacters": _known_characters.values(),
+		"topicLines": _pet.topic_lines_effective(),
 	}, "  "))
 	return OK
 
@@ -1071,11 +1392,13 @@ func _exec_keyword_learn(block: Dictionary) -> void:
 		if not user_list.has(word) and user_list.size() < PetText.MAX_KEYWORDS:
 			user_list.append(word)
 			_pet.user_keywords = user_list
+			PetFavor.user_bond(_pet, "teach", PetFavor.USER_SMALL, PetFavor.USER_TEACH_COOLDOWN)   # 教桌寵關於使用者的詞
 	else:
 		var pet_list: PackedStringArray = _pet.keywords
 		if not pet_list.has(word) and pet_list.size() < PetText.MAX_KEYWORDS:
 			pet_list.append(word)
 			_pet.keywords = pet_list
+			PetFavor.user_bond(_pet, "teach", PetFavor.USER_SMALL, PetFavor.USER_TEACH_COOLDOWN)   # 教桌寵新的關鍵字
 	PetProfile.save_pet(_pet)
 
 
@@ -1300,7 +1623,7 @@ func _exec(block: Dictionary, token: int, prev_type: String = "") -> String:
 		"cond_prob_percent", "cond_pet_present", "cond_pet_state", "cond_pet_sleeping", "cond_move_mode", "cond_text_set", "cond_time_between", "cond_date_is", "cond_weekday_is", \
 		"cond_lens_active", "cond_lens_active_over", "cond_holding_prop", "cond_value_compare", "flag_check", "cond_game_stat", "cond_target_is", \
 		"cond_mood_compare", "cond_mood_zone", "cond_energy_compare", "cond_rest_state", "cond_lens_nature", "cond_loss_streak", "cond_ball_play", "cond_timer_running", \
-			"cond_furniture_using", "cond_furniture_sharing", "cond_furniture_state", "cond_is_follower", "cond_is_leader", "cond_pet_invisible", "cond_pet_affinity", "cond_pets_touch", "cond_pets_follow":
+			"cond_furniture_using", "cond_furniture_sharing", "cond_furniture_state", "cond_is_follower", "cond_is_leader", "cond_pet_invisible", "cond_pet_affinity", "cond_pet_favor", "cond_pets_touch", "cond_pets_follow":
 			# (積木語法裡狀態鏡條件是回傳布林的值積木,這裡只是同時容許有 DO 語句輸入的寫法)
 			# 條件積木當成「如果…那麼」的 C 型積木使用:成立才執行裡面的積木。
 			if _eval_block(block):
@@ -1366,6 +1689,8 @@ func _exec(block: Dictionary, token: int, prev_type: String = "") -> String:
 			await _exec_invisible(block, token)
 		"action_set_pet_affinity":
 			_exec_set_pet_affinity(fields)
+		"action_change_pet_favor":
+			_pet.change_favor(str(fields.get("TARGET", "")).strip_edges(), _number(fields.get("DELTA", 0.0)))
 		_:
 			_warn_once("不支援的積木類型 %s,已略過" % type)
 	return ""
@@ -1751,6 +2076,8 @@ func _eval_block(block: Dictionary) -> Variant:
 			return _any_or_all_pets(fields, func(candidate: Node) -> bool: return candidate.invisible)
 		"cond_pet_affinity":
 			return _eval_pet_affinity(fields)
+		"cond_pet_favor":
+			return _compare(str(fields.get("OP", "GTE")), _pet.favor_of(str(fields.get("TARGET", "")).strip_edges()), fields.get("NUM", 0.0))
 		"cond_pets_touch":
 			return _eval_pets_touch(fields)
 		"cond_pets_follow":
@@ -2477,6 +2804,106 @@ var _user_keyword_order: Array[String] = []
 
 
 ## 關鍵詞庫的第 index 個(1 起算,依這個事件的洗牌順序);庫是空的回 fallback。which = "pet"(桌寵有興趣的,預設)或 "user"(使用者有興趣的)。
+## 好惡最高(liked = true)或最低(false)的對象,同級隨機。回傳 {tag, name, level, present};沒有就是空字典。
+## 候選規則見 _name_candidates(),所以「不提及」的對象不會被選到。
+func _favorite(liked: bool) -> Dictionary:
+	var levels: Array = [1, 2, 3] if liked else [-1, -2, -3]
+	var best := 0
+	var candidates: Array[Dictionary] = []
+	for candidate: Dictionary in _name_candidates(levels):
+		var level := int(candidate["level"])
+		if candidates.is_empty() or (liked and level > best) or (not liked and level < best):
+			best = level
+			candidates.clear()
+			candidates.append(candidate)
+		elif level == best:
+			candidates.append(candidate)
+	return candidates.pick_random() if not candidates.is_empty() else {}
+
+
+## 名稱引用的候選對象(2026-10-06):levels 是好惡等級清單。來自好惡設定(不在場的也算,用設定裡記的名字);
+## 0 級(普通)只看在場的桌寵(好感度高低與它無關)。略過:設了「不提及」的對象、在場且設了「不被其他桌寵的話題文本提及」的桌寵。
+func _name_candidates(levels: Array) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if levels.has(0):
+		for other: Node in get_tree().get_nodes_in_group("pets"):
+			if other == _pet or not is_instance_valid(other) or other.is_queued_for_deletion():
+				continue
+			if _pet.pet_affinity(other) != 0 or _pet.no_mention_of(str(other.recognition_tag)) or _mention_blocked(other):
+				continue
+			result.append({"tag": str(other.recognition_tag), "name": str(other.get_label()), "level": 0, "present": other})
+	for entry: Variant in _pet.interaction_rules.get("pet_prefs", []):
+		if not entry is Dictionary:
+			continue
+		var pref := entry as Dictionary
+		var target := str(pref.get("target", ""))
+		var level := int(pref.get("level", 0))
+		if target == "" or target == InteractionRules.ALL_PETS_TARGET or level == 0 or not levels.has(level):
+			continue
+		if bool(pref.get("no_mention", false)):
+			continue
+		var present: Node = _present_pet(target)
+		if present != null and _mention_blocked(present):
+			continue
+		result.append({"tag": target, "name": str(pref.get("name", target)), "level": level, "present": present})
+	return result
+
+
+## 對方是否設了「不被其他桌寵的話題文本提及」(只有在場時才查得到它的設定)。
+func _mention_blocked(other: Node) -> bool:
+	return bool(other.interaction_rules.get("no_topic_mention", false))
+
+
+## 名稱引用的種類:"pref"(通用)或簡寫 "liked" / "disliked" / "neutral",不是名稱引用回傳 ""。語法:{pref:3}、{pref:1,2,3}、{liked}(= pref:1,2,3)、{disliked}(= pref:-1,-2,-3)、{neutral}(= pref:0)。
+func _name_spec_kind(inner: String) -> String:
+	var found := RegEx.create_from_string(r"^(pref|liked|disliked|neutral)(:[-0-9,\s]+)?$").search(inner.strip_edges())
+	return found.get_string(1) if found != null else ""
+
+
+## 名稱引用的好惡等級清單:{liked} = 1~3、{disliked} = -1~-3、{neutral} = 0,{liked:1,2} 等則照寫的等級。
+func _name_levels(inner: String) -> Array:
+	var kind := _name_spec_kind(inner)
+	var spec := inner.strip_edges().get_slice(":", 1) if inner.contains(":") else ""
+	var levels: Array = []
+	for part: String in spec.split(","):
+		if part.strip_edges().is_valid_int():
+			var level := int(part.strip_edges())
+			if level >= -3 and level <= 3 and not levels.has(level):
+				levels.append(level)
+	if not levels.is_empty():
+		return levels
+	if kind == "liked":
+		return [1, 2, 3]
+	if kind == "disliked":
+		return [-1, -2, -3]
+	if kind == "neutral":
+		return [0]
+	return [-3, -2, -1, 0, 1, 2, 3]   # {pref}:不寫等級 = 全部好惡等級
+
+
+## 名稱引用的文字:隨機挑一個候選對象的名字,沒有就是空字串。
+func _name_choice(inner: String) -> String:
+	var candidates := _name_candidates(_name_levels(inner))
+	return str(candidates.pick_random()["name"]) if not candidates.is_empty() else ""
+
+
+## 目前在場的桌寵節點(依辨識代號),沒有就是 null。
+func _present_pet(tag: String) -> Node:
+	for other: Node in get_tree().get_nodes_in_group("pets"):
+		if other != _pet and is_instance_valid(other) and not other.is_queued_for_deletion() and other.recognition_tag == tag:
+			return other
+	return null
+
+
+## 普通對象:場上好惡等級為 0 的桌寵(同樣隨機一隻),沒有就是 null。
+func _normal_pet() -> Node:
+	var candidates: Array[Node] = []
+	for other: Node in get_tree().get_nodes_in_group("pets"):
+		if other != _pet and is_instance_valid(other) and not other.is_queued_for_deletion() and _pet.pet_affinity(other) == 0:
+			candidates.append(other)
+	return candidates.pick_random() if not candidates.is_empty() else null
+
+
 func _shuffled_keyword(index: int, fallback: String, which := "pet") -> String:
 	var keywords: PackedStringArray = _pet.user_keywords if which == "user" else _pet.keywords
 	if keywords.is_empty():
@@ -2490,6 +2917,13 @@ func _shuffled_keyword(index: int, fallback: String, which := "pet") -> String:
 
 ## 把文字裡的 { 變數名稱 } 換成即時數值(先找局部、再找全域,找不到就是 0)。
 func _interpolate(text: String, for_bbcode := true) -> String:
+	# {you}:好感度 <100 時是「你」,≥100 時換成使用者的稱呼({user})。
+	if text.contains("{you}"):
+		var you_word := "{user}"
+		if ValueGateway.get_value(_pet, "好感度") < 100.0:
+			var pet_locale: String = _pet.dialogue_locale if _pet.dialogue_locale != "" else TranslationServer.get_locale()
+			you_word = "you" if TopicPool.is_english(pet_locale) else "你"
+		text = text.replace("{you}", you_word)
 	var regex := RegEx.create_from_string("\\{\\s*([^{}]+?)\\s*\\}")
 	# 依位置逐段組合,不對整段文字做取代:替換進來的內容(尤其是使用者輸入的文字)不會被再次當成 {名稱} 處理。
 	var result := ""
@@ -2516,6 +2950,9 @@ func _placeholder_text(inner: String, for_bbcode: bool) -> String:
 	# 小提示詞條池:{tips} 隨機插入 content/tips_pool.json 裡的一則(健談性格的閒聊句用它,例如「你知道嗎?{tips}」);
 	# 跟 speak_tr()/_resolve_text 同一套「dialogue_locale 優先,沒設就跟介面語系走」原則選語系,池子是空的
 	# 就插入空字串,不會出錯(見 TipsPool 檔頭說明)。
+	# 對桌寵的好感度:{pet_favor:辨識代號} = 這隻桌寵對那隻的好感度(-500~1000,取整數;沒記錄 = 0)。
+	if inner.strip_edges().begins_with("pet_favor:"):
+		return str(int(roundf(_pet.favor_of(inner.strip_edges().substr(10).strip_edges()))))
 	if inner.strip_edges() == "tips":
 		var tips_locale: String = _pet.dialogue_locale if _pet.dialogue_locale != "" else TranslationServer.get_locale()
 		var tip := TipsPool.pick(tips_locale)
@@ -2532,6 +2969,19 @@ func _placeholder_text(inner: String, for_bbcode: bool) -> String:
 		return ""
 	# 關鍵詞庫(桌寵管理 → 性格 → 關鍵詞庫):{keyword} 隨機挑一個、{keyword|預設} 庫是空的時用「預設」;{kw:N}(N = 1~9)這個事件洗牌後的第 N 個,{kw:2|預設} 同理。
 	var keyword_text := inner.strip_edges()
+	# 2026-10-06 關鍵詞標籤:{tag:愛好} = 標籤是「愛好」的詞隨機挑一個(桌寵與使用者兩份都算);
+	# {tag:user:愛好}、{tag:pet:愛好} 只看其中一份;{tag:愛好|食物} 列多個標籤。沒有詞就是空字串。
+	if keyword_text.begins_with("tag:"):
+		var tagged: Array[String] = []
+		for option: Array in _tag_options(keyword_text.substr(4)):
+			tagged.append_array(_tag_pool(str(option[0]), str(option[1])))
+		var tag_pick: String = str(tagged.pick_random()) if not tagged.is_empty() else ""
+		return PetText.escape_bbcode(tag_pick) if for_bbcode else tag_pick
+	# 2026-10-06 {neutral}:好惡等級為 0 的在場桌寵名字(普通對象);沒有就是空字串。
+	# 2026-10-06 {liked} / {disliked}:場上好惡等級最高(喜歡)/ 最低(討厭)的桌寵名字,同級隨機;沒有就是空字串。
+	if _name_spec_kind(keyword_text) != "":
+		var named := _name_choice(keyword_text)
+		return PetText.escape_bbcode(named) if for_bbcode else named
 	# 關鍵詞庫分兩份:桌寵有興趣的(預設)與使用者有興趣的。{keyword:user} / {keyword:pet}、{kw:user:2} / {kw:pet:2}(不寫 = 桌寵的)。
 	if keyword_text == "keyword" or keyword_text.begins_with("keyword|") or keyword_text.begins_with("keyword:") or keyword_text.begins_with("kw:"):
 		var keyword_fallback := PetText.DEFAULT_KEYWORD

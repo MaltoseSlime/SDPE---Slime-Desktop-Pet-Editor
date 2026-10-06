@@ -22,10 +22,10 @@ static func labeled(text: String, control: Control) -> HBoxContainer:
 
 static func line_edit(placeholder := "") -> LineEdit:
 	var edit := LineEdit.new()
-	# Control 的 text/tooltip_text 會自動照目前語系翻譯(不用另外包 tr()),但 placeholder_text 不在那份
+	# Control 的 text/tooltip_text 會自動照目前語系翻譯(不用另外包 TranslationServer.translate()),但 placeholder_text 不在那份
 	# 自動翻譯的屬性清單裡——實測過,語系切成英文,不手動翻譯的話 placeholder_text 還是顯示原文中文
 	# (2026-09-29 使用者回報「可填入式欄位裡經常有預設的括號提示文字未翻譯」)。這個函式是 static,
-	# 不能用 tr()(那是 Object 的非 static 方法),改用等效的 TranslationServer.translate()。
+	# 不能用 TranslationServer.translate()(那是 Object 的非 static 方法),改用等效的 TranslationServer.translate()。
 	edit.placeholder_text = TranslationServer.translate(placeholder)
 	edit.clear_button_enabled = true
 	return edit
@@ -135,9 +135,9 @@ static func hint_row(short_text: String, tip: String) -> HBoxContainer:
 static func syntax_row(host: Node, short_text: String, tip: String, can_insert := true) -> HBoxContainer:
 	var row := hint_row(short_text, tip)
 	var button := Button.new()
-	button.text = "語法字典"
+	button.text = TranslationServer.translate("語法字典")
 	button.flat = true
-	button.tooltip_text = "所有能寫在台詞裡的語法(文字樣式、名字與稱呼、單字池、遊戲結果…),可搜尋、插入、複製。"
+	button.tooltip_text = TranslationServer.translate("所有能寫在台詞裡的語法(文字樣式、名字與稱呼、單字池、遊戲結果…),可搜尋、插入、複製。")
 	button.pressed.connect(func() -> void: open_syntax_dictionary(host, can_insert))
 	row.add_child(button)
 	return row
@@ -179,6 +179,34 @@ static func open_reserved_values_window(host: Node) -> ReservedValuesWindow:
 	host.add_child(window)
 	window.setup()
 	host.set_meta("reserved_values_window", window)
+	return window
+
+
+## 基本反應對話視窗(交互行為分頁收納用):同一個 host 只開一個。
+static func open_reaction_dialogue_window(host: Node) -> ReactionDialogueWindow:
+	if host.has_meta("reaction_dialogue_window"):
+		var existing: Variant = host.get_meta("reaction_dialogue_window")
+		if is_instance_valid(existing) and existing is ReactionDialogueWindow:
+			(existing as ReactionDialogueWindow).bring_to_front()
+			return existing
+	var window := ReactionDialogueWindow.new()
+	host.add_child(window)
+	window.setup(host)
+	host.set_meta("reaction_dialogue_window", window)
+	return window
+
+
+## 話題文本視窗(交互行為分頁收納用):同一個 host 只開一個,第二次點就把它拉到前面。
+static func open_topic_lines_window(host: Node) -> TopicLinesWindow:
+	if host.has_meta("topic_lines_window"):
+		var existing: Variant = host.get_meta("topic_lines_window")
+		if is_instance_valid(existing) and existing is TopicLinesWindow:
+			(existing as TopicLinesWindow).bring_to_front()
+			return existing
+	var window := TopicLinesWindow.new()
+	host.add_child(window)
+	window.setup(host)
+	host.set_meta("topic_lines_window", window)
 	return window
 
 
@@ -234,7 +262,7 @@ static func heading_with_info(text: String, tip: String) -> HBoxContainer:
 static func heading(text: String) -> Label:
 	var label := Label.new()
 	# 2026-09-29 實測發現:Control 的 text 屬性純賦值不會自動照語系翻譯(這個 session 早前以為會,
-	# 是誤判——各處原本翻得到都是因為呼叫端自己包了 tr(),不是引擎自動處理的)。heading() 是整個管理視窗
+	# 是誤判——各處原本翻得到都是因為呼叫端自己包了 TranslationServer.translate(),不是引擎自動處理的)。heading() 是整個管理視窗
 	# 用最多的共用函式(幾乎每個分頁的每個區段標題都靠它),明著翻譯,一次修全部呼叫點。
 	label.text = TranslationServer.translate(text)
 	label.add_theme_font_size_override("font_size", 17)

@@ -269,7 +269,7 @@ static func _react(pet: Node, outcome: String, vs_user: bool) -> void:
 		pet.vitality.on_game_result(outcome, vs_user)
 	match outcome:
 		"win":
-			pet.perform_hops(1, false)
+			GameChat.celebrate_win(pet)
 			GameChat.say(pet, "[wave]%s[/wave]" % ["贏了!路都被我走通了!", "哈,先到終點啦!", "耶,步步為營我最強!"].pick_random(), 3.0)
 		"lose":
 			pet.shiver(1.5)
@@ -279,7 +279,7 @@ static func _react(pet: Node, outcome: String, vs_user: bool) -> void:
 
 
 ## 一局(回合制走到有人抵達終點、僵局、或 MAX_STEPS 步平手為止)。回傳 "A"/"B"(贏家角色)、""(平手)、null(被打斷)。
-static func _play_round(board: BlockadeBoard, a: Node, b: Node, generations: Dictionary, first_role: String, round_num: int, best_of: int) -> Variant:
+static func _play_round(board: BlockadeBoard, a: Node, b: Node, generations: Dictionary, first_role: String, round_num: int, best_of: int, levels: Array) -> Variant:
 	var state := _new_state()
 	var current := first_role
 	board.status_text = TranslationServer.translate("%s VS %s (%d/%d)") % [a.get_label(), b.get_label(), round_num, maxi(best_of, 1)]
@@ -291,7 +291,7 @@ static func _play_round(board: BlockadeBoard, a: Node, b: Node, generations: Dic
 		await _wait(a, 0.8)
 		if _cancelled([a, b], generations) or not is_instance_valid(board):
 			return null
-		var action := get_best_action(state, current, a.blockade_ai_level if current == "A" else b.blockade_ai_level)
+		var action := get_best_action(state, current, levels[0] if current == "A" else levels[1])
 		if action.is_empty():
 			return "B" if current == "A" else "A"
 		_apply_action(state, current, action)
@@ -330,9 +330,10 @@ static func _play_pets(a: Node, b: Node, best_of := 1) -> Dictionary:
 	var rounds := 0
 	var board := _spawn_board(shell)
 	var first_role := "A" if randf() < 0.5 else "B"
+	var levels := [GameAiLevel.match_level(a, b, a.blockade_ai_level), GameAiLevel.match_level(b, a, b.blockade_ai_level)]   # 好惡影響,整場擲一次
 	while wins_a < need and wins_b < need and rounds < maxi(best_of, 1) + 2:
 		rounds += 1
-		var winner_role: Variant = await _play_round(board, a, b, generations, first_role, rounds, best_of)
+		var winner_role: Variant = await _play_round(board, a, b, generations, first_role, rounds, best_of, levels)
 		if winner_role == null:
 			_cleanup_board(board)
 			return {}
@@ -364,6 +365,8 @@ static func play_user(pet: Node, best_of := 1) -> Dictionary:
 	GameChat.enter([pet], "blockade")
 	var result: Dictionary = await _play_user(pet, best_of)
 	GameChat.leave([pet])
+	if not result.is_empty():   # 跟使用者的 1v1 打完一場(取消的不算)
+		PetFavor.user_bond(pet, "duel", PetFavor.USER_SMALL, PetFavor.USER_DUEL_COOLDOWN)
 	return result
 
 

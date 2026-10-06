@@ -8,8 +8,8 @@ extends RefCounted
 ##  - 數值定義、狀態鏡:性格加入的項目帶「來源」標記與內容雜湊;使用者自己建的(沒有來源)永遠不動,性格加入後被使用者改過的也視為使用者的。
 ## 桌寵狀態(數值目前值、Flag、戰績)完全不碰。所有套用都可以預覽(preview)。
 
-const SECTIONS: Array[String] = ["params", "valueDefs", "lenses", "chat", "reactions"]
-const SECTION_NAMES := {"params": "參數", "valueDefs": "數值定義", "lenses": "狀態鏡", "chat": "對話池", "reactions": "反應事件"}
+const SECTIONS: Array[String] = ["params", "valueDefs", "lenses", "chat", "reactions", "topicLines"]
+const SECTION_NAMES := {"params": "參數", "valueDefs": "數值定義", "lenses": "狀態鏡", "chat": "對話池", "reactions": "反應事件", "topicLines": "話題文本"}
 const SOURCE_PREFIX := "personality:"
 ## 一隻角色最多帶幾份性格副本(五個區塊各選一個不同的性格 + 幾份改過的)。
 const MAX_OWN := 16
@@ -360,7 +360,7 @@ static func _apply_definitions(pet: Node, section: String, plan: Array, id: Stri
 					existing[index] = fresh
 				else:
 					existing.append(fresh)
-				lines.append("%s「%s」:%s" % [label, item_name, "新增" if index < 0 else "換成新性格的"])
+				lines.append("%s「%s」:%s" % [label, item_name, TranslationServer.translate("新增") if index < 0 else TranslationServer.translate("換成新性格的")])
 			"keep":
 				lines.append(TranslationServer.translate("%s「%s」你已經有自己的,保留") % [label, item_name])
 			"remove":

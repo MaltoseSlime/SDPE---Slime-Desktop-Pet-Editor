@@ -26,6 +26,9 @@ var _effect_option: OptionButton
 var _follow_seconds_spin: SpinBox
 var _lens_list: ItemList
 var _run_check: CheckBox
+var _user_favor_spin: SpinBox
+var _pet_favor_spin: SpinBox
+var _favor_target_option: OptionButton
 var _mode_option: OptionButton
 var _log: TextEdit
 var _status_timer := 0.0
@@ -34,7 +37,7 @@ var _flow: HFlowContainer
 
 
 func setup() -> void:
-	setup_floating("測試者面板", Vector2i(560, 760), Vector2i(280, 460))
+	setup_floating(tr("測試者面板"), Vector2i(560, 760), Vector2i(280, 460))
 	# 靠螢幕右側,不要蓋在管理視窗(置中)上面。
 	var usable := DisplayServer.screen_get_usable_rect(DisplayServer.window_get_current_screen(0))
 	place_on_screen.call_deferred(Vector2i((usable.size.x - size.x) / 2 - 20, 0))
@@ -59,7 +62,7 @@ func _build() -> void:
 	_pet_option.item_selected.connect(_on_pet_selected)
 	pet_row.add_child(_pet_option)
 	var refresh := ManagerUi.button("重新整理")
-	refresh.tooltip_text = "桌寵增減、匯入積木檔後重新讀取清單"
+	refresh.tooltip_text = tr("桌寵增減、匯入積木檔後重新讀取清單")
 	refresh.pressed.connect(_populate_pets)
 	pet_row.add_child(refresh)
 	root.add_child(pet_row)
@@ -193,6 +196,58 @@ func _build() -> void:
 		_note("開關 Status 面板")))
 	card.add_child(user_row)
 
+	# 好感度(模擬,2026-10-06):對使用者的好感度,以及對場上其他桌寵的好感度,方便測試事件與話題文本。
+	card = _new_card("好感度(模擬)")
+	var user_favor_row := _button_row()
+	var user_label := Label.new()
+	user_label.text = tr("對使用者")
+	user_favor_row.add_child(user_label)
+	_user_favor_spin = _favor_spin()
+	user_favor_row.add_child(_user_favor_spin)
+	user_favor_row.add_child(_action_button("設定", func() -> void:
+		if _pet == null:
+			return
+		ValueGateway.set_value(_pet, "好感度", _user_favor_spin.value, "local")
+		_note(tr("對使用者的好感度 → %d") % int(_user_favor_spin.value)))
+	)
+	card.add_child(user_favor_row)
+	var pet_favor_row := _button_row()
+	_favor_target_option = OptionButton.new()
+	_favor_target_option.fit_to_longest_item = false
+	_favor_target_option.clip_text = true
+	pet_favor_row.add_child(_favor_target_option)
+	_pet_favor_spin = _favor_spin()
+	pet_favor_row.add_child(_pet_favor_spin)
+	pet_favor_row.add_child(_action_button("設定", func() -> void:
+		if _pet == null or _favor_target_option.selected < 0:
+			return
+		var tag := str(_favor_target_option.get_item_metadata(_favor_target_option.selected))
+		_pet.change_favor(tag, _pet_favor_spin.value - _pet.favor_of(tag))
+		_note(tr("對 %s 的好感度 → %d") % [_favor_target_option.get_item_text(_favor_target_option.selected), int(_pet_favor_spin.value)])))
+	pet_favor_row.add_child(_action_button("重新整理", _refresh_favor_targets))
+	card.add_child(pet_favor_row)
+	# 對象關係的清除(2026-10-06,原本在記憶頁;測試者面板直接按,不另外確認)。
+	var relation_row := _button_row()
+	relation_row.add_child(_action_button("清空對使用者好感度", func() -> void:
+		if _pet == null:
+			return
+		PetFavor.clear_user_favor(_pet)
+		_refresh_favor_targets()
+		_note(tr("對使用者的好感度已清空")) ))
+	relation_row.add_child(_action_button("清空對其他桌寵的好惡&好感度", func() -> void:
+		if _pet == null:
+			return
+		PetFavor.clear_pet_relations(_pet)
+		_refresh_favor_targets()
+		_note(tr("已清空對其他桌寵的好惡與好感度")) ))
+	relation_row.add_child(_action_button("讓其他桌寵忘記我", func() -> void:
+		if _pet == null:
+			return
+		PetFavor.forget_me(_pet)
+		_refresh_favor_targets()
+		_note(tr("場上其他桌寵對這隻的好感度已歸零")) ))
+	card.add_child(relation_row)
+
 	# 跟著滑鼠(固定與靜止模式的桌寵不會動,不受影響)
 	card = _new_card("跟著滑鼠")
 	_follow_seconds_spin = ManagerUi.spin(1.0, 3.0, 3600.0)
@@ -230,7 +285,7 @@ func _build() -> void:
 	# 開關與移動模式
 	card = _new_card("開關與移動模式")
 	_run_check = CheckBox.new()
-	_run_check.text = "run 奔跑開關"
+	_run_check.text = tr("run 奔跑開關")
 	_run_check.toggled.connect(func(on: bool) -> void:
 		if not _loading:
 			_pet.run_enabled = on
@@ -254,7 +309,7 @@ func _build() -> void:
 	_log.custom_minimum_size.y = 110.0
 	_log.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
 	root.add_child(_log)
-	root.add_child(_action_button("清除紀錄", func() -> void: _log.text = ""))
+	root.add_child(_action_button(tr("清除紀錄"), func() -> void: _log.text = ""))
 
 
 ## 場上所有桌寵跟著滑鼠 seconds 秒(固定與靜止模式的略過),回傳幾隻開始跟。
@@ -333,7 +388,7 @@ func _populate_pets() -> void:
 		_pet_option.add_item(pet.get_label())
 	if _pets.is_empty():
 		_pet = null
-		_status_label.text = "場上目前沒有桌寵。"
+		_status_label.text = tr("場上目前沒有桌寵。")
 		return
 	var index := maxi(_pets.find(previous), 0)
 	_pet_option.select(index)
@@ -347,6 +402,7 @@ func _on_pet_selected(index: int) -> void:
 	_pet.action_started.connect(_on_action_started)
 	_reload_lists()
 	_refresh_status()
+	_refresh_favor_targets()
 
 
 ## 重新讀取這隻桌寵的對話、事件、動作、狀態鏡清單(匯入新積木檔或編輯設定後要按「重新整理」)。
@@ -451,3 +507,30 @@ func _note(text: String) -> void:
 	if lines.size() > MAX_LOG_LINES:
 		_log.text = "\n".join(lines.slice(lines.size() - MAX_LOG_LINES))
 	_log.scroll_vertical = _log.get_line_count()
+
+
+## 好感度模擬用的數值框(範圍同好感度:-500~1000,整數)。
+func _favor_spin() -> SpinBox:
+	var spin := SpinBox.new()
+	spin.min_value = -500.0
+	spin.max_value = 1000.0
+	spin.step = 1.0
+	spin.custom_minimum_size.x = 90.0
+	return spin
+
+
+## 重新整理好感度模擬:對使用者的數值讀目前的值;其他桌寵清單更新成場上現在的桌寵(不含自己)。
+func _refresh_favor_targets() -> void:
+	if _pet == null or _favor_target_option == null:
+		return
+	_user_favor_spin.value = ValueGateway.get_value(_pet, "好感度")
+	_favor_target_option.clear()
+	for other: Node in get_tree().get_nodes_in_group("pets"):
+		if other == _pet or not is_instance_valid(other) or other.is_queued_for_deletion():
+			continue
+		var index := _favor_target_option.item_count
+		_favor_target_option.add_item(str(other.get_label()))
+		_favor_target_option.set_item_metadata(index, str(other.recognition_tag))
+	if _favor_target_option.item_count > 0:
+		_favor_target_option.select(0)
+		_pet_favor_spin.value = _pet.favor_of(str(_favor_target_option.get_item_metadata(0)))

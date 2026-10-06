@@ -109,6 +109,9 @@ static func snapshot_pet(pet: Node) -> Dictionary:
 		"dance": {"enabled": pet.auto_dance_enabled, "chance": pet.auto_dance_chance, "follow": pet.auto_dance_follow_enabled},
 		"keywords": Array(pet.keywords),
 		"userKeywords": Array(pet.user_keywords),
+		"keywordTags": pet.keyword_tags.duplicate(),
+		"userKeywordTags": pet.user_keyword_tags.duplicate(),
+		"topicLines": pet.topic_custom.duplicate(true) if pet.topic_custom is Array else null,
 		"interaction": pet.interaction_rules.duplicate(true),
 		"accessories": pet.disabled_accessories.duplicate(),
 		"mute": {"auto_unmute": pet.auto_unmute_enabled},
@@ -128,6 +131,7 @@ static func snapshot_pet(pet: Node) -> Dictionary:
 		"timer": {"sound": pet.timer_sound},
 		"dialogue_locale": pet.dialogue_locale,
 		"user_nicknames": pet.user_nicknames.duplicate(),
+		"pet_favors": pet.pet_favors.duplicate(),
 		"defaults": DefaultsUpdater.to_data(pet),
 	}
 
@@ -223,6 +227,9 @@ static func _apply_pet_data(pet: Node, data: Dictionary) -> void:
 	pet.set_disabled_accessories(data.get("accessories"))
 	if data.get("userKeywords") is Array:
 		pet.user_keywords = PetText.sanitize_keywords(data["userKeywords"])
+	pet.keyword_tags = _keyword_tag_dict(data.get("keywordTags"), pet.keywords)
+	pet.user_keyword_tags = _keyword_tag_dict(data.get("userKeywordTags"), pet.user_keywords)
+	pet.topic_custom = _topic_line_list(data["topicLines"]) if data.get("topicLines") is Array else null
 	var effects: Variant = data.get("effects")
 	if effects is Dictionary:
 		pet.sleep_z.enabled = bool(effects.get("sleep_z", pet.sleep_z.enabled))
@@ -277,6 +284,13 @@ static func _apply_pet_data(pet: Node, data: Dictionary) -> void:
 		pet.game_auto_invite = _bool_dict(game_prefs.get("auto_invite"), pet.GAME_PREF_KINDS)
 		pet.game_force_accept = _bool_dict(game_prefs.get("force_accept"), pet.GAME_PREF_KINDS)
 		pet.game_force_decline = _bool_dict(game_prefs.get("force_decline"), pet.GAME_PREF_KINDS)
+	var relations: Variant = data.get("pet_favors")
+	pet.pet_favors = {}
+	if relations is Dictionary:
+		for tag: Variant in relations:
+			var value := clampf(_number(relations[tag], 0.0), Pet.FAVOR_MIN, Pet.FAVOR_MAX)
+			if str(tag) != "" and not is_zero_approx(value):
+				pet.pet_favors[str(tag)] = value
 
 
 static func value_to_dict(def: PetValueDef) -> Dictionary:
@@ -300,6 +314,11 @@ static func value_from_dict(data: Variant) -> PetValueDef:
 	def.min_value = _number(data.get("min_value"), def.min_value)
 	def.max_value = maxf(_number(data.get("max_value"), def.max_value), def.min_value)
 	def.default_value = clampf(_number(data.get("default_value"), 0.0), def.min_value, def.max_value)
+	# 好感度的範圍固定(舊存檔可能還是 0~100):讀取時一律套用新的上下限。
+	if def.key == PetVitality.AFFINITY_KEY:
+		def.min_value = PetVitality.AFFINITY_MIN
+		def.max_value = PetVitality.AFFINITY_MAX
+		def.default_value = clampf(def.default_value, def.min_value, def.max_value)
 	def.step = maxf(_number(data.get("step"), 1.0), 0.001)
 	def.show_in_status = bool(data.get("show_in_status", false))
 	def.sort_weight = int(_number(data.get("sort_weight"), 0.0))
@@ -449,3 +468,34 @@ static func _read(path: String, kind := "profile") -> Dictionary:
 		return {}
 	var parsed: Variant = JSON.parse_string(file.get_as_text())
 	return ProfileMigrations.migrate(kind, parsed) if parsed is Dictionary else {}
+
+
+## 關鍵詞標籤字典:只留還在關鍵詞清單裡的詞,標籤不認得就回到「話題」(不寫進字典,保持存檔乾淨)。
+static func _keyword_tag_dict(raw: Variant, words: PackedStringArray) -> Dictionary:
+	var result := {}
+	if raw is Dictionary:
+		for word: Variant in raw:
+			var text := str(word)
+			var tag := PetText.clean_tag(raw[word])
+			if words.has(text) and tag != PetText.DEFAULT_TAG:
+				result[text] = tag
+	return result
+
+
+## 話題文本清單:每句只留 {condition, text},文字整理過(去空白、限長),空白的丟掉。
+static func _topic_line_list(raw: Variant) -> Array:
+	var result: Array = []
+	if raw is Array:
+		for entry: Variant in raw:
+			if entry is Dictionary:
+				var text := PetText.sanitize(str(entry.get("text", "")).replace("
+", " "), PetText.HARD_MAX_LENGTH)
+				var condition := str(entry.get("condition", "")).strip_edges()
+				if text != "":
+					var line := {"condition": condition, "text": text}
+					var en := PetText.sanitize(str(entry.get("en", "")).replace("
+", " "), PetText.HARD_MAX_LENGTH)
+					if en != "":
+						line["en"] = en
+					result.append(line)
+	return result

@@ -54,7 +54,7 @@ func _build_list_side() -> void:
 	add_child(side)
 	side.add_child(ManagerUi.heading("數值列表"))
 	var reserved_button := ManagerUi.button("保留名稱一覽")
-	reserved_button.tooltip_text = "查詢哪些數值名稱已經被引擎用來驅動內建行為(例如「好感度」),取名時避開或是清楚知道效果。"
+	reserved_button.tooltip_text = tr("查詢哪些數值名稱已經被引擎用來驅動內建行為(例如「好感度」),取名時避開或是清楚知道效果。")
 	reserved_button.pressed.connect(func() -> void: ManagerUi.open_reserved_values_window(self))
 	side.add_child(reserved_button)
 	_list = ItemList.new()
@@ -99,7 +99,7 @@ func _build_form_side() -> void:
 	_min_spin = ManagerUi.spin(0.1)
 	_min_spin.value_changed.connect(_on_field_changed)
 	_no_min_check = CheckBox.new()
-	_no_min_check.text = "無下限"
+	_no_min_check.text = tr("無下限")
 	_no_min_check.toggled.connect(_on_field_changed)
 	var min_row := ManagerUi.labeled("最小值", _min_spin)
 	min_row.add_child(_no_min_check)
@@ -107,7 +107,7 @@ func _build_form_side() -> void:
 	_max_spin = ManagerUi.spin(0.1)
 	_max_spin.value_changed.connect(_on_field_changed)
 	_no_max_check = CheckBox.new()
-	_no_max_check.text = "無上限"
+	_no_max_check.text = tr("無上限")
 	_no_max_check.toggled.connect(_on_field_changed)
 	var max_row := ManagerUi.labeled("最大值", _max_spin)
 	max_row.add_child(_no_max_check)
@@ -122,7 +122,7 @@ func _build_form_side() -> void:
 	_form.add_child(HSeparator.new())
 	_form.add_child(ManagerUi.heading("Status 面板"))
 	_show_check = CheckBox.new()
-	_show_check.text = "在 Status 面板中顯示(預設隱藏)"
+	_show_check.text = tr("在 Status 面板中顯示(預設隱藏)")
 	_show_check.toggled.connect(_on_field_changed)
 	_form.add_child(_show_check)
 	_weight_spin = ManagerUi.spin(1.0)
@@ -134,7 +134,7 @@ func _build_form_side() -> void:
 	_mode_option.item_selected.connect(_on_field_changed)
 	_form.add_child(ManagerUi.labeled("顯示模式", _mode_option))
 	_gauge_reverse_check = CheckBox.new()
-	_gauge_reverse_check.text = "量表反向(數值高是不好的,例如疲勞:高=紅、低=綠)"
+	_gauge_reverse_check.text = tr("量表反向(數值高是不好的,例如疲勞:高=紅、低=綠)")
 	_gauge_reverse_check.toggled.connect(_on_field_changed)
 	_form.add_child(_gauge_reverse_check)
 	_prefix_edit = ManagerUi.line_edit("例如 ×")
@@ -198,7 +198,7 @@ func _on_item_selected(index: int) -> void:
 func _load_form(def: PetValueDef) -> void:
 	_loading = true
 	_form.visible = true
-	_scope_label.text = "全域(所有桌寵共用)" if def.is_global else "局部(只屬於這隻桌寵)"
+	_scope_label.text = tr("全域(所有桌寵共用)") if def.is_global else tr("局部(只屬於這隻桌寵)")
 	_key_edit.text = def.key
 	_display_edit.text = def.display_name
 	_default_spin.value = def.default_value

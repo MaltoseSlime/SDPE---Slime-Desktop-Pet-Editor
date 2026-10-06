@@ -832,6 +832,93 @@
           "加油喔……我幫你們用眼睛加油。"
         ]
       }
+    ],
+    "topicLines": [
+      {
+        "condition": "",
+        "text": "{tag:問候語}……嗯，我先躺一下。",
+        "en": "{tag:問候語}… mm, I'll lie down for a bit first."
+      },
+      {
+        "condition": "",
+        "text": "{tag:日常事務}……再五分鐘就做，真的。",
+        "en": "{tag:日常事務}… I'll do it in five more minutes, really."
+      },
+      {
+        "condition": "",
+        "text": "{tag:習慣}這種事，有時候真的很費力耶……",
+        "en": "{tag:習慣} can really be tiring sometimes…"
+      },
+      {
+        "condition": "",
+        "text": "oO（好想睡……）",
+        "en": "oO（I'm so sleepy…）"
+      },
+      {
+        "condition": "好感度30～99",
+        "text": "{you}平常都怎麼偷懶呀？我想學。",
+        "en": "How do {you} usually slack off? I want to learn."
+      },
+      {
+        "condition": "好感度30～99",
+        "text": "{you}……不用這麼急著做{tag:愛好}啦，先坐下來嘛。",
+        "en": "{you}… no need to rush into {tag:愛好}. Sit down first."
+      },
+      {
+        "condition": "好感度大於100",
+        "text": "{user}，陪我躺一下好不好？很舒服的。",
+        "en": "{user}, will you lie down with me for a bit? It feels really nice."
+      },
+      {
+        "condition": "好感度大於100",
+        "text": "{user}說過的{tag:user:願望}，等哪天我有力氣再想想吧。",
+        "en": "The {tag:user:願望} {user} mentioned, I'll think about it when I have the energy someday."
+      },
+      {
+        "condition": "好感度大於150",
+        "text": "{user}的「{tag:user:約定}」，我記住了……下次吧。",
+        "en": "{user}'s \"{tag:user:約定}\", I've noted it… next time, okay?"
+      },
+      {
+        "condition": "喜好對象在行動區內",
+        "text": "{liked}也在啊。一起躺著發呆，好不好？",
+        "en": "{liked} is here too. Want to lie around and zone out together?"
+      },
+      {
+        "condition": "喜好對象在行動區內，好惡等級喜歡以上",
+        "text": "{liked}，你不用急著動，我們就這樣待著吧。",
+        "en": "{liked}, you don't have to move. Let's just stay like this."
+      },
+      {
+        "condition": "喜好對象不在行動區",
+        "text": "oO（{liked}不在……去哪裡了呀，懶得找。）",
+        "en": "oO（{liked} isn't here… where did they go? I can't be bothered to look.）"
+      },
+      {
+        "condition": "厭惡對象在行動區內，好惡等級有點討厭",
+        "text": "{disliked}好吵……算了，當作沒聽到。",
+        "en": "{disliked} is so noisy… never mind, I'll pretend I didn't hear."
+      },
+      {
+        "condition": "厭惡對象在行動區內，好惡等級討厭以下",
+        "text": "{disliked}，你可以安靜一點嗎？我真的想睡了。",
+        "en": "{disliked}, could you be quiet? I really want to sleep."
+      },
+      {
+        "condition": "厭惡對象不在行動區",
+        "text": "oO（{disliked}不在，可以繼續躺著了。）",
+        "en": "oO（{disliked} isn't here, so I can keep lying down.）"
+      },
+      {
+        "condition": "普通對象在行動區內",
+        "text": "{neutral}也來躺一下嗎？……開玩笑的。",
+        "en": "{neutral}, want to lie down too? …Just kidding."
+      },
+      {
+        "condition": "心情閾值低",
+        "text": "oO（什麼都懶得做……）",
+        "en": "oO（I don't feel like doing anything…）"
+      }
     ]
   }
 }

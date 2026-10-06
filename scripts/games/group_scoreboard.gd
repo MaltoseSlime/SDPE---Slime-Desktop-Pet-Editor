@@ -14,6 +14,8 @@ const HEADER := 26.0
 const PAD := 10.0
 const LINE_HEIGHT := 18.0
 const MAX_LINES := 8
+## 全體遊戲出結果後,記分板與贏家訊息多停留這麼久才收起來(2026-10-06 使用者要求:收得太快來不及看是誰贏)。
+const RESULT_HOLD_SECONDS := 5.0
 
 var title := ""
 

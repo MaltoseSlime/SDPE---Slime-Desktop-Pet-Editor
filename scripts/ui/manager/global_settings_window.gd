@@ -15,7 +15,7 @@ var _credits_label: RichTextLabel
 
 
 func setup() -> void:
-	setup_floating("全局設定", Vector2i(660, 740), Vector2i(480, 420))
+	setup_floating(tr("全局設定"), Vector2i(660, 740), Vector2i(480, 420))
 	var background := PanelContainer.new()
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)
@@ -45,7 +45,7 @@ func setup() -> void:
 
 	_status_label = Label.new()
 	_status_label.theme_type_variation = AppSettings.MUTED_LABEL
-	_status_label.text = "這裡的設定改了就立刻生效並存起來。"
+	_status_label.text = tr("這裡的設定改了就立刻生效並存起來。")
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	page.add_child(_status_label)
 

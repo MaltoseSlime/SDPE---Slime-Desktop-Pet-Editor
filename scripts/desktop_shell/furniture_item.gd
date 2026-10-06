@@ -283,17 +283,47 @@ func _play(animation: StringName) -> void:
 # --- 錨點(可坐/可躺):不湊人數,桌寵各自挑一個當下沒人用的過去;中途有人離席不會讓已經在用的換位置 ---
 
 ## 找一個 wanted_type("sit"/"lie")類型、目前沒人用的錨點佔起來,回傳錨點索引;都滿了(或這個家具根本沒這個類型)回 -1。
+## 2026-10-06:挑空位時優先選「離其他桌寵最遠」的那個(不是第一個空的),讓大家盡量分開坐/躺;
+## 沒有任何空位回傳 -1(坐滿,呼叫端照原本的規則處理)。
 func claim_anchor(pet: Node, wanted_type: String) -> int:
 	_prune_anchor_holders()
 	if def == null:
 		return -1
+	var best := -1
+	var best_gap := -1.0
 	for i in def.anchors.size():
 		if str((def.anchors[i] as Dictionary).get("type")) != wanted_type:
 			continue
-		if not _anchor_holders.has(i):
-			_anchor_holders[i] = pet
-			return i
-	return -1
+		if _anchor_holders.has(i):
+			continue
+		var gap := _nearest_pet_distance(i, pet)
+		if gap > best_gap:
+			best_gap = gap
+			best = i
+	if best >= 0:
+		_anchor_holders[best] = pet
+	return best
+
+
+## 目前也在用這件家具的其他桌寵(不含 pet 自己,已經不在場或已釋放的略過)。給好感度「一起使用家具」判定用。
+func other_holders(pet: Node) -> Array:
+	_prune_anchor_holders()
+	var result: Array = []
+	for holder: Node in _anchor_holders.values():
+		if holder != pet and is_instance_valid(holder) and not result.has(holder):
+			result.append(holder)
+	return result
+
+
+## 錨點到其他桌寵(不含自己)的最近距離;沒有其他桌寵時回傳很大的數,代表「很空」。
+func _nearest_pet_distance(anchor: int, pet: Node) -> float:
+	var spot := anchor_global_position(anchor)
+	var nearest := 1.0e9
+	for other: Node in pet.get_tree().get_nodes_in_group("pets"):
+		if other == pet or not is_instance_valid(other):
+			continue
+		nearest = minf(nearest, spot.distance_to(other.global_position))
+	return nearest
 
 
 ## 這隻桌寵目前佔用的錨點都讓出來(正常一次只會佔一個,保險起見清全部)。

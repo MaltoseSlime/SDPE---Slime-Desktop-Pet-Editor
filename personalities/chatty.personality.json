@@ -898,6 +898,98 @@
           "看起來好好玩喔~"
         ]
       }
+    ],
+    "topicLines": [
+      {
+        "condition": "",
+        "text": "欸，你知道{tag:話題}這件事嗎？我最近一直在想它。",
+        "en": "Hey, do you know about {tag:話題}? I've been thinking about it a lot lately."
+      },
+      {
+        "condition": "",
+        "text": "說到{tag:愛好}，我可以講一整個下午喔！",
+        "en": "Speaking of {tag:愛好}, I could talk about it for a whole afternoon!"
+      },
+      {
+        "condition": "",
+        "text": "{tag:食物}真的超好吃的對不對？我每次想到都要說一次。",
+        "en": "{tag:食物} is really delicious, right? Every time I think of it, I have to say so."
+      },
+      {
+        "condition": "",
+        "text": "{tag:格言}！這句話我想跟每個人都分享。",
+        "en": "{tag:格言}! I want to share this with everyone."
+      },
+      {
+        "condition": "",
+        "text": "oO（說什麼好呢……啊，我想到好多事情！）",
+        "en": "oO（What should I say… oh, I just thought of so many things!）"
+      },
+      {
+        "condition": "好感度30～99",
+        "text": "{you}今天有什麼有趣的事嗎？跟我說說看！",
+        "en": "Did anything fun happen to {you} today? Tell me!"
+      },
+      {
+        "condition": "好感度30～99",
+        "text": "{you}喜歡{tag:愛好}嗎？我超想聽你的看法。",
+        "en": "Does {you} like {tag:愛好}? I'd really love to hear your thoughts."
+      },
+      {
+        "condition": "好感度大於100",
+        "text": "{user}！我又想到一件事要跟你說——",
+        "en": "{user}! I just thought of something else I want to tell you—"
+      },
+      {
+        "condition": "好感度大於100",
+        "text": "{user}說過的{tag:user:作品}，我後來又想了好久呢。",
+        "en": "The {tag:user:作品} {user} mentioned, I've been thinking about it for ages!"
+      },
+      {
+        "condition": "好感度大於150",
+        "text": "{user}的「{tag:user:約定}」，我一直都記得喔！",
+        "en": "{user}'s \"{tag:user:約定}\", I still remember it, you know!"
+      },
+      {
+        "condition": "喜好對象在行動區內",
+        "text": "{liked}！你來得正好，我有好多話要跟你說！",
+        "en": "{liked}! You came at just the right time. I have so much to tell you!"
+      },
+      {
+        "condition": "喜好對象在行動區內，好惡等級喜歡以上",
+        "text": "{liked}，要不要一起聊聊{tag:話題|愛好|食物}？",
+        "en": "{liked}, want to talk about {tag:話題|愛好|食物} together?"
+      },
+      {
+        "condition": "喜好對象不在行動區",
+        "text": "oO（{liked}不在，少了一個可以聊天的人，有點可惜。）",
+        "en": "oO（{liked} isn't here… it's a bit of a shame, I've lost someone to chat with.）"
+      },
+      {
+        "condition": "厭惡對象在行動區內，好惡等級有點討厭",
+        "text": "{disliked}也在啊……嗯，我不講了，免得吵到大家。",
+        "en": "{disliked} is here too… fine, I won't talk, so I don't bother everyone."
+      },
+      {
+        "condition": "厭惡對象在行動區內，好惡等級討厭以下",
+        "text": "{disliked}！我有話要說，你能先安靜一下嗎？",
+        "en": "{disliked}! I have something to say, can you be quiet for a moment?"
+      },
+      {
+        "condition": "厭惡對象不在行動區",
+        "text": "oO（{disliked}不在，我終於能好好講完一句話了。）",
+        "en": "oO（{disliked} isn't here, so I can finally finish a whole sentence!）"
+      },
+      {
+        "condition": "普通對象在行動區內",
+        "text": "{neutral}，你知道{tag:話題|食物}嗎？我跟你說喔——",
+        "en": "{neutral}, do you know about {tag:話題|食物}? Let me tell you—"
+      },
+      {
+        "condition": "心情閾值低",
+        "text": "oO（唉，心裡有點悶，可是又想說話……）",
+        "en": "oO（Ugh, my mind feels a bit heavy, but I still want to talk…）"
+      }
     ]
   }
 }

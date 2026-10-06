@@ -773,6 +773,93 @@
           "我在旁邊看就很好了。"
         ]
       }
+    ],
+    "topicLines": [
+      {
+        "condition": "",
+        "text": "……{tag:問候語}。",
+        "en": "…{tag:問候語}."
+      },
+      {
+        "condition": "",
+        "text": "……{tag:愛好}的事，我想想……",
+        "en": "…{tag:愛好}… let me think…"
+      },
+      {
+        "condition": "",
+        "text": "……{tag:食物}，我偶爾會想吃一點。",
+        "en": "…{tag:食物}, I sometimes want to eat a little."
+      },
+      {
+        "condition": "",
+        "text": "oO（安安靜靜的，就很好。）",
+        "en": "oO（Being quiet like this is good.）"
+      },
+      {
+        "condition": "好感度30～99",
+        "text": "……{you}，我們可以慢慢熟起來嗎？",
+        "en": "…{you}, can we get to know each other slowly?"
+      },
+      {
+        "condition": "好感度30～99",
+        "text": "{you}……平常都在做什麼呢？",
+        "en": "{you}… what do you usually do?"
+      },
+      {
+        "condition": "好感度大於100",
+        "text": "……{user}，有你在的時候，我比較不緊張。",
+        "en": "…{user}, I'm less nervous when you're around."
+      },
+      {
+        "condition": "好感度大於100",
+        "text": "{user}……謝謝你，讓我待在這裡。",
+        "en": "{user}… thank you for letting me stay here."
+      },
+      {
+        "condition": "好感度大於150",
+        "text": "……{user}告訴過我的「{tag:user:秘密}」，我不會說出去的。",
+        "en": "…The \"{tag:user:秘密}\" {user} told me, I won't tell anyone."
+      },
+      {
+        "condition": "喜好對象在行動區內",
+        "text": "……{liked}也在。嗯，這樣我比較放心。",
+        "en": "…{liked} is here too. Hmm, that makes me feel a bit more at ease."
+      },
+      {
+        "condition": "喜好對象在行動區內，好惡等級喜歡以上",
+        "text": "……跟{liked}在一起的時候，我會稍微放鬆一點。",
+        "en": "…When I'm with {liked}, I relax a little more."
+      },
+      {
+        "condition": "喜好對象不在行動區",
+        "text": "oO（……{liked}不在，我有點想念……）",
+        "en": "oO（…{liked} isn't here, and I miss them a little…）"
+      },
+      {
+        "condition": "厭惡對象在行動區內，好惡等級有點討厭",
+        "text": "……{disliked}在。我就……縮起來吧。",
+        "en": "…{disliked} is here. I'll… curl up a bit."
+      },
+      {
+        "condition": "厭惡對象在行動區內，好惡等級討厭以下",
+        "text": "……{disliked}，請你離我遠一點……",
+        "en": "…{disliked}, please stay a little farther away from me…"
+      },
+      {
+        "condition": "厭惡對象不在行動區",
+        "text": "oO（{disliked}不在，終於能安靜了。）",
+        "en": "oO（{disliked} isn't here, and at last it's quiet.）"
+      },
+      {
+        "condition": "普通對象在行動區內",
+        "text": "……{neutral}。嗯，你好。",
+        "en": "…{neutral}. Hmm, hello."
+      },
+      {
+        "condition": "心情閾值低",
+        "text": "oO（……好想一個人待著。）",
+        "en": "oO（…I just want to be alone for a while.）"
+      }
     ]
   }
 }

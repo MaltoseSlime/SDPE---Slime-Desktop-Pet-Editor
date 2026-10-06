@@ -371,14 +371,19 @@ static func flame_colors(style: Dictionary, t: float, hue: float, time_seconds: 
 # --- 播放 ---
 
 ## 播放一個特效;seconds < 0 用預設長度。回傳有沒有認得(沒開特效也回傳 true,只是不畫)。
-func play(effect_name: String, seconds := -1.0) -> bool:
+## intensity(0.25~1.0,2026-10-06):這次播放的相對強度(例如好感度加得少就給低強度),粒子間隔會除以它。
+## 上限是 1.0 = 樣式設定的密度,不會超過使用者設定的量;下限 0.25 = 不會少到沒有。
+const MIN_INTENSITY := 0.25
+
+
+func play(effect_name: String, seconds := -1.0, intensity := 1.0) -> bool:
 	var key := resolve(effect_name)
 	if key == "":
 		return false
 	if not enabled:
 		return true
 	var total := seconds if seconds > 0.0 else float(DURATIONS[key])
-	_running[key] = {"left": total, "total": total, "spawn_left": 0.0}
+	_running[key] = {"left": total, "total": total, "spawn_left": 0.0, "intensity": clampf(intensity, MIN_INTENSITY, 1.0)}
 	if key == "heart_big":
 		_spawn_big_heart(total)
 	elif key == "flame":
@@ -465,7 +470,7 @@ func _process(delta: float) -> void:
 		if SPAWN_EVERY.has(key):
 			entry["spawn_left"] = float(entry["spawn_left"]) - delta
 			if float(entry["spawn_left"]) <= 0.0:
-				entry["spawn_left"] = float(SPAWN_EVERY[key]) / float(style_of(key)["density"])
+				entry["spawn_left"] = float(SPAWN_EVERY[key]) / (float(style_of(key)["density"]) * float(entry.get("intensity", 1.0)))
 				if _spawn_budget >= 1.0:
 					_spawn_budget -= float(_spawn(key))
 		elif key == "afterimage":

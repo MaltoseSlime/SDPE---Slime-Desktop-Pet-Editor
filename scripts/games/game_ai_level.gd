@@ -24,5 +24,24 @@ static func mistake_chance(level: int) -> float:
 			return 0.0
 
 
+## 好惡影響對弈的 AI 等級(2026-10-06 使用者要求)。每場對戰開頭擲一次(不是每一步擲,免得機率疊起來失真):
+## 討厭對手的那方(pet_affinity < 0)有低機率臨時把自己的等級調高一級去擊潰對方;超級喜歡對手(= 3)的那方
+## 有低機率調低一級放水讓對方贏。等級不會因此超出 CHOICES 的範圍。
+const DISLIKE_BUMP_CHANCE_PER_LEVEL := 0.05
+const LIKE_THROW_CHANCE := 0.1
+
+
+static func match_level(pet: Node, opponent: Node, base: int) -> int:
+	var level := clamp_level(base)
+	if pet == null or opponent == null or not pet.has_method("pet_affinity"):
+		return level
+	var affinity: int = pet.pet_affinity(opponent)
+	if affinity < 0 and randf() < DISLIKE_BUMP_CHANCE_PER_LEVEL * float(-affinity):
+		return mini(level + 1, CHOICES.back())
+	if affinity >= 3 and randf() < LIKE_THROW_CHANCE:
+		return maxi(level - 1, CHOICES.front())
+	return level
+
+
 static func clamp_level(level: int) -> int:
 	return level if CHOICES.has(level) else DEFAULT_LEVEL

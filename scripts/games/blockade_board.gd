@@ -282,7 +282,9 @@ func _draw() -> void:
 		var owner: String = str(wall_owners.get(slot, "A"))
 		var wall_color: Color = accent if owner == "A" else text_color   # 敵我雙方的牆顏色不同,各自跟自己棋子同色
 		var rect := _h_wall_rect(origin, slot) if orientation == "H" else _v_wall_rect(origin, slot)
-		draw_rect(rect, Color(outline, 0.6), true)
+		# 外框線(跟井字棋的圈叉同一個做法):先在牆的外面畫一圈對比色的輪廓,再疊上敵我顏色的牆面,
+		# 不管哪種配色,牆跟底色都分得清楚。
+		draw_rect(rect.grow(2.0), Color(outline, 0.55), true)
 		draw_rect(rect, wall_color, true)
 	if interactive and wall_mode_kind != "move":
 		var slot := _slot_at(_mouse)

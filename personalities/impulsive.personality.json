@@ -840,6 +840,98 @@
           "看起來超好玩的!等我!"
         ]
       }
+    ],
+    "topicLines": [
+      {
+        "condition": "",
+        "text": "{tag:問候語}！我先說，我現在就想去做點什麼！",
+        "en": "{tag:問候語}! I'll say it first: I want to go do something right now!"
+      },
+      {
+        "condition": "",
+        "text": "{tag:愛好}！現在！馬上！走吧！",
+        "en": "{tag:愛好}! Now! Right away! Let's go!"
+      },
+      {
+        "condition": "",
+        "text": "我突然想吃{tag:食物}，現在就去！",
+        "en": "I suddenly want {tag:食物}. Let's go now!"
+      },
+      {
+        "condition": "",
+        "text": "{tag:格言}——對，就是要這樣，想到就做！",
+        "en": "{tag:格言}—yes, that's it. When you think of it, just do it!"
+      },
+      {
+        "condition": "",
+        "text": "oO（等等，我剛剛要做什麼來著？算了，先做再說！）",
+        "en": "oO（Wait, what was I going to do? Never mind, let's just go and do it!）"
+      },
+      {
+        "condition": "好感度30～99",
+        "text": "{you}，要不要跟我比一場{tag:愛好}？",
+        "en": "{you}, want to have a {tag:愛好} match with me?"
+      },
+      {
+        "condition": "好感度30～99",
+        "text": "{you}，你的{tag:習慣}是什麼？說來聽聽！",
+        "en": "{you}, what's your {tag:習慣}? Tell me!"
+      },
+      {
+        "condition": "好感度大於100",
+        "text": "{user}！我們來做點刺激的事吧！",
+        "en": "{user}! Let's do something exciting!"
+      },
+      {
+        "condition": "好感度大於100",
+        "text": "{user}說過的{tag:user:願望}，我想現在就去實現它！",
+        "en": "The {tag:user:願望} {user} mentioned, I want to make it come true right now!"
+      },
+      {
+        "condition": "好感度大於150",
+        "text": "{user}的「{tag:user:約定}」，我一直在等你來實現！",
+        "en": "{user}'s \"{tag:user:約定}\", I've been waiting for you to make it happen!"
+      },
+      {
+        "condition": "喜好對象在行動區內",
+        "text": "{liked}！來來來，我們來比一場！",
+        "en": "{liked}! Come on, let's have a match!"
+      },
+      {
+        "condition": "喜好對象在行動區內，好惡等級喜歡以上",
+        "text": "{liked}！一起去玩吧，現在就走！",
+        "en": "{liked}! Let's go have fun together—right now!"
+      },
+      {
+        "condition": "喜好對象不在行動區",
+        "text": "oO（{liked}不在？那我自己去找他！）",
+        "en": "oO（{liked} isn't here? Then I'll go find them myself!）"
+      },
+      {
+        "condition": "厭惡對象在行動區內，好惡等級有點討厭",
+        "text": "{disliked}？哼，我才不怕你！",
+        "en": "{disliked}? Hmph, I'm not scared of you!"
+      },
+      {
+        "condition": "厭惡對象在行動區內，好惡等級討厭以下",
+        "text": "{disliked}！這次我一定贏你！下一場，立刻開始！",
+        "en": "{disliked}! I'll definitely beat you this time! Next match, starting right now!"
+      },
+      {
+        "condition": "厭惡對象不在行動區",
+        "text": "oO（{disliked}不在，那我就放心衝了！）",
+        "en": "oO（{disliked} isn't here, so I can dash off without worrying!）"
+      },
+      {
+        "condition": "普通對象在行動區內",
+        "text": "{neutral}！要不要來比一場？",
+        "en": "{neutral}! Want to have a match?"
+      },
+      {
+        "condition": "心情閾值低",
+        "text": "oO（啊啊啊，什麼事都不順……我好想發脾氣！）",
+        "en": "oO（Ahhh, nothing is going right… I really want to lose my temper!）"
+      }
     ]
   }
 }

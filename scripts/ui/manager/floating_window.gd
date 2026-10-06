@@ -561,7 +561,7 @@ func build_title_bar(text: String) -> Control:
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(label)
 	var close := ManagerUi.button("✕")
-	close.tooltip_text = "關閉"
+	close.tooltip_text = tr("關閉")
 	close.pressed.connect(_request_close)
 	row.add_child(close)
 	return bar

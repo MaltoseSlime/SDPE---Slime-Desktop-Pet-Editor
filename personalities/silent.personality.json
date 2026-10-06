@@ -652,6 +652,83 @@
           "……(點點頭)"
         ]
       }
+    ],
+    "topicLines": [
+      {
+        "condition": "",
+        "text": "……",
+        "en": "……"
+      },
+      {
+        "condition": "",
+        "text": "(點頭)",
+        "en": "(nods)"
+      },
+      {
+        "condition": "",
+        "text": "(看著{tag:愛好}的方向)",
+        "en": "(looks toward {tag:愛好})"
+      },
+      {
+        "condition": "",
+        "text": "……{tag:問候語}。",
+        "en": "……{tag:問候語}."
+      },
+      {
+        "condition": "好感度30～99",
+        "text": "(看了{you}一眼)",
+        "en": "(glances at {you})"
+      },
+      {
+        "condition": "好感度大於100",
+        "text": "(輕輕點了點頭)",
+        "en": "(nods lightly)"
+      },
+      {
+        "condition": "好感度大於150",
+        "text": "(悄悄靠近{user})",
+        "en": "(quietly moves closer to {user})"
+      },
+      {
+        "condition": "喜好對象在行動區內",
+        "text": "(看向{liked})",
+        "en": "(looks toward {liked})"
+      },
+      {
+        "condition": "喜好對象在行動區內，好惡等級喜歡以上",
+        "text": "(靠近{liked}一點)",
+        "en": "(moves a little closer to {liked})"
+      },
+      {
+        "condition": "喜好對象不在行動區",
+        "text": "oO（……{liked}，不在。）",
+        "en": "oO（……{liked}, not here.）"
+      },
+      {
+        "condition": "厭惡對象在行動區內，好惡等級有點討厭",
+        "text": "(別開視線)",
+        "en": "(looks away)"
+      },
+      {
+        "condition": "厭惡對象在行動區內，好惡等級討厭以下",
+        "text": "(往後退了一步)",
+        "en": "(takes a step back)"
+      },
+      {
+        "condition": "厭惡對象不在行動區",
+        "text": "(鬆了口氣)",
+        "en": "(lets out a small breath of relief)"
+      },
+      {
+        "condition": "普通對象在行動區內",
+        "text": "(點頭致意)",
+        "en": "(nods in greeting)"
+      },
+      {
+        "condition": "心情閾值低",
+        "text": "(低著頭)……",
+        "en": "(lowers head)……"
+      }
     ]
   }
 }

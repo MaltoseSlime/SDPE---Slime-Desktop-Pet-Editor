@@ -814,6 +814,98 @@
           "在旁邊看著就很愉快了。"
         ]
       }
+    ],
+    "topicLines": [
+      {
+        "condition": "",
+        "text": "{tag:問候語}，今天也慢慢來吧。",
+        "en": "{tag:問候語}, let's take it slowly today."
+      },
+      {
+        "condition": "",
+        "text": "有時候，{tag:日常事務}慢慢做就好，不用急。",
+        "en": "Sometimes {tag:日常事務} is fine to do slowly. No need to rush."
+      },
+      {
+        "condition": "",
+        "text": "說到{tag:習慣}，我覺得能一直維持下去的，就是好習慣。",
+        "en": "Speaking of {tag:習慣}, the good habits are the ones you can keep up for a long time."
+      },
+      {
+        "condition": "",
+        "text": "{tag:格言}——我一直覺得這句話很有道理。",
+        "en": "{tag:格言}—I've always thought this saying makes a lot of sense."
+      },
+      {
+        "condition": "",
+        "text": "oO（這樣安靜地待著，也不錯。）",
+        "en": "oO（Just sitting quietly like this is nice too.）"
+      },
+      {
+        "condition": "好感度30～99",
+        "text": "{you}平常都怎麼放鬆呢？",
+        "en": "How do {you} usually unwind?"
+      },
+      {
+        "condition": "好感度30～99",
+        "text": "{tag:愛好}的事，{you}可以慢慢跟我說。",
+        "en": "{tag:愛好}—{you} can tell me about it slowly."
+      },
+      {
+        "condition": "好感度大於100",
+        "text": "{user}，有你在的時候，我會比較安心。",
+        "en": "{user}, I feel more at ease when you're here."
+      },
+      {
+        "condition": "好感度大於100",
+        "text": "{user}說過的{tag:user:願望}，我會記在心裡。",
+        "en": "The {tag:user:願望} {user} mentioned, I'll keep it in my heart."
+      },
+      {
+        "condition": "好感度大於150",
+        "text": "{user}告訴我的「{tag:user:秘密}」，我會好好收著。",
+        "en": "The \"{tag:user:秘密}\" {user} told me, I'll keep it safe."
+      },
+      {
+        "condition": "喜好對象在行動區內",
+        "text": "{liked}在的時候，氣氛也很平靜，很舒服。",
+        "en": "When {liked} is around, the atmosphere stays calm too. It's comfortable."
+      },
+      {
+        "condition": "喜好對象在行動區內，好惡等級喜歡以上",
+        "text": "跟{liked}待在一起，時間過得很慢，我很喜歡。",
+        "en": "Being together with {liked} makes time pass slowly. I really like that."
+      },
+      {
+        "condition": "喜好對象不在行動區",
+        "text": "oO（{liked}最近還好嗎……下次見到再問吧。）",
+        "en": "oO（I hope {liked} has been doing okay lately… I'll ask when we meet next.）"
+      },
+      {
+        "condition": "厭惡對象在行動區內，好惡等級有點討厭",
+        "text": "……{disliked}也在。沒關係，我就當作沒看到吧。",
+        "en": "…{disliked} is here too. That's fine, I'll just pretend I didn't see."
+      },
+      {
+        "condition": "厭惡對象在行動區內，好惡等級討厭以下",
+        "text": "{disliked}，可以請你小聲一點嗎？",
+        "en": "{disliked}, could you please lower your voice a little?"
+      },
+      {
+        "condition": "厭惡對象不在行動區",
+        "text": "oO（{disliked}不在的時候，確實比較安靜。）",
+        "en": "oO（When {disliked} isn't around, it really is quieter.）"
+      },
+      {
+        "condition": "普通對象在行動區內",
+        "text": "{neutral}，你也在啊。嗯，這樣挺好。",
+        "en": "{neutral}, you're here too. Well, that's nice."
+      },
+      {
+        "condition": "心情閾值低",
+        "text": "oO（有點累了……先安靜一會兒。）",
+        "en": "oO（I'm a little tired… I'll stay quiet for a while.）"
+      }
     ]
   }
 }

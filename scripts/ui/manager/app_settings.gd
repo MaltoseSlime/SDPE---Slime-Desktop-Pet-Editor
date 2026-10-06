@@ -18,7 +18,7 @@ const COLOR_KEYS: Array[String] = ["bg", "panel", "text", "muted", "button", "ac
 const COLOR_LABELS := {"bg": "視窗背景", "panel": "輸入框與清單底色", "text": "文字", "muted": "次要文字(停用、無效、提示、說明圖示)", "button": "按鈕", "accent": "強調色(選取、焦點)"}
 ## 預設配色組:id → {name, colors, title:{bg,text}}(title 是這組配色的標題列顏色,標題列顏色設成「自動」時用它)。使用者自己調過顏色就是 "custom"。muted 沒寫(或舊設定檔沒有)時由文字色與視窗背景混出來(default_muted),所以任何配色組的次要文字都看得到。
 const PRESETS := {
-	"notebook": {"name": "筆記本", "colors": {"bg": "#e3e1de", "panel": "#f1f0e9", "text": "#575151", "muted": "#98988b", "button": "#f1f0e9", "accent": "#e2dad0"}, "title": {"bg": "#cac6c3", "text": "#7f625e"}},
+	"notebook": {"name": "筆記本", "colors": {"bg": "#e3e1de", "panel": "#f1f0e9", "text": "#575151", "muted": "#98918b", "button": "#f1f0e9", "accent": "#d5d1cd"}, "title": {"bg": "#cac6c3", "text": "#7f625e"}},
 	"light": {"name": "明亮", "colors": {"bg": "#eef0f4", "panel": "#ffffff", "text": "#23262e", "muted": "#6b7180", "button": "#d9dde6", "accent": "#f8c054"}, "title": {"bg": "#f7d121", "text": "#2e2e2e"}},
 	"gray": {"name": "灰暗", "colors": {"bg": "#444745", "panel": "#312f2d", "text": "#f2f4ed", "muted": "#9c9a97", "button": "#656967", "accent": "#86856b"}, "title": {"bg": "#323130", "text": "#f2f4ed"}},
 	"dark": {"name": "深夜", "colors": {"bg": "#23262e", "panel": "#1a1c22", "text": "#e8eaf0", "muted": "#8b91a0", "button": "#343946", "accent": "#4b8fe0"}, "title": {"bg": "#000000", "text": "#ffffff"}},

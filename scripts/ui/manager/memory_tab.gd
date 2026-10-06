@@ -13,6 +13,9 @@ var _clones_check: CheckBox
 var _saved_check: CheckBox
 var _globals_check: CheckBox
 var _lenses_check: CheckBox
+var _user_favor_check: CheckBox
+var _pet_relations_check: CheckBox
+var _forget_check: CheckBox
 var _undo_button: Button
 var _last_record: Dictionary = {}
 ## 上一次「讀取記憶存檔」讀之前的記憶:{pet, backup}。
@@ -32,6 +35,9 @@ func _ready() -> void:
 	_saved_check = _check("一併清除已存的本體狀態檔(否則下次啟動會讀回舊記憶)", true)
 	_globals_check = _check("同時重置「全域數值」(所有桌寵共用,通常不要勾)", false)
 	_lenses_check = _check("同時解除目前啟用中的狀態鏡", false)
+	_user_favor_check = _check("同時清空這隻桌寵對使用者的好感度(歸零,不能復原)", false)
+	_pet_relations_check = _check("同時清空這隻桌寵對其他桌寵的好惡與好感度(「全部角色」預設保留,不能復原)", false)
+	_forget_check = _check("同時讓場上其他桌寵對這隻桌寵的好感度歸零(不能復原)", false)
 	var reset := ManagerUi.button("重置記憶…")
 	reset.pressed.connect(_open_confirm)
 	add_child(reset)
@@ -56,13 +62,13 @@ func _build_personality_shortcuts() -> void:
 	var export_button := ManagerUi.button("匯出目前設定為性格檔…")
 	export_button.pressed.connect(_export_personality)
 	var export_schema := ManagerUi.button("導出 Schema…")
-	export_schema.tooltip_text = "匯出這隻桌寵有哪些動作、數值、狀態鏡、道具、特效、音效,給網頁端積木編輯器的下拉選單用。跟系統匣右鍵選單「導出 Schema…」是同一個功能。"
+	export_schema.tooltip_text = tr("匯出這隻桌寵有哪些動作、數值、狀態鏡、道具、特效、音效,給網頁端積木編輯器的下拉選單用。跟系統匣右鍵選單「導出 Schema…」是同一個功能。")
 	export_schema.pressed.connect(_export_schema)
 	var import_logic := ManagerUi.button("匯入積木檔…")
-	import_logic.tooltip_text = "讀入網頁端積木編輯器導出的邏輯 JSON(*.logic.json),取代這隻桌寵目前的積木內容;會自動保存一份,之後每次生成都會自動載入。"
+	import_logic.tooltip_text = tr("讀入網頁端積木編輯器導出的邏輯 JSON(*.logic.json),取代這隻桌寵目前的積木內容;會自動保存一份,之後每次生成都會自動載入。")
 	import_logic.pressed.connect(_import_logic)
 	var export_logic := ManagerUi.button("匯出積木檔…")
-	export_logic.tooltip_text = "把這隻桌寵目前生效的所有積木(自己匯入的 + 性格帶進來的閒聊/反應 + 交互行為規則)整合匯出成一份積木檔,可以帶去網頁端積木編輯器,在性格已經幫你組好的反應基礎上繼續編輯。"
+	export_logic.tooltip_text = tr("把這隻桌寵目前生效的所有積木(自己匯入的 + 性格帶進來的閒聊/反應 + 交互行為規則)整合匯出成一份積木檔,可以帶去網頁端積木編輯器,在性格已經幫你組好的反應基礎上繼續編輯。")
 	export_logic.pressed.connect(_export_logic)
 	for control in [import_button, export_button, export_schema, import_logic, export_logic]:
 		row.add_child(control)
@@ -320,7 +326,8 @@ func _check(text: String, on: bool) -> CheckBox:
 
 func _options() -> Dictionary:
 	return {"clones": _clones_check.button_pressed, "saved_state": _saved_check.button_pressed,
-			"globals": _globals_check.button_pressed, "lenses": _lenses_check.button_pressed}
+			"globals": _globals_check.button_pressed, "lenses": _lenses_check.button_pressed,
+			"user_favor": _user_favor_check.button_pressed, "pet_relations": _pet_relations_check.button_pressed, "forget_me": _forget_check.button_pressed}
 
 
 func _refresh_summary() -> void:
@@ -333,7 +340,7 @@ func _open_confirm() -> void:
 	if _pet == null:
 		return
 	var dialog := ConfirmationDialog.new()
-	dialog.title = "重置記憶 — 最後確認"
+	dialog.title = tr("重置記憶 — 最後確認")
 	# 不設 always_on_top,見 manager_ui.gd 的 ask_name() 說明(跟置頂衝突,會把視窗卡死)。
 	dialog.theme = ManagerUi.make_theme()
 	dialog.ok_button_text = "永久清除這些記憶"
@@ -347,7 +354,7 @@ func _open_confirm() -> void:
 	list.text = MemoryReset.preview(_pet, _options())
 	box.add_child(list)
 	var instruction := Label.new()
-	instruction.text = "這無法用一般方式挽回(只能用「復原上一次重置」)。要繼續,請逐字輸入下面這句通關密碼:"
+	instruction.text = tr("這無法用一般方式挽回(只能用「復原上一次重置」)。要繼續,請逐字輸入下面這句通關密碼:")
 	instruction.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	instruction.custom_minimum_size.x = 520.0
 	box.add_child(instruction)

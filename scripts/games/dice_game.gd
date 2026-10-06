@@ -176,7 +176,7 @@ static func contest(initiator: Node, pets: Array, sides: int, count: int, modifi
 static func _contest(initiator: Node, pets: Array, sides: int, count: int, modifier: int, tie_mode: String, key: String, best_of: int) -> Dictionary:
 	var contenders: Array = pets.filter(func(p: Node) -> bool: return is_instance_valid(p))
 	if contenders.size() < 2:
-		GameChat.chain_say(initiator, "一個人沒辦法拚骰啦……", 2.5)
+		GameChat.chain_say(initiator, TranslationServer.translate("一個人沒辦法拚骰啦……"), 2.5)
 		return {}
 	var everyone: Array = contenders.duplicate()
 	# 三人以上才用計分板(2 人對戰維持原本的氣泡演出,完全不受影響)。
@@ -265,6 +265,7 @@ static func _contest(initiator: Node, pets: Array, sides: int, count: int, modif
 	if _cancelled(everyone, generations):
 		_close_scoreboard(scoreboard)
 		return {}
+	await _wait(initiator, GroupScoreboard.RESULT_HOLD_SECONDS)   # 結果停留,讓人看清楚誰贏
 	_close_scoreboard(scoreboard)
 	for pet: Node in everyone:
 		GameChat.react(pet, "dice_contest", outcomes[pet])

@@ -64,7 +64,7 @@ func _build() -> void:
 	_build_floating_bar()
 	_confirm = ConfirmationDialog.new()
 	# 不設 always_on_top,見 manager_ui.gd 的 ask_name() 說明(跟置頂衝突,會把視窗卡死)。
-	_confirm.title = "尚未儲存的變更"
+	_confirm.title = tr("尚未儲存的變更")
 	_confirm.dialog_text = "這個性格有還沒儲存的變更,要儲存後關閉嗎?"
 	_confirm.ok_button_text = "儲存後關閉"
 	_confirm.cancel_button_text = "取消"
@@ -190,7 +190,7 @@ func _build_floating_bar() -> void:
 	_status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	row.add_child(_status)
 	var save := ManagerUi.button("另存為共用性格檔" if _pet != null else "儲存")
-	save.tooltip_text = "存成共用的自訂性格(user://personalities/,所有角色的下拉選單都選得到),不影響已經套用了這個性格的角色自己的副本。" if _pet != null else ""
+	save.tooltip_text = tr("存成共用的自訂性格(user://personalities/,所有角色的下拉選單都選得到),不影響已經套用了這個性格的角色自己的副本。") if _pet != null else ""
 	save.pressed.connect(func() -> void: _save_with_prompt(false))
 	var save_close := ManagerUi.button("儲存並關閉")
 	save_close.pressed.connect(func() -> void: _save_with_prompt(true) if _pet == null else _save_to_pet_and_close())
@@ -198,7 +198,7 @@ func _build_floating_bar() -> void:
 	discard.pressed.connect(_request_close)
 	if _pet != null:
 		var save_pet := ManagerUi.button("儲存到這隻角色")
-		save_pet.tooltip_text = "只改這隻角色帶著的這份性格,別隻角色與共用的性格檔都不受影響(打包角色時這份會跟著走)。"
+		save_pet.tooltip_text = tr("只改這隻角色帶著的這份性格,別隻角色與共用的性格檔都不受影響(打包角色時這份會跟著走)。")
 		save_pet.pressed.connect(func() -> void: save_to_pet())
 		row.add_child(save_pet)
 	for button in [save, save_close, discard]:
@@ -210,7 +210,7 @@ func _load_into_widgets() -> void:
 	_updating = true
 	# 改角色自己的副本時名稱與代號保持原樣(要另存成共用性格時,撞到內建的代號會自動加 _mine);從共用性格開的才預設加「(我的)」與 _mine。
 	var default_id := _original_id + "_mine" if _was_builtin and _pet == null else _original_id
-	_name_edit.text = str(_base.get("name", "")) + ("(我的)" if _was_builtin and _pet == null else "")
+	_name_edit.text = str(_base.get("name", "")) + (tr("(我的)") if _was_builtin and _pet == null else "")
 	_id_edit.text = default_id
 	_author_edit.text = str(_base.get("author", ""))
 	_description_edit.text = str(_base.get("description", ""))
@@ -227,9 +227,9 @@ func _load_into_widgets() -> void:
 		extras.append(tr("狀態鏡 %d 個") % (_base["lenses"] as Array).size())
 	if not (_base.get("blocks", []) as Array).is_empty():
 		extras.append(tr("進階事件積木 %d 個") % (_base["blocks"] as Array).size())
-	_extra_label.text = tr("還帶有:%s(存檔時原樣保留)") % "、".join(PackedStringArray(extras)) if not extras.is_empty() else "沒有數值定義、狀態鏡與進階事件積木"
+	_extra_label.text = tr("還帶有:%s(存檔時原樣保留)") % "、".join(PackedStringArray(extras)) if not extras.is_empty() else tr("沒有數值定義、狀態鏡與進階事件積木")
 	if _was_builtin:
-		_status.text = "這是內建的預設性格,改完會存成新的自訂性格(原檔不會被改)。"
+		_status.text = tr("這是內建的預設性格,改完會存成新的自訂性格(原檔不會被改)。")
 	_updating = false
 
 
@@ -238,7 +238,7 @@ func _mark_dirty(_arg: Variant = null) -> void:
 		return
 	_dirty = true
 	title = tr("性格編輯器 — %s *") % _name_edit.text
-	_status.text = "有尚未儲存的變更。"
+	_status.text = tr("有尚未儲存的變更。")
 
 
 ## 目前編輯內容整理成性格(內部格式,還沒驗證)。
@@ -317,7 +317,7 @@ func save_to_pet() -> String:
 	var personality := collect()
 	personality["id"] = _original_id
 	if str(personality["name"]) == "":
-		_status.text = "名稱不能是空的"
+		_status.text = tr("名稱不能是空的")
 		return "名稱不能是空的"
 	var data := PersonalityFile.to_file_data(personality)
 	var checked := PersonalityFile.validate(data)
@@ -328,7 +328,7 @@ func save_to_pet() -> String:
 	PersonalityApplier.set_own(_pet, _original_id, PersonalityFile.to_file_data(checked["personality"]))
 	_dirty = false
 	title = tr("性格編輯器 — %s") % _name_edit.text
-	_status.text = "已存到這隻角色自己的版本。要讓新的參數生效,回到「性格」分頁按「套用」。"
+	_status.text = tr("已存到這隻角色自己的版本。要讓新的參數生效,回到「性格」分頁按「套用」。")
 	saved_to_pet.emit(_original_id)
 	return ""
 
@@ -343,7 +343,7 @@ func _save_with_prompt(close_after: bool) -> void:
 	var result := save_now(false)
 	if result == "exists":
 		var dialog := ConfirmationDialog.new()
-		dialog.title = "覆蓋既有的自訂性格?"
+		dialog.title = tr("覆蓋既有的自訂性格?")
 		dialog.dialog_text = tr("已經有一個代號叫「%s」的自訂性格了,要用目前的內容覆蓋它嗎?") % PersonalityFile.clean_id(_id_edit.text)
 		dialog.ok_button_text = "覆蓋"
 		dialog.cancel_button_text = "取消"

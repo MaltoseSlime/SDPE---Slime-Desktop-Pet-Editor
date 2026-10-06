@@ -27,7 +27,7 @@ var _clear_checks: Button
 
 
 func setup() -> void:
-	setup_floating("角色庫", Vector2i(860, 640), Vector2i(560, 420))
+	setup_floating(tr("角色庫"), Vector2i(860, 640), Vector2i(560, 420))
 	# 第一次開角色庫時裝進預設角色(Mal);裝過就不再動。
 	SpriteLibrary.ensure_default_characters()
 	_build()
@@ -53,16 +53,16 @@ func _build() -> void:
 	var bar := HFlowContainer.new()
 	bar.add_theme_constant_override("h_separation", 6)
 	var create := ManagerUi.button("＋ 新建角色…")
-	create.tooltip_text = "取一個名字(同時是資料夾名、角色名稱與預設辨識代號),建立空的角色並開啟精靈圖編輯器。"
+	create.tooltip_text = tr("取一個名字(同時是資料夾名、角色名稱與預設辨識代號),建立空的角色並開啟精靈圖編輯器。")
 	create.pressed.connect(_on_create_pressed)
 	var import := ManagerUi.button("從資料夾匯入…")
-	import.tooltip_text = "選一個外面的素材包資料夾,複製一份進角色庫(原資料夾不動)。"
+	import.tooltip_text = tr("選一個外面的素材包資料夾,複製一份進角色庫(原資料夾不動)。")
 	import.pressed.connect(_on_import_pressed)
 	var import_pet := ManagerUi.button("匯入 .pet…")
-	import_pet.tooltip_text = "匯入別人分享的角色分享包(.pet):素材、設定與積木檔會存成角色庫裡的新角色,不會覆蓋現有的角色。匯入前會逐項檢查檔案,不安全的包會被拒絕。"
+	import_pet.tooltip_text = tr("匯入別人分享的角色分享包(.pet):素材、設定與積木檔會存成角色庫裡的新角色,不會覆蓋現有的角色。匯入前會逐項檢查檔案,不安全的包會被拒絕。")
 	import_pet.pressed.connect(_on_import_pet_pressed)
 	var backups := ManagerUi.button("🗄 備份資料夾")
-	backups.tooltip_text = "刪除的角色會搬到這裡(不會真的刪掉)。"
+	backups.tooltip_text = tr("刪除的角色會搬到這裡(不會真的刪掉)。")
 	backups.pressed.connect(func() -> void: OS.shell_open(SpriteLibrary.backup_root_dir()))
 	var reveal := ManagerUi.button("📁 開啟資料夾位置")
 	reveal.pressed.connect(func() -> void: OS.shell_open(SpriteLibrary.root_dir()))
@@ -72,7 +72,7 @@ func _build() -> void:
 	_search.custom_minimum_size.x = 200.0
 	_search.text_changed.connect(func(_t: String) -> void: refresh())
 	_place_selected = ManagerUi.button("放上桌面(勾選 0 隻)")
-	_place_selected.tooltip_text = "把卡片上勾選的角色一次全部放上桌面,一起活動(同一個角色也可以再放第二隻)。"
+	_place_selected.tooltip_text = tr("把卡片上勾選的角色一次全部放上桌面,一起活動(同一個角色也可以再放第二隻)。")
 	_place_selected.disabled = true
 	_place_selected.pressed.connect(place_selected)
 	_clear_checks = ManagerUi.button("清除勾選")
@@ -135,7 +135,7 @@ func refresh() -> void:
 	_count_label.text = tr("共 %d 個角色%s。角色放在:%s") % [_folders.size(), tr("(顯示 %d 個)") % shown.size() if wanted != "" else "", SpriteLibrary.root_dir()]
 	if _folders.is_empty():
 		var empty := Label.new()
-		empty.text = "角色庫還是空的。\n按「＋ 新建角色…」從空白開始,或「從資料夾匯入…」把現有的素材包放進來。"
+		empty.text = tr("角色庫還是空的。\n按「＋ 新建角色…」從空白開始,或「從資料夾匯入…」把現有的素材包放進來。")
 		empty.theme_type_variation = AppSettings.MUTED_LABEL
 		_flow.add_child(empty)
 	# 縮圖:每個影格補一張
@@ -187,12 +187,12 @@ func _add_card(summary: Dictionary) -> Dictionary:
 	state.theme_type_variation = AppSettings.MUTED_LABEL
 	state.add_theme_font_size_override("font_size", 12)
 	state.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	state.text = tr("%d 個動作 · %d 幀") % [summary["actions"], summary["frames"]] if bool(summary["ok"]) else "(讀不出素材)"
+	state.text = tr("%d 個動作 · %d 幀") % [summary["actions"], summary["frames"]] if bool(summary["ok"]) else tr("(讀不出素材)")
 	if not bool(summary["ok"]):
 		state.tooltip_text = str(summary["error"])
 	box.add_child(state)
 	var pick := CheckBox.new()
-	pick.text = "勾選(一起放上桌面)"
+	pick.text = tr("勾選(一起放上桌面)")
 	pick.add_theme_font_size_override("font_size", 12)
 	pick.disabled = not bool(summary["ok"])
 	pick.button_pressed = _checked.has(str(summary["folder"]))
@@ -206,23 +206,23 @@ func _add_card(summary: Dictionary) -> Dictionary:
 		place_requested.emit(str(summary["folder"]))
 		_status.text = tr("已把「%s」放上桌面。") % summary["name"])
 	var edit := ManagerUi.button("外觀編輯")
-	edit.tooltip_text = "開精靈圖編輯器:改貼圖、動作、光源、家具/道具貼圖等造型相關內容。"
+	edit.tooltip_text = tr("開精靈圖編輯器:改貼圖、動作、光源、家具/道具貼圖等造型相關內容。")
 	edit.pressed.connect(func() -> void: edit_requested.emit(str(summary["folder"])))
 	var settings := ManagerUi.button("桌寵管理")
-	settings.tooltip_text = "不用放上桌面就能改數值、狀態鏡、性格、介面與自動行為、交互行為(自動建一隻隱藏的臨時實例,關視窗就存回去)。"
+	settings.tooltip_text = tr("不用放上桌面就能改數值、狀態鏡、性格、介面與自動行為、交互行為(自動建一隻隱藏的臨時實例,關視窗就存回去)。")
 	settings.pressed.connect(func() -> void: settings_requested.emit(str(summary["folder"])))
 	buttons.add_child(place)
 	buttons.add_child(edit)
 	buttons.add_child(settings)
 	var more := MenuButton.new()
 	more.text = "⋯"
-	more.tooltip_text = "改名、複製、匯出 .pet、刪除(刪除是搬到備份資料夾)"
+	more.tooltip_text = tr("改名、複製、匯出 .pet、刪除(刪除是搬到備份資料夾)")
 	var popup := more.get_popup()
-	popup.add_item("重新命名…", 0)
-	popup.add_item("複製成新角色…", 1)
-	popup.add_item("匯出 .pet…", 3)
+	popup.add_item(tr("重新命名…"), 0)
+	popup.add_item(tr("複製成新角色…"), 1)
+	popup.add_item(tr("匯出 .pet…"), 3)
 	popup.add_separator()
-	popup.add_item("刪除(搬到備份)…", 2)
+	popup.add_item(tr("刪除(搬到備份)…"), 2)
 	popup.id_pressed.connect(_on_card_menu.bind(str(summary["folder"]), str(summary["name"])))
 	buttons.add_child(more)
 	box.add_child(buttons)
@@ -366,7 +366,7 @@ func ask_delete(folder: String, character_name: String) -> void:
 		return
 	var related := SpriteLibrary.related_files(folder)
 	var dialog := ConfirmationDialog.new()
-	dialog.title = "刪除角色"
+	dialog.title = tr("刪除角色")
 	dialog.ok_button_text = "搬到備份"
 	dialog.cancel_button_text = "取消"
 	# 不設 always_on_top:這種視窗會被 Godot 設成這個(可能置頂的)浮動視窗的 transient 子視窗,跟置頂在
@@ -471,7 +471,7 @@ func _on_import_pressed() -> void:
 
 func _ask_import_name(source: String) -> void:
 	if SpriteLibrary.is_inside(source):
-		_status.text = "這個資料夾已經在角色庫裡了。"
+		_status.text = tr("這個資料夾已經在角色庫裡了。")
 		return
 	ManagerUi.ask_name(self, "匯入資料夾", "會把這個資料夾複製一份進角色庫(原資料夾不動)。\n幫這個角色取個名字(同時是資料夾名、角色名稱與預設辨識代號):", source.get_file(), "匯入",
 			func(text: String) -> String: return SpriteLibrary.name_problem(text),
@@ -494,7 +494,7 @@ func import_character(source: String, character_name: String) -> String:
 ## 匯出:問要不要放積木檔、記憶與戰績,再選存檔位置。
 func ask_export(folder: String, character_name: String) -> void:
 	var dialog := ConfirmationDialog.new()
-	dialog.title = "匯出 .pet"
+	dialog.title = tr("匯出 .pet")
 	dialog.ok_button_text = "選擇存檔位置…"
 	dialog.cancel_button_text = "取消"
 	# 不設 always_on_top,見 ask_delete() 的說明(跟置頂衝突,會把視窗卡死)。
@@ -506,11 +506,11 @@ func ask_export(folder: String, character_name: String) -> void:
 	label.custom_minimum_size.x = 440.0
 	box.add_child(label)
 	var logic_check := CheckBox.new()
-	logic_check.text = "包含導入過的積木檔(事件與對話)"
+	logic_check.text = tr("包含導入過的積木檔(事件與對話)")
 	logic_check.button_pressed = true
 	box.add_child(logic_check)
 	var state_check := CheckBox.new()
-	state_check.text = "包含記憶與戰績(數值目前的值、記過的東西;分享給別人通常不要勾)"
+	state_check.text = tr("包含記憶與戰績(數值目前的值、記過的東西;分享給別人通常不要勾)")
 	state_check.button_pressed = false
 	box.add_child(state_check)
 	dialog.add_child(box)

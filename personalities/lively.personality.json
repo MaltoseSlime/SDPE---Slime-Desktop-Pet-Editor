@@ -861,6 +861,98 @@
           "看起來超好玩!我也要!"
         ]
       }
+    ],
+    "topicLines": [
+      {
+        "condition": "",
+        "text": "{tag:問候語}！今天要做什麼呀？",
+        "en": "{tag:問候語}! What are we doing today?"
+      },
+      {
+        "condition": "",
+        "text": "{tag:愛好}！我最喜歡了，我們快去吧！",
+        "en": "{tag:愛好}! I love it! Let's go right now!"
+      },
+      {
+        "condition": "",
+        "text": "{tag:食物}！我想現在就去吃！",
+        "en": "{tag:食物}! I want to go eat it right now!"
+      },
+      {
+        "condition": "",
+        "text": "{tag:格言}！我每天都要把它當成口號喊一遍！",
+        "en": "{tag:格言}! I shout this as my motto every single day!"
+      },
+      {
+        "condition": "",
+        "text": "oO（好想跑一圈喔！）",
+        "en": "oO（I really want to run a lap!）"
+      },
+      {
+        "condition": "好感度30～99",
+        "text": "{you}！你平常都玩什麼呀？告訴我！",
+        "en": "{you}! What do you usually play? Tell me!"
+      },
+      {
+        "condition": "好感度30～99",
+        "text": "{you}要不要跟我一起{tag:愛好}？",
+        "en": "{you}, want to {tag:愛好} with me?"
+      },
+      {
+        "condition": "好感度大於100",
+        "text": "{user}！今天也一起去冒險吧！",
+        "en": "{user}! Let's go on an adventure today too!"
+      },
+      {
+        "condition": "好感度大於100",
+        "text": "{user}說過的{tag:user:願望}，我一定陪你實現！",
+        "en": "The {tag:user:願望} {user} mentioned, I'll definitely help you make it come true!"
+      },
+      {
+        "condition": "好感度大於150",
+        "text": "{user}的「{tag:user:約定}」，我一直都記得喔，一言為定！",
+        "en": "{user}'s \"{tag:user:約定}\", I've never forgotten it! Promise!"
+      },
+      {
+        "condition": "喜好對象在行動區內",
+        "text": "{liked}！你看，我跳得多高！",
+        "en": "{liked}! Look how high I can jump!"
+      },
+      {
+        "condition": "喜好對象在行動區內，好惡等級喜歡以上",
+        "text": "{liked}，要不要跟我比賽？",
+        "en": "{liked}, want to race me?"
+      },
+      {
+        "condition": "喜好對象不在行動區",
+        "text": "oO（{liked}不在，少了一個玩伴好無聊……）",
+        "en": "oO（{liked} isn't here… without a playmate it's so boring…）"
+      },
+      {
+        "condition": "厭惡對象在行動區內，好惡等級有點討厭",
+        "text": "{disliked}也在？哼，我才不管你！",
+        "en": "{disliked} is here too? Hmph, I don't care about you!"
+      },
+      {
+        "condition": "厭惡對象在行動區內，好惡等級討厭以下",
+        "text": "{disliked}！下次我一定比你跑得快！",
+        "en": "{disliked}! Next time I'll definitely run faster than you!"
+      },
+      {
+        "condition": "厭惡對象不在行動區",
+        "text": "oO（{disliked}不在，我可以盡情跑了！）",
+        "en": "oO（{disliked} isn't here, so I can run around as much as I want!）"
+      },
+      {
+        "condition": "普通對象在行動區內",
+        "text": "{neutral}！你要不要一起玩？",
+        "en": "{neutral}! Want to play with us?"
+      },
+      {
+        "condition": "心情閾值低",
+        "text": "oO（唉……今天好像沒什麼力氣……）",
+        "en": "oO（Ugh… I don't seem to have much energy today…）"
+      }
     ]
   }
 }

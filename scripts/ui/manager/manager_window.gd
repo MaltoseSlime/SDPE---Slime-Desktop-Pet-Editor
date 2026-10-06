@@ -26,7 +26,7 @@ var _apply_guard: ConfirmationDialog
 
 
 func setup() -> void:
-	setup_floating("桌寵管理", Vector2i(1000, 700), Vector2i(860, 520))
+	setup_floating(tr("桌寵管理"), Vector2i(1000, 700), Vector2i(860, 520))
 	_build()
 	_populate_pets()
 	_take_snapshots()
@@ -58,7 +58,7 @@ func _build() -> void:
 
 	var top := HBoxContainer.new()
 	var pet_label := Label.new()
-	pet_label.text = "桌寵:"
+	pet_label.text = tr("桌寵:")
 	top.add_child(pet_label)
 	_pet_option = OptionButton.new()
 	_pet_option.custom_minimum_size.x = 220.0
@@ -101,7 +101,7 @@ func _build() -> void:
 
 	_confirm = ConfirmationDialog.new()
 	# 不設 always_on_top,見 manager_ui.gd 的 ask_name() 說明(跟置頂衝突,會把視窗卡死)。
-	_confirm.title = "尚未儲存的變更"
+	_confirm.title = tr("尚未儲存的變更")
 	_confirm.dialog_text = "檢測到尚未儲存的變更,是否儲存後離開?"
 	_confirm.ok_button_text = "儲存後離開"
 	_confirm.cancel_button_text = "取消"
@@ -185,7 +185,7 @@ func _on_pet_selected(index: int) -> void:
 
 func _mark_dirty() -> void:
 	_dirty = true
-	_status_label.text = "有尚未儲存的變更。"
+	_status_label.text = tr("有尚未儲存的變更。")
 
 
 func _show_message(text: String) -> void:
@@ -211,7 +211,7 @@ func _request_save(after := Callable()) -> void:
 		return
 	_apply_guard = ConfirmationDialog.new()
 	# 不設 always_on_top,見 manager_ui.gd 的 ask_name() 說明(跟置頂衝突,會把視窗卡死)。
-	_apply_guard.title = "性格還沒套用"
+	_apply_guard.title = tr("性格還沒套用")
 	_apply_guard.dialog_text = "「性格」分頁選了性格,但還沒按「套用」,存下去桌寵不會有變化。\n要先套用再儲存嗎?"
 	_apply_guard.ok_button_text = "套用並儲存"
 	_apply_guard.cancel_button_text = "取消"
@@ -243,7 +243,7 @@ func _save() -> void:
 			failed = true
 	_dirty = false
 	_take_snapshots()
-	_status_label.text = "儲存失敗,請檢查磁碟空間或權限。" if failed else "已儲存。"
+	_status_label.text = tr("儲存失敗,請檢查磁碟空間或權限。") if failed else tr("已儲存。")
 	saved.emit()
 
 

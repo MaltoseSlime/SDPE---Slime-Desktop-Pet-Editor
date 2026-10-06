@@ -92,41 +92,41 @@ func _add_entry(key: String, entry: Dictionary) -> void:
 	var sequence: CheckBox = null
 	if _kind == "chat":
 		sequence = CheckBox.new()
-		sequence.text = "依序全說"
-		sequence.tooltip_text = "勾了 = 每一行都依序說出來(像一小段獨白);沒勾 = 每次只隨機挑一行說。"
+		sequence.text = tr("依序全說")
+		sequence.tooltip_text = tr("勾了 = 每一行都依序說出來(像一小段獨白);沒勾 = 每次只隨機挑一行說。")
 		sequence.button_pressed = not entry.is_empty() and not (entry.get("seq", []) as Array).is_empty()
 		sequence.toggled.connect(func(_on: bool) -> void: _notify())
 		row.add_child(sequence)
 	var chance := _spin(0.0, 100.0, 5.0, " %")
 	chance.value = float(entry.get("chance", 100.0)) if not entry.is_empty() else 100.0
-	chance.tooltip_text = "這一項真的開口的機率(100 = 一定說)。"
+	chance.tooltip_text = tr("這一項真的開口的機率(100 = 一定說)。")
 	row.add_child(_captioned("機率", chance))
 	var weight: SpinBox = null
 	if _kind == "chat":
 		weight = _spin(0.0, 200.0, 10.0, "")
 		weight.value = float(entry.get("weight", 100.0)) if not entry.is_empty() else 100.0
-		weight.tooltip_text = "觸發率(0~200,預設 100):跟同一組情境裡其他台詞競爭被抽中的權重,不是獨立機率——200 不代表一定被抽到,只是機率是預設的兩倍,還是要跟其他台詞比。"
+		weight.tooltip_text = tr("觸發率(0~200,預設 100):跟同一組情境裡其他台詞競爭被抽中的權重,不是獨立機率——200 不代表一定被抽到,只是機率是預設的兩倍,還是要跟其他台詞比。")
 		row.add_child(_captioned("觸發率", weight))
 	var action := ManagerUi.line_edit("動作名稱")
 	action.custom_minimum_size.x = 100.0
 	action.text = str((entry.get("effects", {}) as Dictionary).get("action", ""))
-	action.tooltip_text = "說話時順便播放的動作(例如 dance),空白 = 不播。"
+	action.tooltip_text = tr("說話時順便播放的動作(例如 dance),空白 = 不播。")
 	action.text_changed.connect(func(_t: String) -> void: _notify())
 	row.add_child(_captioned("動作", action))
 	var hop := _spin(0.0, 5.0, 1.0, "")
 	hop.value = float((entry.get("effects", {}) as Dictionary).get("hop", 0))
-	hop.tooltip_text = "順便小跳幾下(0 = 不跳)。"
+	hop.tooltip_text = tr("順便小跳幾下(0 = 不跳)。")
 	row.add_child(_captioned("跳", hop))
 	var shiver := _spin(0.0, 6.0, 0.1, "")
 	shiver.value = float((entry.get("effects", {}) as Dictionary).get("shiver", 0.0))
-	shiver.tooltip_text = "順便發抖幾秒(0 = 不抖)。"
+	shiver.tooltip_text = tr("順便發抖幾秒(0 = 不抖)。")
 	row.add_child(_captioned("抖", shiver))
 	var lens_edit: LineEdit = null
 	if key == "lens":
 		lens_edit = ManagerUi.line_edit("狀態鏡名稱")
 		lens_edit.custom_minimum_size.x = 100.0
 		lens_edit.text = str(entry.get("lens", ""))
-		lens_edit.tooltip_text = "這句只在這個狀態鏡生效時說;空白 = 任何狀態鏡生效時都可以。名稱要跟建立當下打的原文完全一樣(通常是中文,使用者自建的狀態鏡沒有翻譯);內建的「開心/悠哉/緊張/生氣/悲傷/疲憊」六個例外,打英文(happy/relaxed/nervous/angry/sad/tired)也認得到。"
+		lens_edit.tooltip_text = tr("這句只在這個狀態鏡生效時說;空白 = 任何狀態鏡生效時都可以。名稱要跟建立當下打的原文完全一樣(通常是中文,使用者自建的狀態鏡沒有翻譯);內建的「開心/悠哉/緊張/生氣/悲傷/疲憊」六個例外,打英文(happy/relaxed/nervous/angry/sad/tired)也認得到。")
 		lens_edit.text_changed.connect(func(_t: String) -> void: _notify())
 		row.add_child(_captioned("狀態鏡", lens_edit))
 	var spacer := Control.new()

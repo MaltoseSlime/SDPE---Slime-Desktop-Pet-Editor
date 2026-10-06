@@ -855,6 +855,93 @@
           "你們在玩球?我在旁邊看,不會吵的。"
         ]
       }
+    ],
+    "topicLines": [
+      {
+        "condition": "",
+        "text": "{tag:問候語}，今天有想我嗎？",
+        "en": "{tag:問候語}, did you miss me today?"
+      },
+      {
+        "condition": "",
+        "text": "{tag:日常事務}做完了嗎？做完就來陪我嘛。",
+        "en": "Are you done with {tag:日常事務}? Come hang out with me once you're finished, okay?"
+      },
+      {
+        "condition": "",
+        "text": "我偶爾會想，{tag:愛好}要是能跟你一起做就好了。",
+        "en": "Sometimes I wish I could do {tag:愛好} with you."
+      },
+      {
+        "condition": "",
+        "text": "oO（不知道{you}現在在做什麼……）",
+        "en": "oO（I wonder what {you} are doing right now…）"
+      },
+      {
+        "condition": "好感度30～99",
+        "text": "{you}可以多陪我說說話嗎？",
+        "en": "Can {you} talk with me a bit more?"
+      },
+      {
+        "condition": "好感度30～99",
+        "text": "{you}平常都做些什麼呀？我想知道。",
+        "en": "What do {you} usually do? I want to know."
+      },
+      {
+        "condition": "好感度大於100",
+        "text": "{user}，你陪我的時候，我最開心了。",
+        "en": "{user}, I'm happiest when you spend time with me."
+      },
+      {
+        "condition": "好感度大於100",
+        "text": "{user}喜歡的{tag:user:食物}，下次也一起吃好不好？",
+        "en": "{user}, the {tag:user:食物} you like—let's eat it together next time, okay?"
+      },
+      {
+        "condition": "好感度大於150",
+        "text": "{user}告訴過我的「{tag:user:秘密}」，我只告訴你知道喔。",
+        "en": "The \"{tag:user:秘密}\" {user} told me, I'll only tell you I know, okay?"
+      },
+      {
+        "condition": "喜好對象在行動區內",
+        "text": "{liked}！你也在啊，一起玩好不好？",
+        "en": "{liked}! You're here too. Want to play together?"
+      },
+      {
+        "condition": "喜好對象在行動區內，好惡等級超級喜歡",
+        "text": "{liked}在的話，我就不怕寂寞了。",
+        "en": "When {liked} is around, I'm not scared of being lonely."
+      },
+      {
+        "condition": "喜好對象不在行動區",
+        "text": "oO（{liked}去哪裡了呢……我想找他玩。）",
+        "en": "oO（Where did {liked} go… I want to find them and play.）"
+      },
+      {
+        "condition": "厭惡對象在行動區內，好惡等級有點討厭",
+        "text": "{disliked}也在……{user}，你不會被他搶走吧？",
+        "en": "{disliked} is here too… {user}, you won't get taken away by them, right?"
+      },
+      {
+        "condition": "厭惡對象在行動區內，好惡等級討厭以下",
+        "text": "{user}，我不想跟{disliked}待在一起，陪我去別的地方好不好？",
+        "en": "{user}, I don't want to be with {disliked}. Can we go somewhere else together?"
+      },
+      {
+        "condition": "厭惡對象不在行動區",
+        "text": "oO（{disliked}不在就好，這樣{user}就只會陪我了。）",
+        "en": "oO（As long as {disliked} isn't here, {user} can spend time only with me.）"
+      },
+      {
+        "condition": "普通對象在行動區內",
+        "text": "{neutral}也在。嗯，{user}，我們去打個招呼吧？",
+        "en": "{neutral} is here too. Hmm, {user}, shall we go say hi?"
+      },
+      {
+        "condition": "心情閾值低",
+        "text": "oO（好想有人抱抱我……）",
+        "en": "oO（I really want someone to hug me…）"
+      }
     ]
   }
 }

@@ -60,11 +60,13 @@ const FULL_ENOUGH := MAX_ENERGY - 0.5
 ## 心情相關常數。
 const MOOD_NEUTRAL := 50.0
 const AFFINITY_KEY := "好感度"
+## 桌寵對使用者的好感度範圍(2026-10-06 使用者要求):與「桌寵對桌寵的好感度」一樣 -500~1000。
+const AFFINITY_MIN := -500.0
+const AFFINITY_MAX := 1000.0
 const MOOD_CHECK_INTERVAL := 2.0
 ## 每分鐘飄回基準多少點(再乘上好感度係數)。
 const MOOD_DRIFT_PER_MINUTE := 3.0
 ## 正面事件的最小增幅(好感度再低也至少加這麼多)。
-const MOOD_MIN_GAIN := 0.2
 ## 開心/生氣狀態要退到門檻外這麼多才解除。
 const MOOD_LENS_HYSTERESIS := 5.0
 ## mood_swing = 1、心情到極端時,每次檢查進入開心/生氣的機率上限。
@@ -471,38 +473,35 @@ func _scaled(raw: float) -> float:
 	return raw * (1.0 + 0.5 * (joy_proneness if raw >= 0.0 else anger_proneness))
 
 
-## 好感度(0~1):名稱「好感度」的數值在它自己的範圍裡的位置;沒有這個數值就是 0.5(中性)。沒有上限的數值以 100 為滿。
-func affinity() -> float:
+## 桌寵對使用者的好感度(2026-10-06 使用者釐清設計):它只代表「關係羈絆」,跟心情值互不干擾,只有一個作用——
+## 互動時的「正向」心情增加會稍微多一點(見 mood_delta)。心情基準、飄回速度、狀態鏡門檻都不看好感度。
+const MOOD_AFFINITY_BONUS := 0.3   # 好感度滿(100 以上)時,正向心情增加 × 1.3
+const AFFINITY_FULL := 100.0
+
+
+## 好感度的加成係數 0~1(好感度 0 以下 = 0,100 以上 = 1)。只看數值本身,不看範圍的位置。
+func affinity_bonus() -> float:
 	if _pet == null:
-		return 0.5
-	var def := ValueGateway.find_def(_pet, AFFINITY_KEY)
-	if def == null:
-		return 0.5
-	var value := ValueGateway.get_value(_pet, AFFINITY_KEY)
-	if def.has_finite_range() and def.max_value > def.min_value:
-		return clampf((value - def.min_value) / (def.max_value - def.min_value), 0.0, 1.0)
-	return clampf(value / 100.0, 0.0, 1.0)
+		return 0.0
+	return clampf(ValueGateway.get_value(_pet, AFFINITY_KEY) / AFFINITY_FULL, 0.0, 1.0)
 
 
-## 心情平時飄回的基準:中性 50,好感度高 → 最高 60,低 → 最低 40。
-static func mood_baseline(aff: float) -> float:
-	return MOOD_NEUTRAL + (clampf(aff, 0.0, 1.0) - 0.5) * 20.0
+## 心情的基準永遠是中性 50(不再受好感度影響)。
+static func mood_baseline() -> float:
+	return MOOD_NEUTRAL
 
 
-## 好感度如何調整心情的升降幅度(純函式,方便測試)。
-## 正的:raw × (0.05 + 1.45 × 好感度),至少 MOOD_MIN_GAIN(好感度 0 → 約 5%、0.5 → 約 0.78 倍、1 → 1.5 倍)。
-## 負的:raw × (1.5 − 1.2 × 好感度)(好感度 0 → 1.5 倍、0.5 → 0.9 倍、1 → 0.3 倍,下降慢)。
-static func mood_delta(raw: float, aff: float) -> float:
-	var a := clampf(aff, 0.0, 1.0)
-	if raw >= 0.0:
-		return maxf(raw * (0.05 + 1.45 * a), MOOD_MIN_GAIN) if raw > 0.0 else 0.0
-	return raw * (1.5 - 1.2 * a)
+## 事件造成的心情增減。正向:好感度越高增加越多(最多 × (1 + MOOD_AFFINITY_BONUS));負向:不受好感度影響。純函式,方便測試。
+static func mood_delta(raw: float, bonus: float) -> float:
+	if raw > 0.0:
+		return raw * (1.0 + MOOD_AFFINITY_BONUS * clampf(bonus, 0.0, 1.0))
+	return raw
 
 
 ## 用事件(被摸、贏…)調整心情;回傳實際加減的點數。
 func change_mood(raw: float) -> float:
 	var before := mood
-	var delta := mood_delta(raw, affinity())
+	var delta := mood_delta(raw, affinity_bonus())
 	delta *= _pet.lens_mod("mood_gain" if delta >= 0.0 else "mood_loss")   # 開心、悠哉少扣、悲傷少加、生氣加倍…(見 LensBehavior)
 	mood = clampf(mood + delta, 0.0, 100.0)
 	return mood - before
@@ -523,15 +522,13 @@ static func angry_chance(current_mood: float, angry_threshold: float, swing: flo
 	return clampf(swing, 0.0, 1.0) * MOOD_MAX_CHECK_CHANCE * (0.2 + 0.8 * ratio)
 
 
-## 每影格:心情慢慢飄回基準(在基準上方時,好感度越高飄得越慢;在下方時,好感度越低回得越慢),並定期檢查要不要進入/離開開心、生氣。
+## 每影格:心情慢慢飄回基準(中性 50,與好感度無關),並定期檢查要不要進入/離開開心、生氣。
 func _mood_process(delta: float) -> void:
-	var aff := affinity()
-	var baseline := mood_baseline(aff)
+	var baseline := mood_baseline()
 	if not _mood_started:
 		_mood_started = true
 		mood = baseline
-	var factor := (1.5 - aff) if mood > baseline else (0.5 + aff)
-	mood = move_toward(mood, baseline, MOOD_DRIFT_PER_MINUTE * factor * delta / 60.0)
+	mood = move_toward(mood, baseline, MOOD_DRIFT_PER_MINUTE * delta / 60.0)
 	var drift: float = _pet.lens_add("mood_drift")
 	if drift != 0.0:
 		mood = clampf(mood + drift * delta / 60.0, 0.0, 100.0)   # 疲憊:心情緩慢持續下降一點點

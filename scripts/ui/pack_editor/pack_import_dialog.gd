@@ -66,11 +66,11 @@ func _build(intro: String, suggested_name: String) -> void:
 	box.add_child(ManagerUi.labeled("動作名稱", _name_edit))
 	_mode_row = HBoxContainer.new()
 	_exists_label = Label.new()
-	_exists_label.text = "這個動作已存在:"
+	_exists_label.text = tr("這個動作已存在:")
 	_mode_option = OptionButton.new()
-	_mode_option.add_item("新增(接在原有的幀後面)")
-	_mode_option.add_item("覆蓋(取代原有的幀)")
-	_mode_option.tooltip_text = "覆蓋不會刪掉舊的圖片檔,只是這個動作改用新的幀;覆蓋後這個動作原有的軸心/圖片偏移設定會清掉。可以用撤回還原。"
+	_mode_option.add_item(tr("新增(接在原有的幀後面)"))
+	_mode_option.add_item(tr("覆蓋(取代原有的幀)"))
+	_mode_option.tooltip_text = tr("覆蓋不會刪掉舊的圖片檔,只是這個動作改用新的幀;覆蓋後這個動作原有的軸心/圖片偏移設定會清掉。可以用撤回還原。")
 	_mode_row.add_child(_exists_label)
 	_mode_row.add_child(_mode_option)
 	box.add_child(_mode_row)
@@ -85,8 +85,8 @@ func _build_grid(box: VBoxContainer) -> void:
 	_grid_box = VBoxContainer.new()
 	box.add_child(_grid_box)
 	_method_option = OptionButton.new()
-	_method_option.add_item("用欄數與列數切")
-	_method_option.add_item("用每格大小切")
+	_method_option.add_item(tr("用欄數與列數切"))
+	_method_option.add_item(tr("用每格大小切"))
 	_method_option.item_selected.connect(func(_i: int) -> void: _refresh_grid())
 	_grid_box.add_child(ManagerUi.labeled("格線方式", _method_option))
 	_cols_spin = _grid_spin(1, 64, 4)
@@ -102,7 +102,7 @@ func _build_grid(box: VBoxContainer) -> void:
 	_grid_box.add_child(ManagerUi.labeled("外圍邊距", _margin_spin))
 	_grid_box.add_child(ManagerUi.labeled("格與格間距", _spacing_spin))
 	_skip_empty = CheckBox.new()
-	_skip_empty.text = "略過全透明的格子(尾端沒畫的空格)"
+	_skip_empty.text = tr("略過全透明的格子(尾端沒畫的空格)")
 	_skip_empty.button_pressed = true
 	_skip_empty.toggled.connect(func(_on: bool) -> void: _refresh_grid())
 	_grid_box.add_child(_skip_empty)
@@ -143,7 +143,7 @@ func _refresh_grid() -> void:
 		spin.get_parent().visible = by_cell
 	_rects = PackEditorModel.sheet_rects(_sheet_size, current_grid(), _sheet_image)
 	_preview.set_rects(_rects)
-	_count_label.text = tr("會切出 %d 個切片") % _rects.size() if not _rects.is_empty() else "用這組格線切不出任何切片(檢查欄列數、邊距與間距)"
+	_count_label.text = tr("會切出 %d 個切片") % _rects.size() if not _rects.is_empty() else tr("用這組格線切不出任何切片(檢查欄列數、邊距與間距)")
 	_refresh()
 
 

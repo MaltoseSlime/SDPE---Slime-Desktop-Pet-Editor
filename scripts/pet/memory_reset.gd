@@ -36,9 +36,15 @@ static func preview(pet: Node, opts: Dictionary) -> String:
 		var state := pet.get_node("/root/DesktopShellState")
 		lines.append(TranslationServer.translate("■ 全域數值(所有桌寵共用)%d 個:%s") % [state.global_values.size(), _list(state.global_values)])
 	if bool(opts.get("saved_state", true)):
-		lines.append("■ 已存的本體狀態檔也會一併清除(下次啟動不會讀回舊記憶)")
+		lines.append(TranslationServer.translate("■ 已存的本體狀態檔也會一併清除(下次啟動不會讀回舊記憶)"))
+	if bool(opts.get("user_favor", false)):
+		lines.append(TranslationServer.translate("■ 清空這隻桌寵對使用者的好感度(歸零,不能復原)"))
+	if bool(opts.get("pet_relations", false)):
+		lines.append(TranslationServer.translate("■ 清空這隻桌寵對其他桌寵的好惡與好感度(「全部角色」預設保留,不能復原)"))
+	if bool(opts.get("forget_me", false)):
+		lines.append(TranslationServer.translate("■ 讓場上其他桌寵對這隻桌寵的好感度歸零(不能復原)"))
 	lines.append("")
-	lines.append("不會動到:動作素材與差分、對話與氣泡、事件積木、狀態鏡定義、介面與聲音設定。")
+	lines.append(TranslationServer.translate("不會動到:動作素材與差分、對話與氣泡、事件積木、狀態鏡定義、介面與聲音設定。"))
 	return "\n".join(lines)
 
 
@@ -58,6 +64,13 @@ static func execute(pet: Node, opts: Dictionary) -> Dictionary:
 		state.global_values = {}
 		ValueGateway.init_defaults(pet)
 	record["file"] = _write_backup(pet, file_data)
+	# 對象關係(2026-10-06,勾選項):這些不會復原,重置後直接生效。
+	if bool(opts.get("user_favor", false)):
+		PetFavor.clear_user_favor(pet)
+	if bool(opts.get("pet_relations", false)):
+		PetFavor.clear_pet_relations(pet)
+	if bool(opts.get("forget_me", false)):
+		PetFavor.forget_me(pet)
 	return record
 
 

@@ -209,7 +209,7 @@ var _gesture := 0
 
 ## 建立視窗內容。folder 非空就順便開啟那個素材包資料夾(給測試與程式用);回傳空字串或開啟失敗的原因。
 func setup(folder := "") -> String:
-	setup_floating("精靈圖編輯器", Vector2i(1180, 760), Vector2i(960, 560))
+	setup_floating(tr("精靈圖編輯器"), Vector2i(1180, 760), Vector2i(960, 560))
 	_build()
 	_refresh_all()
 	if folder != "":
@@ -271,31 +271,31 @@ func refresh_theme() -> void:
 func _build_toolbar() -> Control:
 	var bar := HFlowContainer.new()
 	var open := ManagerUi.button("從資料夾匯入…")
-	open.tooltip_text = "選一個素材包資料夾:不在專案 sprite 資料夾裡的會複製一份進來(原資料夾不動),已經在裡面的直接開啟。"
+	open.tooltip_text = tr("選一個素材包資料夾:不在專案 sprite 資料夾裡的會複製一份進來(原資料夾不動),已經在裡面的直接開啟。")
 	open.pressed.connect(_on_open_pressed)
 	var create := ManagerUi.button("新建資料夾…")
-	create.tooltip_text = "在專案統一存放 sprite 的資料夾裡新建一個空的素材包。你取的名字同時是資料夾名、角色顯示名稱與預設辨識代號。"
+	create.tooltip_text = tr("在專案統一存放 sprite 的資料夾裡新建一個空的素材包。你取的名字同時是資料夾名、角色顯示名稱與預設辨識代號。")
 	create.pressed.connect(_on_create_pressed)
 	var reveal := ManagerUi.button("📁")
 	reveal.tooltip_text = tr("在檔案總管打開專案的 sprite 資料夾(%s)") % SpriteLibrary.ROOT
 	reveal.pressed.connect(func() -> void: OS.shell_open(SpriteLibrary.root_dir()))
 	_import_images_button = ManagerUi.button("匯入圖片…")
-	_import_images_button.tooltip_text = "選一張或多張圖片,當成一個動作的幀(單張圖 = 單幀動作)。動作已存在時會問你覆蓋還是新增。"
+	_import_images_button.tooltip_text = tr("選一張或多張圖片,當成一個動作的幀(單張圖 = 單幀動作)。動作已存在時會問你覆蓋還是新增。")
 	_import_images_button.pressed.connect(_on_import_images_pressed)
 	_import_sheet_button = ManagerUi.button("匯入精靈圖…")
-	_import_sheet_button.tooltip_text = "選一張精靈圖(一張圖裡排了很多幀),設定格線後切成一個動作的幀。切片只是引用區域,不會另外產生圖檔。"
+	_import_sheet_button.tooltip_text = tr("選一張精靈圖(一張圖裡排了很多幀),設定格線後切成一個動作的幀。切片只是引用區域,不會另外產生圖檔。")
 	_import_sheet_button.pressed.connect(_on_import_sheet_pressed)
 	_replace_sheet_button = ManagerUi.button("換精靈圖…")
-	_replace_sheet_button.tooltip_text = "用一張新的圖取代正在使用的精靈圖:切片範圍、每一幀的軸心與偏移、動作與播放速度都原封不動,只有圖換掉(新圖尺寸要和原本一樣)。"
+	_replace_sheet_button.tooltip_text = tr("用一張新的圖取代正在使用的精靈圖:切片範圍、每一幀的軸心與偏移、動作與播放速度都原封不動,只有圖換掉(新圖尺寸要和原本一樣)。")
 	_replace_sheet_button.pressed.connect(_on_replace_sheet_pressed)
 	_save_as_button = ManagerUi.button("另存為新素材包…")
-	_save_as_button.tooltip_text = "把目前的素材包(含還沒存檔的編輯)複製到一個新的空資料夾,之後編輯的就是新的那個。搭配「換精靈圖」可以把設定好的素材包當範本,快速做出新角色。"
+	_save_as_button.tooltip_text = tr("把目前的素材包(含還沒存檔的編輯)複製到一個新的空資料夾,之後編輯的就是新的那個。搭配「換精靈圖」可以把設定好的素材包當範本,快速做出新角色。")
 	_save_as_button.pressed.connect(_on_save_as_pressed)
 	_export_frames_button = ManagerUi.button("匯出獨立圖檔…")
-	_export_frames_button.tooltip_text = "把每個動作的每一幀存成一張張 PNG(<動作>_<編號>.png,已套用切片與裁切翻轉旋轉),另附 frames.json 記錄播放速度、軸心與偏移。可以拿去別的工具用,或當備份。"
+	_export_frames_button.tooltip_text = tr("把每個動作的每一幀存成一張張 PNG(<動作>_<編號>.png,已套用切片與裁切翻轉旋轉),另附 frames.json 記錄播放速度、軸心與偏移。可以拿去別的工具用,或當備份。")
 	_export_frames_button.pressed.connect(_on_export_frames_pressed)
 	_clean_button = ManagerUi.button("清理未使用檔案…")
-	_clean_button.tooltip_text = "找出匯入時複製進素材包、但已經沒有任何動作或配件在用的圖檔,確認後搬到備份資料夾(不直接刪)。也可以挑一個有自己實體檔案的動作(不是精靈圖切片),整個清掉它的圖。"
+	_clean_button.tooltip_text = tr("找出匯入時複製進素材包、但已經沒有任何動作或配件在用的圖檔,確認後搬到備份資料夾(不直接刪)。也可以挑一個有自己實體檔案的動作(不是精靈圖切片),整個清掉它的圖。")
 	_clean_button.pressed.connect(_on_clean_pressed)
 	_save_button = ManagerUi.button("存檔  Ctrl+S")
 	_save_button.pressed.connect(_save)
@@ -318,11 +318,11 @@ func _build_left() -> Control:
 	_action_list.custom_minimum_size.y = 120
 	_action_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_action_list.size_flags_stretch_ratio = 1.4
-	_action_list.tooltip_text = "所有系統動作(idle、walk…)都有一個槽,沒有素材的顯示「空」;選一個空槽再匯入圖片,就會放進那個動作。「代號 ← 名稱」表示素材包裡叫那個名稱的動作填在這個槽。"
+	_action_list.tooltip_text = tr("所有系統動作(idle、walk…)都有一個槽,沒有素材的顯示「空」;選一個空槽再匯入圖片,就會放進那個動作。「代號 ← 名稱」表示素材包裡叫那個名稱的動作填在這個槽。")
 	_action_list.item_selected.connect(_on_action_row_selected)
 	left.add_child(_action_list)
 	_add_action_button = ManagerUi.button("＋新增自訂動作…")
-	_add_action_button.tooltip_text = "新增一個自訂動作槽(名字會出現在網頁編輯器的動作下拉選單)。新增後選它,再匯入圖片或精靈圖放進第一批幀。"
+	_add_action_button.tooltip_text = tr("新增一個自訂動作槽(名字會出現在網頁編輯器的動作下拉選單)。新增後選它,再匯入圖片或精靈圖放進第一批幀。")
 	_add_action_button.pressed.connect(_on_add_action_pressed)
 	left.add_child(_add_action_button)
 	left.add_child(_build_action_source_row())
@@ -335,7 +335,7 @@ func _build_left() -> Control:
 	_frame_list.max_columns = 0
 	_frame_list.fixed_icon_size = THUMB_SIZE
 	_frame_list.select_mode = ItemList.SELECT_MULTI
-	_frame_list.tooltip_text = "點選一幀;Ctrl+點 加選、Shift+點 選一段。複製、貼上到別的動作、複製一份、刪除、前後移動、圖片處理都對選取的所有幀動作。"
+	_frame_list.tooltip_text = tr("點選一幀;Ctrl+點 加選、Shift+點 選一段。複製、貼上到別的動作、複製一份、刪除、前後移動、圖片處理都對選取的所有幀動作。")
 	_frame_list.multi_selected.connect(_on_frame_multi_selected)
 	left.add_child(_frame_list)
 	left.add_child(_build_animation_settings())
@@ -348,7 +348,7 @@ func _build_action_source_row() -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	var label := Label.new()
-	label.text = "動作共用"
+	label.text = tr("動作共用")
 	label.custom_minimum_size.x = ManagerUi.LABEL_WIDTH
 	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(label)
@@ -429,7 +429,7 @@ func _build_animation_settings() -> Control:
 	box.add_child(ManagerUi.heading_with_info("動畫設定", "播放速度:這個動作每秒播幾幀。循環方式:\n・整段循環:從第一幀播到最後一幀,再回到第一幀(預設)。\n・從指定幀循環:第一次從第 0 幀播到「循環終點」幀,之後每次都從「循環起點」幀接回來,只在起點~終點之間循環(例如 2~4:0 1 2 3 4 2 3 4 2 3 4…;終點之後的幀不會播)。\n・播一次,停在指定幀:播到那一幀就停住,直到動作被切換(例如坐下做好後不再動)。\n・循環 N 次:整段動畫重複播 N 次(填 0 = 只播一次、不循環)後停在最後一幀,直到動作被切換;和「播一次,停在指定幀」不同的地方是這個一定播完整段、可以重複好幾輪。\n幀編號就是幀清單縮圖上的數字。設定只影響遊戲裡的播放;預覽動畫裡「循環 N 次」為了方便看清楚會一直重複播放,不會自動停(遊戲裡才會真的停)。"))
 	_fps_spin = ManagerUi.spin(1.0, 1.0, 60.0)
 	_fps_spin.value = DEFAULT_PREVIEW_FPS
-	_fps_spin.tooltip_text = "這個動作的播放速度(每秒幾幀),存進 pack.json 的 fps_by_action;預覽動畫也用這個速度。"
+	_fps_spin.tooltip_text = tr("這個動作的播放速度(每秒幾幀),存進 pack.json 的 fps_by_action;預覽動畫也用這個速度。")
 	_fps_spin.value_changed.connect(_on_fps_changed)
 	box.add_child(ManagerUi.labeled("速度 FPS", _fps_spin))
 	_loop_mode = OptionButton.new()
@@ -528,24 +528,24 @@ func _build_right() -> Control:
 	column.add_theme_constant_override("separation", 6)
 	_right_tabs = TabContainer.new()
 	_right_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_right_tabs.tooltip_text = "功能頁籤:編輯(軸心、圖片偏移)、圖片(翻轉旋轉裁切)、判定框、光源、配件、圖層。"
+	_right_tabs.tooltip_text = tr("功能頁籤:編輯(軸心、圖片偏移)、圖片(翻轉旋轉裁切)、判定框、光源、配件、圖層。")
 	column.add_child(_right_tabs)
 	var right := _new_tab("編輯")
 	_mode_option = OptionButton.new()
-	_mode_option.add_item("移動視角畫面")
-	_mode_option.add_item("移動軸心(腳底線 / 中心點)")
-	_mode_option.add_item("移動圖片")
-	_mode_option.add_item("調整判定框")
-	_mode_option.add_item("裁切圖片")
-	_mode_option.add_item("調整光源錨點")
-	_mode_option.add_item("調整配件位置")
-	_mode_option.tooltip_text = "移動視角畫面:左鍵拖曳平移畫面,不會改到任何資料(預設;中鍵、右鍵拖曳也可以平移)。\n移動軸心:改「圖片上哪一點是腳底」,判定框與坐下都以它為準。\n移動圖片:軸心(腳底線、坐下判定、配件錨點)不動,只有圖片相對它平移。\n調整判定框:拖曳綠框的邊或角改大小,拖曳框裡面移動(整個素材包共用一個)。\n裁切圖片:在畫布上拖出要保留的範圍,再按「套用裁切」。\n調整光源錨點:拖曳畫布上的光源圓點(或用方向鍵)改位置,光的大小、亮度、顏色在右邊「光源」區。"
+	_mode_option.add_item(tr("移動視角畫面"))
+	_mode_option.add_item(tr("移動軸心(腳底線 / 中心點)"))
+	_mode_option.add_item(tr("移動圖片"))
+	_mode_option.add_item(tr("調整判定框"))
+	_mode_option.add_item(tr("裁切圖片"))
+	_mode_option.add_item(tr("調整光源錨點"))
+	_mode_option.add_item(tr("調整配件位置"))
+	_mode_option.tooltip_text = tr("移動視角畫面:左鍵拖曳平移畫面,不會改到任何資料(預設;中鍵、右鍵拖曳也可以平移)。\n移動軸心:改「圖片上哪一點是腳底」,判定框與坐下都以它為準。\n移動圖片:軸心(腳底線、坐下判定、配件錨點)不動,只有圖片相對它平移。\n調整判定框:拖曳綠框的邊或角改大小,拖曳框裡面移動(整個素材包共用一個)。\n裁切圖片:在畫布上拖出要保留的範圍,再按「套用裁切」。\n調整光源錨點:拖曳畫布上的光源圓點(或用方向鍵)改位置,光的大小、亮度、顏色在右邊「光源」區。")
 	_mode_option.item_selected.connect(_on_mode_selected)
 	right.add_child(ManagerUi.labeled("模式", _mode_option))
 	_scope_option = OptionButton.new()
-	_scope_option.add_item("只有這一幀")
-	_scope_option.add_item("整個動作(所有幀共用)")
-	_scope_option.tooltip_text = "軸心與圖片偏移的改動要寫給這一幀,還是整個動作共用一個值(會清掉這個動作底下逐幀的舊設定)。"
+	_scope_option.add_item(tr("只有這一幀"))
+	_scope_option.add_item(tr("整個動作(所有幀共用)"))
+	_scope_option.tooltip_text = tr("軸心與圖片偏移的改動要寫給這一幀,還是整個動作共用一個值(會清掉這個動作底下逐幀的舊設定)。")
 	right.add_child(ManagerUi.labeled("套用範圍", _scope_option))
 	_pivot_x = ManagerUi.spin(1.0, 0.0, 4096.0)
 	_pivot_y = ManagerUi.spin(1.0, 0.0, 4096.0)
@@ -581,7 +581,7 @@ func _build_right() -> Control:
 	_undo_button.tooltip_text = tr("Ctrl+Z(最多 %d 步)") % PackEditorModel.UNDO_LIMIT
 	_undo_button.pressed.connect(_undo)
 	_redo_button = ManagerUi.button("↷ 重做")
-	_redo_button.tooltip_text = "Ctrl+Y 或 Ctrl+Shift+Z"
+	_redo_button.tooltip_text = tr("Ctrl+Y 或 Ctrl+Shift+Z")
 	_redo_button.pressed.connect(_redo)
 	history_row.add_child(_undo_button)
 	history_row.add_child(_redo_button)
@@ -672,21 +672,21 @@ func _build_right() -> Control:
 		zoom_row.add_child(control)
 	right.add_child(zoom_row)
 	_ghost_check = CheckBox.new()
-	_ghost_check.text = "顯示上一幀殘影(對齊用)"
+	_ghost_check.text = tr("顯示上一幀殘影(對齊用)")
 	_ghost_check.button_pressed = true
 	_ghost_check.toggled.connect(func(on: bool) -> void:
 		_canvas.show_ghost = on
 		_canvas.queue_redraw())
 	right.add_child(_ghost_check)
 	var lights_check := CheckBox.new()
-	lights_check.text = "顯示光源"
+	lights_check.text = tr("顯示光源")
 	lights_check.button_pressed = true
 	lights_check.toggled.connect(func(on: bool) -> void:
 		_canvas.show_lights = on
 		_canvas.queue_redraw())
 	right.add_child(lights_check)
 	var hitbox_check := CheckBox.new()
-	hitbox_check.text = "顯示判定框"
+	hitbox_check.text = tr("顯示判定框")
 	hitbox_check.button_pressed = true
 	hitbox_check.toggled.connect(func(on: bool) -> void:
 		_canvas.show_hitbox = on
@@ -748,10 +748,10 @@ func _build_fx_section(right: VBoxContainer) -> void:
 	right.add_child(ManagerUi.heading_with_info("圖片處理(選取的幀)", "作用在左邊選取的所有幀(可複選)。只寫在 pack.json 的 frames 項目(fx 欄位),不改原圖檔;已設定的軸心會跟著換算;可以撤回。"))
 	var flip_row := HBoxContainer.new()
 	var flip_h := ManagerUi.button("↔ 水平翻轉")
-	flip_h.tooltip_text = "左右對調。再按一次就翻回來。"
+	flip_h.tooltip_text = tr("左右對調。再按一次就翻回來。")
 	flip_h.pressed.connect(func() -> void: _apply_fx_op({"op": "h"}, "已水平翻轉"))
 	var flip_v := ManagerUi.button("↕ 垂直翻轉")
-	flip_v.tooltip_text = "上下對調。再按一次就翻回來。"
+	flip_v.tooltip_text = tr("上下對調。再按一次就翻回來。")
 	flip_v.pressed.connect(func() -> void: _apply_fx_op({"op": "v"}, "已垂直翻轉"))
 	flip_row.add_child(flip_h)
 	flip_row.add_child(flip_v)
@@ -762,11 +762,11 @@ func _build_fx_section(right: VBoxContainer) -> void:
 	_rotate_spin.allow_lesser = false
 	_rotate_spin.value = 90.0
 	_rotate_spin.suffix = "°"
-	_rotate_spin.tooltip_text = "順時針旋轉的角度(負數 = 逆時針)。90 的倍數是無損的;其他角度畫布會放大到裝得下整張圖,空白處透明。"
+	_rotate_spin.tooltip_text = tr("順時針旋轉的角度(負數 = 逆時針)。90 的倍數是無損的;其他角度畫布會放大到裝得下整張圖,空白處透明。")
 	var rotate_button := ManagerUi.button("↻ 旋轉")
 	rotate_button.pressed.connect(func() -> void:
 		if is_zero_approx(_rotate_spin.value):
-			_status.text = "旋轉角度是 0,什麼都不會改變"
+			_status.text = tr("旋轉角度是 0,什麼都不會改變")
 			return
 		_apply_fx_op({"op": "r", "degrees": _rotate_spin.value}, tr("已旋轉 %s°") % _zoom_text(_rotate_spin.value)))
 	rotate_row.add_child(_rotate_spin)
@@ -787,7 +787,7 @@ func _build_fx_section(right: VBoxContainer) -> void:
 	right.add_child(crop_grid)
 	var crop_row := HBoxContainer.new()
 	var crop_apply := ManagerUi.button("套用裁切")
-	crop_apply.tooltip_text = "把選取的幀都裁成這個範圍(超出圖片的部分截掉)。裁切模式下按 Enter 也可以。"
+	crop_apply.tooltip_text = tr("把選取的幀都裁成這個範圍(超出圖片的部分截掉)。裁切模式下按 Enter 也可以。")
 	crop_apply.pressed.connect(_apply_crop)
 	var crop_clear := ManagerUi.button("清掉裁切框")
 	crop_clear.pressed.connect(func() -> void: _set_crop_ui(Rect2i()))
@@ -799,7 +799,7 @@ func _build_fx_section(right: VBoxContainer) -> void:
 	_fx_label.theme_type_variation = AppSettings.WARN_LABEL
 	right.add_child(_fx_label)
 	var fx_clear := ManagerUi.button("還原圖片處理(回到原圖)")
-	fx_clear.tooltip_text = "拿掉選取的幀的所有裁切、翻轉、旋轉。這些幀手動設定過的軸心是相對處理後的圖,會一併回到自動軸心。"
+	fx_clear.tooltip_text = tr("拿掉選取的幀的所有裁切、翻轉、旋轉。這些幀手動設定過的軸心是相對處理後的圖,會一併回到自動軸心。")
 	fx_clear.pressed.connect(_clear_fx)
 	right.add_child(fx_clear)
 	_fx_buttons = [flip_h, flip_v, rotate_button, crop_apply, crop_clear, fx_clear]
@@ -950,7 +950,7 @@ func guard_unsaved(proceed: Callable, action_text := "繼續") -> void:
 		return
 	_guard_dialog = ConfirmationDialog.new()
 	# 不設 always_on_top,見 _ask_name() 的說明(跟置頂衝突,會把視窗卡死)。
-	_guard_dialog.title = "有未存的變更"
+	_guard_dialog.title = tr("有未存的變更")
 	_guard_dialog.dialog_text = tr("目前的素材包有還沒存檔的變更。\n要先存檔再%s、放棄這些變更直接%s,還是取消?") % [action_text, action_text]
 	_guard_dialog.ok_button_text = tr("存檔後%s") % action_text
 	_guard_dialog.cancel_button_text = "取消"
@@ -1032,7 +1032,7 @@ func _finish_dialog(dialog: PackImportDialog) -> void:
 	dialog.confirmed.connect(dialog.queue_free)
 	dialog.canceled.connect(dialog.queue_free)
 	if is_inside_tree() and DisplayServer.get_name() != "headless":
-		FloatingWindow.popup_child_dialog(self, get_window(), dialog, Vector2i(540, 640) if dialog.title == "匯入精靈圖" else Vector2i(540, 220))
+		FloatingWindow.popup_child_dialog(self, get_window(), dialog, Vector2i(540, 640) if dialog.title == tr("匯入精靈圖") else Vector2i(540, 220))
 
 
 func _existing_actions() -> Array[String]:
@@ -1068,8 +1068,8 @@ func _build_prop_panel(right: VBoxContainer) -> void:
 	_prop_panel.add_child(ManagerUi.heading_with_info("道具狀態動畫", "預設:道具待著時一直循環。被使用:和桌寵交互時播(被拾取時、摩擦觸發時)。拖曳中:被滑鼠抓著移動時才播。被使用與拖曳中可以設播放次數,以及「觸發」(進入狀態時播幾次就回預設)或「循環」(狀態持續期間一直循環)。沒有放圖的狀態就不播;預設狀態一定要有圖,進階貼圖才會生效(沒有就用簡單版的一張圖)。"))
 	for state: String in ["used", "drag"]:
 		var mode := OptionButton.new()
-		mode.add_item("觸發時播放")
-		mode.add_item("循環播放")
+		mode.add_item(tr("觸發時播放"))
+		mode.add_item(tr("循環播放"))
 		var count := ManagerUi.spin(1.0, 1.0, PropDef.MAX_STATE_COUNT)
 		count.suffix = " 次(觸發式)"
 		mode.item_selected.connect(func(_i: int) -> void: _edit_prop_state(state))
@@ -1103,13 +1103,13 @@ func _edit_prop_state(state: String) -> void:
 func _build_furniture_panel(panel: VBoxContainer) -> void:
 	panel.add_child(ManagerUi.heading_with_info("家具狀態動畫", "normal(平時):一直循環播放,家具沒有觸發條件時就是這個樣子。conditional(條件成立時):一直循環播放,例如檯燈亮起來、迪斯可燈在轉;觸發條件(指定時段、有桌寵在做某個動作…)在家具庫視窗設定,不在這裡。interacted(被使用時):素材可以先準備,這批還沒有東西會讓桌寵去用家具、播放這個狀態。沒有放圖的狀態就不播;normal 一定要有圖。"))
 	var open_library := ManagerUi.button("開啟家具庫…")
-	open_library.tooltip_text = "去家具庫視窗改名稱、觸發方式(時段/動作代號)、標籤、縮放倍率、放上桌面。"
+	open_library.tooltip_text = tr("去家具庫視窗改名稱、觸發方式(時段/動作代號)、標籤、縮放倍率、放上桌面。")
 	open_library.pressed.connect(func() -> void: furniture_settings_requested.emit())
 	panel.add_child(open_library)
 	_furn_no_anchor_warning = Label.new()
 	_furn_no_anchor_warning.theme_type_variation = AppSettings.WARN_LABEL
 	_furn_no_anchor_warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_furn_no_anchor_warning.text = "⚠ 這件家具還沒有坐/躺位置(去「坐躺位置」頁加),桌寵沒辦法用它坐下或躺下。"
+	_furn_no_anchor_warning.text = tr("⚠ 這件家具還沒有坐/躺位置(去「坐躺位置」頁加),桌寵沒辦法用它坐下或躺下。")
 	panel.add_child(_furn_no_anchor_warning)
 
 
@@ -1126,7 +1126,7 @@ func _build_furniture_anchor_section(right: VBoxContainer) -> void:
 	var anchor_buttons := HBoxContainer.new()
 	_furn_anchor_type = OptionButton.new()
 	for kind: String in FurnitureDef.ANCHOR_TYPES:
-		_furn_anchor_type.add_item("坐" if kind == "sit" else "躺")
+		_furn_anchor_type.add_item(tr("坐") if kind == "sit" else tr("躺"))
 		_furn_anchor_type.set_item_metadata(_furn_anchor_type.item_count - 1, kind)
 	anchor_buttons.add_child(_furn_anchor_type)
 	_furn_anchor_add = ManagerUi.button("＋ 新增")
@@ -1152,7 +1152,7 @@ func _build_furniture_anchor_section(right: VBoxContainer) -> void:
 	right.add_child(action_row)
 	_furn_anchor_facing = OptionButton.new()
 	for facing: String in FurnitureDef.ANCHOR_FACINGS:
-		_furn_anchor_facing.add_item({"both": "兩者(隨機擇一)", "left": "左", "right": "右"}[facing])
+		_furn_anchor_facing.add_item({"both": tr("兩者(隨機擇一)"), "left": tr("左"), "right": tr("右")}[facing])
 		_furn_anchor_facing.set_item_metadata(_furn_anchor_facing.item_count - 1, facing)
 	_furn_anchor_facing.item_selected.connect(func(_i: int) -> void: _edit_furn_anchor_facing())
 	var facing_row := ManagerUi.labeled("使用時面向", _furn_anchor_facing)
@@ -1191,8 +1191,8 @@ func _build_furniture_light_section(right: VBoxContainer) -> void:
 	pos_row.add_child(_furn_light_y)
 	right.add_child(ManagerUi.labeled("座標(X,Y)", pos_row))
 	_furn_light_frame_unlock = CheckBox.new()
-	_furn_light_frame_unlock.text = "單獨調整此幀"
-	_furn_light_frame_unlock.tooltip_text = "第 0 幀(或還沒解鎖的幀)的半徑/亮度/顏色/是否亮著都跟著這盞燈的預設值(或動作槽的判斷)走。勾選這裡才能單獨改目前這一幀,不影響其他幀;取消勾選會清掉這一幀的所有覆蓋。「是否亮著」比較特別:單獨調整過可以雙向覆蓋動作槽原本的判斷——即使動作槽判斷這一幀該暗,解鎖後還是可以單獨打開,反之亦然。"
+	_furn_light_frame_unlock.text = tr("單獨調整此幀")
+	_furn_light_frame_unlock.tooltip_text = tr("第 0 幀(或還沒解鎖的幀)的半徑/亮度/顏色/是否亮著都跟著這盞燈的預設值(或動作槽的判斷)走。勾選這裡才能單獨改目前這一幀,不影響其他幀;取消勾選會清掉這一幀的所有覆蓋。「是否亮著」比較特別:單獨調整過可以雙向覆蓋動作槽原本的判斷——即使動作槽判斷這一幀該暗,解鎖後還是可以單獨打開,反之亦然。")
 	_furn_light_frame_unlock.toggled.connect(_on_furn_light_frame_unlock_toggled)
 	right.add_child(_furn_light_frame_unlock)
 	_furn_light_radius = ManagerUi.spin(1.0, FurnitureDef.LIGHT_LIMITS["radius"].x, FurnitureDef.LIGHT_LIMITS["radius"].y)
@@ -1207,13 +1207,13 @@ func _build_furniture_light_section(right: VBoxContainer) -> void:
 	_furn_light_color.color_changed.connect(func(color: Color) -> void: _edit_furn_light_scoped("color", "#" + color.to_html(false)))
 	right.add_child(ManagerUi.labeled("光源顏色", _furn_light_color))
 	_furn_light_frame_enabled = CheckBox.new()
-	_furn_light_frame_enabled.text = "亮著(單獨調整此幀時生效)"
-	_furn_light_frame_enabled.tooltip_text = "只有勾選「單獨調整此幀」時才能改;決定這一幀要不要亮,雙向覆蓋動作槽原本的判斷。"
+	_furn_light_frame_enabled.text = tr("亮著(單獨調整此幀時生效)")
+	_furn_light_frame_enabled.tooltip_text = tr("只有勾選「單獨調整此幀」時才能改;決定這一幀要不要亮,雙向覆蓋動作槽原本的判斷。")
 	_furn_light_frame_enabled.toggled.connect(func(on: bool) -> void: _edit_furn_light_scoped("enabled", on))
 	right.add_child(_furn_light_frame_enabled)
 	_furn_light_shape = OptionButton.new()
 	for kind: String in FurnitureDef.LIGHT_SHAPES:
-		_furn_light_shape.add_item("圓形" if kind == "radial" else "扇形")
+		_furn_light_shape.add_item(tr("圓形") if kind == "radial" else tr("扇形"))
 		_furn_light_shape.set_item_metadata(_furn_light_shape.item_count - 1, kind)
 	_furn_light_shape.item_selected.connect(func(i: int) -> void:
 		_edit_furn_light("shape", str(_furn_light_shape.get_item_metadata(i)))
@@ -1228,7 +1228,7 @@ func _build_furniture_light_section(right: VBoxContainer) -> void:
 	_furn_light_angle_row.add_child(ManagerUi.labeled("扇形張角", _furn_light_spread))
 	right.add_child(_furn_light_angle_row)
 	_furn_above_light = CheckBox.new()
-	_furn_above_light.text = "貼圖蓋在光暈之上(預設光暈疊在貼圖上面)"
+	_furn_above_light.text = tr("貼圖蓋在光暈之上(預設光暈疊在貼圖上面)")
 	_furn_above_light.toggled.connect(func(on: bool) -> void:
 		if _updating or _furniture_def == null:
 			return
@@ -1236,8 +1236,8 @@ func _build_furniture_light_section(right: VBoxContainer) -> void:
 		_save_furniture())
 	right.add_child(_furn_above_light)
 	_furn_render_above_ui = CheckBox.new()
-	_furn_render_above_ui.text = "顯示在桌寵與對話氣泡之上"
-	_furn_render_above_ui.tooltip_text = "平時家具會被桌寵、對話氣泡蓋住;勾選後改畫在最上層,協助自製 UI(例如當成一塊固定貼在畫面上的相框/邊框)。編輯模式拖曳、光源、坐躺、容器都不受影響,純粹只是換一個畫面圖層。"
+	_furn_render_above_ui.text = tr("顯示在桌寵與對話氣泡之上")
+	_furn_render_above_ui.tooltip_text = tr("平時家具會被桌寵、對話氣泡蓋住;勾選後改畫在最上層,協助自製 UI(例如當成一塊固定貼在畫面上的相框/邊框)。編輯模式拖曳、光源、坐躺、容器都不受影響,純粹只是換一個畫面圖層。")
 	_furn_render_above_ui.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_furn_render_above_ui.toggled.connect(func(on: bool) -> void:
 		if _updating or _furniture_def == null:
@@ -1378,9 +1378,9 @@ func _sync_furn_light_slot_visibility(slot_name: String) -> void:
 func _build_furn_light_slot_row(right: VBoxContainer, slot_name: String) -> void:
 	const SLOT_LABELS := {"normal_0": "平時", "conditional_0": "條件成立時", "interacted_0": "使用中(尚未接上播放)"}
 	var mode_option := OptionButton.new()
-	mode_option.add_item("不啟用")
-	mode_option.add_item("一直啟用")
-	mode_option.add_item("指定幀範圍啟用")
+	mode_option.add_item(tr("不啟用"))
+	mode_option.add_item(tr("一直啟用"))
+	mode_option.add_item(tr("指定幀範圍啟用"))
 	mode_option.item_selected.connect(func(i: int) -> void:
 		_edit_furn_light_slot(slot_name, "mode", FurnitureDef.LIGHT_SLOT_MODES[i])
 		_sync_furn_light_slot_visibility(slot_name))
@@ -1724,7 +1724,7 @@ func _rebuild_action_list() -> void:
 			still_empty.append(extra)
 	_extra_slots = still_empty
 	if not others.is_empty() or not _extra_slots.is_empty():
-		_action_list.add_item("── 自訂動作 ──")
+		_action_list.add_item(tr("── 自訂動作 ──"))
 		_action_list.set_item_disabled(_action_list.item_count - 1, true)
 		_action_rows.append({"action": "", "slot": "", "header": true})
 		for action_name in others:
@@ -1801,12 +1801,12 @@ func add_custom_action(action_name: String) -> String:
 func _ask_action_name(on_chosen: Callable) -> void:
 	var dialog := ConfirmationDialog.new()
 	# 不設 always_on_top,見 _ask_name() 的說明(跟置頂衝突,會把視窗卡死)。
-	dialog.title = "新增自訂動作"
+	dialog.title = tr("新增自訂動作")
 	dialog.ok_button_text = "新增"
 	dialog.cancel_button_text = "取消"
 	var box := VBoxContainer.new()
 	var label := Label.new()
-	label.text = "動作名稱(英數、底線、連字號;會出現在網頁編輯器的動作下拉選單):"
+	label.text = tr("動作名稱(英數、底線、連字號;會出現在網頁編輯器的動作下拉選單):")
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.custom_minimum_size.x = 380.0
 	box.add_child(label)
@@ -1913,7 +1913,7 @@ func _refresh_all() -> void:
 	_clean_button.disabled = not has_pack
 	_save_button.disabled = not has_pack
 	_add_action_button.disabled = not has_pack
-	_pack_label.text = _model.root if has_pack else "(還沒有開啟素材包)"
+	_pack_label.text = _model.root if has_pack else tr("(還沒有開啟素材包)")
 	_pack_label.tooltip_text = _pack_label.text
 	if not has_pack:
 		_canvas.hint_text = "還沒有開啟素材包。\n用上方的「從資料夾匯入…」開啟現有的,\n或「新建資料夾…」從空白開始,再用「匯入圖片…」「匯入精靈圖…」放圖進來。"
@@ -1970,7 +1970,7 @@ func _refresh_frame() -> void:
 			frame_name, _index + 1, count, size.x, size.y,
 			int(frame_data["auto_pivot"].x), int(frame_data["auto_pivot"].y), "  ·  已手動設定" if _model.has_explicit(_action, _index) else ""]
 	var fx := _model.fx_text(_action, _index)
-	_fx_label.text = tr("這一幀的圖片處理:%s") % fx if fx != "" else "這一幀沒有圖片處理(原圖)"
+	_fx_label.text = tr("這一幀的圖片處理:%s") % fx if fx != "" else tr("這一幀沒有圖片處理(原圖)")
 	_update_fx_buttons()
 	_update_crop_limits(size)
 
@@ -2004,7 +2004,7 @@ func _refresh_hitbox() -> void:
 	_hitbox_x.value = (box["offset"] as Vector2).x
 	_hitbox_y.value = (box["offset"] as Vector2).y
 	_updating = false
-	_hitbox_state.text = "已設定" if box["explicit"] else "目前是自動(待機幀本體大小),改任何數字就會變成手動設定"
+	_hitbox_state.text = tr("已設定") if box["explicit"] else tr("目前是自動(待機幀本體大小),改任何數字就會變成手動設定")
 
 
 func _on_hitbox_spin_changed() -> void:
@@ -2026,7 +2026,7 @@ func _on_canvas_hitbox_edited(rect: Rect2) -> void:
 	_hitbox_x.value = (box["offset"] as Vector2).x
 	_hitbox_y.value = (box["offset"] as Vector2).y
 	_updating = false
-	_hitbox_state.text = "已設定"
+	_hitbox_state.text = tr("已設定")
 	_after_edit("")
 
 
@@ -2059,8 +2059,8 @@ func _build_light_section(right: VBoxContainer) -> void:
 	_light_scope_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	right.add_child(_light_scope_label)
 	_light_frame_unlock = CheckBox.new()
-	_light_frame_unlock.text = "單獨調整此幀"
-	_light_frame_unlock.tooltip_text = "第 0 幀(或還沒解鎖的幀)的位置/半徑/亮度/顏色/是否亮著都跟著這盞光的預設值走。勾選這裡才能單獨改目前這一幀,不影響其他幀;取消勾選會清掉這一幀的所有覆蓋,退回預設值(即使預設值是熄燈,解鎖後這一幀還是可以單獨打開)。"
+	_light_frame_unlock.text = tr("單獨調整此幀")
+	_light_frame_unlock.tooltip_text = tr("第 0 幀(或還沒解鎖的幀)的位置/半徑/亮度/顏色/是否亮著都跟著這盞光的預設值走。勾選這裡才能單獨改目前這一幀,不影響其他幀;取消勾選會清掉這一幀的所有覆蓋,退回預設值(即使預設值是熄燈,解鎖後這一幀還是可以單獨打開)。")
 	_light_frame_unlock.toggled.connect(_on_light_frame_unlock_toggled)
 	right.add_child(_light_frame_unlock)
 	right.add_child(ManagerUi.labeled("錨點 X(右為正)", _light_x))
@@ -2077,8 +2077,8 @@ func _build_light_section(right: VBoxContainer) -> void:
 	_light_color.color_changed.connect(func(color: Color) -> void: _edit_light_scoped("color", "#" + color.to_html(false), "light_color"))
 	right.add_child(ManagerUi.labeled("顏色", _light_color))
 	_light_behind_body = CheckBox.new()
-	_light_behind_body.text = "疊在角色後面"
-	_light_behind_body.tooltip_text = "預設光暈疊在角色前面(蓋住身體);勾選這裡改成疊在角色與配件的「後面」圖層之後(像從角色身後透出來的光)。整盞光的設定,不分幀。"
+	_light_behind_body.text = tr("疊在角色後面")
+	_light_behind_body.tooltip_text = tr("預設光暈疊在角色前面(蓋住身體);勾選這裡改成疊在角色與配件的「後面」圖層之後(像從角色身後透出來的光)。整盞光的設定,不分幀。")
 	_light_behind_body.toggled.connect(func(on: bool) -> void: _edit_light("layer", "back" if on else "front", "light_layer"))
 	right.add_child(_light_behind_body)
 	_light_action = OptionButton.new()
@@ -2094,7 +2094,7 @@ func _build_light_section(right: VBoxContainer) -> void:
 	_light_cond_id.text_changed.connect(func(text: String) -> void: _edit_light("cond_id", text.strip_edges(), "light_cond_id"))
 	cond_row.add_child(_light_cond_id)
 	_light_cond_copy = ManagerUi.button("複製 ID")
-	_light_cond_copy.tooltip_text = "把目前的 ID 複製到剪貼簿,貼到網頁積木編輯器的「條件光源」積木裡。"
+	_light_cond_copy.tooltip_text = tr("把目前的 ID 複製到剪貼簿,貼到網頁積木編輯器的「條件光源」積木裡。")
 	_light_cond_copy.pressed.connect(func() -> void:
 		if _light_cond_id.text.strip_edges() != "":
 			DisplayServer.clipboard_set(_light_cond_id.text.strip_edges())
@@ -2102,13 +2102,13 @@ func _build_light_section(right: VBoxContainer) -> void:
 	cond_row.add_child(_light_cond_copy)
 	right.add_child(ManagerUi.labeled("ID", cond_row))
 	_light_enabled = CheckBox.new()
-	_light_enabled.text = "啟用這盞光"
-	_light_enabled.tooltip_text = "整盞光的總開關;關掉之後,不管套用範圍或分幀設定都不會亮。要「這個動作大部分時間亮、只有某幾幀暗掉」,總開關留著開,改用上面「套用範圍」選這一幀,把下面的「亮著」關掉。"
+	_light_enabled.text = tr("啟用這盞光")
+	_light_enabled.tooltip_text = tr("整盞光的總開關;關掉之後,不管套用範圍或分幀設定都不會亮。要「這個動作大部分時間亮、只有某幾幀暗掉」,總開關留著開,改用上面「套用範圍」選這一幀,把下面的「亮著」關掉。")
 	_light_enabled.toggled.connect(func(on: bool) -> void: _edit_light("enabled", on, "light_enabled"))
 	right.add_child(_light_enabled)
 	_light_frame_enabled = CheckBox.new()
-	_light_frame_enabled.text = "亮著(在目前套用範圍那一層)"
-	_light_frame_enabled.tooltip_text = "在上面「套用範圍」選的那一層,這盞光要不要亮。用來做「指定幀熄燈」:套用範圍選這一幀,關掉這裡。"
+	_light_frame_enabled.text = tr("亮著(在目前套用範圍那一層)")
+	_light_frame_enabled.tooltip_text = tr("在上面「套用範圍」選的那一層,這盞光要不要亮。用來做「指定幀熄燈」:套用範圍選這一幀,關掉這裡。")
 	_light_frame_enabled.toggled.connect(func(on: bool) -> void: _edit_light_scoped("enabled", on, "light_frame_enabled"))
 	right.add_child(_light_frame_enabled)
 
@@ -2128,7 +2128,7 @@ func _build_accessory_section(right: VBoxContainer) -> void:
 	right.add_child(_acc_list)
 	var buttons := HBoxContainer.new()
 	_acc_add = ManagerUi.button("＋ 新增配件…")
-	_acc_add.tooltip_text = "選一張或多張圖片(多張會循環播放)做成一個新配件,放在角色頭部上方。"
+	_acc_add.tooltip_text = tr("選一張或多張圖片(多張會循環播放)做成一個新配件,放在角色頭部上方。")
 	_acc_add.pressed.connect(func() -> void:
 		FloatingWindow.native_file_dialog("選擇配件圖片(可多選)", "", DisplayServer.FILE_DIALOG_MODE_OPEN_FILES, PackedStringArray([IMAGE_FILTER]),
 				func(paths: PackedStringArray) -> void: add_accessory(Array(paths)), get_window_id()))
@@ -2159,7 +2159,7 @@ func _build_accessory_section(right: VBoxContainer) -> void:
 	_acc_scope = OptionButton.new()
 	for label in ["整個配件(預設位置)", "只有目前這個動作", "只有目前這一幀(跟著動畫每一幀)"]:
 		_acc_scope.add_item(label)
-	_acc_scope.tooltip_text = "拖曳畫布或改下面座標時,寫進哪一層:整個配件共用一個位置;或只改目前這個動作(例如舉手動作時帽子要換位置);或只改目前這一幀(動畫每一幀配件位置不同)。執行時優先順序:這一幀 > 這個動作 > 整個配件。"
+	_acc_scope.tooltip_text = tr("拖曳畫布或改下面座標時,寫進哪一層:整個配件共用一個位置;或只改目前這個動作(例如舉手動作時帽子要換位置);或只改目前這一幀(動畫每一幀配件位置不同)。執行時優先順序:這一幀 > 這個動作 > 整個配件。")
 	_acc_scope.item_selected.connect(func(_i: int) -> void: _refresh_anchor_widgets())
 	right.add_child(ManagerUi.labeled("位置套用範圍", _acc_scope))
 	_acc_scope_label = Label.new()
@@ -2167,7 +2167,7 @@ func _build_accessory_section(right: VBoxContainer) -> void:
 	_acc_scope_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	right.add_child(_acc_scope_label)
 	_acc_scope_clear = ManagerUi.button("清除這一層的位置")
-	_acc_scope_clear.tooltip_text = "把上面選的範圍(動作層或幀層)的設定拿掉,回到比較上層的位置。"
+	_acc_scope_clear.tooltip_text = tr("把上面選的範圍(動作層或幀層)的設定拿掉,回到比較上層的位置。")
 	_acc_scope_clear.pressed.connect(_clear_anchor_scope)
 	right.add_child(_acc_scope_clear)
 	right.add_child(ManagerUi.labeled("錨點 X(右為正)", _acc_x))
@@ -2187,7 +2187,7 @@ func _build_accessory_section(right: VBoxContainer) -> void:
 	_acc_fps.value_changed.connect(func(value: float) -> void: _edit_accessory("fps", value, "acc_fps"))
 	right.add_child(ManagerUi.labeled("多張圖的播放速度(fps)", _acc_fps))
 	_acc_loop = CheckBox.new()
-	_acc_loop.text = "循環播放(取消 = 播到最後一張停住)"
+	_acc_loop.text = tr("循環播放(取消 = 播到最後一張停住)")
 	_acc_loop.toggled.connect(func(on: bool) -> void: _edit_accessory("loop", on, "acc_loop"))
 	right.add_child(_acc_loop)
 	var image_row := HBoxContainer.new()
@@ -2237,7 +2237,7 @@ func _refresh_accessories() -> void:
 	_updating = true
 	_acc_list.clear()
 	for part: Dictionary in _accs:
-		_acc_list.add_item("%s(%s)" % [part.get("name", "?"), ["配件", "眨眼", "說話"][maxi(ACC_ROLES.find(str(part.get("role", "part"))), 0)]])
+		_acc_list.add_item("%s(%s)" % [part.get("name", "?"), [tr("配件"), tr("眨眼"), tr("說話")][maxi(ACC_ROLES.find(str(part.get("role", "part"))), 0)]])
 	if _acc_index >= 0:
 		_acc_list.select(_acc_index)
 	var has_part := _acc_index >= 0 and _acc_index < _accs.size()
@@ -2446,14 +2446,14 @@ func _build_layers_section(right: VBoxContainer) -> void:
 	_layer_down = ManagerUi.button("▼ 下移")
 	_layer_down.pressed.connect(func() -> void: _move_layer(-1))
 	_layer_eye = ManagerUi.button("🚫 預覽隱藏")
-	_layer_eye.tooltip_text = "在這個編輯器的預覽裡隱藏 / 顯示選取的圖層(不存檔)。"
+	_layer_eye.tooltip_text = tr("在這個編輯器的預覽裡隱藏 / 顯示選取的圖層(不存檔)。")
 	_layer_eye.pressed.connect(_toggle_layer_preview)
 	for control in [_layer_up, _layer_down, _layer_eye]:
 		row.add_child(control)
 	right.add_child(row)
 	var add_row := HBoxContainer.new()
 	var add := ManagerUi.button("＋ 新增圖層…")
-	add.tooltip_text = "選一張或多張圖片做成一個新圖層(配件),放在本體上面;再用畫布或「配件」頁籤調位置。"
+	add.tooltip_text = tr("選一張或多張圖片做成一個新圖層(配件),放在本體上面;再用畫布或「配件」頁籤調位置。")
 	add.pressed.connect(func() -> void:
 		FloatingWindow.native_file_dialog("選擇圖層圖片(可多選)", "", DisplayServer.FILE_DIALOG_MODE_OPEN_FILES, PackedStringArray([IMAGE_FILTER]),
 				func(paths: PackedStringArray) -> void: add_accessory(Array(paths)), get_window_id()))
@@ -2463,7 +2463,7 @@ func _build_layers_section(right: VBoxContainer) -> void:
 	add_row.add_child(delete)
 	right.add_child(add_row)
 	_layer_game = CheckBox.new()
-	_layer_game.text = "在遊戲裡顯示這個圖層(取消 = 暫時停用)"
+	_layer_game.text = tr("在遊戲裡顯示這個圖層(取消 = 暫時停用)")
 	_layer_game.button_pressed = true
 	_layer_game.toggled.connect(_edit_layer_game)
 	right.add_child(_layer_game)
@@ -2514,7 +2514,7 @@ func _refresh_layers() -> void:
 	_layer_down.disabled = not has_part or not bool(PackLayers.move(_accs, _acc_index, -1)["changed"])
 	_layer_eye.disabled = not has_part and not _layer_body_focus
 	var hidden_now := _body_hidden if _layer_body_focus else (has_part and bool(_layer_hidden.get(str(_accs[_acc_index].get("name", "")), false)))
-	_layer_eye.text = "👁 預覽顯示" if hidden_now else "🚫 預覽隱藏"
+	_layer_eye.text = tr("👁 預覽顯示") if hidden_now else tr("🚫 預覽隱藏")
 	_layer_game.disabled = not has_part
 	_layer_game.button_pressed = not has_part or not (_accs[_acc_index].get("visible") is bool and not bool(_accs[_acc_index]["visible"]))
 	_layer_note.text = tr("本體是動作的幀(在「動作」「幀」清單選),不能移動或停用。") if _layer_body_focus else ""
@@ -2582,7 +2582,7 @@ func _edit_layer_game(on: bool) -> void:
 func _build_hold_section(right: VBoxContainer) -> void:
 	right.add_child(ManagerUi.heading_with_info("持有錨點(手拿道具的位置)", "桌寵拿著可持有的道具時,道具畫在這個位置(跟著縮放、鏡像、爬牆旋轉)。座標和光源錨點一樣:相對腳底線中心、縮放前像素、右與下為正。不勾自訂就用自動位置(判定框前側、胸口高度)。"))
 	_hold_check = CheckBox.new()
-	_hold_check.text = "自訂持有錨點"
+	_hold_check.text = tr("自訂持有錨點")
 	_hold_check.toggled.connect(func(on: bool) -> void: _edit_hold(on))
 	right.add_child(_hold_check)
 	_hold_x = ManagerUi.spin(1.0, -PackLights.MAX_COORD, PackLights.MAX_COORD)
@@ -2635,11 +2635,11 @@ func _refresh_lights() -> void:
 	_updating = true
 	_light_list.clear()
 	for light in _lights:
-		_light_list.add_item("%s%s" % [light["name"], "" if bool(light["enabled"]) else "(停用)"])
+		_light_list.add_item("%s%s" % [light["name"], "" if bool(light["enabled"]) else tr("(停用)")])
 	if _light_index >= 0:
 		_light_list.select(_light_index)
 	_light_action.clear()
-	_light_action.add_item("(一直亮)")
+	_light_action.add_item(tr("(一直亮)"))
 	if _model.has_pack():
 		for action_name in _model.action_names():
 			_light_action.add_item(str(action_name))
@@ -2950,7 +2950,7 @@ func _apply_fx_op(op: Dictionary, message: String) -> void:
 func _apply_crop() -> void:
 	var rect := _canvas.crop_rect()
 	if rect.size.x < 1 or rect.size.y < 1:
-		_status.text = "還沒有裁切範圍:在「裁切圖片」模式的畫布上拖曳,或填數字"
+		_status.text = tr("還沒有裁切範圍:在「裁切圖片」模式的畫布上拖曳,或填數字")
 		return
 	_apply_fx_op({"op": "c", "rect": rect}, tr("已裁切成 %d×%d") % [rect.size.x, rect.size.y])
 	_set_crop_ui(Rect2i())
@@ -2962,7 +2962,7 @@ func _clear_fx() -> void:
 	var picked := _selected_frames()
 	var count := _model.clear_fx(_action, picked)
 	if count == 0:
-		_status.text = "選取的幀本來就沒有圖片處理"
+		_status.text = tr("選取的幀本來就沒有圖片處理")
 		return
 	_after_frames_changed(picked, tr("已還原 %d 幀的圖片處理(手動軸心一併回到自動)") % count)
 
@@ -3051,7 +3051,7 @@ func _copy_selected() -> void:
 	if _action == "":
 		return
 	var count := _model.copy_frames(_action, _selected_frames())
-	_status.text = tr("已複製 %d 幀(可以切到別的動作再貼上)") % count if count > 0 else "沒有可複製的幀"
+	_status.text = tr("已複製 %d 幀(可以切到別的動作再貼上)") % count if count > 0 else tr("沒有可複製的幀")
 	_update_frame_buttons()
 
 
@@ -3065,7 +3065,7 @@ func _paste_target() -> String:
 func _paste() -> void:
 	var target := _paste_target()
 	if target == "" or _model.clipboard.is_empty():
-		_status.text = "剪貼簿是空的:先選幀按「複製」" if _model.clipboard.is_empty() else "先選一個動作(或動作槽)再貼上"
+		_status.text = tr("剪貼簿是空的:先選幀按「複製」") if _model.clipboard.is_empty() else tr("先選一個動作(或動作槽)再貼上")
 		return
 	var picked := _selected_frames() if _action != "" else ([] as Array[int])
 	var at := picked[picked.size() - 1] + 1 if not picked.is_empty() else -1
@@ -3192,7 +3192,7 @@ func _on_replace_sheet_pressed() -> void:
 	if not _model.has_pack():
 		return
 	if _model.sheets_in_use().is_empty():
-		_status.text = "這個素材包沒有使用精靈圖(用「匯入精靈圖…」切出來的動作才有)"
+		_status.text = tr("這個素材包沒有使用精靈圖(用「匯入精靈圖…」切出來的動作才有)")
 		return
 	_show_file_dialog("選擇新的精靈圖(尺寸要和原本的一樣)", DisplayServer.FILE_DIALOG_MODE_OPEN_FILE, PackedStringArray([IMAGE_FILTER]), _on_replace_picked)
 
@@ -3209,7 +3209,7 @@ func replace_sheet_with(new_source: String) -> void:
 		return
 	var dialog := ConfirmationDialog.new()
 	# 不設 always_on_top,見 _ask_name() 的說明(跟置頂衝突,會把視窗卡死)。
-	dialog.title = "要換哪一張精靈圖?"
+	dialog.title = tr("要換哪一張精靈圖?")
 	var choice := OptionButton.new()
 	for sheet_path in sheets:
 		choice.add_item(sheet_path)
@@ -3268,10 +3268,10 @@ func _on_clean_pressed() -> void:
 	var list := _model.unused_files()
 	var own_files_actions := _model.actions_with_own_files()
 	if list.is_empty() and own_files_actions.is_empty():
-		_status.text = "沒有未使用的檔案。"
+		_status.text = tr("沒有未使用的檔案。")
 		return
 	var dialog := ConfirmationDialog.new()
-	dialog.title = "清理未使用檔案"
+	dialog.title = tr("清理未使用檔案")
 	dialog.ok_button_text = "搬到備份"
 	dialog.cancel_button_text = "取消"
 	# 不設 always_on_top,見 _ask_name() 的說明(跟置頂衝突,會把視窗卡死)。
@@ -3313,7 +3313,7 @@ func _build_clear_action_row(host: Window, action_names: Array[String]) -> Contr
 func _confirm_clear_action(action_name: String, host: Window) -> void:
 	var files := _model.own_files_of(action_name)
 	var confirm := ConfirmationDialog.new()
-	confirm.title = "清除動作的檔案"
+	confirm.title = tr("清除動作的檔案")
 	confirm.ok_button_text = "清除並搬到備份"
 	confirm.cancel_button_text = "取消"
 	# 不設 always_on_top,見 _ask_name() 的說明(跟置頂衝突,會把視窗卡死)。
@@ -3336,7 +3336,7 @@ func clean_unused() -> String:
 	if str(result["error"]) != "":
 		_status.text = tr("清理失敗:%s") % result["error"]
 		return str(result["error"])
-	_status.text = tr("已把 %d 個未使用的檔案搬到備份:%s") % [result["moved"], result["backup"]] if int(result["moved"]) > 0 else "沒有未使用的檔案。"
+	_status.text = tr("已把 %d 個未使用的檔案搬到備份:%s") % [result["moved"], result["backup"]] if int(result["moved"]) > 0 else tr("沒有未使用的檔案。")
 	return ""
 
 
@@ -3366,7 +3366,7 @@ func _redo() -> void:
 func _after_history(message: String) -> void:
 	_reload_lists()
 	_refresh_all()
-	_status.text = message + ("" if _model.dirty else "(回到已存檔的內容)")
+	_status.text = message + ("" if _model.dirty else tr("(回到已存檔的內容)"))
 
 
 func _update_history_buttons() -> void:
@@ -3377,7 +3377,7 @@ func _update_history_buttons() -> void:
 
 func _after_edit(message: String) -> void:
 	_refresh_frame_labels_only()
-	_status.text = message if message != "" else "有未存的變更"
+	_status.text = message if message != "" else tr("有未存的變更")
 	if message != "":
 		_refresh_frame()
 
@@ -3412,7 +3412,7 @@ func _warn_about_limits_after_save() -> void:
 
 
 func _on_play_toggled(on: bool) -> void:
-	_play_button.text = "■ 停止預覽" if on else "▶ 預覽動畫"
+	_play_button.text = tr("■ 停止預覽") if on else tr("▶ 預覽動畫")
 	if on:
 		_play_timer.start()
 	else:

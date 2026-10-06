@@ -875,6 +875,98 @@
           "加油加油!"
         ]
       }
+    ],
+    "topicLines": [
+      {
+        "condition": "",
+        "text": "{tag:問候語}！今天過得好嗎？",
+        "en": "{tag:問候語}! How has your day been?"
+      },
+      {
+        "condition": "",
+        "text": "{tag:愛好}的事情，有空可以多聊聊喔～",
+        "en": "{tag:愛好}—let's talk more about it when we have time~"
+      },
+      {
+        "condition": "",
+        "text": "{tag:食物}最好吃的時候，就是跟朋友一起吃的時候，對吧？",
+        "en": "{tag:食物} tastes best when you eat it with friends, right?"
+      },
+      {
+        "condition": "",
+        "text": "{tag:格言}，我覺得很適合拿來鼓勵自己和別人。",
+        "en": "{tag:格言}—I think it's a great saying to encourage myself and others with."
+      },
+      {
+        "condition": "",
+        "text": "oO（大家都好好的就好了。）",
+        "en": "oO（As long as everyone is doing well.）"
+      },
+      {
+        "condition": "好感度30～99",
+        "text": "{you}今天有沒有什麼開心的事？說來聽聽～",
+        "en": "Did anything happy happen to {you} today? Tell me~"
+      },
+      {
+        "condition": "好感度30～99",
+        "text": "{you}喜歡{tag:愛好}嗎？改天一起試試看吧！",
+        "en": "Does {you} like {tag:愛好}? Let's try it together another day!"
+      },
+      {
+        "condition": "好感度大於100",
+        "text": "{user}，謝謝你一直陪我。我很珍惜這份相處。",
+        "en": "{user}, thank you for always spending time with me. I treasure this."
+      },
+      {
+        "condition": "好感度大於100",
+        "text": "{user}說過的{tag:user:願望}，我也會替你加油喔！",
+        "en": "The {tag:user:願望} {user} mentioned, I'll cheer you on for it too!"
+      },
+      {
+        "condition": "好感度大於150",
+        "text": "{user}的「{tag:user:約定}」，我一直都放在心上。",
+        "en": "{user}'s \"{tag:user:約定}\", I've kept it close to my heart."
+      },
+      {
+        "condition": "喜好對象在行動區內",
+        "text": "{liked}！好久不見，今天也一起愉快地過吧～",
+        "en": "{liked}! It's been a while. Let's have a happy day together today~"
+      },
+      {
+        "condition": "喜好對象在行動區內，好惡等級喜歡以上",
+        "text": "{liked}，要不要一起聊聊{tag:話題|愛好}？",
+        "en": "{liked}, want to talk about {tag:話題|愛好} together?"
+      },
+      {
+        "condition": "喜好對象不在行動區",
+        "text": "oO（{liked}不在，下次遇到要記得打招呼。）",
+        "en": "oO（{liked} isn't here… I'll say hi next time I see them.）"
+      },
+      {
+        "condition": "厭惡對象在行動區內，好惡等級有點討厭",
+        "text": "{disliked}也在呢。大家都和和氣氣的最好了。",
+        "en": "{disliked} is here too. It's best when everyone gets along."
+      },
+      {
+        "condition": "厭惡對象在行動區內，好惡等級討厭以下",
+        "text": "{disliked}，我們能好好相處嗎？試著互相體諒一下吧。",
+        "en": "{disliked}, can we get along? Let's try to understand each other."
+      },
+      {
+        "condition": "厭惡對象不在行動區",
+        "text": "oO（{disliked}不在也好，我可以安心地跟大家打招呼。）",
+        "en": "oO（{disliked} isn't here either, so I can greet everyone with peace of mind.）"
+      },
+      {
+        "condition": "普通對象在行動區內",
+        "text": "{neutral}，你好呀！今天也請多指教～",
+        "en": "{neutral}, hi there! Nice to see you today too~"
+      },
+      {
+        "condition": "心情閾值低",
+        "text": "oO（心情有點低落……但看到大家還是會打起精神。）",
+        "en": "oO（I'm feeling a bit down… but seeing everyone still gives me energy.）"
+      }
     ]
   }
 }
