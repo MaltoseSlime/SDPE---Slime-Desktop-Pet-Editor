@@ -20,6 +20,7 @@ var _alarm_list: ItemList
 var _alarm_delete: Button
 var _language_option: OptionButton
 var _fps_spin: SpinBox
+var _relax_fps_check: CheckBox
 var _monitor_option: OptionButton
 var _autostart_check: CheckBox
 var _lights_check: CheckBox
@@ -196,6 +197,18 @@ func _build_performance() -> void:
 		AppSettings.set_max_fps(int(value))
 		message.emit(tr("最高影格率已設成 %d fps。") % int(value)))
 	add_child(ManagerUi.labeled("最高影格率", _fps_spin))
+	_relax_fps_check = CheckBox.new()
+	_relax_fps_check.text = tr("放鬆模式時降低影格率(最高 %d fps)") % AppSettings.RELAX_FPS
+	_relax_fps_check.toggled.connect(func(on: bool) -> void:
+		if _updating:
+			return
+		AppSettings.set_relax_low_fps(on)
+		message.emit(tr("放鬆模式時會降低影格率。") if on else tr("放鬆模式時不再降低影格率。")))
+	var relax_row := HBoxContainer.new()
+	relax_row.add_theme_constant_override("separation", 6)
+	relax_row.add_child(_relax_fps_check)
+	relax_row.add_child(InfoIcon.new(tr("放鬆模式:讓桌寵安靜待著、少佔效能的模式。開啟位置:系統匣圖示右鍵選單 >「全體行為」>「放鬆模式」。\n\n放鬆模式開著時:\n・桌寵更常坐下或去用行動區裡能坐的家具,偶爾起身換個座位(會挑喜歡的對象附近、避開討厭的對象)。\n・「自動閒聊」開著的話,照常閒聊、互相邀請玩小遊戲(坐著也會);只有球不玩,也不會起身去追喜歡的道具(仍然可以餵食)。\n・桌寵之間不會互相跟隨(手動叫牠「跟著滑鼠」仍然可以)。\n・不會跳出帶選項的對話,也不會問稱呼或關鍵詞。\n・特效粒子減少,省略非必要的行為判斷。\n\n勾選這一項後,放鬆模式期間還會把最高影格率降到 %d fps,更省 CPU;代價是動畫和拖曳會比較不順。關掉放鬆模式就恢復上面設定的影格率。") % AppSettings.RELAX_FPS))
+	add_child(relax_row)
 	_lights_check = CheckBox.new()
 	_lights_check.text = tr("啟用光源(角色身上的發光效果;關掉可以省效能)")
 	_lights_check.toggled.connect(func(on: bool) -> void:
@@ -542,6 +555,7 @@ func _load_into_widgets() -> void:
 		if str(_language_option.get_item_metadata(i)) == AppSettings.language():
 			_language_option.select(i)
 	_fps_spin.value = AppSettings.max_fps()
+	_relax_fps_check.button_pressed = AppSettings.relax_low_fps()
 	_refresh_monitor_options()
 	_autostart_check.button_pressed = AutoStart.is_enabled()
 	_lights_check.button_pressed = AppSettings.lights_enabled()

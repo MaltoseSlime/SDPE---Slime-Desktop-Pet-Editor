@@ -602,6 +602,7 @@
       ],
       "idle_hop_chance": 0.04,
       "idle_sit_chance": 0.4,
+      "favor_streak_threshold": 4,
       "introvert_mood_rule": true,
       "invite_best_of_weights": {
         "1": 0.8,

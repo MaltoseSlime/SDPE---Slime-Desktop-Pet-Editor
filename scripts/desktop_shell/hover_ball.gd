@@ -30,6 +30,7 @@ const MENU_ITEMS: Array[Array] = [
 	["manager", "桌寵管理…"],
 	["props", "道具管理…"],
 	["furniture", "家具庫…"],
+	["hide_outside_furniture", "隱藏行動區外的家具"],
 	["settings", "全局設定…"],
 	["tester", "測試者面板…"],
 	["pack_editor", "精靈圖編輯器…"],
@@ -43,6 +44,11 @@ var _fraction := Vector2(0.94, 0.9)
 var _expanded := false
 var _leave_timer := 0.0
 var _inventory_open := false
+## 「隱藏行動區外的家具」目前開著沒有(只給選單畫勾勾用,真正的狀態在 FurnitureManager,由 DesktopShell 同步過來)。
+var hide_outside_furniture := false:
+	set(value):
+		hide_outside_furniture = value
+		queue_redraw()
 var _defs: Array[PropDef] = []
 var _icons: Dictionary = {}
 var _refresh_left := 0.0
@@ -377,6 +383,9 @@ func _run_action(action: String) -> void:
 	if action == "inventory":
 		set_inventory_open(not _inventory_open)
 		return
+	if action == "hide_outside_furniture":
+		action_requested.emit(action)   # 開關型:選單留著,勾勾當場變給使用者看
+		return
 	_expanded = false
 	if action == "clear_props":
 		_manager.clear_all()
@@ -414,6 +423,8 @@ func _draw() -> void:
 			var label := tr(str(entry[1]))
 			if str(entry[0]) == "inventory":
 				label = ("✔ " if _inventory_open else "") + label
+			elif str(entry[0]) == "hide_outside_furniture":
+				label = ("✔ " if hide_outside_furniture else "") + label
 			draw_string(font, local_row.position + Vector2(12.0, MENU_ROW * 0.68), label, HORIZONTAL_ALIGNMENT_LEFT, MENU_WIDTH - 16.0, 15, text_color)
 	if _inventory_open and _rects.has("panel"):
 		var panel: Rect2 = _rects["panel"]

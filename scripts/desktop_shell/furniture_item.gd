@@ -35,6 +35,23 @@ var _interacted_left := 0.0
 ## 效果套用紀錄(見 FurnitureDef.aura_effects 檔頭的防呆說明):鍵是 "<桌寵 instance id>:<效果索引>",
 ## 值是套用前的原始數值(還原用)。只存在記憶體裡,不存檔——重開程式/場景自然從頭乾淨判定,見防呆②。
 var _aura_state: Dictionary = {}
+## 「隱藏行動區外的家具」開著、這件又在行動區外(見 FurnitureManager.hide_outside_area):整件當作不在場——
+## 不顯示(光源一起)、容器打不開、不算進穿透形狀、桌寵不能用、效果(aura)也先還原。只由 FurnitureManager 設定。
+var area_hidden := false
+
+
+## 見 area_hidden。
+func set_area_hidden(value: bool) -> void:
+	if area_hidden == value:
+		return
+	area_hidden = value
+	visible = not value
+	if value:
+		# 正坐/躺在上面的桌寵先下來,不然會固定在一件看不見的家具上。
+		for holder: Variant in _anchor_holders.values().duplicate():
+			if is_instance_valid(holder) and holder.has_method("stop_using_furniture"):
+				holder.stop_using_furniture()
+	evaluate()
 
 
 func setup(new_def: FurnitureDef, frames: SpriteFrames) -> void:
@@ -146,7 +163,7 @@ func evaluate() -> void:
 		var is_full := def.anchors.size() > 0 and _anchor_holders.size() >= def.anchors.size()
 		wants_conditional = FurnitureCondition.evaluate(def.condition, minute, actions, in_use, is_full) and has_conditional
 	_play(&"conditional_0" if wants_conditional else &"normal_0")
-	_apply_aura(wants_conditional)
+	_apply_aura(wants_conditional and not area_hidden)
 
 
 ## 效果(見 FurnitureDef.aura_effects):is_active = 家具現在是不是「條件成立」的狀態。每次重新掃一遍場上
@@ -287,7 +304,7 @@ func _play(animation: StringName) -> void:
 ## 沒有任何空位回傳 -1(坐滿,呼叫端照原本的規則處理)。
 func claim_anchor(pet: Node, wanted_type: String) -> int:
 	_prune_anchor_holders()
-	if def == null:
+	if def == null or area_hidden:
 		return -1
 	var best := -1
 	var best_gap := -1.0
@@ -337,7 +354,7 @@ func release_anchor(pet: Node) -> void:
 ## 給「把桌寵拖到家具上放開就自動使用」判定用(拖曳結束時只知道放開的座標,不知道使用者想選哪個錨點,用最近的猜)。
 func nearest_free_anchor_type(point: Vector2) -> String:
 	_prune_anchor_holders()
-	if def == null:
+	if def == null or area_hidden:
 		return ""
 	var best_type := ""
 	var best_dist := INF

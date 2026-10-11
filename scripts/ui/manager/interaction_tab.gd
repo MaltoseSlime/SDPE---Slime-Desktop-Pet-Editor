@@ -40,17 +40,25 @@ var _ignore_furniture_check: CheckBox
 var _no_follow_target_check: CheckBox
 var _no_follow_source_check: CheckBox
 var _no_topic_mention_check: CheckBox
+var _silent_check: CheckBox
 var _reaction_list: VBoxContainer
 var _reaction_window: ReactionDialogueWindow
 var _reaction_boxes: Dictionary = {}   # reactions 陣列索引 → TextEdit
 var _characters: Array[Dictionary] = []
 var _props: Array[PropDef] = []
+## 2026-10-11:對象桌寵不在這台電腦上的項目(見 PetReferences)預設藏起來,按「顯示」才列出來。
+var _show_missing := false
+var _known_pets: Dictionary = {}
 var _keyword_rows: KeywordRows
 var _keyword_count: Label
 var _user_keyword_rows: KeywordRows
 var _topic_rows: TopicRows
 var _topic_window: TopicLinesWindow
 var _topic_button: Button
+var _topic_generic_check: CheckBox
+var _topic_generic_button: Button
+var _topic_generic_window: TopicLinesWindow
+var _topic_generic_rows: TopicRows
 var _user_keyword_count: Label
 
 
@@ -179,6 +187,11 @@ func _build_toggle_card() -> void:
 	_no_topic_mention_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_no_topic_mention_check.toggled.connect(func(_pressed: bool) -> void: _commit_toggles())
 	box.add_child(_no_topic_mention_check)
+	_silent_check = CheckBox.new()
+	_silent_check.text = tr("靜默(不說任何對話:閒聊、反應、話題、玩球與對戰的台詞全部不說,性格帶來的台詞也一樣;被其他桌寵邀請對戰時不回話但照常接受或拒絕,自己不主動邀請。右鍵選單的占卜、抽籤、計時照常回應)")
+	_silent_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_silent_check.toggled.connect(func(_pressed: bool) -> void: _commit_toggles())
+	box.add_child(_silent_check)
 	var follow_note := Label.new()
 	follow_note.text = tr("固定模式底下這兩個「不跟隨」開關與「不主動使用家具」都會自動打開,靜止模式只自動打開這兩個「不跟隨」開關(拖去用家具還是會用);切回其他模式後會換回你在這裡自己設定的值。")
 	follow_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -196,6 +209,7 @@ func _commit_toggles() -> void:
 	rules["no_follow_target"] = _no_follow_target_check.button_pressed
 	rules["no_follow_source"] = _no_follow_source_check.button_pressed
 	rules["no_topic_mention"] = _no_topic_mention_check.button_pressed
+	rules["silent"] = _silent_check.button_pressed
 	_apply(rules)
 
 
@@ -237,6 +251,18 @@ func _build_reaction_dialogue_card() -> void:
 	_topic_button = ManagerUi.button("")
 	_topic_button.pressed.connect(_open_topic_window)
 	box.add_child(_topic_button)
+	# 通用話題池:勾了才會在自己的話題文本之外一起用;內容每隻桌寵可以各自改(見 Pet.topic_use_generic)。
+	var generic_row := HBoxContainer.new()
+	generic_row.add_theme_constant_override("separation", 6)
+	_topic_generic_check = CheckBox.new()
+	_topic_generic_check.text = tr("也使用通用話題池的內容")
+	_topic_generic_check.toggled.connect(_on_topic_generic_toggled)
+	generic_row.add_child(_topic_generic_check)
+	generic_row.add_child(InfoIcon.new(tr("通用話題池是所有桌寵共用的一組話題句。沒勾:這隻桌寵有自己的話題文本(性格帶來的,或你在上面改過的)時只說自己的;完全沒有自己的話題文本時才用通用話題池。勾了:自己的話題文本之外,也會說通用話題池的句子。按右邊的按鈕可以改這隻桌寵的通用話題池內容(只影響這一隻);事件管理也會把通用話題池的句子列出來。")))
+	_topic_generic_button = ManagerUi.button("")
+	_topic_generic_button.pressed.connect(_open_topic_generic_window)
+	generic_row.add_child(_topic_generic_button)
+	box.add_child(generic_row)
 	_update_topic_button()
 
 
@@ -488,6 +514,9 @@ func _reload() -> void:
 	var rules: Dictionary = _pet.interaction_rules
 	_ignore_props_check.button_pressed = bool(rules.get("ignore_props", false))
 	_no_topic_mention_check.button_pressed = bool(rules.get("no_topic_mention", false))
+	_silent_check.button_pressed = bool(rules.get("silent", false))
+	if _topic_generic_check != null:
+		_topic_generic_check.button_pressed = _pet.topic_use_generic
 	_ignore_furniture_check.button_pressed = bool(rules.get("ignore_furniture", false))
 	_no_follow_target_check.button_pressed = bool(rules.get("no_follow_target", false))
 	_no_follow_source_check.button_pressed = bool(rules.get("no_follow_source", false))
@@ -625,8 +654,10 @@ func _load_keywords() -> void:
 	if _user_keyword_rows != null:
 		_user_keyword_rows.set_data(_pet.user_keywords, _pet.user_keyword_tags)
 	_update_topic_button()
-	if _topic_window != null and _topic_window.visible:
-		_topic_rows.set_data(_pet.topic_lines_effective())
+	if _topic_window != null and is_instance_valid(_topic_window) and _topic_window.visible:
+		_topic_rows.set_data(_pet.topic_lines_own())
+	if _topic_generic_window != null and is_instance_valid(_topic_generic_window) and _topic_generic_window.visible:
+		_topic_generic_rows.set_data(_pet.topic_generic_lines())
 	_loading = was_loading
 	_update_keyword_count()
 
@@ -744,14 +775,28 @@ func _rebuild_lists() -> void:
 	for child in _prop_list.get_children():
 		child.queue_free()
 	var rules: Dictionary = _pet.interaction_rules
+	_known_pets = PetReferences.known_pets(get_tree())
+	var hidden_characters := 0
 	for entry: Dictionary in rules["characters"]:
+		var tag := str(entry["tag"])
+		var missing := not _known_pets.has(tag)
+		if missing and not _show_missing:
+			hidden_characters += (entry["lines"] as Array).size()
+			continue
 		for i in (entry["lines"] as Array).size():
-			var tag := str(entry["tag"])
 			var index := i
-			_char_list.add_child(_row(tr("遇見 %s:「%s」") % [entry["name"], entry["lines"][i]], func() -> void: remove_character_line(tag, index)))
+			if missing:
+				_char_list.add_child(_missing_row(tr("遇見 %s(找不到這隻桌寵):「%s」") % [entry["name"], entry["lines"][i]],
+						func(anchor: Control) -> void: _open_pet_relink_menu(anchor, "characters", tag), func() -> void: remove_character_line(tag, index)))
+			else:
+				_char_list.add_child(_row(tr("遇見 %s:「%s」") % [entry["name"], entry["lines"][i]], func() -> void: remove_character_line(tag, index)))
+	_add_missing_footer(_char_list, hidden_characters, missing_character_count(rules))
 	_rebuild_prefs(rules)
 	_rebuild_pet_prefs(rules)
 	var rule_index := 0
+	var prop_names := {}
+	for def in _props:
+		prop_names[def.display_name] = true
 	for rule: Dictionary in rules["props"]:
 		var index := rule_index
 		var parts: Array[String] = []
@@ -759,8 +804,115 @@ func _rebuild_lists() -> void:
 			parts.append(tr("說「%s」") % rule["line"])
 		if str(rule["action"]) != "":
 			parts.append(tr("做 %s(%s)") % [rule["action"], tr("持續") if bool(rule["persist"]) else tr("一次")])
-		_prop_list.add_child(_row("%s · %s:%s" % [rule["prop"], InteractionRules.PROP_KINDS[rule["kind"]], "、".join(parts)], func() -> void: remove_prop_rule(index)))
+		var text := "%s · %s:%s" % [rule["prop"], tr(str(InteractionRules.PROP_KINDS[rule["kind"]])), "、".join(parts)]
+		if prop_names.has(rule["prop"]):
+			_prop_list.add_child(_row(text, func() -> void: remove_prop_rule(index)))
+		else:
+			# 物品欄裡沒有這個名字的道具(例如別人分享的角色):標成(空),可以重新連結到現有的道具。
+			var old_name := str(rule["prop"])
+			_prop_list.add_child(_missing_row(tr(PetReferences.EMPTY_LABEL) + text, func(anchor: Control) -> void: _open_prop_rule_relink_menu(anchor, old_name), func() -> void: remove_prop_rule(index)))
 		rule_index += 1
+
+
+## 交互行為裡指到「不認得的桌寵」的台詞句數(給底下那行提示與測試用)。
+func missing_character_count(rules: Dictionary) -> int:
+	var known := PetReferences.known_pets(get_tree())
+	var count := 0
+	for entry: Dictionary in rules.get("characters", []):
+		if not known.has(str(entry["tag"])):
+			count += (entry["lines"] as Array).size()
+	return count
+
+
+## 清單底下的提示列:「有 N 項的對象桌寵不在這台電腦上」+ 顯示 / 隱藏。total = 0 就不加。
+func _add_missing_footer(list: VBoxContainer, hidden: int, total: int) -> void:
+	if total <= 0:
+		return
+	var row := HBoxContainer.new()
+	var label := Label.new()
+	label.text = tr("有 %d 項的對象桌寵不在這台電腦上,已暫時隱藏;匯入那隻桌寵後會自動恢復。") % total if hidden > 0 else tr("灰色的 %d 項:對象桌寵不在這台電腦上,匯入那隻桌寵後會自動恢復,也可以重新指向別的桌寵。") % total
+	label.theme_type_variation = AppSettings.MUTED_LABEL
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.custom_minimum_size.x = CARD_WIDTH - 110.0
+	row.add_child(label)
+	var toggle := ManagerUi.button("隱藏" if _show_missing else "顯示")
+	toggle.pressed.connect(func() -> void:
+		_show_missing = not _show_missing
+		_rebuild_lists())
+	row.add_child(toggle)
+	list.add_child(row)
+
+
+## 指不到對象的一列:灰色文字 + 重新指向 + ✕。on_relink 會收到按鈕本身(選單要貼著它跳出來)。
+func _missing_row(text: String, on_relink: Callable, on_remove: Callable) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	var label := Label.new()
+	label.text = text
+	label.theme_type_variation = AppSettings.MUTED_LABEL
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.custom_minimum_size.x = CARD_WIDTH - 190.0
+	row.add_child(label)
+	var relink := ManagerUi.button("重新指向…")
+	relink.pressed.connect(func() -> void: on_relink.call(relink))
+	row.add_child(relink)
+	var remove := ManagerUi.button("✕")
+	remove.tooltip_text = tr("刪除這一條")
+	remove.pressed.connect(on_remove)
+	row.add_child(remove)
+	return row
+
+
+## 把交互行為裡指到 old_ref 的項目改指到 new_ref(section 見 PetReferences.retarget_rules)。回傳錯誤文字,空字串 = 成功。
+func relink_reference(section: String, old_ref: String, new_ref: String, new_name := "") -> String:
+	if _pet == null:
+		return "沒有選桌寵"
+	var rules := _rules()
+	var error := PetReferences.retarget_rules(rules, section, old_ref, new_ref, new_name)
+	if error != "":
+		return error
+	_apply(rules)
+	return ""
+
+
+func _open_pet_relink_menu(anchor: Control, section: String, old_tag: String) -> void:
+	var menu := PopupMenu.new()
+	var candidates: Array[Dictionary] = []
+	var taken := {}
+	if section == "pet_prefs":
+		for entry: Dictionary in (_pet.interaction_rules as Dictionary)["pet_prefs"]:
+			taken[str(entry["target"])] = true
+	for character: Dictionary in _characters:
+		if not taken.has(character["tag"]):
+			candidates.append(character)
+			menu.add_item(str(character["name"]))
+	if candidates.is_empty():
+		menu.add_item(tr("(沒有可以指向的桌寵)"))
+		menu.set_item_disabled(0, true)
+	menu.index_pressed.connect(func(index: int) -> void:
+		var error := relink_reference(section, old_tag, str(candidates[index]["tag"]), str(candidates[index]["name"]))
+		if error != "":
+			message.emit(error)
+		menu.queue_free())
+	menu.close_requested.connect(menu.queue_free)
+	add_child(menu)
+	menu.popup(Rect2i(Vector2i(anchor.get_screen_position()) + Vector2i(0, int(anchor.size.y)), Vector2i(180, 0)))
+
+
+func _open_prop_rule_relink_menu(anchor: Control, old_name: String) -> void:
+	var menu := PopupMenu.new()
+	for def in _props:
+		menu.add_item(def.display_name)
+	if _props.is_empty():
+		menu.add_item(tr("(沒有可以連結的道具)"))
+		menu.set_item_disabled(0, true)
+	menu.index_pressed.connect(func(index: int) -> void:
+		relink_reference("props", old_name, _props[index].display_name)
+		menu.queue_free())
+	menu.close_requested.connect(menu.queue_free)
+	add_child(menu)
+	menu.popup(Rect2i(Vector2i(anchor.get_screen_position()) + Vector2i(0, int(anchor.size.y)), Vector2i(180, 0)))
 
 
 ## 設定對某個道具的喜好(pref = "like" / "dislike" / "" = 沒特別)。回傳錯誤文字,空字串 = 成功。
@@ -901,9 +1053,20 @@ func _rebuild_pet_prefs(rules: Dictionary) -> void:
 		var tag := str(character["tag"])
 		known[tag] = true
 		_add_pet_pref_row(tag, str(character["name"]), rules)
+	# 角色庫裡沒有、但正在桌面上的桌寵(範例桌寵、庫外素材包):認得,只是不在上面那串清單裡。
+	var missing_total := 0
+	for entry: Dictionary in rules.get("pet_prefs", []):
+		if not known.has(str(entry.get("target", ""))) and not _known_pets.has(str(entry.get("target", ""))):
+			missing_total += 1
 	for entry: Dictionary in rules.get("pet_prefs", []):
 		var target := str(entry.get("target", ""))
 		if known.has(target):
+			continue
+		if _known_pets.has(target):
+			known[target] = true
+			_add_pet_pref_row(target, str(_known_pets[target]), rules)
+			continue
+		if not _show_missing:
 			continue
 		var row := HBoxContainer.new()
 		var label := Label.new()
@@ -912,11 +1075,15 @@ func _rebuild_pet_prefs(rules: Dictionary) -> void:
 		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		label.clip_text = true
 		row.add_child(label)
+		var relink := ManagerUi.button("重新指向…")
+		relink.pressed.connect(func() -> void: _open_pet_relink_menu(relink, "pet_prefs", target))
+		row.add_child(relink)
 		var remove := ManagerUi.button("✕")
 		remove.tooltip_text = tr("移除這一項")
 		remove.pressed.connect(func() -> void: set_pet_pref(target, "", 0))
 		row.add_child(remove)
 		_pet_pref_list.add_child(row)
+	_add_missing_footer(_pet_pref_list, 0 if _show_missing else missing_total, missing_total)
 
 
 func _open_relink_menu(anchor: Control, old_id: String) -> void:
@@ -959,8 +1126,16 @@ func _row(text: String, on_remove: Callable) -> HBoxContainer:
 func _update_topic_button() -> void:
 	if _topic_button == null:
 		return
-	var count: int = _pet.topic_lines_effective().size() if _pet != null else 0
-	_topic_button.text = tr("話題文本…(%d 句)") % count
+	var count: int = _pet.topic_lines_own().size() if _pet != null else 0
+	# 性格分頁把話題文本設成「不套用」時,這裡整區停用(內容都還留著,切回來就能用)
+	var off: bool = _pet != null and bool(_pet.topic_off)
+	_topic_button.text = tr("話題文本…(已在「性格」分頁設為不套用)") if off else tr("話題文本…(%d 句)") % count
+	_topic_button.disabled = off
+	if _topic_generic_button != null:
+		_topic_generic_button.text = tr("通用話題池…(%d 句)") % (_pet.topic_generic_lines().size() if _pet != null else 0)
+		_topic_generic_button.disabled = off
+	if _topic_generic_check != null:
+		_topic_generic_check.disabled = off
 
 
 ## 打開話題文本視窗並載入目前桌寵的話題文本(每次打開都重新載入,保證跟桌寵一致)。
@@ -972,9 +1147,39 @@ func _open_topic_window() -> void:
 	if not _topic_window.changed.is_connected(_on_topics_edited):
 		_topic_window.changed.connect(_on_topics_edited)
 	_loading = true
-	_topic_rows.set_data(_pet.topic_lines_effective())
+	_topic_rows.set_data(_pet.topic_lines_own())
 	_loading = false
 	_update_topic_button()
+
+
+## 打開「通用話題池」視窗,載入這隻桌寵的通用話題池(改過的版本,沒改過就是內建的)。
+func _open_topic_generic_window() -> void:
+	if _pet == null:
+		return
+	_topic_generic_window = ManagerUi.open_topic_lines_window(self, true)
+	_topic_generic_rows = _topic_generic_window.rows
+	if not _topic_generic_window.changed.is_connected(_on_topic_generic_edited):
+		_topic_generic_window.changed.connect(_on_topic_generic_edited)
+	_loading = true
+	_topic_generic_rows.set_data(_pet.topic_generic_lines())
+	_loading = false
+	_update_topic_button()
+
+
+## 通用話題池被編輯:寫成這隻桌寵自己的通用話題池版本(只影響這一隻)。
+func _on_topic_generic_edited() -> void:
+	if _loading or _pet == null:
+		return
+	_pet.set_topic_generic_custom(_topic_generic_rows.get_data())
+	_update_topic_button()
+	changed.emit()
+
+
+func _on_topic_generic_toggled(pressed: bool) -> void:
+	if _loading or _pet == null:
+		return
+	_pet.topic_use_generic = pressed
+	changed.emit()
 
 
 ## 話題文本被編輯:整理後寫到桌寵身上(見 TopicRows.get_data)。

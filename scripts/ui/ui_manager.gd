@@ -326,7 +326,8 @@ func _open_prompt_window(pet: Node, request: Dictionary, ticket: RefCounted) -> 
 	_prompt_window = TextPromptWindow.new()
 	add_child(_prompt_window)
 	_prompt_pet = pet
-	_prompt_window.setup(pet.get_label(), str(request.get("prompt", "")), str(request.get("default", "")), int(request.get("max_length", PetText.DEFAULT_MAX_LENGTH)), ticket)
+	_prompt_window.setup(pet.get_label(), str(request.get("prompt", "")), str(request.get("default", "")), int(request.get("max_length", PetText.DEFAULT_MAX_LENGTH)), ticket, bool(request.get("tag_picker", false)),
+			request.get("second", {}) if request.get("second") is Dictionary else {})
 	_state.dialogue_started.emit(pet)
 	var opened_window := _prompt_window
 	ticket.finished.connect(func(_text: String, _accepted: bool) -> void:
@@ -344,12 +345,14 @@ func _open_prompt_window(pet: Node, request: Dictionary, ticket: RefCounted) -> 
 
 ## 右鍵選單「幫我設定計時器…」(倒數)/「幫我計時…」(碼表):問要計時多久,交給桌寵的 PetTimer。
 ## 計時可以留空 = 一直記錄到使用者喊停;計時器一定要有時間。看不懂的輸入桌寵會請你重新設定。
+## 「要計時多久」與「中途提醒」在同一個視窗問完(2026-10-11 使用者要求,原本是接連兩個視窗)。
 func _on_timer_input(kind: int, pet: Node) -> void:
 	var countdown := kind == PetTimer.Kind.COUNTDOWN
 	var ticket := InputTicket.new()
 	_on_text_input(pet, {
-		"prompt": tr("要計時多久?可以寫「10 分鐘」「90 秒」「1 小時 30 分」「25:00」;只寫數字就是分鐘。") if countdown else tr("要計時多久?寫法同左(例如「30 分鐘」「25:00」);留空 = 一直記錄到你叫我停止。"),
+		"prompt": tr("要計時多久?可以寫「10 分鐘」「90 秒」「1 小時 30 分」「25:00」;只寫數字就是分鐘。") if countdown else tr("要計時多久?(例如「30 分鐘」「25:00」;只寫數字就是分鐘)留空 = 一直記錄到你叫我停止。"),
 		"default": "10 分鐘" if countdown else "", "max_length": 30,
+		"second": {"prompt": tr("中途提醒(只響一聲,不會結束計時;不需要就留空):可以寫「每5分鐘」「到10分鐘」,兩種可以一起寫、用逗號隔開。"), "default": "", "max_length": 40},
 	}, ticket)
 	var got: Array = [ticket.closed, false]
 	if not ticket.closed:
@@ -362,17 +365,7 @@ func _on_timer_input(kind: int, pet: Node) -> void:
 		line["text"] = tr("我看不懂這個時間耶……可以寫「10 分鐘」「90 秒」或「25:00」。")
 		_on_line_requested(pet, line, null)
 		return
-	var reminder_ticket := InputTicket.new()
-	_on_text_input(pet, {
-		"prompt": tr("要不要順便設定中途提醒(只響一聲,不會結束計時)?可以寫「每5分鐘」「到10分鐘」,兩種可以一起寫、用逗號隔開;不需要就留空直接送出。"),
-		"default": "", "max_length": 40,
-	}, reminder_ticket)
-	var reminder_got: Array = [reminder_ticket.closed, false]
-	if not reminder_ticket.closed:
-		reminder_got = await reminder_ticket.finished
-	if not is_instance_valid(pet):
-		return
-	var reminder_spec := PetTimer.parse_reminder_spec(str(reminder_got[0]) if bool(reminder_got[1]) else "")
+	var reminder_spec := PetTimer.parse_reminder_spec(ticket.extra)
 	if not bool(reminder_spec["ok"]):
 		line["text"] = tr("中途提醒的時間我看不懂,先幫你開始計時,不加中途提醒。")
 		_on_line_requested(pet, line, null)

@@ -8,7 +8,7 @@ extends VBoxContainer
 signal changed
 
 ## 反應編輯區固定列出的觸發(沒有項目也會顯示,方便直接新增)。
-const REACTION_ORDER: Array[String] = ["interact", "drag", "enter", "sleep", "game_win", "game_lose", "game_tie", "invite_accept", "invite_refuse", "tired", "wake", "ball_found", "ball_invite", "ball_join", "ball_decline", "ball_playing", "ball_end", "ball_watch"]
+const REACTION_ORDER: Array[String] = ["interact", "interact_sleeping", "drag", "enter", "sleep", "game_win", "game_lose", "game_tie", "invite_accept", "invite_refuse", "tired", "wake", "ball_found", "ball_invite", "ball_join", "ball_decline", "ball_playing", "ball_end", "ball_watch"]
 
 var _kind := "chat"
 var _groups: Dictionary = {}

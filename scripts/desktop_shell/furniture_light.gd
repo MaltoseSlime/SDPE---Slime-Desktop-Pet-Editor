@@ -125,6 +125,8 @@ func get_cutout_polygons() -> Array:
 		return []
 	if is_inside_tree() and get_window() != get_tree().root:
 		return []
+	if _item.area_hidden:
+		return []   # 「隱藏行動區外的家具」藏起來的那件:光暈沒畫,也不該佔穿透形狀
 	var slot_name := _item.current_animation()
 	var frame := _item.current_frame()
 	var polygons: Array = []

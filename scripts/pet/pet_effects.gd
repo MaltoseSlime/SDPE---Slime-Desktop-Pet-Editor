@@ -25,9 +25,10 @@ const NAMES := {
 	"泡沫": "foam", "foam": "foam",
 	"憂愁": "gloom", "gloom": "gloom",
 	"哭泣": "cry", "cry": "cry",
+	"五彩紙花": "confetti", "confetti": "confetti",
 }
 ## 顯示在 Schema 與設定畫面的清單(每個特效一個中文名稱)。
-const CATALOG: Array[String] = ["一群小愛心", "頭上大愛心", "青筋", "惱怒火苗", "心煩意亂", "冒汗", "閃閃發光", "心花怒放", "全身發光", "移動殘影", "睏倦氣泡", "泡沫", "憂愁", "哭泣"]
+const CATALOG: Array[String] = ["一群小愛心", "頭上大愛心", "青筋", "惱怒火苗", "心煩意亂", "冒汗", "閃閃發光", "心花怒放", "全身發光", "移動殘影", "睏倦氣泡", "泡沫", "憂愁", "哭泣", "五彩紙花"]
 ## Schema 用:每個特效 {id 英文代號, name 目前語系的顯示名稱}。網頁的積木與語法一律存代號(不隨語系變),名稱只是下拉選單的顯示。
 static func catalog_entries() -> Array[Dictionary]:
 	var entries: Array[Dictionary] = []
@@ -37,7 +38,7 @@ static func catalog_entries() -> Array[Dictionary]:
 
 
 ## 各特效預設持續秒數。
-const DURATIONS := {"hearts": 3.0, "heart_big": 2.6, "vein": 3.2, "flame": 3.0, "confused": 3.0, "sweat": 2.6, "sparkle": 3.0, "flowers": 3.5, "glow": 3.0, "afterimage": 3.0, "sleepy": 8.0, "foam": 3.0, "gloom": 4.0, "cry": 1.6}
+const DURATIONS := {"hearts": 3.0, "heart_big": 2.6, "vein": 3.2, "flame": 3.0, "confused": 3.0, "sweat": 2.6, "sparkle": 3.0, "flowers": 3.5, "glow": 3.0, "afterimage": 3.0, "sleepy": 8.0, "foam": 3.0, "gloom": 4.0, "confetti": 3.0, "cry": 1.6}
 ## 各特效發射粒子的間隔(秒,密度 1 倍時)。殘影不用時間間隔,用移動距離(見 style 的 trail)。
 const SPAWN_EVERY := {"hearts": 0.16, "sweat": 0.35, "sparkle": 0.2, "flowers": 0.3, "sleepy": 2.2, "foam": 0.1, "cry": 0.26}
 ## 會發射複數粒子(密度設定有意義)的特效。
@@ -82,6 +83,8 @@ const DEFAULT_STYLES := {
 	"foam": {"mode": "solid", "c1": "#ffffff", "c2": "#e4f4ff"},
 	"gloom": {"mode": "solid", "c1": "#5b8cff", "c2": "#b8d0ff"},
 	"cry": {"mode": "solid", "c1": "#8fd0ff", "c2": "#d6f0ff"},
+	# 五彩紙花(2026-10-?? 使用者要求):計時器時間到/全體對戰結束的輸家用。預設彩虹色調,也可以照慣例切回單色/雙色等上色邏輯。
+	"confetti": {"mode": "rainbow", "c1": "#ff6b94", "c2": "#6bc6ff"},
 }
 const DEFAULT_HOLD := 0.45
 const DEFAULT_TRAIL := 0.12
@@ -187,6 +190,11 @@ static func label_of(key: String) -> String:
 # --- 客製化 ---
 
 ## 這個特效目前的外觀(預設 + 使用者改過的),值都已經夾在合法範圍:{mode, c1(Color), c2(Color), size, density, hold, trail, range}。
+## 放鬆模式下持續型特效的粒子密度倍率(省效能,見 PetRelax.PARTICLE_PCT);平常是 1。
+func relax_density() -> float:
+	return 1.0 + PetRelax.PARTICLE_PCT if _pet != null and _pet.relaxing() else 1.0
+
+
 func style_of(key: String) -> Dictionary:
 	var base: Dictionary = DEFAULT_STYLES.get(key, DEFAULT_STYLES["hearts"])
 	var override: Dictionary = styles.get(key, {})
@@ -392,6 +400,8 @@ func play(effect_name: String, seconds := -1.0, intensity := 1.0) -> bool:
 		_spawn_vein(total)
 	elif key == "confused":
 		_spawn_confused(total)
+	elif key == "confetti":
+		_spawn_confetti_burst()
 	var state := get_node_or_null("/root/DesktopShellState")
 	if state != null:
 		state.effect_played.emit(_pet, key)
@@ -470,17 +480,19 @@ func _process(delta: float) -> void:
 		if SPAWN_EVERY.has(key):
 			entry["spawn_left"] = float(entry["spawn_left"]) - delta
 			if float(entry["spawn_left"]) <= 0.0:
-				entry["spawn_left"] = float(SPAWN_EVERY[key]) / (float(style_of(key)["density"]) * float(entry.get("intensity", 1.0)))
+				entry["spawn_left"] = float(SPAWN_EVERY[key]) / (float(style_of(key)["density"]) * float(entry.get("intensity", 1.0)) * relax_density())
 				if _spawn_budget >= 1.0:
 					_spawn_budget -= float(_spawn(key))
 		elif key == "afterimage":
 			_spawn_ghost()
-	for particle in _particles:
-		particle["age"] = float(particle["age"]) + delta
-	for ghost in _ghosts:
-		ghost["age"] = float(ghost["age"]) + delta
-	_particles = _particles.filter(func(p: Dictionary) -> bool: return float(p["age"]) < float(p["life"]))
-	_ghosts = _ghosts.filter(func(g: Dictionary) -> bool: return float(g["age"]) < float(g["life"]))
+	if not _particles.is_empty():
+		for particle in _particles:
+			particle["age"] = float(particle["age"]) + delta
+		_particles = _particles.filter(func(p: Dictionary) -> bool: return float(p["age"]) < float(p["life"]))
+	if not _ghosts.is_empty():
+		for ghost in _ghosts:
+			ghost["age"] = float(ghost["age"]) + delta
+		_ghosts = _ghosts.filter(func(g: Dictionary) -> bool: return float(g["age"]) < float(g["life"]))
 	if _running.is_empty() and _particles.is_empty() and _ghosts.is_empty():
 		_last_ghost_position = Vector2.INF
 		return
@@ -588,6 +600,14 @@ func _spawn(key: String) -> int:
 				var cry_side := 1.0 if randf() < 0.5 else -1.0
 				_particles.append(_new_particle(key, "drop", randf_range(0.8, 1.25), head_point() + Vector2(cry_side * h * randf_range(0.08, 0.22), h * 0.16) * reach,
 						Vector2(cry_side * h * randf_range(0.1, 0.42), -h * randf_range(0.0, 0.14)), h * randf_range(0.02, 0.036), {"gravity": h * 2.6}))
+		"confetti":
+			# 五彩紙花:從頭上往兩邊斜角噴出扁短的紙片,邊轉邊飄,然後受重力往下掉(跟冒汗/哭泣同一套「從頭部甩出去」的做法)。
+			# 2026-10-07 使用者要求:拋得更高、飄得更久(初速加大、重力減輕,壽命不變),紙片縮小成原來的 10%。
+			for i in 2:
+				var confetti_side := 1.0 if randf() < 0.5 else -1.0
+				_particles.append(_new_particle(key, "confetti", randf_range(1.6, 2.4), head_point() + Vector2(0.0, -h * 0.05) * reach,
+						Vector2(confetti_side * h * randf_range(0.3, 0.6), -h * randf_range(0.9, 1.3)), h * randf_range(0.02, 0.035),
+						{"gravity": h * 0.7, "spin": randf_range(2.5, 5.0) * (1.0 if randf() < 0.5 else -1.0)}))
 		"sleepy":
 			# 睏倦氣泡:一次一兩顆,從頭旁邊慢慢往上飄。
 			for i in (1 if randf() < 0.6 else 2):
@@ -643,6 +663,13 @@ func _spawn_flame(total: float) -> void:
 func _spawn_confused(total: float) -> void:
 	var h := body_height()
 	_particles.append(_new_particle("confused", "zigzag", total, head_point() + Vector2(h * 0.14, -h * 0.02) * float(style_of("confused")["range"]), Vector2.ZERO, h * 0.3))
+
+
+## 五彩紙花:使用者要求改成「一開始就噴一次,但噴多一點」,不要像愛心/星芒那樣拖著噴 3 秒。
+## 呼叫 _spawn("confetti") 七次(每次兩片)湊成一波 14 片。
+func _spawn_confetti_burst() -> void:
+	for i in 7:
+		_spawn("confetti")
 
 
 # --- 繪製 ---
@@ -796,6 +823,8 @@ func _draw_particle(canvas: CanvasItem, p: Dictionary) -> void:
 		"bubble":
 			position_now.x += sin(age * 1.6 + float(p["phase"])) * size * 0.9
 			_draw_bubble(canvas, position_now, size * lerpf(0.8, 1.15, t), Color(color, fade))
+		"confetti":
+			_draw_confetti(canvas, position_now, size, Color(color, fade), age * float(p.get("spin", 3.0)) + float(p["phase"]))
 
 
 ## 愛心:兩個圓形的上半 + 圓角的底(底部是一顆小圓,不是尖角,鈍鈍的比較可愛);外圍先畫一圈淡色描邊。size ≈ 半寬。
@@ -868,6 +897,17 @@ func _draw_foam(canvas: CanvasItem, center: Vector2, size: float, color: Color) 
 func _draw_bubble(canvas: CanvasItem, center: Vector2, size: float, color: Color) -> void:
 	canvas.draw_circle(center, size, Color(color, color.a * 0.28))
 	canvas.draw_arc(center, size, 0.0, TAU, 20, Color(color, color.a * 0.9), maxf(size * 0.16, 1.0), true)
+
+
+## 五彩紙花:扁短的長方形紙片,邊轉邊飄落。size ≈ 半寬(長邊是半寬的兩倍,短邊是半寬的 0.7 倍)。
+func _draw_confetti(canvas: CanvasItem, center: Vector2, size: float, color: Color, rotation: float) -> void:
+	var half := Vector2(size, size * 0.7)
+	var corners := PackedVector2Array([Vector2(-half.x, -half.y), Vector2(half.x, -half.y), Vector2(half.x, half.y), Vector2(-half.x, half.y)])
+	var spin := Transform2D(rotation, center)
+	var points := PackedVector2Array()
+	for corner in corners:
+		points.append(spin * corner)
+	canvas.draw_colored_polygon(points, color)
 
 
 ## 火苗:外焰 + 內焰,尖端左右搖晃,旁邊兩顆小火星。

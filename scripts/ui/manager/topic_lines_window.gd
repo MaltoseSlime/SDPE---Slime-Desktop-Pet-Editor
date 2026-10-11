@@ -8,8 +8,8 @@ signal changed
 var rows: TopicRows
 
 
-func setup(host: Node) -> void:
-	setup_floating(tr("話題文本"), Vector2i(640, 560), Vector2i(420, 300))
+func setup(host: Node, generic := false) -> void:
+	setup_floating(tr("通用話題池") if generic else tr("話題文本"), Vector2i(640, 560), Vector2i(420, 300))
 	var background := PanelContainer.new()
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)

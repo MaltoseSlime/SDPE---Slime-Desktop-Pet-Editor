@@ -33,6 +33,11 @@ var dragged: FurnitureItem
 var _mouse := Vector2.ZERO
 var _last_container_click_item: FurnitureItem
 var _last_container_click_time := -100.0
+## 「隱藏行動區外的家具」(2026-10-11 使用者要求,主選單/懸浮球的開關,存在 user://settings.cfg 的 [furniture]):
+## 開著時,中心點不在行動區裡的家具整件藏起來(見 FurnitureItem.area_hidden),移回行動區內或關掉開關就恢復。
+## 家具編輯模式中一律不藏——不然藏起來的家具拖不回來。
+var hide_outside_area := false
+const SETTINGS_PATH := "user://settings.cfg"
 
 
 func setup(action_area: Node, top_layer: Node = null) -> void:
@@ -43,7 +48,28 @@ func setup(action_area: Node, top_layer: Node = null) -> void:
 	# 讓使用者不用開家具編輯模式也能雙擊容器打開查看內容物;純裝飾的家具維持滑鼠完全穿透,不受影響。
 	add_to_group("Cutout")
 	_decor = DecorOverlay.instance(self)
+	var config := ConfigFile.new()
+	if config.load(SETTINGS_PATH) == OK:
+		hide_outside_area = bool(config.get_value("furniture", "hide_outside_area", false))
 	_restore()
+
+
+func set_hide_outside_area(on: bool) -> void:
+	hide_outside_area = on
+	var config := ConfigFile.new()
+	config.load(SETTINGS_PATH)
+	config.set_value("furniture", "hide_outside_area", on)
+	config.save(SETTINGS_PATH)
+	refresh_area_hidden()
+
+
+## 重新判斷每件家具該不該藏(每影格做一次,見 _process;開關或行動區剛變動、不想等下一影格時也可以直接呼叫)。
+func refresh_area_hidden() -> void:
+	var hide := hide_outside_area and not edit_mode
+	var bounds := _bounds()
+	for item in items:
+		if is_instance_valid(item):
+			item.set_area_hidden(hide and not bounds.has_point(item.touch_rect().get_center()))
 
 
 ## 裝飾層(平時家具真正畫的地方,見 DecorOverlay)的畫布節點,給 DesktopShell 右鍵暫時穿透時一起淡化用;
@@ -182,7 +208,7 @@ func get_cutout_polygons() -> Array:
 				polygons.append(_rect_polygon(item.touch_rect().grow(grow)))
 		return polygons
 	for item in items:
-		if is_instance_valid(item) and item.is_container():
+		if is_instance_valid(item) and item.is_container() and not item.area_hidden:
 			polygons.append(_rect_polygon(item.touch_rect().grow(4.0)))
 	return polygons
 
@@ -213,7 +239,7 @@ func _handle_container_click(event: InputEvent) -> void:
 func item_at(point: Vector2) -> FurnitureItem:
 	for i in range(items.size() - 1, -1, -1):
 		var item := items[i]
-		if is_instance_valid(item) and item.touch_rect().grow(6.0).has_point(point):
+		if is_instance_valid(item) and not item.area_hidden and item.touch_rect().grow(6.0).has_point(point):
 			return item
 	return null
 
@@ -251,6 +277,7 @@ func _input(event: InputEvent) -> void:
 ## 頂層 CanvasLayer,那一層本來就存在、不用等穿透樣式套用。編輯模式中都不搬(家具留在主視窗才點得到、
 ## 拖得動),關掉編輯模式後下一影格自然各自搬回去。
 func _process(_delta: float) -> void:
+	refresh_area_hidden()
 	if edit_mode:
 		return
 	for item in items:

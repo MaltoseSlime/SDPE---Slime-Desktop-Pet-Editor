@@ -86,7 +86,7 @@ const MAX_PET_PREFS := 60
 
 
 static func empty() -> Dictionary:
-	return {"actions": {}, "characters": [], "props": [], "prefs": [], "pet_prefs": [], "ignore_props": false, "ignore_furniture": false, "no_follow_target": false, "no_follow_source": false, "show_bubble_in_chatroom": false, "sms_direction": "left", "sms_bubble_scale": 100, "sms_bubble_width": DEFAULT_SMS_BUBBLE_WIDTH}
+	return {"actions": {}, "characters": [], "props": [], "prefs": [], "pet_prefs": [], "ignore_props": false, "ignore_furniture": false, "no_follow_target": false, "no_follow_source": false, "show_bubble_in_chatroom": false, "silent": false, "sms_direction": "left", "sms_bubble_scale": 100, "sms_bubble_width": DEFAULT_SMS_BUBBLE_WIDTH}
 
 
 static func slot_keys() -> Array[String]:
@@ -166,7 +166,7 @@ static func clean(raw: Variant) -> Dictionary:
 				continue
 			seen_targets[target] = true
 			result["pet_prefs"].append({"target": target, "name": _text(entry.get("name", target)), "level": level, "no_mention": no_mention})
-	for key in ["ignore_props", "ignore_furniture", "no_follow_target", "no_follow_source", "show_bubble_in_chatroom", "no_topic_mention"]:
+	for key in ["ignore_props", "ignore_furniture", "no_follow_target", "no_follow_source", "show_bubble_in_chatroom", "no_topic_mention", "silent"]:
 		var value_raw: Variant = raw.get(key, false)
 		result[key] = value_raw if value_raw is bool else false
 	var direction := str(raw.get("sms_direction", "left"))

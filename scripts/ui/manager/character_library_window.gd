@@ -216,8 +216,9 @@ func _add_card(summary: Dictionary) -> Dictionary:
 	buttons.add_child(settings)
 	var more := MenuButton.new()
 	more.text = "⋯"
-	more.tooltip_text = tr("改名、複製、匯出 .pet、刪除(刪除是搬到備份資料夾)")
+	more.tooltip_text = tr("外觀(整套換圖)、改名、複製、匯出 .pet、刪除(刪除是搬到備份資料夾)")
 	var popup := more.get_popup()
+	popup.add_item(tr("外觀(整套換圖)…"), 4)
 	popup.add_item(tr("重新命名…"), 0)
 	popup.add_item(tr("複製成新角色…"), 1)
 	popup.add_item(tr("匯出 .pet…"), 3)
@@ -294,6 +295,154 @@ func _on_card_menu(id: int, folder: String, character_name: String) -> void:
 			ask_delete(folder, character_name)
 		3:
 			ask_export(folder, character_name)
+		4:
+			open_appearances(folder, character_name)
+
+
+# --- 外觀(整套行走圖的差分,見 PetAppearances) ---
+
+var _appearance_list: VBoxContainer
+
+
+## 外觀清單視窗:列出這個角色的每套外觀(編輯圖 / 改名 / 刪除),下面兩顆按鈕新增。同時只開一個。
+func open_appearances(folder: String, character_name: String) -> AcceptDialog:
+	var dialog := AcceptDialog.new()
+	dialog.title = tr("外觀 - %s") % character_name
+	dialog.ok_button_text = tr("關閉")
+	# 不設 always_on_top,見 ask_delete() 的說明(跟置頂衝突,會把視窗卡死)。
+	dialog.theme = ManagerUi.make_theme()
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	var hint := Label.new()
+	hint.text = tr("一套外觀 = 一整套獨立的圖(例如萬聖節造型),跟原本的圖分開放、分開計算像素上限,不會頂掉原本的圖。每套有自己的判定框、光源、配件與持有錨點;沒畫的動作會用那套外觀自己的待機(idle),所以至少要有 idle。切換:桌寵右鍵選單「切換外觀」,或積木「切換外觀」。")
+	hint.theme_type_variation = AppSettings.MUTED_LABEL
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.custom_minimum_size.x = 460.0
+	box.add_child(hint)
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(460.0, 180.0)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_appearance_list = VBoxContainer.new()
+	_appearance_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(_appearance_list)
+	box.add_child(scroll)
+	var buttons := HBoxContainer.new()
+	var add_copy := ManagerUi.button("＋ 複製預設外觀來改…")
+	add_copy.tooltip_text = tr("把原本那套圖(含動作設定、判定框、光源、配件)整套複製一份當底,再到精靈圖編輯器把圖換掉。")
+	add_copy.pressed.connect(func() -> void: _ask_new_appearance(folder, true))
+	var add_blank := ManagerUi.button("＋ 空白外觀…")
+	add_blank.tooltip_text = tr("從空白開始,自己在精靈圖編輯器匯入圖(至少要有 idle 才能切換過去)。")
+	add_blank.pressed.connect(func() -> void: _ask_new_appearance(folder, false))
+	buttons.add_child(add_copy)
+	buttons.add_child(add_blank)
+	box.add_child(buttons)
+	dialog.add_child(box)
+	dialog.confirmed.connect(dialog.queue_free)
+	dialog.canceled.connect(dialog.queue_free)
+	add_child(dialog)
+	_appearance_list.set_meta("folder", folder)
+	_fill_appearances()
+	if is_inside_tree() and DisplayServer.get_name() != "headless":
+		FloatingWindow.popup_child_dialog(self, get_window(), dialog, Vector2i(520, 420))
+	return dialog
+
+
+func _fill_appearances() -> void:
+	if not is_instance_valid(_appearance_list):
+		return
+	var folder := str(_appearance_list.get_meta("folder", ""))
+	for child in _appearance_list.get_children():
+		child.queue_free()
+	var entries := PetAppearances.list(folder)
+	if entries.is_empty():
+		var empty := Label.new()
+		empty.text = tr("(還沒有別套外觀,目前只有預設外觀)")
+		empty.theme_type_variation = AppSettings.MUTED_LABEL
+		_appearance_list.add_child(empty)
+	for entry in entries:
+		var row := HBoxContainer.new()
+		var name_label := Label.new()
+		name_label.text = str(entry["name"])
+		name_label.tooltip_text = str(entry["folder"])
+		name_label.mouse_filter = Control.MOUSE_FILTER_STOP
+		name_label.clip_text = true
+		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(name_label)
+		var id := str(entry["id"])
+		var edit := ManagerUi.button("編輯圖")
+		edit.pressed.connect(func() -> void: edit_requested.emit(str(entry["folder"])))
+		var rename := ManagerUi.button("改名")
+		rename.pressed.connect(func() -> void:
+			ManagerUi.ask_name(self, "外觀改名", "新的名字(只改顯示名稱;積木裡寫建立時的名字仍然有效):", str(entry["name"]), "改名",
+					func(text: String) -> String: return PetAppearances.name_problem(folder, text, id),
+					func(chosen: String) -> void: rename_appearance(folder, id, chosen)))
+		var remove := ManagerUi.button("刪除")
+		remove.tooltip_text = tr("搬到備份資料夾(不會真的刪掉);正穿著這套的桌寵會換回預設外觀。")
+		remove.pressed.connect(func() -> void: delete_appearance(folder, id))
+		row.add_child(edit)
+		row.add_child(rename)
+		row.add_child(remove)
+		_appearance_list.add_child(row)
+
+
+func _ask_new_appearance(folder: String, copy_default: bool) -> void:
+	ManagerUi.ask_name(self, "新增外觀", "幫這套外觀取個名字(例如「萬聖節」;積木與右鍵選單用這個名字切換):", "", "新增",
+			func(text: String) -> String: return PetAppearances.name_problem(folder, text),
+			func(chosen: String) -> void: create_appearance(folder, chosen, copy_default))
+
+
+## 新增一套外觀並開精靈圖編輯器編輯它。回傳錯誤文字(空字串 = 成功)。
+func create_appearance(folder: String, appearance_name: String, copy_default := true) -> String:
+	var created := PetAppearances.create(folder, appearance_name, copy_default)
+	if not bool(created["ok"]):
+		_status.text = tr("新增外觀失敗:%s") % tr(str(created["error"]))
+		return str(created["error"])
+	_refresh_appearance_users(folder, "")
+	_fill_appearances()
+	edit_requested.emit(str(created["folder"]))
+	_status.text = tr("已新增外觀「%s」,接著在精靈圖編輯器換上這套外觀的圖。") % appearance_name.strip_edges()
+	return ""
+
+
+func rename_appearance(folder: String, id: String, new_name: String) -> String:
+	var error := PetAppearances.rename(folder, id, new_name)
+	if error != "":
+		_status.text = tr("改名失敗:%s") % tr(error)
+		return error
+	_refresh_appearance_users(folder, "")
+	_fill_appearances()
+	_status.text = tr("已改名為「%s」。") % new_name.strip_edges()
+	return ""
+
+
+## 刪除一套外觀(搬到備份)。精靈圖編輯器正開著它時拒絕;正穿著它的桌寵換回預設外觀。回傳錯誤文字(空字串 = 成功)。
+func delete_appearance(folder: String, id: String) -> String:
+	var target := PetAppearances.folder_of(folder, id)
+	for window: Node in get_tree().get_nodes_in_group("floating_windows"):
+		if window is PackEditorWindow and (window as PackEditorWindow)._model.has_pack() and (window as PackEditorWindow)._model.root.replace("\\", "/").trim_suffix("/") == target:
+			_status.text = tr("不能刪除:%s。") % tr("精靈圖編輯器正開著它,請先關掉編輯器(或切到別的角色)")
+			return "editor"
+	var shown := PetAppearances.name_of(folder, id)
+	var result := PetAppearances.delete(folder, id)
+	if not bool(result["ok"]):
+		_status.text = tr("刪除失敗:%s") % tr(str(result["error"]))
+		return str(result["error"])
+	_refresh_appearance_users(folder, id)
+	_fill_appearances()
+	_status.text = tr("已把外觀「%s」搬到備份:%s") % [shown, result["backup"]]
+	return ""
+
+
+## 外觀清單變了:桌面上這個角色的桌寵忘掉名稱快取;removed_id 那套被刪掉了,正穿著它的換回預設外觀。
+func _refresh_appearance_users(folder: String, removed_id: String) -> void:
+	var normalized := folder.replace("\\", "/").trim_suffix("/")
+	for pet: Node in get_tree().get_nodes_in_group("pets"):
+		if pet.pack_folder() != normalized:
+			continue
+		if removed_id != "" and pet.appearance_id == removed_id:
+			pet.set_appearance("")
+		pet.forget_appearance_cache()
 
 
 ## 這個角色資料夾現在有沒有被用著(桌面上有用它生成的桌寵、或精靈圖編輯器開著它);有的話回原因,沒有回空字串。
@@ -304,7 +453,8 @@ func in_use_reason(folder: String) -> String:
 		if entry is Dictionary and str(entry.get("path", "")).replace("\\", "/").trim_suffix("/") == normalized:
 			return "桌面上還有一隻用它生成的桌寵,請先在系統匣把它移除"
 	for window: Node in get_tree().get_nodes_in_group("floating_windows"):
-		if window is PackEditorWindow and (window as PackEditorWindow)._model.has_pack() and (window as PackEditorWindow)._model.root.replace("\\", "/").trim_suffix("/") == normalized:
+		# 開著這個角色本身、或它底下某一套外觀(<角色資料夾>/appearances/…)都算。
+		if window is PackEditorWindow and (window as PackEditorWindow)._model.has_pack() and ((window as PackEditorWindow)._model.root.replace("\\", "/").trim_suffix("/") + "/").begins_with(normalized + "/"):
 			return "精靈圖編輯器正開著它,請先關掉編輯器(或切到別的角色)"
 	return ""
 
@@ -501,7 +651,7 @@ func ask_export(folder: String, character_name: String) -> void:
 	dialog.theme = ManagerUi.make_theme()
 	var box := VBoxContainer.new()
 	var label := Label.new()
-	label.text = tr("把「%s」打包成一個 .pet 檔:素材包與角色設定(數值定義、狀態鏡、性格、介面風格…)一定會放進去。") % character_name
+	label.text = tr("把「%s」打包成一個 .pet 檔:素材包與角色設定(數值定義、狀態鏡、性格、介面風格、話題文本、交互行為、對其他桌寵的好惡與好感度、自訂說話聲音…)一定會放進去。道具與家具本身不會放進去。") % character_name
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.custom_minimum_size.x = 440.0
 	box.add_child(label)
@@ -510,7 +660,7 @@ func ask_export(folder: String, character_name: String) -> void:
 	logic_check.button_pressed = true
 	box.add_child(logic_check)
 	var state_check := CheckBox.new()
-	state_check.text = tr("包含記憶與戰績(數值目前的值、記過的東西;分享給別人通常不要勾)")
+	state_check.text = tr("包含記憶與戰績(數值目前的值——例如對你的好感度、記過的東西、記憶存檔;分享給別人通常不要勾)")
 	state_check.button_pressed = false
 	box.add_child(state_check)
 	dialog.add_child(box)

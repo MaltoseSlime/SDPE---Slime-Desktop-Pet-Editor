@@ -73,6 +73,17 @@ var speak_sound_enabled := true
 
 ## 自動閒聊的全域總開關(系統匣可切,Shell 負責存讀 user://settings.cfg);個別桌寵還有自己的開關與間隔。
 var auto_chat_enabled := true
+## 勿擾模式(系統匣「全體行為」可切,Shell 負責存讀 user://settings.cfg):桌寵照常閒聊,但不會自己發起需要使用者
+## 回應的事:帶選項的閒聊事件、詢問文字(問關鍵詞、想了解你…)、問稱呼、問要不要一起玩。
+var do_not_disturb := false
+## 放鬆模式(系統匣「全體行為」可切,Shell 負責存讀 user://settings.cfg):全部桌寵以坐著待著為主、少動少打擾少耗效能,
+## 細節見 PetRelax 檔頭。也不會問使用者問題(同勿擾模式,見 asks_blocked)。
+var relax_mode := false
+
+
+## 桌寵現在不該自己發起需要使用者回應的事(勿擾模式或放鬆模式)。
+func asks_blocked() -> bool:
+	return do_not_disturb or relax_mode
 
 ## 全域數值的定義(PetValueDef 陣列):預設值、上下限、Status 白名單等;全域數值沒有宣告時仍可使用,只是不夾限也不顯示。
 var global_value_defs: Array = []

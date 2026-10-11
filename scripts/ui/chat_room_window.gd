@@ -99,6 +99,7 @@ func setup(action_area: Node, hover_ball: HoverBall) -> void:
 	add_to_group("dialogue_display")
 	add_to_group("floating_windows")   # 借用既有的「外觀改了」廣播(見 AppSettingsTab._apply_appearance),收到就重畫邊框色
 	add_to_group("Cutout")
+	add_to_group("pointer_blockers")
 	z_index = 25
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	_build_children()
@@ -363,6 +364,14 @@ func _apply_size() -> void:
 
 
 # --- 拖曳(標題列)與縮放(右下角把手) ---
+
+## 滑鼠在視窗(收合時是圖示)範圍內、或正在拖曳/縮放時,後面的桌寵不該收到按壓/右鍵/摸摸,
+## 見 pet_interaction.gd 的 pointer_blocked()。
+func blocks_pointer(point: Vector2) -> bool:
+	if not is_visible_in_tree():
+		return false
+	return _dragging or _resizing or _icon_dragging or Rect2(global_position, size).has_point(point)
+
 
 func _gui_input(event: InputEvent) -> void:
 	if _collapsed:

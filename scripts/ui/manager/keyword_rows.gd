@@ -100,12 +100,19 @@ func _find_entry(row: Node) -> Dictionary:
 
 
 func _make_tag_option(selected_tag: String) -> OptionButton:
-	var option := OptionButton.new()
-	option.tooltip_text = tr("標籤:閒聊文本用 {tag:標籤名} 引用同一類的詞。不選就是「話題」。")
-	for tag in PetText.KEYWORD_TAGS:
-		option.add_item(tr(tag))
-	option.select(maxi(PetText.KEYWORD_TAGS.find(PetText.clean_tag(selected_tag)), 0))
+	var option := make_tag_option(selected_tag)
 	option.item_selected.connect(func(_index: int) -> void: _emit_changed())
+	return option
+
+
+## 標籤下拉選單本體(選項順序 = PetText.KEYWORD_TAGS,selected 就是索引)。關鍵詞詢問的輸入視窗(TextPromptWindow)
+## 也用這一個,兩邊的標籤清單才不會各走各的。
+static func make_tag_option(selected_tag: String) -> OptionButton:
+	var option := OptionButton.new()
+	option.tooltip_text = TranslationServer.translate("標籤:閒聊文本用 {tag:標籤名} 引用同一類的詞。不選就是「話題」。")
+	for tag in PetText.KEYWORD_TAGS:
+		option.add_item(TranslationServer.translate(tag))
+	option.select(maxi(PetText.KEYWORD_TAGS.find(PetText.clean_tag(selected_tag)), 0))
 	return option
 
 

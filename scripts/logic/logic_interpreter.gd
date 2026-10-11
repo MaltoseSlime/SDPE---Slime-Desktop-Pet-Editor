@@ -91,12 +91,17 @@ var _rates: Dictionary = {}
 var _disabled_hats: Dictionary = {}
 ## 話題文本停用(key = _topic_key,只影響這次執行、不寫檔,同 _disabled_hats 的規則)。
 var _disabled_topics: Dictionary = {}
+## list_events() 當下認得的桌寵 / 道具(見 PetReferences),只給事件清單標「找不到對象」用。
+var _known_pet_refs: Dictionary = {}
+var _known_prop_refs: Dictionary = {}
 var _strikes: Array[int] = []
 var _ejected := false
 var _budget_frame := -1
 var _frame_steps := 0
 ## 每次有「真正的等待」(等待積木、對話、文字輸入)就加一;迴圈用它判斷這一圈有沒有讓時間流動。
 var _progress_stamp := 0
+## 關鍵詞詢問時使用者在輸入視窗選的標籤(文字變數 KEY → 標籤),等後面的 keyword_learn 執行時取用,見 _exec_ask_text。
+var _pending_keyword_tags: Dictionary = {}
 
 
 func setup(pet: CharacterBody2D) -> void:
@@ -517,6 +522,8 @@ func _tag_pool(owner: String, tag: String) -> Array[String]:
 func say_something(context_override := "") -> bool:
 	if _chat_running and context_override == "":
 		return false
+	if _pet.is_silent():
+		return false   # 靜默:不閒聊
 	# 2026-10-06 話題文本:好感度達到門檻後,一般閒聊有 TOPIC_CHANCE 機率改從話題句裡挑一句說(不是抽獎池的事件)。
 	if context_override == "" and randf() < TOPIC_CHANCE and ValueGateway.get_value(_pet, "好感度") >= TOPIC_MIN_FAVOR:
 		var lines := usable_topic_lines()
@@ -529,6 +536,20 @@ func say_something(context_override := "") -> bool:
 	if context_override != "":
 		_pet.interrupt_scripts()
 		_chat_running = false
+	_run_chat(_weighted_pick(pool))
+	return true
+
+
+## 從指定情境(chat/rest/sleep)的閒聊池抽一句說,不清場、不打斷任何進行中的東西(跟測試者模式用的
+## say_something(context_override) 不同,那個會先 interrupt_scripts(),睡覺的動作佔用會被解除)。
+## 已經有閒聊在進行、或那個情境沒有可說的內容回傳 false。睡著時被摸摸又沒有專屬反應時用它說一句夢話
+## (見 Pet._on_petted())。
+func say_from_context(context: String) -> bool:
+	if _chat_running:
+		return false
+	var pool := _eligible_chat_hats(context)
+	if pool.is_empty():
+		return false
 	_run_chat(_weighted_pick(pool))
 	return true
 
@@ -569,6 +590,8 @@ func _weighted_pick(hats: Array[Dictionary]) -> Dictionary:
 ## (頂層帽子),每項 {kind, label, hat, id, disabled, layer}。閒聊事件在沒有匯入內容時列出佔位的三句。
 func list_events() -> Array[Dictionary]:
 	var events: Array[Dictionary] = []
+	_known_pet_refs = PetReferences.known_pets(get_tree())
+	_known_prop_refs = PetReferences.known_props()
 	for action: StringName in _action_hats:
 		for hat: Dictionary in _action_hats[action]:
 			events.append(_event_entry("action", _named(tr("當角色正在 [%s] 時") % action, hat), hat))
@@ -619,13 +642,15 @@ func list_events() -> Array[Dictionary]:
 		events.append(_event_entry("chat", _named(tr("閒聊 [%s%s] · %s") % [tag, suffix, _first_text(hat)], hat), hat))
 	# 話題文本(2026-10-06):性格檔(或桌寵改過的版本)裡的話題句也列出來,可以強制說一句或移除。
 	var topics: Array = _pet.topic_lines_effective()
+	var generic_start: int = _pet.topic_generic_start()   # 勾了「也使用通用話題池」時,這句之後是通用話題池的
 	for index in topics.size():
 		var topic: Dictionary = topics[index]
 		var topic_condition := str(topic.get("condition", "")).strip_edges()
 		var topic_text := str(topic.get("text", "")).replace("
 ", " ").left(30)
 		var topic_label := "%s — %s" % [topic_condition, topic_text] if topic_condition != "" else topic_text
-		events.append({"kind": "topic", "label": topic_label, "hat": {}, "id": "topic:%d" % index, "disabled": _disabled_topics.has(_topic_key(topic)), "layer": "topic", "trigger_sig": "topic:%d" % index, "topic_index": index})
+		events.append({"kind": "topic", "label": topic_label, "hat": {}, "id": "topic:%d" % index, "disabled": _disabled_topics.has(_topic_key(topic)), "layer": "topic", "trigger_sig": "topic:%d" % index, "topic_index": index,
+				"topic_generic": generic_start >= 0 and index >= generic_start})
 	return events
 
 
@@ -633,7 +658,24 @@ func list_events() -> Array[Dictionary]:
 ## 目前是否被暫時停用、來源層(見 _hat_layer())、觸發條件特徵碼(見 trigger_signature())。
 func _event_entry(kind: String, label: String, hat: Dictionary) -> Dictionary:
 	var id := _hat_id(hat)
-	return {"kind": kind, "label": label, "hat": hat, "id": id, "disabled": _disabled_hats.has(id), "layer": _hat_layer(hat), "trigger_sig": trigger_signature(hat)}
+	# 2026-10-11:這顆事件指到、但這台電腦上沒有的桌寵 / 道具(見 PetReferences)。指不到桌寵的事件本來就不可能觸發
+	# (對象不在場),EventManagerWindow 把它當成自動停用並暫時隱藏;跟手動停用(disabled)分開記,
+	# 免得「移除所有已停用事件」把它們一起刪掉——那隻桌寵之後匯入就會恢復。
+	return {"kind": kind, "label": label, "hat": hat, "id": id, "disabled": _disabled_hats.has(id), "layer": _hat_layer(hat), "trigger_sig": trigger_signature(hat),
+			"missing_pets": PetReferences.missing_pets(hat, _known_pet_refs, str(_pet.recognition_tag)), "missing_props": PetReferences.missing_props(hat, _known_prop_refs)}
+
+
+## EventManagerWindow 用:把使用者自己這層的一顆事件改指到別的桌寵 / 道具(kind = "pet" / "prop",見 PetReferences.retarget)。
+## 只改 user 層(呼叫端之後 save_user_only_file() 寫回積木檔);規則層的來源是交互行為設定,要改那邊(PetReferences.retarget_rules)。
+func retarget_user_hat(hat: Dictionary, kind: String, old_ref: String, new_ref: String) -> bool:
+	var id := _hat_id(hat)
+	for block: Dictionary in _top_blocks:
+		if _hat_id(block) == id:
+			if PetReferences.retarget(block, kind, old_ref, new_ref) == 0:
+				return false
+			_reregister_all()
+			return true
+	return false
 
 
 ## 2026-10-05 新增(見 [[project-block-editor-wishlist-20261002]]「2026-10-02 新議題」整段第 3 類):
@@ -757,8 +799,16 @@ func remove_topic(index: int) -> bool:
 	var topics: Array = _pet.topic_lines_effective()
 	if index < 0 or index >= topics.size():
 		return false
-	topics.remove_at(index)
-	_pet.set_topic_custom(topics)
+	var generic_start: int = _pet.topic_generic_start()
+	if generic_start >= 0 and index >= generic_start:
+		# 通用話題池的句子:改的是這隻桌寵自己的通用話題池版本
+		var generic: Array = _pet.topic_generic_lines()
+		generic.remove_at(index - generic_start)
+		_pet.set_topic_generic_custom(generic)
+		return true
+	var own: Array = _pet.topic_lines_own()
+	own.remove_at(index)
+	_pet.set_topic_custom(own)
 	return true
 
 
@@ -790,9 +840,13 @@ func _eligible_chat_hats(context_override := "") -> Array[Dictionary]:
 	var chat_tier: Array[Dictionary] = []
 	var lens_tier: Array[Dictionary] = []
 	var hats: Array[Dictionary] = _chat_hats if not _chat_hats.is_empty() else _placeholder_chat_hats()
+	var quiet: bool = _state.asks_blocked()
 	for hat in hats:
 		# 資格檢查:條件不成立(例如指定的桌寵不在場)的閒聊事件不進抽獎池,免得抽中了卻什麼都不說。
 		if not _chat_guard_passes(hat):
+			continue
+		# 勿擾模式、放鬆模式:要使用者回應的閒聊事件(帶選項、詢問文字)不進抽獎池,其餘照常閒聊。
+		if quiet and hat_asks_user(hat):
 			continue
 		var fields: Dictionary = hat.get("fields", {})
 		var tag := _normalize_chat_tag(str(fields.get("TAG", "chat")))
@@ -812,6 +866,18 @@ func _eligible_chat_hats(context_override := "") -> Array[Dictionary]:
 	return pool
 
 
+## 這顆事件裡有沒有需要使用者回應的積木:對話選項、詢問文字、執行時請使用者輸入選項的抽籤。
+static func hat_asks_user(hat: Dictionary) -> bool:
+	var found := [false]
+	LensChecker._walk(hat, func(block: Dictionary) -> void:
+		var type := str(block.get("type", ""))
+		if type == "dialogue_option" or type == "dialogue_ask_text":
+			found[0] = true
+		elif type == "random_pick" and str(block.get("fields", {}).get("SOURCE", "list")).to_lower() == "ask":
+			found[0] = true)
+	return found[0]
+
+
 ## 閒聊事件的「對象檢查/資格檢查」:如果事件的內容一開頭就是一個「如果…那麼」(controls_if,沒有否則、後面沒有其他積木),
 ## 或直接是一個條件積木包著內容(例如「如果桌寵 [某某] 在場那麼:…」),而且條件只由「不帶隨機」的積木組成
 ## (在場判斷、時間/日期/星期、數值比較、Flag、狀態鏡、比較與邏輯運算),就把它當成抽選資格:條件現在不成立就不進池子。
@@ -819,7 +885,7 @@ func _eligible_chat_hats(context_override := "") -> Array[Dictionary]:
 const PURE_CONDITION_TYPES: Array[String] = [
 	"cond_pet_present", "cond_pet_state", "cond_pet_sleeping", "cond_move_mode", "cond_holding_prop", "cond_text_set", "cond_time_between", "cond_date_is", "cond_weekday_is", "cond_value_compare", "flag_check",
 	"cond_game_stat", "cond_target_is", "cond_lens_active", "cond_lens_active_over", "cond_mood_compare", "cond_mood_zone", "cond_energy_compare", "cond_rest_state", "cond_lens_nature", "cond_loss_streak", "cond_ball_play", "cond_timer_running", "logic_compare", "logic_operation", "logic_boolean", "math_number", "math_random_between", "text",
-	"cond_furniture_using", "cond_furniture_sharing", "cond_furniture_state", "cond_is_follower", "cond_is_leader", "cond_pet_invisible", "cond_pet_affinity", "cond_pet_favor", "cond_pets_touch", "cond_pets_follow",
+	"cond_furniture_using", "cond_furniture_sharing", "cond_furniture_state", "cond_is_follower", "cond_is_leader", "cond_pet_invisible", "cond_pet_affinity", "cond_pet_favor", "cond_pets_touch", "cond_pets_follow", "cond_appearance_is",
 ]
 
 
@@ -895,7 +961,7 @@ func to_data() -> Dictionary:
 		"dialogueTranslations": _translations.duplicate(true),
 		"workspaceState": {"blocks": {"languageVersion": 0, "blocks": _top_blocks + _personality_blocks + _rule_blocks}},
 		"knownCharacters": _known_characters.values(),
-		"topicLines": _pet.topic_lines_effective(),
+		"topicLines": _pet.topic_lines_own(),
 	}
 
 
@@ -988,7 +1054,7 @@ func save_user_only_file(path: String) -> Error:
 		"dialogueTranslations": _translations.duplicate(true),
 		"workspaceState": {"blocks": {"languageVersion": 0, "blocks": _top_blocks}},
 		"knownCharacters": _known_characters.values(),
-		"topicLines": _pet.topic_lines_effective(),
+		"topicLines": _pet.topic_lines_own(),
 	}, "  "))
 	return OK
 
@@ -1320,9 +1386,10 @@ func _on_memory_reset() -> void:
 ## prompt 是純文字問句(輸入視窗用),bubble_text 是同一句問句的氣泡版(BBCode)。
 ## 桌寵自己(積木)發起的提問不會直接跳出視窗打擾使用者:UiManager 先用氣泡問,使用者按了「回答」才開輸入視窗。
 ## 輸入視窗開著(ticket.typing)期間,桌寵被點擊/拖曳打斷不會取消輸入。
-func _ask_user_text(prompt: String, bubble_text: String, default_text: String, max_length: int) -> Array:
+## tag_picker = true(關鍵詞詢問):輸入視窗多一行標籤下拉選單,回傳多第三格 = 使用者選的標籤。
+func _ask_user_text(prompt: String, bubble_text: String, default_text: String, max_length: int, tag_picker := false) -> Array:
 	if _state.text_input_requested.get_connections().is_empty():
-		return ["", false]
+		return ["", false, ""]
 	_progress_stamp += 1
 	var ticket := InputTicket.new()
 	var on_cut := func() -> void:
@@ -1330,11 +1397,12 @@ func _ask_user_text(prompt: String, bubble_text: String, default_text: String, m
 			ticket.finish("", false)
 	_pet.interrupted.connect(on_cut)
 	# 先掛好接收結果的連線再送出請求:輸入介面可能在 emit 當下就同步回覆,那時再 await 就等不到了。
-	var result: Array = ["", false]
+	var result: Array = ["", false, ""]
 	ticket.finished.connect(func(text: String, accepted: bool) -> void:
 		result[0] = text
-		result[1] = accepted)
-	_state.text_input_requested.emit(_pet, {"prompt": prompt, "bubble_text": bubble_text, "default": default_text, "max_length": max_length, "direct": false}, ticket)
+		result[1] = accepted
+		result[2] = ticket.tag)
+	_state.text_input_requested.emit(_pet, {"prompt": prompt, "bubble_text": bubble_text, "default": default_text, "max_length": max_length, "direct": false, "tag_picker": tag_picker}, ticket)
 	if not ticket.closed:
 		await ticket.finished
 	if is_instance_valid(_pet) and _pet.interrupted.is_connected(on_cut):
@@ -1359,7 +1427,13 @@ func _exec_ask_text(block: Dictionary, token: int) -> String:
 	if _truthy(fields.get("FRESH", false)) and key != "":
 		_pet.text_values.erase(key)
 	var previous := str(_pet.text_values.get(key, default_text)) if key != "" else default_text
-	var got := await _ask_user_text(_interpolate(prompt, false), _interpolate(prompt), previous, max_length)
+	# 這個答案之後會被記進關鍵詞庫(後面接著同一個 KEY 的 keyword_learn)→ 輸入視窗多一行標籤下拉選單,
+	# 選的標籤先記在 _pending_keyword_tags,等那顆 keyword_learn 執行時一起寫進去。
+	var learns := key != "" and _chain_learns_keyword(block.get("next", {}).get("block", {}), key)
+	_pending_keyword_tags.erase(key)
+	var got := await _ask_user_text(_interpolate(prompt, false), _interpolate(prompt), previous, max_length, learns)
+	if learns and bool(got[1]) and str(got[2]) != "":
+		_pending_keyword_tags[key] = PetText.clean_tag(got[2])
 	# 使用者已經打好的答案先存起來,再看是不是中途被打斷(被打斷只會讓後面的積木不再執行)。
 	var answer := PetText.sanitize(str(got[0]), max_length)
 	# 使用者按了送出卻什麼都沒填:桌寵回一句、取消這次寫入,不執行後面的積木(免得記到沒有意義的空值)。EMPTY_REPLY 欄位可以自訂那句話。
@@ -1377,6 +1451,22 @@ func _exec_ask_text(block: Dictionary, token: int) -> String:
 	return ""
 
 
+## 從 node 這顆積木往下(next、以及如果/否則這類積木包在 inputs 裡的分支)找有沒有把文字變數 key 記進關鍵詞庫的 keyword_learn。
+static func _chain_learns_keyword(node: Variant, key: String, depth := 0) -> bool:
+	if not (node is Dictionary) or (node as Dictionary).is_empty() or depth > 200:
+		return false
+	var block: Dictionary = node
+	if str(block.get("type", "")) == "keyword_learn" and PetText.sanitize_key(str(block.get("fields", {}).get("KEY", ""))) == key:
+		return true
+	var inputs: Variant = block.get("inputs", {})
+	if inputs is Dictionary:
+		for input: Variant in (inputs as Dictionary).values():
+			if input is Dictionary and _chain_learns_keyword((input as Dictionary).get("block", {}), key, depth + 1):
+				return true
+	var next: Variant = block.get("next", {})
+	return next is Dictionary and _chain_learns_keyword((next as Dictionary).get("block", {}), key, depth + 1)
+
+
 ## keyword_learn:把文字變數 KEY(通常是「詢問使用者文字」剛存下來的答案)記進關鍵詞庫。LIST = pet(桌寵有興趣的,預設;桌寵向使用者學新知識)/ user(使用者有興趣的;桌寵想更了解你)。
 ## 空白、超長、重複的、庫已滿的都不寫;寫入後立刻存檔。使用者事後可以在桌寵管理 → 性格 → 關鍵詞庫自己維護。
 func _exec_keyword_learn(block: Dictionary) -> void:
@@ -1387,17 +1477,28 @@ func _exec_keyword_learn(block: Dictionary) -> void:
 	if cleaned.is_empty():
 		return
 	var word := cleaned[0]
+	# 使用者在輸入視窗順手選的標籤(見 _exec_ask_text);沒有就是預設的「話題」(不寫進標籤字典)。
+	var tag := str(_pending_keyword_tags.get(key, PetText.DEFAULT_TAG))
+	_pending_keyword_tags.erase(key)
 	if str(fields.get("LIST", "pet")).strip_edges().to_lower() == "user":
 		var user_list: PackedStringArray = _pet.user_keywords
+		if user_list.has(word) and tag != PetText.DEFAULT_TAG:
+			_pet.user_keyword_tags[word] = tag
 		if not user_list.has(word) and user_list.size() < PetText.MAX_KEYWORDS:
 			user_list.append(word)
 			_pet.user_keywords = user_list
+			if tag != PetText.DEFAULT_TAG:
+				_pet.user_keyword_tags[word] = tag
 			PetFavor.user_bond(_pet, "teach", PetFavor.USER_SMALL, PetFavor.USER_TEACH_COOLDOWN)   # 教桌寵關於使用者的詞
 	else:
 		var pet_list: PackedStringArray = _pet.keywords
+		if pet_list.has(word) and tag != PetText.DEFAULT_TAG:
+			_pet.keyword_tags[word] = tag
 		if not pet_list.has(word) and pet_list.size() < PetText.MAX_KEYWORDS:
 			pet_list.append(word)
 			_pet.keywords = pet_list
+			if tag != PetText.DEFAULT_TAG:
+				_pet.keyword_tags[word] = tag
 			PetFavor.user_bond(_pet, "teach", PetFavor.USER_SMALL, PetFavor.USER_TEACH_COOLDOWN)   # 教桌寵新的關鍵字
 	PetProfile.save_pet(_pet)
 
@@ -1537,7 +1638,14 @@ func _exec(block: Dictionary, token: int, prev_type: String = "") -> String:
 			var variant := str(fields.get("VARIANT", ""))
 			# 積木指定的動作一律是 SCRIPTED 優先級(打斷自主行為、佔用至少一個動畫循環);FORCE 勾選目前不改變行為,
 			# 留給之後「隨機時跳過」差分過濾上線後,強制略過該過濾。
-			_pet.play_action(StringName(str(fields.get("ACTION", "idle"))), int(variant) if variant.is_valid_int() else -1, true)
+			# INCIDENTAL(2026-10-11):偶發動作——只借動畫播一輪、播完接回原本的動作,不算開始新動作,原本的行為一換就讓出(見 Pet.play_incidental)。
+			if _truthy(fields.get("INCIDENTAL", false)):
+				_pet.play_incidental(StringName(str(fields.get("ACTION", "idle"))), int(variant) if variant.is_valid_int() else -1)
+			else:
+				_pet.play_action(StringName(str(fields.get("ACTION", "idle"))), int(variant) if variant.is_valid_int() else -1, true)
+		"action_set_appearance":
+			# 切換整套外觀(見 PetAppearances / Pet.set_appearance);NAME 空白或「預設」= 換回預設外觀。找不到、不能用就維持原樣。
+			_pet.set_appearance(str(fields.get("NAME", "")))
 		"dialogue_line":
 			return await _dialogue_line(block, token, prev_type)
 		"dialogue_wait":
@@ -1623,7 +1731,7 @@ func _exec(block: Dictionary, token: int, prev_type: String = "") -> String:
 		"cond_prob_percent", "cond_pet_present", "cond_pet_state", "cond_pet_sleeping", "cond_move_mode", "cond_text_set", "cond_time_between", "cond_date_is", "cond_weekday_is", \
 		"cond_lens_active", "cond_lens_active_over", "cond_holding_prop", "cond_value_compare", "flag_check", "cond_game_stat", "cond_target_is", \
 		"cond_mood_compare", "cond_mood_zone", "cond_energy_compare", "cond_rest_state", "cond_lens_nature", "cond_loss_streak", "cond_ball_play", "cond_timer_running", \
-			"cond_furniture_using", "cond_furniture_sharing", "cond_furniture_state", "cond_is_follower", "cond_is_leader", "cond_pet_invisible", "cond_pet_affinity", "cond_pet_favor", "cond_pets_touch", "cond_pets_follow":
+			"cond_furniture_using", "cond_furniture_sharing", "cond_furniture_state", "cond_is_follower", "cond_is_leader", "cond_pet_invisible", "cond_pet_affinity", "cond_pet_favor", "cond_pets_touch", "cond_pets_follow", "cond_appearance_is":
 			# (積木語法裡狀態鏡條件是回傳布林的值積木,這裡只是同時容許有 DO 語句輸入的寫法)
 			# 條件積木當成「如果…那麼」的 C 型積木使用:成立才執行裡面的積木。
 			if _eval_block(block):
@@ -1835,6 +1943,8 @@ func _dialogue_line(block: Dictionary, token: int, prev_type: String = "") -> St
 ## 沒有任何對話介面訂閱時(例如尚未建立 UI 的測試環境)改用計時器,不會讓積木鏈卡住。
 func _show_line(speaker: Node, line: Dictionary, auto_seconds: float) -> int:
 	_progress_stamp += 1
+	if is_instance_valid(speaker) and speaker.has_method("is_silent") and speaker.is_silent():
+		return -1   # 靜默的桌寵:這句不說(也不等),事件裡其他的動作照常往下跑
 	if _state.dialogue_line_requested.get_connections().is_empty():
 		await _wait(auto_seconds if auto_seconds > 0.0 else DEFAULT_DIALOGUE_SECONDS, speaker == _pet)
 		return -1
@@ -1847,6 +1957,8 @@ func _show_line(speaker: Node, line: Dictionary, auto_seconds: float) -> int:
 
 ## 不等待的一句(WAIT=false):送出去就走,票據沒人等。
 func _send_line(speaker: Node, line: Dictionary) -> void:
+	if is_instance_valid(speaker) and speaker.has_method("is_silent") and speaker.is_silent():
+		return
 	if not _state.dialogue_line_requested.get_connections().is_empty():
 		# 「不等說完」的句子(WAIT=false)一出現就要顯示、可以取代目前的氣泡;一般的句子則會在對話介面排隊等前一個氣泡收掉。
 		line["interrupts"] = true
@@ -2142,6 +2254,8 @@ func _eval_block(block: Dictionary) -> Variant:
 			return _compare(str(fields.get("OP", "EQ")), _get_value(str(fields.get("SCOPE", "")), str(fields.get("KEY", ""))), _number(fields.get("NUM", 0.0)))
 		"flag_check":
 			return _truthy(_pet.flags.get(str(fields.get("FLAG", "")), false))
+		"cond_appearance_is":
+			return _pet.appearance_matches(str(fields.get("NAME", "")))
 		"cond_lens_active":
 			return _pet.is_lens_active(str(fields.get("LENS", "")))
 		"cond_lens_active_over":
@@ -2308,6 +2422,8 @@ func _furniture_candidates(fields: Dictionary) -> Array[FurnitureItem]:
 				for item: FurnitureItem in manager.items:
 					if is_instance_valid(item):
 						pool.append(item)
+	# 「隱藏行動區外的家具」藏起來的當作不在場(見 FurnitureItem.area_hidden)。
+	pool = pool.filter(func(item: FurnitureItem) -> bool: return not item.area_hidden)
 	var tag := str(fields.get("TAG", "")).strip_edges()
 	if tag != "":
 		pool = pool.filter(func(item: FurnitureItem) -> bool: return item.def != null and item.def.tags.has(tag))
@@ -2387,8 +2503,12 @@ func _any_or_all_pets(fields: Dictionary, matches: Callable) -> bool:
 	var wanted := _character_tags(fields)
 	var include_self := _truthy(fields.get("INCLUDE_SELF", false))
 	var candidates: Array = []
+	# 2026-10-11:清單裡寫 SELF = 只看自己這一隻(「我自己正在待機」這類條件用;原本只能填別隻的辨識代號)。
+	var self_listed := wanted.has("SELF")
 	for other: Node in get_tree().get_nodes_in_group("pets"):
-		if other == _pet and not include_self:
+		if other == _pet:
+			if self_listed or (include_self and (wanted.is_empty() or wanted.has(other.recognition_tag))):
+				candidates.append(other)
 			continue
 		if wanted.is_empty() or wanted.has(other.recognition_tag):
 			candidates.append(other)

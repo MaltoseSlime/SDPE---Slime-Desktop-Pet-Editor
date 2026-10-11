@@ -93,8 +93,9 @@ static func _open_board(initiator: Node) -> MastermindBoard:
 	return board
 
 
-static func _cleanup_board(board: MastermindBoard) -> void:
-	if board != null and is_instance_valid(board):
+## 參數故意不寫型別:棋盤/記分板可能在結算停留(GameChat.hold_result)期間就被收掉,已釋放的物件傳進有型別的參數會直接報錯。
+static func _cleanup_board(board: Variant) -> void:
+	if is_instance_valid(board):
 		board.queue_free()
 
 
@@ -219,28 +220,33 @@ static func _run(participants: Array, code_length := DEFAULT_CODE_LENGTH, levels
 			break
 		for pet: Node in pets:
 			pools[pet] = _filter_pool(pools[pet], guess, result)
-	_cleanup_board(board)
+	# 棋盤留到結算台詞講完再多停留幾秒才收(2026-10-11 使用者要求,見 GameChat.hold_result());之前是一分出
+	# 勝負就先收掉棋盤才開始講。
 	var secret_text: String = "".join(secret)
+	var is_group_battle := participants.size() > 2   # 超過一位桌寵 + 使用者(或多隻桌寵)才算「全體對戰」。
 	if winner is Node:
 		GameChat.chain_say(winner, "[b]%s[/b]" % (SOLVE_LINES.pick_random() % secret_text), 3.0)
 		_react(winner, "win", participants.has("USER"))
 		for pet: Node in pets:
 			if pet != winner:
 				_react(pet, "lose", false)
-		await _wait(host, 1.6)
+				if is_group_battle and pet.effects != null:
+					pet.effects.play("confetti")   # 使用者要求:全體對戰結束,輸的桌寵放五彩紙花。
 	elif winner == "USER":
 		var loser: Node = pets[0]
 		GameChat.chain_say(loser, USER_WIN_LINES.pick_random() % secret_text, 3.0)
 		for pet: Node in pets:
 			_react(pet, "lose", true)
-		await _wait(host, 1.6)
+			if is_group_battle and pet.effects != null:
+				pet.effects.play("confetti")   # 使用者要求:全體對戰結束,輸的桌寵放五彩紙花。
 	else:
 		var announcer: Node = pets.pick_random()
 		if is_instance_valid(announcer):
 			GameChat.chain_say(announcer, REVEAL_LINES.pick_random() % secret_text, 3.0)
 			for pet: Node in pets:
 				_react(pet, "tie", participants.has("USER"))
-			await _wait(host, 1.6)
+	await GameChat.hold_result(pets, board, GroupScoreboard.RESULT_HOLD_SECONDS)
+	_cleanup_board(board)
 	var winner_tag := ""
 	if winner is Node:
 		winner_tag = (winner as Node).recognition_tag

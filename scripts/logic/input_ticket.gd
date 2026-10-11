@@ -8,6 +8,10 @@ signal finished(text: String, accepted: bool)
 var closed := false
 ## 使用者已經按了「回答」、輸入視窗正開著。這段期間桌寵被點擊/拖曳等互動打斷不會取消輸入(避免使用者打到一半的字被吃掉)。
 var typing := false
+## 關鍵詞詢問(見 LogicInterpreter._exec_ask_text)的輸入視窗多一行標籤下拉選單,使用者選的標籤放這裡;其他詢問一律是空字串。
+var tag := ""
+## 輸入視窗有第二個欄位時(見 TextPromptWindow.setup 的 second,目前是計時器的「中途提醒」)使用者填的內容;沒有第二欄一律是空字串。
+var extra := ""
 
 
 func finish(text: String, accepted: bool) -> void:

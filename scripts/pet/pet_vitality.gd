@@ -115,6 +115,10 @@ var wake_mood_penalty := 0.0
 ## 沒事自己坐下休息一下的意願(每秒機率,0 = 不會):不像疲憊觸發的休息,不疲憊時也會,只坐下(不會自己躺著睡著),
 ## 跟疲憊觸發的休息共用同一套休息鏈與冷卻,判定見 _idle_sit_process()。
 var idle_sit_chance := 0.0
+## 對其他桌寵的好感增減倍率與連敗門檻(見 PetFavor;性格參數,可調,見 PersonalityParams)。
+var favor_gain_mult := 1.0
+var favor_loss_mult := 1.0
+var favor_streak_threshold := 3.0
 
 var energy := MAX_ENERGY
 var mode: Mode = Mode.ACTIVE
@@ -237,9 +241,15 @@ func _decide() -> void:
 ## 只有從 _decide() 呼叫得到(疲勞機制關掉時 _process() 一律提早 return,不會走到這裡),所以不用額外處理
 ## 「疲勞關掉卻在休息中」的情形(那是 force_rest 的 _manual_rest 在管)。
 func _maybe_idle_sit() -> void:
-	if idle_sit_chance <= 0.0 or tired:
+	var chance := idle_sit_chance
+	if _pet.relaxing():
+		if _pet.is_ground_mode():
+			return   # 放鬆模式、走在地上的:什麼時候坐、坐哪裡交給 PetRelax(會先挑座位)
+		if _pet.move_mode != Pet.MoveMode.FIXED:
+			chance = PetRelax.scaled(chance, PetRelax.SIT_CHANCE_PCT, PetRelax.SIT_CHANCE_UNIT)   # 其餘(靜止、漂浮、飛行)原地休息,一樣更常坐
+	if chance <= 0.0 or tired:
 		return
-	if randf() < clampf(idle_sit_chance * CHECK_INTERVAL, 0.0, 1.0):
+	if randf() < clampf(chance * CHECK_INTERVAL, 0.0, 1.0):
 		_begin_chain(Mode.RESTING)
 
 
@@ -266,7 +276,7 @@ func _run_process(delta: float) -> void:
 	_was_running = running
 	var run_mod: float = _pet.lens_mod("run")
 	var base_chance := run_chance if run_chance > 0.0 else (0.03 if run_mod > 1.0 else 0.0)   # 緊張、生氣、開心:沒有跑步習慣的性格也有一點點機會起跑
-	if running or base_chance <= 0.0 or _run_cooldown > 0.0 or tired or mode != Mode.ACTIVE or _pet.lens_blocks("run"):
+	if running or _pet.relaxing() or base_chance <= 0.0 or _run_cooldown > 0.0 or tired or mode != Mode.ACTIVE or _pet.lens_blocks("run"):
 		return
 	if not _pet.has_lens(RUN_LENS) or not _pet.is_ground_mode() or _pet.is_busy_for_game():
 		return
@@ -316,6 +326,8 @@ func _enter_stage(new_mode: Mode) -> void:
 	_mode_elapsed = 0.0
 	var range_seconds := sleep_duration if new_mode == Mode.SLEEPING else rest_duration
 	_mode_length = randf_range(minf(range_seconds.x, range_seconds.y), maxf(range_seconds.x, range_seconds.y))
+	if new_mode == Mode.RESTING and _pet.relaxing():
+		_mode_length = PetRelax.scaled(_mode_length, PetRelax.SIT_DURATION_PCT)   # 放鬆模式:每一段坐得比較久
 	_pet.play_action(stage_action(new_mode), -1, true)
 	_pet.extend_hold(_mode_length)
 
@@ -366,6 +378,9 @@ func _recover(delta: float) -> void:
 
 ## 一段休息自然結束:擲骰決定繼續、換階段還是醒來。從睡著換到淺一點的階段也算睡醒(觸發 wake 事件)。
 func _round_finished() -> void:
+	if _pet.relaxing():
+		_relax_round_finished()
+		return
 	_rest_round += 1
 	var next := next_stage(mode, _rest_round, energy, randf(), randf())
 	if next == Mode.ACTIVE:
@@ -377,7 +392,43 @@ func _round_finished() -> void:
 		_pet.logic.fire_event(&"wake")
 
 
+## 放鬆模式下一段休息結束:不會自己醒來去閒晃,以坐著為主——
+##  站著 → 坐下;睡著 → 還很累就繼續睡,不然回到坐著;
+##  坐著 → 低機率起身換位置(PetRelax.wants_relocate,已經挑好座位才會回 true),不然繼續坐;小機率改成睡一下
+##  (懶惰性格 = 有「被叫醒扣心情」、或正累著的機率 × PetRelax.LAZY_SLEEP_MULT)。
+func _relax_round_finished() -> void:
+	_rest_round += 1
+	match mode:
+		Mode.SLEEPING:
+			if energy <= exhausted_threshold and fatigue_enabled():
+				_enter_stage(Mode.SLEEPING)
+				return
+			_enter_stage(Mode.RESTING)
+			_pet.logic.fire_event(&"wake")
+		Mode.RESTING:
+			if _pet.relax.wants_relocate():
+				_end_rest(true)
+				return
+			var lazy := wake_mood_penalty > 0.0 or tired
+			var sleepy := PetRelax.SLEEP_CHANCE * (PetRelax.LAZY_SLEEP_MULT if lazy else 1.0)
+			if _pet.is_in_game():
+				sleepy = 0.0   # 對戰打到一半不會睡著
+			_enter_stage(Mode.SLEEPING if randf() < sleepy else Mode.RESTING)
+		_:
+			_enter_stage(Mode.RESTING)
+
+
+## 放鬆模式解除(PetRelax.tick 偵測到開關關掉時呼叫):性格數值本來就沒被改過(加成都是用的時候才算,見 PetRelax.scaled),
+## 這裡只把「正在坐的這一段」被拉長的剩餘時間縮回平常的長度;這一段結束後走平常的 _round_finished(休息夠久了通常就起身)。
+func relax_ended() -> void:
+	if mode != Mode.RESTING:
+		return
+	var remaining := maxf(_mode_length - _mode_elapsed, 0.0)
+	_mode_length = _mode_elapsed + remaining / (1.0 + PetRelax.SIT_DURATION_PCT)
+
+
 func _end_rest(finished: bool) -> void:
+
 	var was_sleeping := mode == Mode.SLEEPING
 	mode = Mode.ACTIVE
 	_manual_rest = false
@@ -671,7 +722,8 @@ func _trait_process(delta: float) -> void:
 
 
 ## 被別隻桌寵邀請(對戰、玩球):內向的太常被邀請(10 分鐘內 3 次)會扣心情。
-func note_invited() -> void:
+## 記下一次被邀請。回傳這次是否觸發了「內向:被連續邀請」(心情 -3)——呼叫端可以再據此扣邀請者的好感(見 PetFavor.pestered)。
+func note_invited() -> bool:
 	var now := Time.get_ticks_msec()
 	_last_invited_msec = now
 	_invited_times.append(now)
@@ -680,6 +732,8 @@ func note_invited() -> void:
 		_invited_times.clear()
 		_invited_times.append(now)
 		change_mood(-3.0)
+		return true
+	return false
 
 
 ## 積木「依性質啟用狀態鏡」:依心情高 / 低指定或隨機挑一個進入(算「被心情叫出來」的,會在心情走回門檻附近時解除)。

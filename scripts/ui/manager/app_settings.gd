@@ -123,11 +123,44 @@ static func max_fps() -> int:
 ## 設定最高影格率並立刻套用、存檔。影格率越低越省電、越高動畫越順(桌寵動畫本身通常只有 8~14 fps,調高對畫面幫助有限)。
 static func set_max_fps(value: int) -> void:
 	var clamped := clampi(value, MIN_MAX_FPS, MAX_MAX_FPS)
-	Engine.max_fps = clamped
 	var config := ConfigFile.new()
 	config.load(SETTINGS_PATH)
 	config.set_value("performance", "max_fps", clamped)
 	config.save(SETTINGS_PATH)
+	refresh_fps()
+
+
+## 「放鬆模式時降低影格率」(2026-10-11 使用者要求,獨立開關,預設關):放鬆模式開著的期間最高影格率壓到 RELAX_FPS
+## (使用者自己設的更低就照使用者的),關掉放鬆模式就回到原本的設定。存在 [performance] 的 relax_low_fps。
+const RELAX_FPS := 15
+
+
+static func relax_low_fps() -> bool:
+	var config := ConfigFile.new()
+	if config.load(SETTINGS_PATH) == OK:
+		return bool(config.get_value("performance", "relax_low_fps", false))
+	return false
+
+
+static func set_relax_low_fps(enabled: bool) -> void:
+	var config := ConfigFile.new()
+	config.load(SETTINGS_PATH)
+	config.set_value("performance", "relax_low_fps", enabled)
+	config.save(SETTINGS_PATH)
+	refresh_fps()
+
+
+## 現在該用的最高影格率(純函式,方便測試)。
+static func effective_max_fps(base: int, relax_mode: bool, low_when_relaxed: bool) -> int:
+	return mini(base, RELAX_FPS) if relax_mode and low_when_relaxed else base
+
+
+## 依目前的設定與放鬆模式狀態重新套用最高影格率(改了最高影格率、這個開關、或切換放鬆模式時呼叫)。
+static func refresh_fps() -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	var state: Node = tree.root.get_node_or_null("/root/DesktopShellState") if tree != null else null
+	var relaxed: bool = state != null and bool(state.relax_mode)
+	Engine.max_fps = effective_max_fps(max_fps(), relaxed, relax_low_fps())
 
 
 ## 光源(發光效果)總開關:預設開;關掉就完全不畫、不佔穿透形狀(和效能有關)。存在 [performance] 的 lights。

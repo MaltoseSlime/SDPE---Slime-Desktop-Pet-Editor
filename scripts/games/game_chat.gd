@@ -59,8 +59,9 @@ static func think_blocked(inviter: Node, busy: Node, game_name: String) -> void:
 
 
 ## 思考泡泡(oO)裡的一句話,只有自己的心聲,不是對誰說。
-static func think(pet: Node, text: String, seconds := 3.0) -> void:
-	if not is_instance_valid(pet):
+## system = true:不是桌寵的心聲,是給使用者看的系統提示(例如「正在讀取外觀」),靜默的桌寵也照樣顯示。
+static func think(pet: Node, text: String, seconds := 3.0, system := false) -> void:
+	if not is_instance_valid(pet) or (not system and pet.has_method("is_silent") and pet.is_silent()):
 		return
 	var state := pet.get_node("/root/DesktopShellState")
 	if state.dialogue_line_requested.get_connections().is_empty():
@@ -82,8 +83,9 @@ static func think(pet: Node, text: String, seconds := 3.0) -> void:
 ## 事先安排成一串的事件——這包含遊戲/對戰對話——才算,不然沒辦法分辨聊天室記錄裡相鄰的兩句是同一件事還是
 ## 巧合)。只影響簡訊式的分組外觀(見 ChatRoomWindow.append_line() 的說明),不影響其他行為。遊戲/對戰的
 ## 台詞一律走下面的 chain_say(),不要直接傳 chain=true 給這個函式(維持呼叫端統一用 chain_say)。
+## 靜默的桌寵(Pet.is_silent)不說話:只有 force_bubble 的句子(計時器的提醒)照常顯示。
 static func say(pet: Node, text: String, seconds := 3.0, quiet := false, force_bubble := false, chain := false) -> void:
-	if not is_instance_valid(pet):
+	if not is_instance_valid(pet) or (not force_bubble and pet.has_method("is_silent") and pet.is_silent()):
 		return
 	var state := pet.get_node("/root/DesktopShellState")
 	if state.dialogue_line_requested.get_connections().is_empty():
@@ -125,6 +127,48 @@ static func ask(pet: Node, text: String, options: Array, patience := 60.0) -> in
 	if not ticket.closed:
 		await ticket.finished
 	return int(result[0])
+
+
+## 結算收尾(2026-10-11 使用者要求):勝負出來、桌寵們講結算台詞之後,記分板/棋盤要等「台詞講完」再多停留
+## hold_seconds 秒才收——之前是固定秒數,從開口那一刻起算(甚至排在結算之前),台詞還沒講完面板就先不見了。
+## pets = 會講結算台詞的桌寵(看 Pet.has_open_bubble 判斷講完了沒,最多等 TALK_WAIT_MAX_SECONDS,不會被
+## 一直不關的氣泡卡死);panel = 要停留的記分板/棋盤,中途被收掉(不存在了)就不用再等;skip(選填)回傳 true
+## 也提早結束(使用者按了棋盤的 ✕)。呼叫端等這個函式回來之後自己收面板。沒有對話介面(自動測試)時沒有氣泡
+## 可等,只剩 hold_seconds。
+const TALK_SETTLE_SECONDS := 0.3
+const TALK_WAIT_MAX_SECONDS := 15.0
+const HOLD_POLL_SECONDS := 0.25
+
+
+static func hold_result(pets: Array, panel: Node, hold_seconds: float, skip := Callable()) -> void:
+	var tree: SceneTree = null
+	for pet: Variant in pets:
+		if is_instance_valid(pet) and pet.is_inside_tree():
+			tree = pet.get_tree()
+			break
+	if tree == null:
+		return
+	var gone := func() -> bool: return not is_instance_valid(panel) or (skip.is_valid() and bool(skip.call()))
+	await tree.create_timer(TALK_SETTLE_SECONDS).timeout   # 剛送出的結算台詞先讓它開起來
+	var waited := 0.0
+	while waited < TALK_WAIT_MAX_SECONDS and _anyone_talking(pets):
+		if gone.call():
+			return
+		await tree.create_timer(HOLD_POLL_SECONDS).timeout
+		waited += HOLD_POLL_SECONDS
+	var left := hold_seconds
+	while left > 0.0:
+		if gone.call():
+			return
+		await tree.create_timer(minf(HOLD_POLL_SECONDS, left)).timeout
+		left -= HOLD_POLL_SECONDS
+
+
+static func _anyone_talking(pets: Array) -> bool:
+	for pet: Variant in pets:
+		if is_instance_valid(pet) and pet.has_open_bubble:
+			return true
+	return false
 
 
 ## 這隻桌寵的遊戲結果有積木事件(event_when_dice_contest / event_when_rps)就交給積木,沒有就用內建反應:

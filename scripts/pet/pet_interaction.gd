@@ -62,10 +62,26 @@ func setup(pet: CharacterBody2D) -> void:
 	_shell_state.passthrough_started.connect(_cancel)
 
 
+## 蓋在桌寵上面的面板(小遊戲棋盤/記分板/塔羅選牌、聊天室視窗)都在這個群組,各自實作 blocks_pointer(point)。
+const POINTER_BLOCKER_GROUP := "pointer_blockers"
+
+
+## 這個點上面是不是蓋著面板(2026-10-11 使用者實機回報:拖曳棋盤/聊天室視窗時容易把後面的桌寵一起拖起來)。
+## 桌寵的輸入走 _input(),比 Control 的 _gui_input() 早,也不照畫面疊放順序派送,所以不能指望面板先把事件吃掉,
+## 改成桌寵自己先問一次。
+static func pointer_blocked(tree: SceneTree, point: Vector2) -> bool:
+	for blocker: Node in tree.get_nodes_in_group(POINTER_BLOCKER_GROUP):
+		if not blocker.is_queued_for_deletion() and blocker.blocks_pointer(point):
+			return true
+	return false
+
+
 ## 滑鼠下同時有好幾隻桌寵重疊時,一次只讓一隻收到按壓/右鍵/摸摸,不然會把重疊的全部抓起來:
 ## 正在被拖曳的那隻優先;其次是「有畫東西的像素」剛好在滑鼠下的(pixel_precise 時才檢查,摸摸的每次滑鼠移動用矩形就好);
-## 再來是畫在最上面的(同一個圖層裡節點順序最後的)。沒有任何一隻在滑鼠下回傳 null。
+## 再來是畫在最上面的(同一個圖層裡節點順序最後的)。沒有任何一隻在滑鼠下、或這個點被面板蓋住(見 pointer_blocked)回傳 null。
 static func topmost_pet_at(tree: SceneTree, point: Vector2, pixel_precise := false) -> Node:
+	if pointer_blocked(tree, point):
+		return null
 	var hits: Array = []
 	for pet: Node in tree.get_nodes_in_group("pets"):
 		if not pet.is_queued_for_deletion() and pet.hit_test(point):

@@ -5,7 +5,7 @@ extends RefCounted
 ## 對話文字可以用 {roll:KEY}(見 LogicInterpreter._placeholder_text)。拚骰結束後每個參加者的積木事件
 ## event_when_dice_contest(RESULT = win / lose / tie)會被觸發;沒有那個事件的桌寵用內建反應(贏了開心、輸了氣得發抖)。
 ## 賽制 best_of(1 一戰、3 三戰兩勝、5 五戰三勝);對話可用 {contest:score}(這一場的勝局,自己:最高的對手)、{contest:rounds}。
-## 所有等待都可被打斷:任何一個參加者被使用者點擊/拖曳(action_generation 改變)整場就取消。
+## 所有等待都可被打斷(action_generation 改變整場就取消);但對戰中使用者點擊/拖曳參加者不算打斷(見 Pet._interrupt())。
 
 const MIN_SIDES := 2
 const MAX_SIDES := 1000
@@ -73,8 +73,9 @@ static func _open_scoreboard(initiator: Node, title: String) -> GroupScoreboard:
 	return board
 
 
-static func _close_scoreboard(scoreboard: GroupScoreboard) -> void:
-	if scoreboard != null and is_instance_valid(scoreboard):
+## 參數故意不寫型別:棋盤/記分板可能在結算停留(GameChat.hold_result)期間就被收掉,已釋放的物件傳進有型別的參數會直接報錯。
+static func _close_scoreboard(scoreboard: Variant) -> void:
+	if is_instance_valid(scoreboard):
 		scoreboard.queue_free()
 
 
@@ -265,10 +266,18 @@ static func _contest(initiator: Node, pets: Array, sides: int, count: int, modif
 	if _cancelled(everyone, generations):
 		_close_scoreboard(scoreboard)
 		return {}
-	await _wait(initiator, GroupScoreboard.RESULT_HOLD_SECONDS)   # 結果停留,讓人看清楚誰贏
-	_close_scoreboard(scoreboard)
+	# 順序(2026-10-11 使用者要求):記分板寫上冠軍 → 桌寵們講結算台詞 → 講完之後記分板再停留幾秒才收。
+	# 之前是「先停留、收掉記分板、才結算」,停留的那幾秒根本還沒出現贏家。
+	if scoreboard != null:
+		scoreboard.add_line("", TranslationServer.translate("冠軍:%s") % champion_name if champions.size() == 1 else TranslationServer.translate("平手,沒有分出勝負!"))
+	var is_group_battle := everyone.size() > 2   # 跟上面開計分板用同一個門檻,只有這才算「全體對戰」。
 	for pet: Node in everyone:
 		GameChat.react(pet, "dice_contest", outcomes[pet])
+		if is_group_battle and outcomes[pet] == "lose" and pet.effects != null:
+			pet.effects.play("confetti")   # 使用者要求:全體對戰結束,輸的桌寵放五彩紙花。
+	if scoreboard != null:
+		await GameChat.hold_result(everyone, scoreboard, GroupScoreboard.RESULT_HOLD_SECONDS)
+		_close_scoreboard(scoreboard)
 	return {"outcomes": outcomes, "totals": totals, "wins": wins, "rounds": rounds}
 
 static func _cancelled(pets: Array, generations: Dictionary) -> bool:

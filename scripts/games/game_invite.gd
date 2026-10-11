@@ -51,7 +51,7 @@ static func _weighted_pick(inviter: Node, candidates: Array) -> Node:
 ## 賽制由邀請者自己決定(Pet.pick_invite_best_of,不看右鍵選單的「賽制」);設了「一律拒絕對戰邀請」的桌寵不會被自動挑來邀請(反正必被拒)。
 static func start_random(inviter: Node) -> bool:
 	var candidates: Array = inviter.get_tree().get_nodes_in_group("pets").filter(
-		func(p: Node) -> bool: return p != inviter and not p.is_queued_for_deletion() and not p.entering and not p.game_always_refuse)
+		func(p: Node) -> bool: return p != inviter and not p.is_queued_for_deletion() and not p.entering and not p.game_always_refuse and not p.invisible and not p.is_sleeping())
 	if candidates.is_empty():
 		return false
 	var kinds: Array[String] = []
@@ -95,6 +95,11 @@ static func _maybe_named(line: String, person_name: String) -> String:
 ## custom_line 非空 = 用它當邀請的話(已經展開過 {self}、{other} 之類的標記),不用內建台詞。
 ## 開始前先替雙方記下對象(邀請者、被邀請者、對手),被邀請者的事件與台詞可以用「當對象是 XX」條件與 {other} 叫出邀請者的名字。
 ## 回傳 {accepted, reason};中途被打斷回空字典。
+## 這次邀請算不算「真的被邀請」(連續邀請的計數與扣好感用):睡著、遊戲中、隱形的桌寵收不到,忙碌造成的失敗不計。
+static func _invite_counts(p: Node) -> bool:
+	return not p.is_sleeping() and not p.is_in_game() and not p.invisible
+
+
 static func invite(inviter: Node, invitee: Node, kind: String, best_of := 0, wait_game := false, custom_line := "") -> Dictionary:
 	if not is_instance_valid(inviter) or not is_instance_valid(invitee) or inviter == invitee:
 		return {}
@@ -104,6 +109,10 @@ static func invite(inviter: Node, invitee: Node, kind: String, best_of := 0, wai
 	if invitee.is_in_game():
 		GameChat.think_blocked(inviter, invitee, TranslationServer.translate(str(GAME_NAMES.get(kind, "遊戲"))))
 		return {"accepted": false, "reason": "in_game"}
+	# 隱形中的桌寵收不到邀請:邀請方說一句找不到對方(不計入被邀請次數、不扣好感)。
+	if invitee.invisible:
+		GameChat.say(inviter, TranslationServer.translate("雖然想邀請%s,但找不到對方……") % str(invitee.get_label()), 2.4)
+		return {"accepted": false, "reason": "invisible"}
 	# 井字棋/步步為營全場同時只能有一塊棋盤(使用者要求):已經有的話,新的邀請(自動或手動指定)一律擋下。
 	if kind == "ttt" and TttGame.has_active_board():
 		return {"accepted": false, "reason": "board_busy"}
@@ -124,8 +133,8 @@ static func invite(inviter: Node, invitee: Node, kind: String, best_of := 0, wai
 	await _wait(inviter, 1.8)
 	if _cancelled(inviter, invitee, generations):
 		return {}
-	if invitee.vitality != null:
-		invitee.vitality.note_invited()
+	if invitee.vitality != null and _invite_counts(invitee) and invitee.vitality.note_invited():
+		PetFavor.pestered(invitee, inviter)
 	var refusal: Dictionary = invitee.game_refusal(kind, inviter)
 	if randf() < float(refusal["chance"]):
 		var reason := str(refusal["reason"])
@@ -176,7 +185,7 @@ static func invite_all_dice(inviter: Node, best_of := 0) -> Dictionary:
 	if not is_instance_valid(inviter) or inviter.is_in_game():
 		return {}
 	var others: Array = inviter.get_tree().get_nodes_in_group("pets").filter(
-		func(p: Node) -> bool: return p != inviter and not p.is_queued_for_deletion() and not p.entering)
+		func(p: Node) -> bool: return p != inviter and not p.is_queued_for_deletion() and not p.entering and not p.invisible and not p.is_sleeping())
 	if others.is_empty():
 		GameChat.say(inviter, inviter.speak_tr("場上沒有別的桌寵可以一起玩……"), 2.5)
 		return {}
@@ -197,8 +206,8 @@ static func invite_all_dice(inviter: Node, best_of := 0) -> Dictionary:
 	for other: Node in others:
 		if not is_instance_valid(other):
 			continue
-		if other.vitality != null:
-			other.vitality.note_invited()
+		if other.vitality != null and _invite_counts(other) and other.vitality.note_invited():
+			PetFavor.pestered(other, inviter)
 		var refusal: Dictionary = other.game_refusal("dice", inviter)
 		if randf() < float(refusal["chance"]):
 			GameChat.say(other, other.speak_tr(str((REFUSE_LINES[str(refusal["reason"])] as Array).pick_random())), 2.2)

@@ -56,6 +56,10 @@ const SPECS := {
 	"introvert_mood_rule": {"kind": "bool", "default": false, "label": "內向:超過兩小時沒被邀請加一次心情,太常被邀請扣心情"},
 	"wake_mood_penalty": {"kind": "float", "min": 0.0, "max": 20.0, "default": 0.0, "label": "睡著時被使用者叫醒扣多少心情(懶惰)"},
 	"idle_sit_chance": {"kind": "float", "min": 0.0, "max": 1.0, "default": 0.0, "label": "沒事自己坐下休息一下的意願(不疲憊時也會,每秒機率,0 = 不會;要有沒在忙、姿態允許)"},
+	# --- 對桌寵的好感增減(見 PetFavor):倍率乘在好惡等級算出來的量上,跟使用者好感度/好惡等級本身無關 ---
+	"favor_gain_mult": {"kind": "float", "min": 0.5, "max": 2.0, "default": 1.0, "label": "好感度追加倍率(對其他桌寵的好感增加時,乘在量上)"},
+	"favor_loss_mult": {"kind": "float", "min": 0.5, "max": 2.0, "default": 1.0, "label": "好感度減少倍率(對其他桌寵的好感減少時,乘在量上)"},
+	"favor_streak_threshold": {"kind": "float", "min": 0.0, "max": 6.0, "default": 3.0, "label": "連敗 N 次時觸發扣好感事件(同一對象的 1v1,5 場一輪;0 = 不氣餒,連敗不扣)"},
 }
 const WEIGHT_KEYS: Array[int] = [1, 3, 5]
 
@@ -211,6 +215,12 @@ static func get_value(pet: Node, key: String) -> Variant:
 			return pet.vitality.wake_mood_penalty
 		"idle_sit_chance":
 			return pet.vitality.idle_sit_chance
+		"favor_gain_mult":
+			return pet.vitality.favor_gain_mult
+		"favor_loss_mult":
+			return pet.vitality.favor_loss_mult
+		"favor_streak_threshold":
+			return pet.vitality.favor_streak_threshold
 	return null
 
 
@@ -315,6 +325,12 @@ static func set_value(pet: Node, key: String, value: Variant) -> void:
 			pet.vitality.wake_mood_penalty = value
 		"idle_sit_chance":
 			pet.vitality.idle_sit_chance = value
+		"favor_gain_mult":
+			pet.vitality.favor_gain_mult = value
+		"favor_loss_mult":
+			pet.vitality.favor_loss_mult = value
+		"favor_streak_threshold":
+			pet.vitality.favor_streak_threshold = value
 
 
 ## 兩個參數值是不是一樣(浮點數容許誤差,範圍、權重逐項比)。

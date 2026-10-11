@@ -48,6 +48,9 @@ var _no_fatigue_check: CheckBox
 var _dance_spin: SpinBox
 var _dance_follow_check: CheckBox
 var _body_scale_spin: SpinBox
+## 圖層(前面/中間/後面)三選一的圓點;順序同 LAYER_TIER_ORDER。
+const LAYER_TIER_ORDER: Array[int] = [PetLayering.Tier.FRONT, PetLayering.Tier.MIDDLE, PetLayering.Tier.BACK]
+var _layer_checks: Array[CheckBox] = []
 var _flip_check: CheckBox
 var _drag_fixed_check: CheckBox
 var _climb_check: CheckBox
@@ -201,6 +204,19 @@ func _ready() -> void:
 	_body_scale_spin.value_changed.connect(_on_field_changed)
 	form.add_child(ManagerUi.labeled("角色縮放倍率", _body_scale_spin))
 	form.add_child(ManagerUi.hint_row("說明", "整隻角色(含碰撞箱與可點擊範圍)的大小倍率。"))
+	# 圖層:跟桌寵右鍵選單的「圖層」是同一個設定(2026-10-11 使用者要求:放一份在這裡比較好找)。
+	var layer_row := HBoxContainer.new()
+	layer_row.add_theme_constant_override("separation", 12)
+	var layer_group := ButtonGroup.new()
+	for tier in LAYER_TIER_ORDER:
+		var check := CheckBox.new()
+		check.text = tr(PetLayering.TIER_LABELS[tier])
+		check.button_group = layer_group
+		check.toggled.connect(_on_layer_toggled.bind(tier))
+		layer_row.add_child(check)
+		_layer_checks.append(check)
+	form.add_child(ManagerUi.labeled("圖層", layer_row))
+	form.add_child(ManagerUi.hint_row("說明", "跟別隻桌寵重疊時誰在前面;同一層裡腳底比較高的排後面。貼底的半身立繪有自己的圖層,不受這裡影響。桌寵右鍵選單的「圖層」是同一個設定。"))
 	_flip_check = CheckBox.new()
 	_flip_check.text = tr("翻轉整隻(左右鏡像;素材原本朝向和慣例(朝右)相反時用)")
 	_flip_check.toggled.connect(_on_field_changed)
@@ -468,6 +484,9 @@ func _load_form() -> void:
 	_status_energy_check.button_pressed = _pet.status_show_energy
 	_status_mood_check.button_pressed = _pet.status_show_mood
 	_body_scale_spin.value = snappedf(_pet.params.scale_multiplier, 0.01)
+	for i in _layer_checks.size():
+		_layer_checks[i].button_pressed = LAYER_TIER_ORDER[i] == clampi(int(_pet.layer_tier), PetLayering.Tier.BACK, PetLayering.Tier.FRONT)
+		_layer_checks[i].disabled = not PetLayering.manages(_pet)
 	_flip_check.button_pressed = _pet.art_flipped
 	_drag_fixed_check.button_pressed = _pet.drag_when_fixed
 	_climb_check.button_pressed = _pet.climb_enabled
@@ -824,3 +843,12 @@ func _fit_preview(parts: Array) -> void:
 		(part["holder"] as Control).custom_minimum_size = (part["panel"] as PanelContainer).get_combined_minimum_size() + Vector2(0.0, float(part["tag_half"]))
 		tallest = maxf(tallest, height)
 	_preview_box.custom_minimum_size.y = tallest
+
+
+## 圖層圓點:選到哪個就立刻生效(重排前後順序、更新右鍵選單的勾選);跟這個分頁其他欄位一樣,按「儲存」才寫進設定檔。
+func _on_layer_toggled(on: bool, tier: int) -> void:
+	if _loading or not on or _pet == null or _pet.layer_tier == tier:
+		return
+	_pet.layer_tier = tier
+	get_tree().call_group("desktop_shell", "refresh_layering")
+	changed.emit()

@@ -197,16 +197,18 @@ static func open_reaction_dialogue_window(host: Node) -> ReactionDialogueWindow:
 
 
 ## 話題文本視窗(交互行為分頁收納用):同一個 host 只開一個,第二次點就把它拉到前面。
-static func open_topic_lines_window(host: Node) -> TopicLinesWindow:
-	if host.has_meta("topic_lines_window"):
-		var existing: Variant = host.get_meta("topic_lines_window")
+## generic = true 開的是「通用話題池」那一個視窗(跟話題文本視窗各自獨立,可以同時開著)。
+static func open_topic_lines_window(host: Node, generic := false) -> TopicLinesWindow:
+	var key := "topic_generic_window" if generic else "topic_lines_window"
+	if host.has_meta(key):
+		var existing: Variant = host.get_meta(key)
 		if is_instance_valid(existing) and existing is TopicLinesWindow:
 			(existing as TopicLinesWindow).bring_to_front()
 			return existing
 	var window := TopicLinesWindow.new()
 	host.add_child(window)
-	window.setup(host)
-	host.set_meta("topic_lines_window", window)
+	window.setup(host, generic)
+	host.set_meta(key, window)
 	return window
 
 

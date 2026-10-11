@@ -20,6 +20,9 @@
 		"max": 300.0,
 		"min": 120.0
 	},
+	"defaults": {
+		"signature": "fresh-install"
+	},
 	"dance": {
 		"chance": 0.08,
 		"enabled": true,

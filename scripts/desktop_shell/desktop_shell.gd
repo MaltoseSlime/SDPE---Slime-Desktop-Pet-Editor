@@ -146,6 +146,9 @@ func _ready() -> void:
 	_top_layer.add_child(hover_ball)
 	hover_ball.setup(action_area, prop_manager)
 	hover_ball.action_requested.connect(_on_ball_action)
+	hover_ball.hide_outside_furniture = furniture_manager.hide_outside_area
+	if _tray != null:
+		_tray.hide_outside_furniture = furniture_manager.hide_outside_area   # 系統匣比家具管理早建立,勾選狀態到這裡才補
 	hover_ball.right_click_requested.connect(_start_passthrough)
 	ui_manager = preload("res://scripts/ui/ui_manager.gd").new()
 	add_child(ui_manager)
@@ -296,6 +299,8 @@ func _spawn_sample_pet(tag := "mal_sample", display := "Mal", pack := {}, roster
 		pet.set_smooth_scaling(bool(meta["smooth"]))
 		pet.set_body_scale(float(meta["scale"]))
 		pet.set_art_flipped(bool(meta["art_flipped"]))
+		pet.base_pack_scale = float(meta["scale"])   # 換外觀時算相對縮放用(見 Pet.apply_appearance_pack)
+		pet.base_pack_flipped = bool(meta["art_flipped"])
 		var overlay_spec: Dictionary = meta.get("overlays", {})
 		if not overlay_spec.is_empty():
 			for line: String in pet.attach_overlays(overlay_spec, str(meta["path"])):
@@ -307,6 +312,8 @@ func _spawn_sample_pet(tag := "mal_sample", display := "Mal", pack := {}, roster
 		_apply_still_traits(pet, pack["meta"])
 	# 名單資訊要在讀設定檔之前就設好:角色庫裡的角色,設定/狀態/積木檔存在自己的資料夾(見 CharacterFiles.folder_of)。
 	pet.set_meta("roster", roster_entry if not roster_entry.is_empty() else {"kind": "sample", "tag": tag, "name": display})
+	if pack.get("appearance") is Dictionary and not ghost:
+		pet.adopt_appearance(pack["appearance"], pack["meta"])   # 生成時就穿著上次的外觀(只讀了那一套,見 _load_saved_look)
 	var character_folder := CharacterFiles.folder_of(pet)
 	if character_folder != "":
 		CharacterFiles.migrate_pack(character_folder)   # 舊位置還有這個角色的檔案就搬過來(平常開機時已經搬過,這裡是保險)
@@ -318,6 +325,8 @@ func _spawn_sample_pet(tag := "mal_sample", display := "Mal", pack := {}, roster
 		PetProfile.load_globals()
 	if not PetProfile.load_pet(pet):
 		DefaultsUpdater.mark_current(pet)   # 沒有設定檔 = 新放出來的桌寵,拿到的就是最新的預設內容
+	elif pet.defaults_signature == DefaultsUpdater.FRESH_SIGNATURE and not ghost:
+		DefaultsUpdater.update_pet(pet)   # 剛裝好的預設角色:直接補到最新,不跳詢問
 	PetProfile.load_state(pet)
 	if ghost:
 		return pet   # 隱藏臨時實例到此為止:不進場、不進名單、不載入積木檔,設定資料已經讀進來,夠管理視窗編輯了。
@@ -505,7 +514,9 @@ func _on_add_pet() -> void:
 
 ## 從素材包資料夾放一隻桌寵(見 SpritePackLoader / docs/素材包格式.md)。讀取報告(略過了什麼、對應了什麼)寫進日誌。
 func _spawn_pack(folder: String, from_roster := false, roster_entry := {}) -> Node2D:
-	var result := SpritePackLoader.load_pack(folder)
+	var result := _load_saved_look(folder)
+	if result.is_empty():
+		result = SpritePackLoader.load_pack(folder)
 	for line: String in result["report"]:
 		print("[素材包] ", line)
 	if not bool(result["ok"]):
@@ -520,6 +531,21 @@ func _spawn_pack(folder: String, from_roster := false, roster_entry := {}) -> No
 	if pet != null and not from_roster:
 		_remember_pack(folder)
 	return pet
+
+
+## 這個角色上次穿著別套外觀(見 PetAppearances.saved_look)就直接讀那一套來生成,預設外觀那套圖不必先讀一次
+## (等使用者換回預設外觀時才讀)。回傳跟 load_pack 一樣的結果,meta 的辨識代號/名稱/種類是角色本身的,
+## 另外帶 "appearance"(給 _spawn_sample_pet 記到桌寵身上);不適用、那套外觀讀不出來或不能用就回空字典,照一般流程。
+func _load_saved_look(folder: String) -> Dictionary:
+	var saved := PetAppearances.saved_look(folder)
+	if saved.is_empty():
+		return {}
+	var result := SpritePackLoader.load_pack(str(saved["folder"]))
+	if PetAppearances.problem_of(result) != "":
+		return {}
+	(result["meta"] as Dictionary).merge(SpritePackLoader.identity_of(folder), true)
+	result["appearance"] = saved
+	return result
 
 
 ## 素材包「成功載入,但有些內容沒進去」的提示(跟 result["ok"]==false 的載入失敗是兩回事)。
@@ -607,9 +633,12 @@ func reload_pack_pets(folder: String) -> int:
 	var normalized := folder.replace("\\", "/").trim_suffix("/")
 	var updated := 0
 	var pack: Dictionary = {}
+	# 存的是某個角色的一套外觀(見 PetAppearances):只有正穿著這套的桌寵要換圖;存的是角色本身(預設外觀):正穿著別套外觀的不動。
+	var appearance_owner := PetAppearances.owner_of(normalized)
 	for pet: Node in get_tree().get_nodes_in_group("pets"):
-		var entry: Variant = pet.get_meta("roster", {})
-		if not (entry is Dictionary and str(entry.get("kind", "")) == "pack" and str(entry.get("path", "")).replace("\\", "/").trim_suffix("/") == normalized):
+		if not appearance_owner.is_empty() and pet.pack_folder() == str(appearance_owner["pack"]):
+			pet.forget_appearance_cache()
+		if pet.pack_folder() == "" or pet.appearance_folder() != normalized:
 			continue
 		if pack.is_empty():
 			# 「素材太多太大」的提示已經在 PackEditorWindow._warn_about_limits_after_save() 存檔當下
@@ -618,7 +647,13 @@ func reload_pack_pets(folder: String) -> int:
 		if not bool(pack.get("ok", false)):
 			PetErrorLog.write("精靈圖編輯器", tr("存檔後重新載入素材包失敗:%s") % ", ".join(PackedStringArray(pack.get("report", []))))
 			return updated
-		pet.reload_pack(pack)
+		if pet.appearance_id != "":
+			if PetAppearances.problem_of(pack) != "":
+				pet.set_appearance("")   # 這套外觀存成不能用的樣子了(沒有 idle):先換回預設外觀
+			else:
+				pet.apply_appearance_pack(pack)
+		else:
+			pet.reload_pack(pack)
 		updated += 1
 	return updated
 
@@ -841,6 +876,9 @@ func _create_tray() -> void:
 	_tray.open_manager_requested.connect(_open_manager)
 	_tray.open_settings_requested.connect(_open_settings)
 	_tray.auto_chat_toggled.connect(_on_auto_chat_toggled)
+	_tray.do_not_disturb_toggled.connect(_on_do_not_disturb_toggled)
+	_tray.relax_mode_toggled.connect(_on_relax_mode_toggled)
+	_tray.hide_outside_furniture_toggled.connect(_on_hide_outside_furniture_toggled)
 	_tray.add_pet_requested.connect(_on_add_pet)
 	_tray.add_buddy_requested.connect(_on_add_buddy)
 	_tray.add_pack_requested.connect(_on_add_pack)
@@ -861,6 +899,7 @@ func _create_tray() -> void:
 	_tray.debug_polygon_toggled.connect(_on_debug_polygon_toggled)
 	_tray.say_something_requested.connect(func(pet: Node) -> void: pet.say_something())
 	_tray.force_rest_requested.connect(func(pet: Node) -> void: pet.vitality.force_rest())
+	_tray.layer_tier_requested.connect(_on_layer_tier_requested)
 	_tray.check_update_requested.connect(_on_check_update_requested)
 
 
@@ -882,11 +921,61 @@ func _on_auto_chat_toggled(enabled: bool) -> void:
 	_tray.refresh_pets()
 
 
+## 勿擾模式(見 DesktopShellState.do_not_disturb):存到 user://settings.cfg [chat],選單重建以更新勾選。
+func _on_do_not_disturb_toggled(enabled: bool) -> void:
+	_shell_state.do_not_disturb = enabled
+	var config := ConfigFile.new()
+	config.load(SETTINGS_PATH)
+	config.set_value("chat", "do_not_disturb", enabled)
+	config.save(SETTINGS_PATH)
+	_tray.refresh_pets()
+
+
+const LAYERING_EVERY_FRAMES := 4
+var _layering_wait := 0
+
+
+## 桌寵選單「圖層」:改這隻的手動層級(見 PetLayering)、存進角色設定檔,馬上重排一次。
+func _on_layer_tier_requested(pet: Node, tier: int) -> void:
+	pet.layer_tier = clampi(tier, PetLayering.Tier.BACK, PetLayering.Tier.FRONT)
+	PetProfile.save_pet(pet)
+	refresh_layering()
+
+
+## 層級改了(右鍵選單、桌寵管理「角色尺寸」卡片的圖層圓點):馬上重排一次並更新選單的勾選。
+func refresh_layering() -> void:
+	PetLayering.apply(get_tree())
+	_tray.refresh_pets()
+
+
+## 放鬆模式(見 DesktopShellState.relax_mode、PetRelax):存到 user://settings.cfg [chat],選單重建以更新勾選。
+func _on_relax_mode_toggled(enabled: bool) -> void:
+	_shell_state.relax_mode = enabled
+	var config := ConfigFile.new()
+	config.load(SETTINGS_PATH)
+	config.set_value("chat", "relax_mode", enabled)
+	config.save(SETTINGS_PATH)
+	AppSettings.refresh_fps()   # 全局設定「放鬆模式時降低影格率」
+	_tray.refresh_pets()
+
+
+## 「隱藏行動區外的家具」開關(系統匣選單、懸浮球共用):狀態與存檔在 FurnitureManager,這裡只同步兩邊選單的勾選。
+func _on_hide_outside_furniture_toggled(enabled: bool) -> void:
+	furniture_manager.set_hide_outside_area(enabled)
+	hover_ball.hide_outside_furniture = enabled
+	_tray.hide_outside_furniture = enabled
+	_tray.refresh_pets()
+
+
 func _load_app_settings() -> void:
 	AppSettings.apply_startup()
 	var config := ConfigFile.new()
 	if config.load(SETTINGS_PATH) == OK:
 		_shell_state.auto_chat_enabled = bool(config.get_value("chat", "auto_chat_enabled", true))
+		_shell_state.do_not_disturb = bool(config.get_value("chat", "do_not_disturb", false))
+		_shell_state.relax_mode = bool(config.get_value("chat", "relax_mode", false))
+		if _shell_state.relax_mode and AppSettings.relax_low_fps():
+			AppSettings.refresh_fps()
 		var policy := str(config.get_value("clone", "canonical_policy", "earliest"))
 		_shell_state.canonical_policy = policy if policy in ["earliest", "latest"] else "earliest"
 		var recent: Variant = config.get_value("packs", "recent", PackedStringArray())
@@ -925,6 +1014,8 @@ func _on_ball_action(action: String) -> void:
 			_open_props()
 		"furniture":
 			_open_furniture_library()
+		"hide_outside_furniture":
+			_on_hide_outside_furniture_toggled(not furniture_manager.hide_outside_area)
 		"library":
 			_open_library()
 		"manager":
@@ -1060,6 +1151,7 @@ func _on_tray_recall() -> void:
 	for board: Node in get_tree().get_nodes_in_group("screen_clamped_boards"):
 		if board.has_method("recall"):
 			board.recall()
+	BoardPlacement.forget_all()   # 沒開著的面板記住的位置也一起忘掉,下次生成回到預設位置
 	_shell_state.emergency_recall_requested.emit()
 
 
@@ -1179,6 +1271,11 @@ func _finish_quit() -> void:
 
 
 func _process(_delta: float) -> void:
+	# 桌寵之間的前後順序(手動層級 + 同層級依腳底高度,見 PetLayering):隔幾個影格重排一次就夠。
+	_layering_wait -= 1
+	if _layering_wait <= 0:
+		_layering_wait = LAYERING_EVERY_FRAMES
+		PetLayering.apply(get_tree())
 	# 持續每影格重新套用穿透狀態,而不是只在事件發生當下設定一次(見檔頭 credit)。
 	# 平時 mouse_passthrough 必須是 false,多邊形才會決定「哪裡收得到滑鼠」;實測平時設成 true
 	# 整個視窗都收不到點擊(把手拖不動、右鍵沒反應),而且背景也沒有因此變透明,所以改回 false。
@@ -1241,41 +1338,60 @@ const CUTOUT_GRID_CELL := 220.0
 ## 不用管畫面上其他離得很遠、外框不可能相交的形狀。只要格子邊長不小於典型形狀的外框,兩個真的相交的外框
 ## 一定會共用至少一個格子,結果跟原本逐一比對完全一樣,只是省下大部分「反正也不會相交」的比對。
 func _collect_cutout_polygon() -> PackedVector2Array:
-	var covered: Array[PackedVector2Array] = []
-	var covered_bounds: Array[Rect2] = []
-	var grid: Dictionary = {}   # Vector2i(格子座標) -> Array[int](covered 的索引)
-	var loops: Array[PackedVector2Array] = []
 	# 浮動視窗(管理視窗、編輯器…)蓋住的範圍先當成「已被佔走」:這個視窗的形狀就是桌寵與介面實際能畫、能點的範圍,
 	# 所以桌寵、氣泡、行動區介面在浮動視窗底下的部分整個被裁掉(不論兩個視窗誰在上面),也不會擋住浮動視窗的滑鼠。
 	var blocked := _occluder_polygons()
+	# 先把這一影格的形狀都收齊:跟上一影格一模一樣(桌寵坐著、睡著、站著發呆時幾乎都是)就直接沿用上次合好的結果,
+	# 下面那一大段多邊形相扣不用重跑(2026-10-11 效能:合併本身佔這個函式的大部分時間)。
+	var shapes: Array[PackedVector2Array] = []
 	for member in get_tree().get_nodes_in_group("Cutout"):
 		if not member.has_method("get_cutout_polygons"):
 			continue
 		for polygon: PackedVector2Array in member.get_cutout_polygons():
-			var pieces := clip_out(polygon, blocked)
-			var polygon_bounds := _bounds_of(polygon)
-			var seen: Dictionary = {}
-			for cell: Vector2i in _grid_cells_for(polygon_bounds):
-				for index: int in (grid.get(cell, []) as Array):
-					if seen.has(index):
-						continue
-					seen[index] = true
-					# 場上常有很多互不重疊的小形狀(桌寵、螢火蟲…),外框(bounding box)沒交集就一定不用扣,
-					# 省下真正的多邊形布林運算(Geometry2D.clip_polygons 相對貴)。
-					if not polygon_bounds.intersects(covered_bounds[index]):
-						continue
-					var next_pieces: Array[PackedVector2Array] = []
-					for piece in pieces:
-						next_pieces.append_array(Geometry2D.clip_polygons(piece, covered[index]))
-					pieces = next_pieces
-			loops.append_array(pieces)
-			var new_index := covered.size()
-			covered.append(polygon)
-			covered_bounds.append(polygon_bounds)
-			for cell: Vector2i in _grid_cells_for(polygon_bounds):
-				if not grid.has(cell):
-					grid[cell] = []
-				(grid[cell] as Array).append(new_index)
+			shapes.append(polygon)
+	if not _cutout_cache_result.is_empty() and shapes == _cutout_cache_shapes and blocked == _cutout_cache_blocked:
+		return _cutout_cache_result
+	_cutout_cache_shapes = shapes
+	_cutout_cache_blocked = blocked
+	_cutout_cache_result = _merge_cutout_shapes(shapes, blocked)
+	return _cutout_cache_result
+
+
+var _cutout_cache_shapes: Array[PackedVector2Array] = []
+var _cutout_cache_blocked: Array[PackedVector2Array] = []
+var _cutout_cache_result := PackedVector2Array()
+
+
+func _merge_cutout_shapes(shapes: Array[PackedVector2Array], blocked: Array[PackedVector2Array]) -> PackedVector2Array:
+	var covered: Array[PackedVector2Array] = []
+	var covered_bounds: Array[Rect2] = []
+	var grid: Dictionary = {}   # Vector2i(格子座標) -> Array[int](covered 的索引)
+	var loops: Array[PackedVector2Array] = []
+	for polygon: PackedVector2Array in shapes:
+		var pieces := clip_out(polygon, blocked)
+		var polygon_bounds := _bounds_of(polygon)
+		var seen: Dictionary = {}
+		for cell: Vector2i in _grid_cells_for(polygon_bounds):
+			for index: int in (grid.get(cell, []) as Array):
+				if seen.has(index):
+					continue
+				seen[index] = true
+				# 場上常有很多互不重疊的小形狀(桌寵、螢火蟲…),外框(bounding box)沒交集就一定不用扣,
+				# 省下真正的多邊形布林運算(Geometry2D.clip_polygons 相對貴)。
+				if not polygon_bounds.intersects(covered_bounds[index]):
+					continue
+				var next_pieces: Array[PackedVector2Array] = []
+				for piece in pieces:
+					next_pieces.append_array(Geometry2D.clip_polygons(piece, covered[index]))
+				pieces = next_pieces
+		loops.append_array(pieces)
+		var new_index := covered.size()
+		covered.append(polygon)
+		covered_bounds.append(polygon_bounds)
+		for cell: Vector2i in _grid_cells_for(polygon_bounds):
+			if not grid.has(cell):
+				grid[cell] = []
+			(grid[cell] as Array).append(new_index)
 	if loops.is_empty():
 		# 空陣列在 Godot 代表「不限制、整個視窗都收滑鼠」,會把整個桌面擋住;
 		# 沒有任何可點擊形狀時改給一個位於視窗外的極小三角形,等於整個視窗都穿透。

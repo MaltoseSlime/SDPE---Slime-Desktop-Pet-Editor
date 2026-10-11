@@ -35,8 +35,9 @@ static func _spawn_board(shell: Node) -> TttBoard:
 	return board
 
 
-static func _cleanup_board(board: TttBoard) -> void:
-	if active_board == board:
+## 參數故意不寫型別:棋盤/記分板可能在結算停留(GameChat.hold_result)期間就被收掉,已釋放的物件傳進有型別的參數會直接報錯。
+static func _cleanup_board(board: Variant) -> void:
+	if not is_instance_valid(active_board) or active_board == board:
 		active_board = null
 	if is_instance_valid(board):
 		board.queue_free()
@@ -191,7 +192,7 @@ static func _play_pets(a: Node, b: Node, best_of := 1) -> Dictionary:
 	GameChat.set_result_context(a, b, result_a)
 	_react(a, result_a, false)
 	_react(b, _flip(result_a), false)
-	await _wait(a, 1.6)
+	await GameChat.hold_result([a, b], board, GroupScoreboard.RESULT_HOLD_SECONDS)   # 結算台詞講完,棋盤再停留幾秒才收
 	_cleanup_board(board)
 	return {"outcome_a": result_a, "outcome_b": _flip(result_a), "wins_a": wins_a, "wins_b": wins_b, "rounds": rounds}
 
@@ -289,6 +290,6 @@ static func _play_user(pet: Node, best_of := 1) -> Dictionary:
 		pet.set_counterpart_named("winner", pet.recognition_tag if result == "win" else "user", pet.display_name if result == "win" else "你")
 		pet.set_counterpart_named("loser", "user" if result == "win" else pet.recognition_tag, "你" if result == "win" else pet.display_name)
 	_react(pet, result, true)
-	await _wait(pet, 1.6)
+	await GameChat.hold_result([pet], board, GroupScoreboard.RESULT_HOLD_SECONDS, func() -> bool: return bool(flags["cancelled"]))   # 結算台詞講完,棋盤再停留幾秒才收(按 ✕ 直接收)
 	_cleanup_board(board)
 	return {"outcome": result, "pet_wins": pet_wins, "user_wins": user_wins}

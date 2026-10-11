@@ -135,8 +135,18 @@ var user_keyword_tags: Dictionary = {}
 var topic_custom: Variant = null
 
 
-## 目前生效的話題文本:使用者改過的 → 生效性格檔的 topicLines → 通用池(content/topic_pool.json)。
-func topic_lines_effective() -> Array:
+## 「也使用通用話題池」(2026-10-11,交互行為 > 話題文本的勾選項):開了以後,自己的話題文本之外也會說通用話題池的句子。
+## 預設關(跟以前一樣:有自己的話題文本就只說自己的)。
+var topic_use_generic := false
+## 這隻桌寵改過的通用話題池(null = 沒改過,用內建的 content/topic_pool.json)。
+var topic_generic_custom: Variant = null
+## 話題文本「不套用」(2026-10-12,性格分頁 > 話題文本下拉選單的選項):完全不說話題句,通用話題池也不用。
+## 只關掉「生效」(topic_lines_effective),自己改過的話題文本、通用話題池副本都原封不動留著,切回來就恢復。
+var topic_off := false
+
+
+## 這隻桌寵「自己的」話題文本:使用者改過的 → 生效性格檔的 topicLines;兩邊都沒有回傳 null(= 只能用通用話題池)。
+func _topic_personal_lines() -> Variant:
 	if topic_custom is Array:
 		return (topic_custom as Array).duplicate(true)
 	# 話題文本有自己的性格選擇(區段 topicLines,跟對話池等一樣可以獨立切換);沒選過的舊桌寵沿用對話池的選擇。
@@ -145,11 +155,56 @@ func topic_lines_effective() -> Array:
 		var lines: Variant = PersonalityApplier.personality_of(self, id).get("topicLines", [])
 		if lines is Array and not (lines as Array).is_empty():
 			return (lines as Array).duplicate(true)
+	return null
+
+
+## 這隻桌寵的通用話題池:改過的版本,沒改過就是內建的。
+func topic_generic_lines() -> Array:
+	if topic_generic_custom is Array:
+		return (topic_generic_custom as Array).duplicate(true)
 	return TopicPool.defaults()
+
+
+## 「話題文本」視窗編輯的那一份(也是匯出積木檔/性格檔用的):自己的話題文本,沒有的話就是通用話題池。不含勾選後額外加進來的通用句。
+func topic_lines_own() -> Array:
+	var personal: Variant = _topic_personal_lines()
+	return personal if personal is Array else topic_generic_lines()
+
+
+## 目前生效(閒聊會挑、事件管理會列)的話題文本:自己的那一份;勾了「也使用通用話題池」再接上通用話題池。
+func topic_lines_effective() -> Array:
+	if topic_off:
+		return []
+	var personal: Variant = _topic_personal_lines()
+	if not personal is Array:
+		return topic_generic_lines()
+	if topic_use_generic:
+		return (personal as Array) + topic_generic_lines()
+	return personal
+
+
+## topic_lines_effective() 裡通用話題池那一段從第幾句開始;沒有額外接上通用話題池時回傳 -1。
+func topic_generic_start() -> int:
+	if topic_off:
+		return -1
+	var personal: Variant = _topic_personal_lines()
+	return (personal as Array).size() if personal is Array and topic_use_generic else -1
+
+
+## 靜默(2026-10-12,交互行為 > 整體交互開關):不說任何對話——閒聊、反應、話題、玩球與對戰的台詞全部不說
+## (性格帶來的也一樣;跳、發抖這些動作照做),被其他桌寵邀請對戰時不回話但照常接受/拒絕,自己不主動邀請
+## 桌寵或使用者。右鍵選單的占卜、抽籤、計時照常回應(那幾條走 UiManager 直接顯示 / force_bubble,不經過
+## 下面這幾個關卡:GameChat.say/think、LogicInterpreter._show_line/_send_line/say_something)。
+func is_silent() -> bool:
+	return bool(interaction_rules.get("silent", false))
 
 
 func set_topic_custom(lines: Array) -> void:
 	topic_custom = lines.duplicate(true)
+
+
+func set_topic_generic_custom(lines: Array) -> void:
+	topic_generic_custom = lines.duplicate(true)
 
 
 ## 某個關鍵詞的標籤(owner = "pet" 或 "user")。
@@ -191,6 +246,8 @@ var invisible := false
 var logic: Node
 ## 精力與情緒(疲勞、休息、睡覺、生氣、開心),預設全關;由性格調整,見 PetVitality。
 var vitality: PetVitality
+## 放鬆模式下這隻桌寵的坐下/挑座位邏輯(見 PetRelax);模式沒開時什麼都不做。
+var relax: PetRelax
 ## 局部數值的定義(預設值、上下限、Status 白名單…),見 PetValueDef;讀寫請走 ValueGateway。
 @export var value_defs: Array[PetValueDef] = []
 ## 這隻桌寵專屬的介面風格(對話氣泡配色、字體、縮放)。
@@ -279,6 +336,9 @@ var _follow_duration_cap := 0.0
 var _follow_stuck_left := 0.0
 ## 跟隨對象上一次檢查是不是在休息中(邊緣觸發用,只在「從沒在休息變成在休息」那一刻做一次加入/離開的決定)。
 var _follow_leader_resting := false
+## 飛行中的跟隨者陪落地的跟隨對象一起落地(2026-10-11,見 _tick_pet_follow_lifecycle / _fly_follow_landing_tick):
+## 對象起來了、跟隨結束就清掉。只有飛行模式允許降落的(會降落 / 兼具的飛行階段)才會被設起來。
+var _follow_land_with_leader := false
 ## 跟隨對象上一次檢查是不是在跟著滑鼠走(邊緣觸發用):跟隨對象自己跟滑鼠走的時候,整條路隊會很自然地
 ## 跟著一起移動(既有的跟隨移動邏輯本來就是持續追蹤對象目前的位置,不用另外處理);等對象跟完滑鼠、
 ## 從「跟著滑鼠」變回「沒在跟滑鼠」的那一刻,算這趟「順道去見使用者」的行程結束,整條路隊直接解散。
@@ -370,6 +430,7 @@ func _ready() -> void:
 	vitality = PetVitality.new()
 	add_child(vitality)
 	vitality.setup(self)
+	relax = PetRelax.new(self)
 	ball_play = PetBallPlay.new()
 	add_child(ball_play)
 	ball_play.setup(self)
@@ -551,6 +612,8 @@ var game_force_decline: Dictionary = {}
 const FAVOR_MIN := -500.0
 const FAVOR_MAX := 1000.0
 var pet_favors: Dictionary = {}
+## 1v1 連輸判定用:對每隻對象記下最近幾場的結果(W/L/T),滿 PetFavor.STREAK_WINDOW 場就結算(session 內,不存檔)。
+var duel_history: Dictionary = {}
 
 
 func favor_of(tag: String) -> float:
@@ -629,8 +692,22 @@ func game_stat_text(kind: String, field: String) -> String:
 	return "%d%%" % int(record["rate"]) if field == "rate" else str(record[field])
 
 
+## 查看戰績:借用全體遊戲的計分板格式列出各種遊戲的戰績,停留 RECORD_BOARD_SECONDS 秒後自動收起來(不在聊天室一行一行洗版)。
+const RECORD_BOARD_SECONDS := 15.0
+
+
 func show_game_record() -> void:
-	GameChat.say(self, tr("[b]我的戰績[/b]\n%s\n%s\n%s\n%s\n%s") % [game_record_line("rps"), game_record_line("dice"), game_record_line("ttt"), game_record_line("blockade"), game_record_line("mastermind")], 6.0)
+	var shell: Node = get_tree().get_first_node_in_group("desktop_shell")
+	if shell == null:
+		return
+	var board := GroupScoreboard.new()
+	shell.top_layer().add_child(board)
+	board.setup(shell.action_area, tr("我的戰績"))
+	for kind: String in ["rps", "dice", "ttt", "blockade", "mastermind"]:
+		board.add_line("", game_record_line(kind))
+	get_tree().create_timer(RECORD_BOARD_SECONDS).timeout.connect(func() -> void:
+		if is_instance_valid(board):
+			board.queue_free())
 
 
 func clear_game_record() -> void:
@@ -666,7 +743,7 @@ func _tick_auto_game(delta: float) -> void:
 	_auto_game_left -= delta * lens_mod("game_invite")
 	if _auto_game_left > 0.0:
 		return
-	if not lens_blocks("game") and _can_auto_chat() and GameInvite.start_random(self):
+	if not is_silent() and not lens_blocks("game") and _can_auto_chat() and GameInvite.start_random(self):
 		if is_following():   # 自己主動找對戰算「想去做別的事情」,先離開路隊(見 _tick_pet_follow_lifecycle 的說明)。
 			stop_follow()
 		_shell_state.note_auto_chat_started()
@@ -677,7 +754,8 @@ func _tick_auto_game(delta: float) -> void:
 
 ## 下一次自己邀請對戰要等多久:在 auto_game_interval 範圍內隨機,再依社交意願縮放(0.5 不變、1.0 減半、0.1 變 5 倍,最多 5 倍)。
 func _roll_auto_game_wait() -> float:
-	return randf_range(minf(auto_game_interval.x, auto_game_interval.y), maxf(auto_game_interval.x, auto_game_interval.y)) / maxf(sociability * 2.0, 0.2)
+	var wait := randf_range(minf(auto_game_interval.x, auto_game_interval.y), maxf(auto_game_interval.x, auto_game_interval.y)) / maxf(sociability * 2.0, 0.2)
+	return wait   # 放鬆模式不另外拉長(2026-10-11 使用者:開著自動閒聊就照常閒聊、互相找對方玩,只有玩球不玩)
 
 
 ## 主動問使用者要不要玩遊戲(目前只有猜拳):每隔 USER_GAME_ASK_WAIT 秒擲一次,機率 = 性格的 game_ask_chance 依社交意願、狀態鏡(開心更愛、負面與疲憊更少)與心情調整(見 user_game_ask_probability)。
@@ -709,6 +787,9 @@ func _tick_ask_user_game(delta: float) -> void:
 		_user_game_left = randf_range(USER_GAME_ASK_WAIT.x, USER_GAME_ASK_WAIT.y)
 	_user_game_left -= delta
 	if _user_game_left > 0.0:
+		return
+	if is_silent():
+		_user_game_left = -1.0   # 靜默:不主動找使用者玩(重新倒數)
 		return
 	if _asking_user_game or not _can_auto_chat():
 		_user_game_left = randf_range(AUTO_CHAT_RETRY_SECONDS.x, AUTO_CHAT_RETRY_SECONDS.y)   # 現在不方便開口(有人在說話…):很快再試,不要白白等下一輪
@@ -781,7 +862,7 @@ func game_refusal(kind: String = "", inviter: Node = null) -> Dictionary:
 	# 社交意願:0.5 = 不調整;越高越不容易拒絕(最多 −0.25),越低越容易拒絕(最多 +0.25)
 	var chance := maxf(game_refuse_base + (0.5 - sociability) * 0.5, 0.0)
 	var reason := "plain"
-	if is_busy_for_game():
+	if is_busy_for_game() and not relax_seated():   # 放鬆模式坐著待著不算在忙
 		chance += game_refuse_busy
 		reason = "busy"
 	if has_unlisted_negative_lens():
@@ -1250,6 +1331,8 @@ func set_accessory_enabled(part_name: String, enabled: bool) -> void:
 ## 貼合行動框底部移動(右鍵選單開關;半身立繪預設開):腳底永遠貼著行動區底邊,拖曳與各種移動只沿著底邊橫向走。
 ## 固定模式的貼底角色由 DesktopShell 依在場數平均排開(見 _layout_bottom_pets);會動的桌寵(地面、飛行、漂浮)不排開,只是不離開底邊(不跳、不爬、不上平臺)。
 var bottom_anchored := false
+## 一般桌寵之間的手動圖層層級(-1 後面 / 0 中間 / 1 前面),同層級裡再依腳底高度自動排;見 PetLayering。
+var layer_tier := 0
 
 
 func set_bottom_anchored(on: bool) -> void:
@@ -1431,7 +1514,13 @@ func _can_auto_chat() -> bool:
 		return false
 	if not _shell_state.can_auto_chat():
 		return false
-	return _interact_left <= 0.0 and _hold_left <= 0.0 and Time.get_ticks_msec() - _last_user_msec > AUTO_CHAT_QUIET_MSEC
+	return _interact_left <= 0.0 and (_hold_left <= 0.0 or relax_seated()) and Time.get_ticks_msec() - _last_user_msec > AUTO_CHAT_QUIET_MSEC
+
+
+## 放鬆模式下正坐著/站著休息(沒睡著):這種「佔用動作」只是待著,不算在忙——照常閒聊、找別隻玩、被邀請也不算忙碌
+## (2026-10-11 使用者要求:自動閒聊與放鬆模式同時開著時,桌寵在放鬆模式的行為下照常閒聊與互相遊戲,玩球除外)。
+func relax_seated() -> bool:
+	return relaxing() and vitality != null and (vitality.mode == PetVitality.Mode.RESTING or vitality.mode == PetVitality.Mode.STANDING)
 
 
 ## 目前的閒聊情境,決定哪些閒聊對話有資格被挑中:sleep 睡眠中、rest 休息中(坐下/躺下/飛行降落休息)、chat 其餘。
@@ -1495,12 +1584,23 @@ func _is_petting_protected() -> bool:
 ## 摸摸是「短期突發」的互動:桌寵停下來播 interact,一直摸就一直播,停手後再持續 PETTING_TAIL 秒才恢復。
 ## 刻意不呼叫 _interrupt():不中止進行中的積木鏈、不動任何長期狀態(run 開關、狀態鏡、跟隨…),
 ## 停手後桌寵回到原本的行為(照 run 開著就跑、狀態鏡的動作前綴與數值覆蓋原封不動)。只解除積木指定動作的佔用,好讓 interact 顯示出來。
+## 睡著時(2026-10-11 使用者要求)不走一般的「被觸摸」反應——那些台詞是給醒著的時候講的,睡著講出來很突兀——
+## 改發專屬的系統事件 interact_sleeping(積木「當角色正在 interact_sleeping 時」或性格反應「睡著時被觸摸」);
+## 沒寫這個反應就退回睡眠中的閒聊文本(夢話)說一句,連那個都沒有才完全沒反應。休息中/玩球中照舊用 interact。
 func _on_petted() -> void:
 	if _is_petting_protected():
-		if logic != null and logic.has_action_hat(&"interact"):
+		var reacted := false
+		if logic != null and is_sleeping():
+			if logic.has_action_hat(&"interact_sleeping"):
+				logic.fire_event(&"interact_sleeping")
+				reacted = true
+			else:
+				reacted = logic.say_from_context("sleep")
+		elif logic != null and logic.has_action_hat(&"interact"):
 			logic.fire_event(&"interact")
-			if vitality != null:
-				vitality.on_petted()
+			reacted = true
+		if reacted and vitality != null:
+			vitality.on_petted()
 		return
 	effects.play_interaction("pet")
 	# 2026-10-06:摸摸:好感度最少量(冷卻 20 分鐘),好感度真的有加才順便讓心情變好一點。
@@ -1520,8 +1620,17 @@ func _on_petting_moved() -> void:
 
 
 ## 即時互動的打斷:世代標記加一(舊的等待協程醒來會發現並中止)、解除動作佔用、通知氣泡等收掉。
+## 對戰中例外(2026-10-11 使用者要求:點擊/拖曳參賽的桌寵不該中斷對戰,桌寵對桌寵、對使用者都一樣):
+## 所有小遊戲都靠 action_generation 判斷「被打斷了沒」,世代一變整場就取消、棋盤/記分板跟著收掉,所以對戰中
+## 被摸到只解除動作佔用(讓 drag 之類的動作顯示得出來)跟離開家具,不動世代、不收氣泡(遊戲的提問氣泡要留著)。
+## 真的要中止對戰走棋盤上的 ✕/投降、氣泡的「不玩了」,或 interrupt_scripts()(測試者模式強制觸發、積木失控)。
 func _interrupt() -> void:
 	_last_user_msec = Time.get_ticks_msec()
+	if is_in_game():
+		_dance_left = 0.0
+		release_hold()
+		stop_using_furniture()
+		return
 	interrupt_scripts()
 
 
@@ -1617,8 +1726,169 @@ func reload_pack(pack: Dictionary) -> void:
 		play_action(keep_action)
 
 
+# --- 外觀(整套行走圖的差分,見 PetAppearances) ---
+## 目前的外觀代號("" = 預設外觀,也就是角色資料夾本身那套圖)。存在執行狀態檔(state.json 的 appearance),重開後維持。
+var appearance_id := ""
+## 目前外觀相對預設外觀的縮放比(外觀素材包自己的 scale ÷ 預設外觀的 scale):params.scale_multiplier 已經乘上它,
+## 角色設定檔存的是除回去的「預設外觀下的倍率」(見 PetProfile),換外觀不會把倍率越存越歪。
+var appearance_scale_ratio := 1.0
+## 預設外觀素材包自己的縮放與朝向(生成時記下,見 DesktopShell._spawn_sample_pet);0 = 不是素材包桌寵。
+var base_pack_scale := 0.0
+var base_pack_flipped := false
+var _appearance_flip := false
+## 角色庫「桌寵管理」的隱藏臨時實例讀到的已存外觀(它自己不換外觀,存狀態時照原樣寫回去)。
+var ghost_saved_appearance := ""
+## 切換失敗(找不到、沒有 idle)的名稱 → 下次可以再試的時間(毫秒):條件事件每秒重複要求時不要每次都重讀素材。
+var _appearance_retry_at: Dictionary = {}
+const APPEARANCE_RETRY_MSEC := 10_000
+signal appearance_changed(id: String)
+
+
+## 這隻桌寵的角色資料夾(素材包桌寵才有;範例、內建立繪回空字串)。
+func pack_folder() -> String:
+	var entry: Variant = get_meta("roster", {})
+	return str(entry.get("path", "")).replace("\\", "/").trim_suffix("/") if entry is Dictionary and str(entry.get("kind", "")) == "pack" else ""
+
+
+## 目前顯示的那套圖所在的資料夾(預設外觀 = 角色資料夾)。
+func appearance_folder() -> String:
+	var folder := pack_folder()
+	return PetAppearances.folder_of(folder, appearance_id) if folder != "" and appearance_id != "" else folder
+
+
+## 切換外觀。wanted = 外觀的名稱或代號;""、「預設」= 預設外觀。回傳有沒有切成功(已經是這套也算成功):
+## 找不到這套外觀、讀不出來、沒有 idle 都維持原樣回 false(寫進錯誤紀錄,不跳視窗)。
+## 換的是整套圖與它自己的判定框、光源、配件、持有錨點、縮放;位置、狀態、正在做的事都不動,
+## 正在播的動作新外觀沒有就退回新外觀的 idle(見 _start_animation)。remember = false 給讀檔還原用(不再寫回狀態檔)。
+func set_appearance(wanted: String, remember := true) -> bool:
+	var folder := pack_folder()
+	if folder == "":
+		return false
+	var key := wanted.strip_edges().to_lower()
+	if (appearance_id == "" and PetAppearances.DEFAULT_WORDS.has(key)) or (appearance_id != "" and (key == appearance_id.to_lower() or key == _appearance_name)):
+		return true   # 已經是這套(條件事件每秒重複要求時,不必每次都去翻資料夾)
+	if Time.get_ticks_msec() < int(_appearance_retry_at.get(key, 0)):
+		return false
+	var resolved: Variant = PetAppearances.resolve(folder, wanted)
+	if resolved == null:
+		_appearance_retry_at[key] = Time.get_ticks_msec() + APPEARANCE_RETRY_MSEC
+		_warn_appearance(wanted, "找不到這套外觀")
+		return false
+	var id: String = resolved
+	if id == appearance_id:
+		return true
+	var pack := SpritePackLoader.load_pack(PetAppearances.folder_of(folder, id) if id != "" else folder)
+	var problem := PetAppearances.problem_of(pack) if id != "" else ("" if bool(pack.get("ok", false)) else str((pack.get("report", ["讀不出素材"]) as Array)[0]))
+	if problem != "":
+		_appearance_retry_at[key] = Time.get_ticks_msec() + APPEARANCE_RETRY_MSEC
+		_warn_appearance(wanted, problem)
+		return false
+	appearance_id = id
+	_appearance_name = PetAppearances.name_of(folder, id).to_lower() if id != "" else ""
+	_appearance_retry_at.clear()
+	if id == "":
+		# 剛讀了預設外觀的素材包:順便更新「預設外觀自己的縮放與朝向」(開機只讀外觀那一套時用的是存檔裡記的,見 adopt_appearance)。
+		base_pack_scale = float((pack["meta"] as Dictionary)["scale"])
+		base_pack_flipped = bool((pack["meta"] as Dictionary)["art_flipped"])
+	apply_appearance_pack(pack)
+	if remember and not ghost_edit:
+		PetProfile.save_state(self)
+	appearance_changed.emit(id)
+	return true
+
+
+## 使用者自己動手切換外觀(右鍵選單):讀整套圖可能要一下子,先讓桌寵冒一個「正在讀取外觀」的泡泡、等它畫出來再讀。
+## 積木切換(自主行為)不走這裡,直接 set_appearance,不冒提示。
+const APPEARANCE_NOTICE_SECONDS := 0.2
+
+
+func request_appearance(wanted: String) -> void:
+	if appearance_matches(wanted) or pack_folder() == "":
+		return
+	GameChat.think(self, tr("(正在讀取外觀,請稍候…)"), 2.0, true)
+	await get_tree().create_timer(APPEARANCE_NOTICE_SECONDS).timeout
+	if is_instance_valid(self) and not is_queued_for_deletion():
+		set_appearance(wanted)
+
+
+## 生成時直接穿上上次的外觀(見 DesktopShell._spawn_pack):圖已經由生成流程換上,這裡只記下「現在穿的是哪套」
+## 與相對預設外觀的縮放/朝向,預設外觀那套圖不必先讀一次。saved = PetAppearances.saved_look() 的結果。
+func adopt_appearance(saved: Dictionary, meta: Dictionary) -> void:
+	appearance_id = str(saved["id"])
+	_appearance_name = PetAppearances.name_of(pack_folder(), appearance_id).to_lower()
+	base_pack_scale = float(saved["base_scale"])
+	base_pack_flipped = bool(saved["base_flipped"])
+	appearance_scale_ratio = clampf(float(meta["scale"]) / base_pack_scale, 0.01, 100.0)
+	_appearance_flip = bool(meta["art_flipped"]) != base_pack_flipped
+	set_body_scale(base_pack_scale * appearance_scale_ratio)
+	set_art_flipped(base_pack_flipped)
+
+
+## 把一份載入好的素材包當成「目前外觀」套上(切換外觀、精靈圖編輯器存檔後重新載入都走這裡)。
+func apply_appearance_pack(pack: Dictionary) -> void:
+	if not bool(pack.get("ok", false)):
+		return
+	var meta: Dictionary = pack["meta"]
+	var base_scale := params.scale_multiplier / maxf(appearance_scale_ratio, 0.0001)
+	appearance_scale_ratio = clampf(float(meta["scale"]) / base_pack_scale, 0.01, 100.0) if appearance_id != "" and base_pack_scale > 0.0 else 1.0
+	_appearance_flip = appearance_id != "" and bool(meta["art_flipped"]) != base_pack_flipped
+	# 換圖期間動畫名稱可能對不上:先收掉偶發動作,換完再依「現在正在做的事」重新起動畫(佔用時間照舊,不重算)。
+	_incidental_base = &""
+	_incidental_left = 0.0
+	var keep_action := _requested_action
+	var hold_left := _hold_left
+	var hold_action := _hold_action
+	_reloading_frames = true
+	set_sprite_frames(pack["frames"])
+	_reloading_frames = false
+	set_smooth_scaling(bool(meta["smooth"]))
+	set_body_scale(base_scale * appearance_scale_ratio)
+	var spec: Dictionary = meta.get("overlays", {})
+	if not spec.is_empty():
+		for line: String in attach_overlays(spec, str(meta["path"])):
+			push_warning("[桌寵配件 %s] %s" % [display_name, line])
+	elif _overlays != null:
+		_overlays.queue_free()
+		_overlays = null
+	_warned_actions.clear()
+	_current_action = &""
+	_start_animation(keep_action if keep_action != &"" else &"idle", -1, ActionPriority.AUTONOMOUS)
+	_hold_left = hold_left
+	_hold_action = _current_action if hold_action != &"" else &""
+
+
+func _warn_appearance(wanted: String, reason: String) -> void:
+	var key := "appearance:" + wanted
+	if _warned_actions.has(key):
+		return
+	_warned_actions[key] = true
+	var message := tr("無法切換到外觀「%s」:%s") % [wanted, tr(reason)]
+	push_warning("%s:%s" % [get_label(), message])
+	PetErrorLog.write(get_label(), message)
+
+
+var _reloading_frames := false
+var _appearance_name := ""
+
+
+## 目前的外觀是不是 wanted(名稱或代號;""、「預設」= 預設外觀);積木條件「目前外觀是…」用。
+func appearance_matches(wanted: String) -> bool:
+	var key := wanted.strip_edges().to_lower()
+	if appearance_id == "":
+		return PetAppearances.DEFAULT_WORDS.has(key)
+	return key == appearance_id.to_lower() or key == _appearance_name
+
+
+## 外觀資料夾被改過(精靈圖編輯器存檔、角色庫改名/刪除)後呼叫:忘掉「剛剛失敗過」與名稱快取。
+func forget_appearance_cache() -> void:
+	_appearance_retry_at.clear()
+	_appearance_name = PetAppearances.name_of(pack_folder(), appearance_id).to_lower() if appearance_id != "" else ""
+
+
 func _finish_set_sprite_frames() -> void:
 	_current_action = &""
+	if _reloading_frames:
+		return   # 換外觀:由 apply_appearance_pack 依正在做的事重新起動畫,不要先播一次 idle(會發「開始待機」)
 	play_action(&"idle")
 
 
@@ -1639,6 +1909,48 @@ func play_action_silently(action_name: StringName, variant_index: int = -1, forc
 	_silent_announce = true
 	play_action(action_name, variant_index, force_override)
 	_silent_announce = false
+
+
+## 偶發動作(2026-10-11 使用者回饋:坐著偶爾晃晃腳、疲勞時偶爾打呵欠):只借用這個動作的動畫播一輪,
+## 「現在正在做什麼」(_requested_action)不變——不算開始新動作(不觸發「當角色正在…時」、不打斷休息/睡覺/使用家具),
+## 播完自動接回原本的動畫。期間原本的行為一換(起身、被拖、被摸、積木指定別的動作、休息結束…)就立刻讓出,
+## 直接切到新的動作(見 _play 開頭)。回傳有沒有真的播:素材沒有這個動作、正被積木佔用、被拖著、入場/退場中、
+## 已經在播偶發動作都不播。
+var _incidental_base: StringName = &""
+var _incidental_left := 0.0
+
+
+func play_incidental(action_name: StringName, variant_index: int = -1) -> bool:
+	if _sprite.sprite_frames == null or _incidental_base != &"" or dragging or entering or _interact_left > 0.0:
+		return false
+	# 積木指定的動作佔用中不插播;但休息(坐下/睡覺,PetVitality 也是用「指定動作 + 延長佔用」維持姿勢)與使用家具時可以。
+	if _hold_left > 0.0 and not (is_resting_now() or is_using_furniture()):
+		return false
+	if action_name == _requested_action or action_name == _current_action or _find_variants(_lens_base(action_name)).is_empty():
+		return false
+	var base := _requested_action
+	_start_animation(action_name, variant_index, ActionPriority.AUTONOMOUS)
+	if _current_action != action_name:
+		return false
+	_incidental_base = base
+	_incidental_left = maxf(_animation_length(_logical_animation), MIN_HOLD_TIME)
+	return true
+
+
+func is_playing_incidental() -> bool:
+	return _incidental_base != &""
+
+
+## 偶發動作播完:接回原本的動畫(原本的行為這段時間沒變,不然 _play 早就讓出了)。
+func _tick_incidental(delta: float) -> void:
+	if _incidental_base == &"":
+		return
+	_incidental_left -= delta
+	if _incidental_left > 0.0:
+		return
+	_incidental_base = &""
+	_current_action = &""   # 強制重新開始原本的動畫
+	_start_animation(_requested_action, -1, ActionPriority.AUTONOMOUS)
 
 
 ## 對「現在正是這個動作」的積木等待延長佔用時間:讓「播放動作 → 等待/說話」期間維持該姿勢。
@@ -1871,6 +2183,13 @@ func _play(action_name: StringName, variant_index: int, priority: ActionPriority
 		return
 	if priority == ActionPriority.AUTONOMOUS and _hold_left > 0.0:
 		return
+	if _incidental_base != &"":
+		# 偶發動作播放中:原本的行為沒變(自主行為每輪重新確認同一個動作)就讓它播完;一換動作就立刻讓出。
+		# (休息中被佔用時,自主行為的請求在上面就被擋掉了,不會誤把偶發動作取消;休息一結束、佔用解除就會走到這裡。)
+		if priority == ActionPriority.AUTONOMOUS and action_name == _incidental_base:
+			return
+		_incidental_base = &""
+		_incidental_left = 0.0
 	if priority > ActionPriority.SCRIPTED:
 		release_hold()
 	# 「當角色正在 [動作] 時」事件以「被要求播放的動作」為準(素材缺該動作、實際退回別的動畫時也照樣觸發)。
@@ -1904,7 +2223,10 @@ func _start_animation(action_name: StringName, variant_index: int, priority: Act
 		variants = _find_variants(base)
 	if variants.is_empty() and action_name == &"fly":
 		# 沒有專屬的 fly 動作:往上飛播 rise、其餘播 fall(原本飛行模式的樣子),都沒有才退回 walk。
-		for fallback: StringName in [&"rise" if velocity.y < -20.0 else &"fall", &"fall", &"walk"]:
+		# 門檻取「上下飄動最快速度的一半」(上限 20):原地滯空、跟到定位時只剩飄動的速度(預設最快 16),
+		# 門檻寫死 20 的話永遠到不了,整段都停在 fall;這樣飄上去的那半段會播 rise。
+		var rise_speed := minf(20.0, params.fly_bob_amplitude * params.fly_bob_frequency * 0.5)
+		for fallback: StringName in [&"rise" if velocity.y < -rise_speed else &"fall", &"fall", &"walk"]:
 			base = _lens_base(fallback)
 			variants = _find_variants(base)
 			if not variants.is_empty():
@@ -2384,6 +2706,7 @@ func end_drag(throw_velocity: Vector2) -> void:
 	_current_action = &""
 	if move_mode == MoveMode.GROUND or move_mode == MoveMode.STATIONARY:
 		_enter_idle()
+	relax.on_dropped()
 
 
 ## 開始跟隨辨識代號為 tag 的桌寵。找不到目標,或會形成循環跟隨(A 跟 B、B 又跟 A,或更長的環)
@@ -2391,6 +2714,8 @@ func end_drag(throw_velocity: Vector2) -> void:
 ## 不管這次跟隨是誰叫的(積木、選單、還是自己自主決定),一條路隊最長都是 FOLLOW_MAX_SECONDS(見
 ## _tick_pet_follow_lifecycle);自主決定跟隨時另外會把這個上限縮短成性格抽到的秒數。
 func start_follow(tag: String) -> bool:
+	if relaxing():
+		return false   # 放鬆模式:桌寵之間不互相跟隨(手動「跟著滑鼠」不受影響)
 	var target := _find_pet_by_tag(tag)
 	if target == null or target == self:
 		push_warning("找不到要跟隨的桌寵 '%s'" % tag)
@@ -2408,6 +2733,7 @@ func start_follow(tag: String) -> bool:
 	_follow_duration_cap = FOLLOW_MAX_SECONDS
 	_follow_stuck_left = 0.0
 	_follow_leader_resting = false
+	_follow_land_with_leader = false
 	_follow_leader_seeking_mouse = false
 	interaction.follow_count += 1
 	var leader := _find_pet_by_tag(tag)
@@ -2626,6 +2952,8 @@ func _tick_pet_affinity_contact(delta: float) -> void:
 func _react_to_pet_contact(other: Node, level: int) -> void:
 	if vitality != null:
 		vitality.change_mood(float(level) * PET_AFFINITY_CONTACT_MOOD_PER_LEVEL)
+	if relaxing():
+		return   # 放鬆模式:心情照算,但不因此跟上去或躲開(挑座位時才看好惡,見 PetRelax)
 	var free_to_move := move_mode != MoveMode.FIXED and move_mode != MoveMode.STATIONARY and not is_sleeping() \
 			and not is_resting_now() and not is_busy_for_game() and not dragging and not entering
 	if not free_to_move:
@@ -2646,6 +2974,7 @@ func _tick_pet_follow_lifecycle(delta: float) -> void:
 	if not is_following():
 		_follow_stuck_left = 0.0
 		_follow_leader_resting = false
+		_follow_land_with_leader = false
 		_follow_leader_seeking_mouse = false
 		return
 	var target := _find_pet_by_tag(_follow_tag)
@@ -2673,6 +3002,15 @@ func _tick_pet_follow_lifecycle(delta: float) -> void:
 		_follow_leader_seeking_mouse = false
 		stop_follow()
 		return
+	# 飛行中的跟隨者(飛行模式允許降落的):跟隨對象落地休息/坐上家具/降落歇腳時跟著落到牠旁邊,對象起來了再一起走。
+	# 地面那套「依社交意願決定要不要一起休息,不然離開路隊」不適用——飛在空中沒辦法坐下,以前是直接解散路隊。
+	var leader_down := _leader_is_down(target)
+	if not leader_down:
+		_follow_land_with_leader = false
+	elif _can_land_with_leader():
+		_follow_land_with_leader = true
+	if _follow_land_with_leader:
+		return
 	var target_resting: bool = target.is_resting_now()
 	if target_resting and not _follow_leader_resting:
 		_follow_leader_resting = true
@@ -2685,6 +3023,21 @@ func _tick_pet_follow_lifecycle(delta: float) -> void:
 		return
 	if target.ball_play != null and target.ball_play.active() and (ball_play == null or not ball_play.active()):
 		_react_to_leader_ball_play(target)
+
+
+## 跟隨對象是不是「落地待著」了:地面上休息/睡覺、坐/躺在家具上、或飛行的對象降落歇腳。
+## 總是飛行、漂浮的對象在空中休息不算(牠沒有落地,跟隨者照舊在旁邊飛著等)。
+func _leader_is_down(target: Node) -> bool:
+	if target.is_using_furniture():
+		return true
+	if target.move_mode == MoveMode.FLYING and not target.is_ground_mode():
+		return target.fly_behavior != FlyBehavior.ALWAYS and target.is_flight_grounded()
+	return target.is_resting_now() and target.move_mode != MoveMode.FLOATING
+
+
+## 自己現在是不是「飛在空中、而且飛行模式允許降落」(會降落,或兼具模式的飛行階段);貼底的不算(本來就在底邊)。
+func _can_land_with_leader() -> bool:
+	return move_mode == MoveMode.FLYING and not is_ground_mode() and fly_behavior != FlyBehavior.ALWAYS and not bottom_anchored
 
 
 ## 跟隨對象開始休息/睡覺:依社交意願決定要不要也跟著休息(維持跟隨關係,對方醒了再一起走),不然就離開跟隨。
@@ -2724,8 +3077,8 @@ func seek_mouse(seconds: float, away: bool = false) -> void:
 
 ## 拖曳中的道具吸引這隻桌寵:global_point 是道具的全域座標。固定、靜止模式與不可被吸引的桌寵不理會。
 func set_attract_goal(global_point: Vector2) -> void:
-	if not attractable or move_mode == MoveMode.FIXED or move_mode == MoveMode.STATIONARY:
-		return
+	if not attractable or move_mode == MoveMode.FIXED or move_mode == MoveMode.STATIONARY or relaxing():
+		return   # 放鬆模式:不起身追道具(直接餵到嘴邊照常會吃)
 	_attract_goal = get_parent().to_local(global_point) if get_parent() is Node2D else global_point
 	_attract_left = 0.3
 
@@ -2961,6 +3314,9 @@ func _tick_ask_user_nickname(delta: float) -> void:
 	_user_nickname_left -= delta
 	if _user_nickname_left > 0.0:
 		return
+	if is_silent():
+		_user_nickname_left = -1.0   # 靜默:不開口問稱呼(重新倒數)
+		return
 	if not nickname_is_default() or logic == null:
 		return   # 已經有自訂稱呼了,不用再問;不是「一直重問」的功能
 	if _asking_user_nickname or not _can_auto_chat():
@@ -3166,7 +3522,7 @@ func _find_container_target() -> void:
 	var best := INF
 	for node: Node in get_tree().get_nodes_in_group("furniture"):
 		var item := node as FurnitureItem
-		if item == null or not item.is_container():
+		if item == null or not item.is_container() or item.area_hidden:
 			continue
 		var prop_id := _pick_wanted_container_prop(item)
 		if prop_id == "":
@@ -3254,6 +3610,9 @@ func _movement_goal() -> Variant:
 		if _seek_away:
 			return position + (position - mouse).normalized() * 300.0
 		return mouse
+	if relaxing():
+		# 放鬆模式:不迴避討厭的對象(免得你跑我追)、不跟隨、不追球/喜歡的道具/容器;只走去 PetRelax 挑好的座位。
+		return relax.movement_goal()
 	if _avoid_pet_left > 0.0:
 		var avoided := _find_pet_by_tag(_avoid_pet_tag, false)
 		if avoided != null:
@@ -3271,14 +3630,22 @@ func _movement_goal() -> Variant:
 	var side := signf(position.x - target.position.x)
 	if side == 0.0:
 		side = 1.0
+	# 飛在空中的跟隨者:陪落地的對象一起落地(_follow_land_with_leader),或自己累了該休息——都不追目標點,
+	# 交還給飛行狀態機去降落/歇腳(回 null;不然會一直被跟隨目標拉在空中,永遠落不了地)。
+	var flying_now := move_mode == MoveMode.FLYING and not is_ground_mode()
+	if flying_now and fly_behavior != FlyBehavior.ALWAYS and (_follow_land_with_leader or is_resting_now()):
+		return null
 	var goal: Vector2 = target.position + Vector2(side * follow_distance * (1 + slot), 0.0)
-	if move_mode != MoveMode.GROUND:
+	# 兼具模式走在地上的階段算地面(is_ground_mode()):目標點不能抬高,不然目標永遠在頭上 60 像素,
+	# 地面跟隨會判定「目標在高處」一直起跳、落下(2026-10-11 使用者回報:飛行模式跟隨很容易卡在 fall)。
+	var walking := is_ground_mode()
+	if not walking:
 		goal.y -= 60.0
 	# 不在同一層(領路人在上/下一層平台):直接瞄準領路人的 x,不套排位偏移——偏移會讓目標落在平台邊緣外面,
 	# 跳上去/跳下去的判定(見 maybe_drop_through() 的水平範圍)就不成立,跟隨者只會在原地踏步。
 	# 同時也不能算到達(2D 距離夠近但其實還在下面一層,會卡住不下去)。
 	var same_level := absf(target.position.y - position.y) < FOLLOW_SAME_LEVEL_Y
-	if not same_level and move_mode == MoveMode.GROUND:
+	if not same_level and walking:
 		goal = Vector2(target.position.x, target.position.y)
 		_follow_arrived = false
 		return goal
@@ -3291,6 +3658,8 @@ func _movement_goal() -> Variant:
 		_follow_arrived = true
 	if _follow_arrived:
 		# 已經到達:目標設成自己的位置(不是 null,null 會落到自主漫步),原地待機。
+		if flying_now and is_on_floor():
+			return position + Vector2(0.0, -60.0)   # 陪對象落地、對象起來了卻還沒走遠:先飛回跟隨的高度,不要留在地上拍翅膀
 		return position
 	return _spaced_goal(goal, target)
 
@@ -3401,6 +3770,7 @@ func _build_context_menu() -> RID:
 	var flip_index := NativeMenu.add_check_item(root, tr("鏡像翻轉"), _on_context_item, Callable(), "flip_art")
 	NativeMenu.set_item_checked(root, flip_index, art_flipped)
 	_add_accessory_menu(root)
+	_add_appearance_menu(root)
 	_add_game_menus(root)
 	NativeMenu.add_separator(root)
 	# 2026-10-02 起氣泡固定/解除固定隨時都能用(不再需要先把「對話集中」切成某個特定模式才看得到這一項);
@@ -3469,9 +3839,25 @@ func _add_accessory_menu(root: RID) -> void:
 	NativeMenu.add_submenu_item(root, tr("變更配件"), menu)
 
 
+## 「切換外觀」:這個角色有做別套外觀(見 PetAppearances)才有,目前穿著的打勾。
+func _add_appearance_menu(root: RID) -> void:
+	var entries := PetAppearances.list(pack_folder())
+	if entries.is_empty():
+		return
+	var menu := NativeMenu.create_menu()
+	_context_rids.append(menu)
+	NativeMenu.set_item_checked(menu, NativeMenu.add_radio_check_item(menu, tr("預設外觀"), _on_context_item, Callable(), "look:"), appearance_id == "")
+	for entry in entries:
+		NativeMenu.set_item_checked(menu, NativeMenu.add_radio_check_item(menu, str(entry["name"]), _on_context_item, Callable(), "look:" + str(entry["id"])), appearance_id == str(entry["id"]))
+	NativeMenu.add_submenu_item(root, tr("切換外觀"), menu)
+
+
 func _on_context_item(tag: Variant) -> void:
 	if tag is int:
 		set_move_mode(tag)
+		return
+	if tag is String and tag.begins_with("look:"):
+		request_appearance(tag.trim_prefix("look:"))
 		return
 	if tag is String and tag.begins_with("acc:") and _overlays != null:
 		var part_name: String = tag.trim_prefix("acc:")
@@ -3632,7 +4018,8 @@ func set_invisible(value: bool) -> void:
 func effective_hitbox_size() -> Vector2:
 	if invisible:
 		return Vector2.ONE
-	if hitbox_size != Vector2.ZERO:
+	# 角色設定檔裡手動設的判定框是替預設外觀量的;換上別套外觀時用那套外觀素材包自己的(pack.json 的 hitbox,沒設就自動)。
+	if hitbox_size != Vector2.ZERO and appearance_id == "":
 		return hitbox_size
 	var pack_size: Variant = _sprite.sprite_frames.get_meta("hitbox_size", Vector2.ZERO) if _sprite != null and _sprite.sprite_frames != null else Vector2.ZERO
 	if pack_size is Vector2 and pack_size != Vector2.ZERO:
@@ -3641,7 +4028,7 @@ func effective_hitbox_size() -> Vector2:
 
 
 func effective_hitbox_offset() -> Vector2:
-	if hitbox_size != Vector2.ZERO or hitbox_offset != Vector2.ZERO:
+	if (hitbox_size != Vector2.ZERO or hitbox_offset != Vector2.ZERO) and appearance_id == "":
 		return hitbox_offset
 	var pack_offset: Variant = _sprite.sprite_frames.get_meta("hitbox_offset", Vector2.ZERO) if _sprite != null and _sprite.sprite_frames != null else Vector2.ZERO
 	return pack_offset if pack_offset is Vector2 else Vector2.ZERO
@@ -3837,13 +4224,18 @@ func _physics_process(delta: float) -> void:
 			_on_emergency_recall()
 			_offscreen_seconds = 0.0
 	_hold_left = maxf(_hold_left - delta, 0.0)
+	_tick_incidental(delta)
 	_tick_blink(delta)
 	if auto_chat_enabled and _shell_state.auto_chat_enabled:
 		_tick_auto_chat(delta)
-		_tick_ask_user_nickname(delta)
+		# 勿擾模式:不主動問使用者事情(稱呼、要不要一起玩);閒聊池裡要使用者回應的事件見 LogicInterpreter._eligible_chat_hats。
+		var may_ask: bool = not _shell_state.asks_blocked()
+		if may_ask:
+			_tick_ask_user_nickname(delta)
 		if auto_game_enabled:
 			_tick_auto_game(delta)
-			_tick_ask_user_game(delta)
+			if may_ask:
+				_tick_ask_user_game(delta)
 	_interact_left = maxf(_interact_left - delta, 0.0)
 	_converse_left = maxf(_converse_left - delta, 0.0)
 	_land_left = maxf(_land_left - delta, 0.0)
@@ -3853,12 +4245,20 @@ func _physics_process(delta: float) -> void:
 	_prop_still_left = maxf(_prop_still_left - delta, 0.0)
 	_tick_drop_through(delta)
 	_tick_prop_action(delta)
-	_tick_auto_mouse_follow(delta)
-	_tick_auto_pet_follow(delta)
+	# 放鬆模式(見 PetRelax):不自己跟滑鼠、不跟別隻桌寵;好惡接觸判定降頻(省效能)。
+	var relaxed := relaxing()
+	if not relaxed:
+		_tick_auto_mouse_follow(delta)
+		_tick_auto_pet_follow(delta)
 	_tick_pet_follow_lifecycle(delta)
-	_tick_pet_affinity_contact(delta)
+	# 好惡接觸判定不必每個影格都掃一次全場桌寵:平常每 CONTACT_INTERVAL 秒一次,放鬆模式再慢一點(累積的時間一次算進去)。
+	_relax_contact_wait += delta
+	if _relax_contact_wait >= (RELAX_CONTACT_INTERVAL if relaxed else CONTACT_INTERVAL):
+		_tick_pet_affinity_contact(_relax_contact_wait)
+		_relax_contact_wait = 0.0
 	_tick_furniture_seek()
 	_tick_container_seek(delta)
+	relax.tick(delta)
 	if _attract_left > 0.0:
 		_attract_left -= delta
 		if _attract_left <= 0.0:
@@ -3964,7 +4364,41 @@ func is_running() -> bool:
 
 
 func _walk_speed() -> float:
-	return params.move_speed * (params.run_speed_multiplier if is_running() else 1.0) * (vitality.speed_factor() if vitality != null else 1.0) * lens_mod("speed")
+	var relax_factor := 1.0 + PetRelax.SEEK_SPEED_PCT if relax != null and relax.seeking() and relaxing() else 1.0   # 放鬆模式找座位:慢慢走
+	return params.move_speed * (params.run_speed_multiplier if is_running() else 1.0) * (vitality.speed_factor() if vitality != null else 1.0) * lens_mod("speed") * relax_factor
+
+
+# --- 放鬆模式(見 PetRelax 檔頭的總說明) ---
+const RELAX_CONTACT_INTERVAL := 0.5
+const CONTACT_INTERVAL := 0.2
+var _relax_contact_wait := 0.0
+
+
+## 放鬆模式開著嗎(系統匣「全體行為 → 放鬆模式」,全部桌寵共用一個開關)。
+func relaxing() -> bool:
+	return _shell_state != null and _shell_state.relax_mode
+
+
+## 正走去家具/家具旁的落腳處、還沒坐定。
+func heading_to_furniture() -> bool:
+	return (_furniture_target != null and not _furniture_seated) or _furniture_spot is Vector2
+
+
+## 放鬆模式:被拖到別處放開後先原地站著發呆 seconds 秒(之後 PetRelax 才讓牠坐下)。
+func relax_stand_idle(seconds: float) -> void:
+	hold_still_for(seconds)
+	_enter_idle()
+
+
+## 放鬆模式:兼具模式正在飛的提早找地方降落(落地後照地面的規則坐下)。
+func relax_end_hybrid_flight() -> void:
+	if fly_behavior == FlyBehavior.HYBRID and _hybrid_airborne:
+		_hybrid_fly_left = 0.0
+
+
+## 放鬆模式:不落地的桌寵(總是飛行、漂浮)該待在原地不動嗎——使用者叫牠跟著滑鼠、剛被拋出、正要去用家具時照常移動。
+func relax_hovering() -> bool:
+	return relaxing() and _seek_left <= 0.0 and _fly_launch_left <= 0.0 and _furniture_target == null and not entering
 
 
 ## 地面/靜止模式下連續起跳 count 次(大跳用完整初速度,小跳用約 55%);每次落地後才起跳下一次。
@@ -3984,6 +4418,12 @@ func _process_ground(delta: float) -> void:
 	if _climb != ClimbState.NONE:
 		_process_climb(delta)
 		return
+	# 排隊中的小跳(例如遊戲獲勝的慶祝,見 perform_hops):不管這個影格有沒有要去的目標(跟隨、避免擠在一起、
+	# 休息地點…)都先跳掉,不然下面一碰到目標就整個 return 進 _process_ground_seek(),排進去的跳會被吃掉,
+	# 贏了卻一直看不到跳(使用者回報:對戰勝利沒有小跳慶祝)。
+	if is_on_floor() and _airborne_grace <= 0.0 and hops_left > 0 and not entering:
+		hops_left -= 1
+		velocity.y = -_normal_jump_speed() * _hop_scale
 	if move_mode == MoveMode.GROUND or (move_mode == MoveMode.FLYING and fly_behavior == FlyBehavior.HYBRID):
 		var goal: Variant = _movement_goal()
 		if goal is Vector2:
@@ -4021,10 +4461,7 @@ func _process_ground(delta: float) -> void:
 		# 站著發呆(或站著休息)時偶爾原地小跳一下;被互動、對話、跳舞、爬牆或被積木佔用(站著休息除外)時不跳。
 		if _ground_state == GroundState.IDLE and hops_left == 0 and not entering and not dragging and _interact_left <= 0.0 and _converse_left <= 0.0 and _dance_left <= 0.0 \
 				and (_hold_left <= 0.0 or (vitality != null and vitality.mode == PetVitality.Mode.STANDING)) and not _dialogue_open and randf() < params.idle_hop_chance * delta:
-			perform_hops(1, false)
-		if hops_left > 0 and not entering:
-			hops_left -= 1
-			velocity = Vector2(0.0, -_normal_jump_speed() * _hop_scale)
+			perform_hops(1, false)   # 這一幀排進去的跳,下一幀才會在函式最前面被消耗掉(見上面的說明)。
 	else:
 		_edge_committed = false
 		_dance_left = 0.0
@@ -4050,7 +4487,7 @@ func _process_ground(delta: float) -> void:
 ## 走到行動區的左/右邊界牆時,有機會改成爬上去(而不是轉身)。條件:開了攀爬、地面模式、沒在互動/被積木佔用/入場、
 ## 沒有負面狀態鏡(累了不爬),擲中 params.climb_chance,而且真的是頂著行動區的左右邊界(平臺的側面不算)。
 func _try_start_climb() -> bool:
-	if not climb_enabled or move_mode != MoveMode.GROUND or entering or dragging or bottom_anchored:
+	if not climb_enabled or move_mode != MoveMode.GROUND or entering or dragging or bottom_anchored or relaxing():
 		return false
 	if _interact_left > 0.0 or _hold_left > 0.0 or _converse_left > 0.0 or lens_blocks("climb"):
 		return false
@@ -4248,6 +4685,8 @@ func _process_climb(delta: float) -> void:
 ## 就有 auto_dance_chance 的機率改成原地跳一段舞(DANCE_DURATION 秒)再繼續原本的行程。
 ## 沒有 dance 素材就不跳(不退回 idle,免得桌寵站著不動卻被當成在跳舞)。地面/靜止模式限定,跟隨中不會跳。
 func _try_start_dance() -> bool:
+	if relaxing():
+		return false
 	if not auto_dance_enabled or entering or _dance_left > 0.0 or _interact_left > 0.0 or _hold_left > 0.0:
 		return false
 	var dance_mod := lens_mod("dance")
@@ -4341,6 +4780,31 @@ func _edge_ahead() -> bool:
 	return not _edge_probe.is_colliding()
 
 
+## 放鬆模式挑座位用(見 PetRelax._pick_seat):自己站得上去的平面——最底下的地面,加上每個平臺(視窗上緣…)的頂面。
+## 每項是 Vector3(腳底 y, 可以站的最左 x, 最右 x)。比自己低的一律算(走下去/往下穿),比自己高的要「一次跳得上去」才算
+## (跟 _find_jump_dx 同一套高度判斷),免得挑到上不去的地方白走一趟。
+func relax_surfaces() -> Array[Vector3]:
+	var area := _bounds()
+	var half_width := BODY_SIZE.x * params.scale_multiplier * 0.5
+	var surfaces: Array[Vector3] = [Vector3(area.end.y - GROUND_TOP_OFFSET, area.position.x + half_width, area.end.x - half_width)]
+	var manager := _get_platform_manager()
+	if manager == null:
+		return surfaces
+	var gravity := _gravity * params.gravity_scale * _lens_gravity
+	var max_speed := maxf(params.max_jump_velocity, params.jump_velocity)
+	var max_rise := max_speed * max_speed / (2.0 * maxf(gravity, 1.0)) - JUMP_CLEARANCE
+	var body_height := BODY_SIZE.y * params.scale_multiplier
+	for rect: Rect2 in manager.platform_rects:
+		var left := maxf(rect.position.x, area.position.x) + half_width
+		var right := minf(rect.end.x, area.end.x) - half_width
+		if right <= left or rect.position.y - body_height < area.position.y + JUMP_CLEARANCE or rect.position.y > area.end.y:
+			continue
+		if position.y - rect.position.y > max_rise:
+			continue
+		surfaces.append(Vector3(rect.position.y, left, right))
+	return surfaces
+
+
 ## 在 direction 方向上找一個跳得到的較高平臺,回傳起跳後要水平位移的距離;找不到回傳 NAN。
 ## 跳得到的條件:平臺高度差在最大跳躍高度內、頭不會撞到行動區頂端,而且以空中水平速度
 ## 在「下落穿過該平臺高度」之前能夠飛到平臺範圍內(單向平臺允許從下方穿過)。
@@ -4430,14 +4894,7 @@ func _get_platform_manager() -> Node:
 
 
 func _process_flying(delta: float) -> void:
-	if fly_behavior == FlyBehavior.ALWAYS and is_resting_now():
-		# 總是飛行的桌寵不落地:休息、睡覺都停在空中(輕輕上下飄)。
-		_fly_time += delta
-		velocity = Vector2(0.0, cos(_fly_time * params.fly_bob_frequency) * params.fly_bob_amplitude * params.fly_bob_frequency * 0.5)
-		move_and_slide()
-		_play_locomotion(&"fly")
-		return
-	if fly_behavior == FlyBehavior.ALWAYS and is_resting_now():
+	if fly_behavior == FlyBehavior.ALWAYS and (is_resting_now() or relax_hovering()):
 		# 總是飛行的桌寵不落地:休息、睡覺都停在空中(輕輕上下飄)。
 		_fly_time += delta
 		velocity = Vector2(0.0, cos(_fly_time * params.fly_bob_frequency) * params.fly_bob_amplitude * params.fly_bob_frequency * 0.5)
@@ -4449,7 +4906,20 @@ func _process_flying(delta: float) -> void:
 		var to_goal: Vector2 = goal - position
 		maybe_drop_through(goal, delta)
 		velocity = (to_goal * 3.0).limit_length(params.move_speed * 1.5) if to_goal.length() > FOLLOW_DEADZONE else Vector2.ZERO
+		# 跟平常巡航一樣帶著上下飄動(2026-10-11 使用者回報:飛行桌寵跟隨地面桌寵時動畫停在 fall)。沒有專屬 fly 動作的
+		# 素材是依垂直速度在 rise / fall 之間切換的(見 _start_animation 的降級),跟到定位後速度是 0 就會一直停在 fall。
+		# 正要去坐家具時不飄(要對準錨點)。
+		if _furniture_target == null and not is_on_floor():
+			_fly_time += delta
+			velocity.y += cos(_fly_time * params.fly_bob_frequency) * params.fly_bob_amplitude * params.fly_bob_frequency
 		move_and_slide()
+		# 降落途中/落地歇腳時被目標(跟隨、滑鼠、家具…)叫走:回到巡航。不然目標一消失,狀態機會接著跑「歇腳」
+		# 那一段——人在半空中卻套用重力,整隻直直掉下去(一路播 fall)。
+		if _fly_state != FlyState.CRUISE and (not is_on_floor() or to_goal.length() > FOLLOW_DEADZONE):
+			_fly_state = FlyState.CRUISE
+			_fly_wait_left = 0.0
+			_fly_goal = position
+			_fly_reset_progress()
 		if absf(velocity.x) > 1.0:
 			_face(1 if velocity.x > 0.0 else -1)
 		_play_locomotion(&"fly")
@@ -4476,6 +4946,8 @@ func _process_flying(delta: float) -> void:
 			velocity = Vector2.ZERO
 			_fly_pick_goal()
 		return
+	if _follow_land_with_leader and _fly_state == FlyState.CRUISE:
+		_fly_begin_landing_near_leader()
 	match _fly_state:
 		FlyState.CRUISE:
 			_fly_cruise(delta)
@@ -4591,6 +5063,28 @@ func _fly_begin_landing() -> void:
 	_fly_reset_progress()
 
 
+## 陪落地的跟隨對象一起落地:落點挑在對象旁邊(照跟隨距離,左右哪邊近就哪邊);對象不在站立面上
+## (坐在家具上之類)就落在牠正下方那一帶的地面。這個落點飛不到的話 _fly_landing 會自己改挑別的落點。
+func _fly_begin_landing_near_leader() -> void:
+	var target := _find_pet_by_tag(_follow_tag)
+	if target == null:
+		_fly_begin_landing()
+		return
+	var area := _bounds()
+	var half_width := BODY_SIZE.x * params.scale_multiplier * 0.5
+	var side := signf(position.x - target.position.x)
+	if side == 0.0:
+		side = 1.0
+	var x: float = target.position.x + side * follow_distance
+	if x < area.position.x + half_width or x > area.end.x - half_width:
+		x = target.position.x - side * follow_distance   # 那一邊貼著行動區邊緣:換另一邊
+	x = clampf(x, area.position.x + half_width, area.end.x - half_width)
+	var y: float = target.position.y if target.is_on_floor() else area.end.y - GROUND_TOP_OFFSET
+	_fly_land_spot = Vector2(x, y)
+	_fly_state = FlyState.LANDING
+	_fly_reset_progress()
+
+
 ## 降落:先飛到落點正上方,對準後再垂直下降,碰到站立面就開始休息。
 func _fly_landing(delta: float) -> void:
 	if _fly_gave_up(delta):
@@ -4637,8 +5131,8 @@ func _fly_resting(delta: float) -> void:
 	if not was_on_floor:
 		_trigger_land()
 	_play_locomotion(&"land" if _land_left > 0.0 else &"sit")
-	if _prop_still_left > 0.0 or is_resting_now():
-		_fly_rest_left = maxf(_fly_rest_left, 0.5)   # 道具交互還沒結束,先不起飛
+	if _prop_still_left > 0.0 or is_resting_now() or _follow_land_with_leader or relaxing():
+		_fly_rest_left = maxf(_fly_rest_left, 0.5)   # 道具交互還沒結束、陪跟隨對象待在地上、放鬆模式:先不起飛
 	_fly_rest_left -= delta
 	if _fly_rest_left <= 0.0:
 		_fly_stamina = params.fly_stamina
@@ -4653,7 +5147,7 @@ func _fly_resting(delta: float) -> void:
 func _hybrid_ground_tick(delta: float) -> void:
 	if is_on_floor():
 		_hybrid_air_checked = false
-	elif not _hybrid_air_checked and not dragging and not entering and not is_resting_now():
+	elif not _hybrid_air_checked and not dragging and not entering and not is_resting_now() and not relaxing():
 		if velocity.y < -HYBRID_BIG_JUMP_SPEED:
 			_hybrid_air_checked = true
 			if randf() < HYBRID_BIG_JUMP_CHANCE:
@@ -4678,7 +5172,7 @@ func hybrid_random_chance() -> float:
 
 
 func hybrid_can_take_off() -> bool:
-	return not (dragging or entering or is_resting_now() or _interact_left > 0.0 or _hold_left > 0.0 or _converse_left > 0.0 or _prop_still_left > 0.0 or bottom_anchored or _climb != ClimbState.NONE or _dance_left > 0.0)
+	return not (relaxing() or dragging or entering or is_resting_now() or _interact_left > 0.0 or _hold_left > 0.0 or _converse_left > 0.0 or _prop_still_left > 0.0 or bottom_anchored or _climb != ClimbState.NONE or _dance_left > 0.0)
 
 
 func _hybrid_begin_flight() -> void:
@@ -4718,7 +5212,7 @@ func _face_by_velocity() -> void:
 
 
 func _process_floating(delta: float) -> void:
-	if is_resting_now():
+	if is_resting_now() or relax_hovering():
 		# 漂浮的桌寵休息、睡覺時慢慢停下來,原地不動。
 		velocity = velocity.lerp(Vector2.ZERO, minf(4.0 * delta, 1.0))
 		move_and_collide(velocity * delta)
@@ -4775,7 +5269,7 @@ func _face(direction: int) -> void:
 
 
 func _visual_sign() -> float:
-	return -float(_facing) if art_flipped else float(_facing)
+	return -float(_facing) if art_flipped != _appearance_flip else float(_facing)
 
 
 func _apply_scale() -> void:
@@ -4787,7 +5281,36 @@ func _apply_scale() -> void:
 	_shape_node.position = Vector2(0.0, -BODY_SIZE.y * multiplier * 0.5)
 
 
+## 動作名稱 → 差分編號清單的快取(2026-10-11 效能):自主行為每個物理影格都會問好幾次「這個動作有哪些差分」,
+## 原本每次都把整份動畫名稱清單(眨眼逐幀動畫多的素材包有好幾百個)逐一做字串比對。動畫清單只在換素材時才會變,
+## 所以依「哪一份 SpriteFrames、裡面有幾個動畫」記住結果;換了素材或動畫數量變了(測試、編輯器直接加動畫)就整個重算。
+## 回傳的陣列是共用的,呼叫端只讀不改。
+var _variant_cache: Dictionary = {}
+var _variant_cache_frames: SpriteFrames = null
+var _variant_cache_count := -1
+var _variant_cache_checked_frame := -1
+
+
 func _find_variants(action_name: StringName) -> Array[int]:
+	var frames := _sprite.sprite_frames
+	# 「動畫數量變了沒」每個物理影格只核對一次(取動畫名稱清單本身也要花時間)。
+	var tick := Engine.get_physics_frames()
+	if frames != _variant_cache_frames or tick != _variant_cache_checked_frame:
+		_variant_cache_checked_frame = tick
+		var count := frames.get_animation_names().size()
+		if frames != _variant_cache_frames or count != _variant_cache_count:
+			_variant_cache.clear()
+			_variant_cache_frames = frames
+			_variant_cache_count = count
+	var cached: Variant = _variant_cache.get(action_name)
+	if cached != null:
+		return cached
+	var found := _scan_variants(action_name)
+	_variant_cache[action_name] = found
+	return found
+
+
+func _scan_variants(action_name: StringName) -> Array[int]:
 	var variants: Array[int] = []
 	var prefix := "%s_" % action_name
 	for animation in _sprite.sprite_frames.get_animation_names():

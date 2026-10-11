@@ -22,6 +22,9 @@ var interactive := false   # 現在是不是在等使用者點格子
 var show_surrender := false
 var status_text := ""
 
+## BoardPlacement 記位置用的鍵(一種面板一個)。
+const PLACEMENT_KIND := "ttt"
+
 var _area: Node
 var _fraction: Variant = null   # 拖過之後記住位置(比例);沒拖過就置中
 var _rects: Dictionary = {}
@@ -36,6 +39,8 @@ func setup(area: Node) -> void:
 	_area = area
 	add_to_group("Cutout")
 	add_to_group("screen_clamped_boards")
+	add_to_group("pointer_blockers")
+	_fraction = BoardPlacement.load_fraction(PLACEMENT_KIND)   # 上次拖到哪,這次就在哪生成
 	z_index = 40
 	_layout()
 
@@ -59,6 +64,7 @@ func _screen_rect() -> Rect2:
 ## 「行動區重設」用:忘記拖到哪裡了,直接退回預設(貼著行動區置中)的位置。
 func recall() -> void:
 	_fraction = null
+	BoardPlacement.forget(PLACEMENT_KIND)
 	_layout()
 
 
@@ -92,6 +98,11 @@ func _layout() -> void:
 		_rects["surrender"] = Rect2(panel.position.x + PAD, panel.end.y - SURRENDER_HEIGHT + 4.0, size.x - PAD * 2.0, SURRENDER_HEIGHT - 6.0)
 	_last_area_cache = area
 	queue_redraw()
+
+
+## 滑鼠在面板範圍內(或正拖著標題列)時,後面的桌寵不該收到按壓/右鍵/摸摸,見 pet_interaction.gd 的 pointer_blocked()。
+func blocks_pointer(point: Vector2) -> bool:
+	return _dragging_header or (_rects.has("panel") and (_rects["panel"] as Rect2).has_point(point))
 
 
 func get_cutout_polygons() -> Array:
@@ -179,6 +190,8 @@ func _on_press() -> void:
 
 
 func _on_release() -> void:
+	if _dragging_header and _fraction is Vector2:
+		BoardPlacement.save_fraction(PLACEMENT_KIND, _fraction)
 	_dragging_header = false
 
 

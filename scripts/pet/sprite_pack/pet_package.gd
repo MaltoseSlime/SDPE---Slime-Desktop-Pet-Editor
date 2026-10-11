@@ -31,6 +31,14 @@ const MAX_DEPTH := 8
 const PACK_EXTENSIONS: Array[String] = ["png", "jpg", "jpeg", "webp", "json", "ogg", "wav", "mp3", "txt", "md"]
 const RESERVED := ["CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "LPT1", "LPT2", "LPT3"]
 const TEMP_ROOT := "user://pet_import_tmp"
+## 角色資料夾以外、但屬於這個角色的東西(2026-10-11 補):為了讓舊版程式也讀得了新版匯出的 .pet,不新增壓縮檔裡的位置,
+## 借現有的兩處帶著走,匯入時再放回原本的地方——
+##  - 自訂說話聲音(user://voices/ 的音檔,見 PetVoice):放成 pack/_character_voice.<副檔名>;匯入後搬回 user://voices/ 並改寫設定檔裡的檔名。
+##  - 記憶存檔的 5 格(user://memory_slots/<辨識代號>.json,見 MemorySlots):勾了「包含記憶與戰績」才帶,塞在 state.json 的 memorySlots 欄位;
+##    匯入後寫回 user://memory_slots/ 並從 state.json 拿掉。
+## 舊版程式匯入時這兩樣只是用不到(多一個沒人讀的音檔 / 欄位),不會壞。
+const VOICE_ENTRY_BASE := "_character_voice"
+const MEMORY_SLOTS_KEY := "memorySlots"
 
 
 # --- 匯出 ---
@@ -45,10 +53,10 @@ static func suggested_name(folder: String) -> String:
 
 
 ## 把角色庫裡的一個角色匯出成 .pet。options:{include_state: false, include_logic: true}。
-## 回傳 {ok, error, files, bytes, skipped:[不收的檔案], included:{profile, logic, state}}。先寫成 .tmp 再改名,失敗不會留下壞檔。
+## 回傳 {ok, error, files, bytes, skipped:[不收的檔案], included:{profile, logic, state, voice, memory_slots}}。先寫成 .tmp 再改名,失敗不會留下壞檔。
 static func export_package(folder: String, out_path: String, options := {}) -> Dictionary:
 	var source := folder.replace("\\", "/").trim_suffix("/")
-	var report := {"ok": false, "error": "", "files": 0, "bytes": 0, "skipped": [], "included": {"profile": false, "logic": false, "state": false}}
+	var report := {"ok": false, "error": "", "files": 0, "bytes": 0, "skipped": [], "included": {"profile": false, "logic": false, "state": false, "voice": false, "memory_slots": false}}
 	if not DirAccess.dir_exists_absolute(source):
 		report["error"] = "找不到角色資料夾"
 		return report
@@ -78,7 +86,7 @@ static func export_package(folder: String, out_path: String, options := {}) -> D
 		return true
 	# 素材包
 	for relative in _list_files(source, ""):
-		if relative.begins_with(CharacterFiles.SUBDIR + "/") or relative.ends_with(".bak"):
+		if relative.begins_with(CharacterFiles.SUBDIR + "/") or relative.ends_with(".bak") or relative.get_basename() == VOICE_ENTRY_BASE:
 			continue
 		var extension := relative.get_extension().to_lower()
 		if not PACK_EXTENSIONS.has(extension) or entry_problem(PACK_PREFIX + relative, true) != "":
@@ -100,7 +108,17 @@ static func export_package(folder: String, out_path: String, options := {}) -> D
 				continue
 			for candidate: String in sources[file_name]:
 				if FileAccess.file_exists(candidate) and FileAccess.get_size(candidate) <= MAX_JSON_BYTES:
-					if not add.call(CHARACTER_PREFIX + file_name, FileAccess.get_file_as_bytes(candidate)):
+					var bytes := FileAccess.get_file_as_bytes(candidate)
+					if file_name == "profile.json":
+						var voice := _voice_file_of(bytes)
+						if voice != "" and add.call(PACK_PREFIX + VOICE_ENTRY_BASE + "." + voice.get_extension().to_lower(), FileAccess.get_file_as_bytes(PetVoice.VOICE_DIR + voice)):
+							report["included"]["voice"] = true
+					elif file_name == "state.json":
+						var with_slots := _state_with_memory_slots(bytes, tag)
+						if not with_slots.is_empty():
+							bytes = with_slots
+							report["included"]["memory_slots"] = true
+					if not add.call(CHARACTER_PREFIX + file_name, bytes):
 						break
 					report["included"][file_name.trim_suffix(".json")] = true
 					break
@@ -123,6 +141,86 @@ static func export_package(folder: String, out_path: String, options := {}) -> D
 		return report
 	report["ok"] = true
 	return report
+
+
+## 設定檔(profile.json 的內容)用的自訂說話聲音檔名;沒有、檔名不合法、檔案不在或太大回空字串。
+static func _voice_file_of(profile_bytes: PackedByteArray) -> String:
+	var parsed: Variant = JSON.parse_string(profile_bytes.get_string_from_utf8())
+	if not parsed is Dictionary or not parsed.get("voice") is Dictionary:
+		return ""
+	var file_name := str(parsed["voice"].get("file", ""))
+	if not PetVoice.is_valid_file_name(file_name) or not FileAccess.file_exists(PetVoice.VOICE_DIR + file_name):
+		return ""
+	return file_name if FileAccess.get_size(PetVoice.VOICE_DIR + file_name) <= PetVoice.MAX_BYTES else ""
+
+
+## 把這個角色的記憶存檔格子塞進 state.json 的內容;沒有存檔格子(或讀不了)回空陣列 = 照原樣放。
+static func _state_with_memory_slots(state_bytes: PackedByteArray, tag: String) -> PackedByteArray:
+	var slots_path := "%s%s.json" % [MemorySlots.DIR, tag.validate_filename()]
+	if not FileAccess.file_exists(slots_path) or FileAccess.get_size(slots_path) > MAX_JSON_BYTES:
+		return PackedByteArray()
+	var slots: Variant = JSON.parse_string(FileAccess.get_file_as_string(slots_path))
+	var state: Variant = JSON.parse_string(state_bytes.get_string_from_utf8())
+	if not slots is Dictionary or not slots.get("slots") is Array or not state is Dictionary:
+		return PackedByteArray()
+	state[MEMORY_SLOTS_KEY] = slots["slots"]
+	var bytes := JSON.stringify(state, "  ").to_utf8_buffer()
+	return bytes if bytes.size() <= MAX_JSON_BYTES else PackedByteArray()
+
+
+## 匯入後:把跟著素材包進來的說話聲音搬回 user://voices/(檔名用新的辨識代號),並改寫設定檔裡的檔名。
+## 音檔要先解得開、長度大小合規才收(跟使用者自己導入聲音同一套檢查,見 PetVoice.import_file);不合格就丟掉,桌寵用內建聲音。
+static func _restore_voice(folder: String, tag: String) -> void:
+	for extension in PetVoice.ALLOWED_EXTENSIONS:
+		var bundled := folder.path_join(VOICE_ENTRY_BASE + "." + extension)
+		if not FileAccess.file_exists(bundled):
+			continue
+		var bytes := FileAccess.get_file_as_bytes(bundled)
+		DirAccess.remove_absolute(bundled)
+		var stream := PetVoice.decode(bytes, extension) if bytes.size() <= PetVoice.MAX_BYTES else null
+		if stream == null or stream.get_length() > PetVoice.MAX_SECONDS:
+			continue
+		var file_name := "%s_%d.%s" % [tag.validate_filename().replace(" ", "_"), int(Time.get_unix_time_from_system()), extension]
+		DirAccess.make_dir_recursive_absolute(PetVoice.VOICE_DIR)
+		var out := FileAccess.open(PetVoice.VOICE_DIR + file_name, FileAccess.WRITE)
+		if out == null:
+			continue
+		out.store_buffer(bytes)
+		out.close()
+		var profile_path := CharacterFiles.profile_in(folder)
+		var profile: Variant = JSON.parse_string(FileAccess.get_file_as_string(profile_path)) if FileAccess.file_exists(profile_path) else null
+		if profile is Dictionary and profile.get("voice") is Dictionary:
+			profile["voice"]["file"] = file_name
+			var file := FileAccess.open(profile_path, FileAccess.WRITE)
+			if file != null:
+				file.store_string(JSON.stringify(profile, "  "))
+				file.close()
+		return
+
+
+## 匯入後:state.json 裡帶著的記憶存檔格子寫回 user://memory_slots/<辨識代號>.json(那裡已經有檔就不蓋),並從 state.json 拿掉。
+## 內容不在這裡驗證:MemorySlots.read_all() 讀的時候本來就逐格驗證。
+static func _restore_memory_slots(folder: String, tag: String) -> void:
+	var state_path := CharacterFiles.state_in(folder)
+	if not FileAccess.file_exists(state_path):
+		return
+	var state: Variant = JSON.parse_string(FileAccess.get_file_as_string(state_path))
+	if not state is Dictionary or not state.has(MEMORY_SLOTS_KEY):
+		return
+	var slots: Variant = state[MEMORY_SLOTS_KEY]
+	state.erase(MEMORY_SLOTS_KEY)
+	var file := FileAccess.open(state_path, FileAccess.WRITE)
+	if file != null:
+		file.store_string(JSON.stringify(state, "  "))
+		file.close()
+	var slots_path := "%s%s.json" % [MemorySlots.DIR, tag.validate_filename()]
+	if not slots is Array or FileAccess.file_exists(slots_path):
+		return
+	DirAccess.make_dir_recursive_absolute(MemorySlots.DIR)
+	var out := FileAccess.open(slots_path, FileAccess.WRITE)
+	if out != null:
+		out.store_string(JSON.stringify({"slots": (slots as Array).slice(0, MemorySlots.SLOT_COUNT)}, "\t"))
+		out.close()
 
 
 ## 資料夾裡所有檔案的相對路徑(用 /),遞迴。
@@ -422,4 +520,6 @@ static func import_package(path: String, display_name := "", options := {}) -> D
 	if move_error != "":
 		SpriteLibrary._remove_folder(target_folder)
 		return fail.call(move_error)
+	_restore_voice(target_folder, tag)
+	_restore_memory_slots(target_folder, tag)
 	return {"ok": true, "error": "", "folder": target_folder, "tag": tag, "tag_changed": tag_changed, "name": wanted_name}

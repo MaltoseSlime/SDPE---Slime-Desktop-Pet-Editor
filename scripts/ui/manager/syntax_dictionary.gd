@@ -60,6 +60,7 @@ const ENTRIES: Array[Dictionary] = [
 	{"category": "特效", "syntax": "{fx:sleepy}", "meaning": "[睏倦] 頭旁邊慢慢飄一兩顆小氣泡"},
 	{"category": "特效", "syntax": "{fx:gloom}", "meaning": "[憂愁] 角色背後一圈淡淡的藍色圓暈"},
 	{"category": "特效", "syntax": "{fx:cry}", "meaning": "[哭泣] 從眼睛附近零零散散撒出小水滴"},
+	{"category": "特效", "syntax": "{fx:confetti}", "meaning": "[五彩紙花] 從頭上往兩邊斜角撒出扁短的彩色紙片,邊轉邊飄落;預設彩虹色調,也可以照慣例切回單色/雙色等上色邏輯"},
 	{"category": "特效", "syntax": "{fx:sweat|4}", "meaning": "冒汗特效持續 4 秒(1~60 秒)"},
 	{"category": "文字變數", "syntax": "{text:nickname}", "meaning": "使用者輸入或抽籤存下的文字變數"},
 	{"category": "文字變數", "syntax": "{text:nickname|你}", "meaning": "文字變數,還沒有值時顯示「你」"},

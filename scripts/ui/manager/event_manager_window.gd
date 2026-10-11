@@ -18,6 +18,9 @@ var _list: VBoxContainer
 var _status: Label
 var _batch_button: Button
 var _batch_armed := false
+## 2026-10-11:指到「這台電腦上沒有的桌寵」的事件預設藏起來(見 PetReferences),按這顆才列出來。
+var _missing_toggle: Button
+var _show_missing := false
 
 
 func setup(pet: Node) -> void:
@@ -50,6 +53,13 @@ func setup(pet: Node) -> void:
 	_batch_button.tooltip_text = tr("一次移除所有被取消勾選的事件。自訂的會寫回積木檔(永久),按兩次確定。")
 	_batch_button.pressed.connect(_on_batch_pressed)
 	toolbar.add_child(_batch_button)
+	_missing_toggle = ManagerUi.button("")
+	_missing_toggle.toggle_mode = true
+	_missing_toggle.tooltip_text = tr("有些事件的對象桌寵不在這台電腦上(例如匯入別人分享的角色):這些事件不會觸發,先藏起來。之後匯入那隻桌寵就會自動恢復;也可以列出來,手動改指到別的桌寵。")
+	_missing_toggle.toggled.connect(func(pressed: bool) -> void:
+		_show_missing = pressed
+		_refresh())
+	toolbar.add_child(_missing_toggle)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -76,10 +86,16 @@ func _refresh() -> void:
 	var events: Array[Dictionary] = _pet.logic.list_events()
 	_batch_button.disabled = _disabled_entries(events).is_empty()
 	_batch_button.text = tr("移除所有已停用事件")
+	var hidden := missing_pet_entries(events).size()
+	_missing_toggle.visible = hidden > 0
+	_missing_toggle.set_pressed_no_signal(_show_missing)
+	_missing_toggle.text = tr("找不到對象的事件(%d)") % hidden
 	if events.is_empty():
 		_status.text = tr("目前沒有任何事件。")
 		return
-	_status.text = tr("共 %d 個事件。") % events.size()
+	_status.text = tr("共 %d 個事件。") % (events.size() - hidden)
+	if hidden > 0:
+		_status.text += tr("另有 %d 個事件的對象桌寵不在這台電腦上,已自動停用並暫時隱藏。") % hidden
 	# 2026-10-05 新增:觸發條件相同的分組提示(見 LogicInterpreter.trigger_signature()/「2026-10-02 新議題」
 	# 第 3 類)——先數每個特徵碼出現幾次,等於 1 的不用特別標記。
 	var sig_counts: Dictionary = {}
@@ -87,8 +103,78 @@ func _refresh() -> void:
 		var sig := str(entry.get("trigger_sig", ""))
 		sig_counts[sig] = int(sig_counts.get(sig, 0)) + 1
 	for entry: Dictionary in events:
+		if not _show_missing and not (entry.get("missing_pets", []) as Array).is_empty():
+			continue
 		var count: int = sig_counts.get(str(entry.get("trigger_sig", "")), 1)
 		_list.add_child(_row(entry, count))
+
+
+## 指到「不認得的桌寵」的事件(自動停用、預設隱藏的那些)。
+func missing_pet_entries(events: Array[Dictionary]) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for entry: Dictionary in events:
+		if not (entry.get("missing_pets", []) as Array).is_empty():
+			result.append(entry)
+	return result
+
+
+## 畫面上現在列了幾條(給測試看)。
+func shown_row_count() -> int:
+	var count := 0
+	for child in _list.get_children():
+		if not child.is_queued_for_deletion():
+			count += 1
+	return count
+
+
+## 把一條事件裡指到 old_ref 的地方改指到 new_ref(kind = "pet" / "prop")。自訂的事件改積木本身並寫回積木檔;
+## 交互行為規則帶來的改交互行為設定並存檔;性格帶來的不能在這裡改。回傳錯誤文字(空字串 = 成功)。
+func retarget_entry(entry: Dictionary, kind: String, old_ref: String, new_ref: String, new_name := "") -> String:
+	if _pet == null or not is_instance_valid(_pet):
+		return "這隻桌寵已經不在桌面上了。"
+	var layer := str(entry.get("layer", ""))
+	if layer == "user":
+		if not _pet.logic.retarget_user_hat(entry["hat"], kind, old_ref, new_ref):
+			return "找不到要重新指向的項目"
+		return "" if _save_user_layer() else "已重新指向,但寫回積木檔失敗,重新開啟後會恢復原狀。"
+	if layer == "rule":
+		var rules: Dictionary = (_pet.interaction_rules as Dictionary).duplicate(true)
+		var error := PetReferences.retarget_rules(rules, "props" if kind == "prop" else "characters", old_ref, new_ref, new_name)
+		if error != "":
+			return error
+		_pet.set_interaction_rules(rules)
+		PetProfile.save_pet(_pet)
+		return ""
+	return "性格帶來的事件不能在這裡改,請到性格編輯器調整。"
+
+
+func _open_retarget_menu(anchor: Control, entry: Dictionary, kind: String, old_ref: String) -> void:
+	var menu := PopupMenu.new()
+	var refs: Array[String] = []
+	var names: Array[String] = []
+	if kind == "prop":
+		for def in PropLibrary.list():
+			refs.append(def.display_name)
+			names.append(def.display_name)
+	else:
+		var known := PetReferences.known_pets(get_tree())
+		for tag: String in known:
+			if tag != str(_pet.recognition_tag):
+				refs.append(tag)
+				names.append(str(known[tag]))
+	for i in refs.size():
+		menu.add_item(names[i] if names[i] == refs[i] else "%s(%s)" % [names[i], refs[i]])
+	if refs.is_empty():
+		menu.add_item(tr("(沒有可以指向的對象)"))
+		menu.set_item_disabled(0, true)
+	menu.index_pressed.connect(func(index: int) -> void:
+		var error := retarget_entry(entry, kind, old_ref, refs[index], names[index])
+		menu.queue_free()
+		_refresh()
+		_status.text = tr(error) if error != "" else tr("已把「%s」改指到「%s」。") % [old_ref, names[index]])
+	menu.close_requested.connect(menu.queue_free)
+	add_child(menu)
+	menu.popup(Rect2i(Vector2i(anchor.get_screen_position()) + Vector2i(0, int(anchor.size.y)), Vector2i(180, 0)))
 
 
 func _disabled_entries(events: Array[Dictionary]) -> Array[Dictionary]:
@@ -160,9 +246,12 @@ func _row(entry: Dictionary, same_trigger_count: int = 1) -> Control:
 	# 寬度」那個坑是同一類,差別在這裡漏掉的是外層列容器的 expand,不是 Label 本身。
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_theme_constant_override("separation", 6)
+	var missing_pets: Array = entry.get("missing_pets", [])
+	var missing_props: Array = entry.get("missing_props", [])
 	var check := CheckBox.new()
-	check.button_pressed = not bool(entry.get("disabled", false))
-	check.tooltip_text = tr("取消勾選 = 暫時停用這個事件(不會自己觸發),不寫檔。")
+	check.button_pressed = not bool(entry.get("disabled", false)) and missing_pets.is_empty()
+	check.disabled = not missing_pets.is_empty()
+	check.tooltip_text = tr("對象桌寵不在這台電腦上,這個事件已自動停用。匯入那隻桌寵後會自動恢復。") if check.disabled else tr("取消勾選 = 暫時停用這個事件(不會自己觸發),不寫檔。")
 	check.toggled.connect(func(pressed: bool) -> void:
 		if _pet == null or not is_instance_valid(_pet):
 			return
@@ -175,6 +264,19 @@ func _row(entry: Dictionary, same_trigger_count: int = 1) -> Control:
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_child(label)
+	# 2026-10-11:指不到的對象。桌寵 → 整條變灰(已自動停用);道具 → 標成(空)。自訂 / 交互行為規則的可以改指到別的。
+	if not missing_pets.is_empty():
+		label.theme_type_variation = AppSettings.MUTED_LABEL
+		label.text += tr("(找不到桌寵:%s)") % "、".join(PackedStringArray(missing_pets))
+	elif not missing_props.is_empty():
+		label.text += tr(" %s找不到道具「%s」") % [tr(PetReferences.EMPTY_LABEL), str(missing_props[0])]
+	if (not missing_pets.is_empty() or not missing_props.is_empty()) and str(entry.get("layer", "")) in ["user", "rule"]:
+		var kind := "pet" if not missing_pets.is_empty() else "prop"
+		var old_ref := str(missing_pets[0]) if kind == "pet" else str(missing_props[0])
+		var retarget := ManagerUi.button(tr("重新指向…"))
+		retarget.tooltip_text = tr("把這個事件改指到這台電腦上現有的另一隻桌寵。") if kind == "pet" else tr("把這個事件改指到物品欄裡現有的另一個道具。")
+		retarget.pressed.connect(func() -> void: _open_retarget_menu(retarget, entry, kind, old_ref))
+		box.add_child(retarget)
 	# 2026-10-05:觸發條件相同的提醒改成一個 ⚠ 圖示,說明文字收在 hover 裡(WrappedTooltipLabel 會自動換行)。
 	if same_trigger_count > 1:
 		var warn := WrappedTooltipLabel.new()
@@ -231,7 +333,7 @@ func _topic_row(entry: Dictionary) -> Control:
 		_status.text = tr("已%s:%s") % [tr("啟用") if pressed else tr("停用"), str(entry.get("label", ""))])
 	box.add_child(check)
 	var label := Label.new()
-	label.text = "[%s] %s" % [tr("話題"), str(entry.get("label", ""))]
+	label.text = "[%s] %s" % [tr("通用話題") if bool(entry.get("topic_generic", false)) else tr("話題"), str(entry.get("label", ""))]
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_child(label)

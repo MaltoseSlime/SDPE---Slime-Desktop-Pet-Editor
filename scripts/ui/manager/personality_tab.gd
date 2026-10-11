@@ -1,6 +1,6 @@
 class_name PersonalityTab
 extends HSplitContainer
-## 性格分頁:左邊是「性格與參數」(五個區塊各有下拉選單,可以混搭,每個區塊下面說明「這個性格在這個區塊會怎樣」;再下面是這隻桌寵所有參數的可填式方塊),
+## 性格分頁:左邊是「性格與參數」(六個區塊各有下拉選單,可以混搭,每個區塊下面說明「這個性格在這個區塊會怎樣」;再下面是這隻桌寵所有參數的可填式方塊),
 ## 右邊是「套用預覽」(顯示每個區塊會發生什麼、所有參數的目前值,以及套用後的值),套用、取消、編輯、匯入、匯出的按鈕與選項放在右上角。
 ## 套用前有預覽;不會蓋掉你自己的內容(規則見 PersonalityApplier);可以匯入自訂性格、把目前的設定匯出成性格檔、用性格編輯器改性格的內容。
 ## 套用後立刻生效並標成「有未儲存的變更」,按管理視窗的「儲存」才寫進桌寵設定(關掉視窗選「不儲存」會還原)。
@@ -9,6 +9,8 @@ signal changed
 signal message(text: String)
 
 const NONE_ID := ""
+## 話題文本下拉選單的「不套用」:不是性格 id,不交給 PersonalityApplier(那邊當成沒選性格),另外記在 Pet.topic_off。
+const TOPIC_OFF_ID := "__topic_off__"
 
 var _pet: Node
 var _all_option: OptionButton
@@ -45,7 +47,7 @@ func _build_left() -> void:
 	scroll.add_child(side)
 	side.add_child(ManagerUi.heading("性格"))
 	side.add_child(ManagerUi.syntax_row(self, "台詞能用的語法", "性格的台詞可以用氣泡樣式、數值、名字標記與單字池。點右邊的「語法字典」查所有語法並複製;要寫台詞請用「編輯性格…」。", false))
-	side.add_child(ManagerUi.hint_row("選一個性格,五個區塊可以各自混搭", "選一個性格,桌寵就會有那個性格的行動節奏、閒聊與各種反應。五個區塊可以各自選不同的性格。你自己寫的積木、改過的設定不會被蓋掉。每隻角色都帶著自己的一份性格副本(套用時複製):在性格編輯器改「這隻角色的版本」只影響這一隻,共用的性格檔不會被動到。"))
+	side.add_child(ManagerUi.hint_row("選一個性格,六個區塊可以各自混搭", "選一個性格,桌寵就會有那個性格的行動節奏、閒聊與各種反應。六個區塊可以各自選不同的性格。你自己寫的積木、改過的設定不會被蓋掉。每隻角色都帶著自己的一份性格副本(套用時複製):在性格編輯器改「這隻角色的版本」只影響這一隻,共用的性格檔不會被動到。"))
 
 	_vitality_label = Label.new()
 	_vitality_label.theme_type_variation = AppSettings.MUTED_LABEL
@@ -73,6 +75,8 @@ func _build_left() -> void:
 	side.add_child(HSeparator.new())
 
 	for section: String in PersonalityApplier.SECTIONS:
+		if not _section_options.is_empty():
+			side.add_child(HSeparator.new())   # 區塊之間加分隔線,方便閱讀(使用者要求)。
 		var row := HBoxContainer.new()
 		var label := Label.new()
 		label.text = PersonalityApplier.SECTION_NAMES[section]
@@ -119,7 +123,7 @@ func _build_left() -> void:
 		mood_scroll.add_child(mood_list)
 		_mood_lens_lists[high] = mood_list
 	side.add_child(HSeparator.new())
-	side.add_child(ManagerUi.heading_with_info("這隻桌寵的參數", "直接改下面的方塊,馬上套用在這隻桌寵身上(記得按「儲存」)。你改過的參數,之後換性格時預設會保留。每列右邊的 ↺ 回到預設值。滑過名稱看完整說明。"))
+	side.add_child(ManagerUi.heading_with_info("這隻桌寵的參數", "直接改下面的方塊,馬上套用在這隻桌寵身上(記得按「儲存」)。你改過的參數,之後換性格時預設會保留。每列右邊的 ↺ 回到預設值。滑過名稱看完整說明。裡面也包含「好感度追加倍率」「好感度減少倍率」「連敗 N 次時觸發扣好感事件」這三項:決定這隻桌寵跟其他桌寵的好感怎麼增減(見 PetFavor)。"))
 	_params_panel = PersonalityParamsPanel.new()
 	_params_panel.value_changed.connect(_on_param_edited)
 	side.add_child(_params_panel)
@@ -201,6 +205,8 @@ func has_pending_apply() -> bool:
 	for section: String in PersonalityApplier.SECTIONS:
 		if wanted.has(section) and str(wanted[section]) != PersonalityApplier.choice_of(_pet, section):
 			return true
+	if _topic_off_wanted() != bool(_pet.topic_off):
+		return true
 	var state := PersonalityApplier.state_of(_pet)
 	return _ignore_chat.button_pressed != bool(state["ignore_own"].get("chat", false)) or _ignore_reactions.button_pressed != bool(state["ignore_own"].get("reactions", false))
 
@@ -290,7 +296,7 @@ func _reload_options() -> void:
 	_personalities = PersonalityFile.list_all()
 	_updating = true
 	_all_option.clear()
-	_all_option.add_item(tr("(選一個,五個區塊一起設成它)"))
+	_all_option.add_item(tr("(選一個,六個區塊一起設成它)"))
 	_all_option.set_item_metadata(0, NONE_ID)
 	for section: String in PersonalityApplier.SECTIONS:
 		var option: OptionButton = _section_options[section]
@@ -298,18 +304,29 @@ func _reload_options() -> void:
 		# 話題文本的「不套用」就是通用預設(content/topic_pool.json),直接寫清楚。
 		option.add_item(tr("預設(通用話題文本)") if section == "topicLines" else tr("(不套用)"))
 		option.set_item_metadata(0, NONE_ID)
+		option.set_item_tooltip(0, InfoIcon.wrap_text(tr(str(PersonalitySectionNotes.INTRO[section])), InfoIcon.TIP_WIDTH))
+		if section == "topicLines":
+			option.add_item(tr("不套用(不說話題句)"))
+			option.set_item_metadata(1, TOPIC_OFF_ID)
+			option.set_item_tooltip(1, InfoIcon.wrap_text(tr("這隻桌寵完全不說話題句,通用話題池也不用;平常的閒聊台詞不受影響。你在「交互行為」改過的話題文本會留著,之後切回來就恢復。"), InfoIcon.TIP_WIDTH))
 	for item in _personalities:
 		var text := str(item["name"]) if item["builtin"] else tr("自訂:%s") % item["name"]
 		_all_option.add_item(text)
 		_all_option.set_item_metadata(_all_option.item_count - 1, item["id"])
+		_all_option.set_item_tooltip(_all_option.item_count - 1, str(item["description"]))   # 整組的:性格的概括描述
+		var personality: Dictionary = PersonalityFile.find(str(item["id"])).get("personality", {})
 		for section: String in PersonalityApplier.SECTIONS:
 			var option: OptionButton = _section_options[section]
 			option.add_item(text)
 			option.set_item_metadata(option.item_count - 1, item["id"])
-			option.set_item_tooltip(option.item_count - 1, str(item["description"]))
+			# 各區塊的:這個性格在「這一項」是什麼樣子(內建性格用寫好的短敘述;自訂性格沒有,退回自動整理的內容摘要)
+			var note := PersonalitySectionNotes.of(str(item["id"]), section) if item["builtin"] else ""
+			var detail := tr(note) if note != "" else tr(PersonalityFile.section_description(personality, section, false))
+			# 前面先接一句「這個區塊是做什麼用的」;長句自己折行,不然提示框會拉成一整條
+			option.set_item_tooltip(option.item_count - 1, InfoIcon.wrap_text(tr(str(PersonalitySectionNotes.INTRO[section])) + "\n\n" + detail, InfoIcon.TIP_WIDTH))
 	if _pet != null:
 		for section: String in PersonalityApplier.SECTIONS:
-			_select_id(_section_options[section], PersonalityApplier.choice_of(_pet, section))
+			_select_id(_section_options[section], TOPIC_OFF_ID if section == "topicLines" and bool(_pet.topic_off) else PersonalityApplier.choice_of(_pet, section))
 	_updating = false
 
 
@@ -337,8 +354,15 @@ func _wanted() -> Dictionary:
 	var wanted := {}
 	for section: String in PersonalityApplier.SECTIONS:
 		var option: OptionButton = _section_options[section]
-		wanted[section] = str(option.get_item_metadata(option.selected))
+		var id := str(option.get_item_metadata(option.selected))
+		wanted[section] = NONE_ID if id == TOPIC_OFF_ID else id   # 「不套用」對性格系統來說就是沒選性格
 	return wanted
+
+
+## 話題文本的下拉選單是不是選了「不套用」。
+func _topic_off_wanted() -> bool:
+	var option: OptionButton = _section_options.get("topicLines")
+	return option != null and option.selected >= 0 and str(option.get_item_metadata(option.selected)) == TOPIC_OFF_ID
 
 
 func _options() -> Dictionary:
@@ -354,9 +378,13 @@ func _refresh_preview() -> void:
 		var current := PersonalityApplier.choice_of(_pet, section)
 		var label: Label = _section_state[section]
 		label.text = tr("目前:%s") % _name_of(current) if current != "" else tr("目前:沒有套用")
+		if section == "topicLines" and bool(_pet.topic_off):
+			label.text = tr("目前:不套用(不說話題句)")
 		var chosen := str(wanted[section])
 		var description: Label = _section_desc[section]
 		description.text = ""
+		if section == "topicLines" and _topic_off_wanted():
+			description.text = tr("選了「不套用」→ 這隻桌寵不說話題句,通用話題池也不用。")
 		if chosen != "":
 			var chosen_personality := PersonalityApplier.personality_of(_pet, chosen)
 			if not chosen_personality.is_empty():
@@ -498,7 +526,9 @@ static func _value_text(key: String, value: Variant) -> String:
 func _apply() -> void:
 	if _pet == null:
 		return
+	var topic_off := _topic_off_wanted()
 	var result := PersonalityApplier.apply(_pet, _wanted(), _options())
+	_pet.topic_off = topic_off
 	_reload_options()
 	_reload_mood_lens_options()
 	_refresh_preview()
@@ -511,6 +541,7 @@ func _clear_all() -> void:
 	if _pet == null:
 		return
 	var result := PersonalityApplier.clear_all(_pet)
+	_pet.topic_off = false
 	_reload_options()
 	_reload_mood_lens_options()
 	_refresh_preview()

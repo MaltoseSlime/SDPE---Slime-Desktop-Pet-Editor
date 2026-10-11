@@ -252,6 +252,7 @@ static func load_pack(folder: String) -> Dictionary:
 		frames.add_animation(&"idle_0")
 		frames.set_animation_loop(&"idle_0", true)
 		frames.add_frame(&"idle_0", frames.get_frame_texture(StringName(first), 0))
+		frames.set_meta("idle_missing", true)   # 外觀切換用:一套外觀至少要有自己的 idle(見 PetAppearances.problem_of)
 		report.append(TranslationServer.translate("素材包沒有待機(idle/stand)動作,先拿「%s」的第一幀當待機;可在 pack.json 的 actions 指定 idle。") % first)
 	frames.set_meta("loop_starts", loop_starts)   # 動畫名稱 → 循環時接回來的幀(見 PackLoop;桌寵在動畫循環一圈時把幀設回這裡)
 	# 軸心以下多出來的畫布高度(沒裁掉的名字標籤、影子…):Pet 放置圖片時要把它算進去,軸心才會剛好踩在腳底的位置。
@@ -389,6 +390,8 @@ static func _scan(root: String, manifest: Dictionary, report: Array[String]) -> 
 	# 子資料夾:先判斷是「臉/階段」(裡面還有數字資料夾)還是「動作資料夾」(裡面直接是圖片)
 	var face_dirs: Dictionary = {}
 	for sub: String in subdirs:
+		if sub == PetAppearances.SUBDIR:
+			continue   # 其他外觀(各自是獨立的素材包,見 PetAppearances),不是這套圖的一部分
 		var sub_path := root.path_join(sub)
 		var stage_dirs: Array[String] = []
 		for inner in _list_dirs(sub_path):
@@ -1044,6 +1047,17 @@ static func read_manifest(root: String) -> Dictionary:
 ## 動作名稱清理(去掉不能用的字元、限制長度);清完是空的代表名稱無效。
 static func clean_action_name(action_name: String) -> String:
 	return _clean_action_name(action_name)
+
+
+## 不讀圖,只看 pack.json 與資料夾名就知道的身分:{tag, name, kind}(跟 load_pack 回傳的 meta 同一套規則)。
+static func identity_of(folder: String) -> Dictionary:
+	var root := folder.strip_edges().trim_suffix("/").trim_suffix("\\")
+	var manifest := read_manifest(root)
+	return {
+		"tag": _clean_tag(str(manifest.get("tag", "")), root.get_file()),
+		"name": str(manifest.get("name", root.get_file())).strip_edges().left(40),
+		"kind": "still" if str(manifest.get("kind", "active")).to_lower() == "still" else "active",
+	}
 
 
 ## 掃描素材包但不建 SpriteFrames:回傳 {ok, root, manifest(pack.json 原樣), actions{動作名 → [圖片路徑…]}, nametag_align, ceiling_actions[動作名], report}。

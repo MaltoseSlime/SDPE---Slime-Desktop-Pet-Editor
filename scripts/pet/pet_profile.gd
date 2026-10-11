@@ -44,7 +44,18 @@ static func save_state(pet: Node) -> Error:
 
 ## 本體執行狀態的快照(存檔與 SaveScheduler 共用);uptime = 累計在場分鐘數。
 static func state_snapshot(pet: Node) -> Dictionary:
-	return {"version": 1, "values": pet.local_values, "flags": pet.flags, "texts": pet.text_values, "lenses": pet.active_lens_names(), "games": pet.game_stats, "uptime": pet.uptime_minutes, "move_mode": int(pet.move_mode)}
+	var data := _state_snapshot(pet)
+	# 穿著別套外觀時,另外記下預設外觀素材包自己的縮放/朝向與它 pack.json 的修改時間:下次生成可以只讀外觀那一套
+	# (見 PetAppearances.saved_look);沒有這筆(舊檔、隱藏臨時實例存的)就照一般流程兩套都讀。
+	if not pet.ghost_edit and pet.appearance_id != "" and pet.base_pack_scale > 0.0:
+		data["appearance_base"] = {"scale": pet.base_pack_scale, "flipped": pet.base_pack_flipped, "stamp": PetAppearances.base_stamp(pet.pack_folder())}
+	return data
+
+
+static func _state_snapshot(pet: Node) -> Dictionary:
+	return {"version": 1, "values": pet.local_values, "flags": pet.flags, "texts": pet.text_values, "lenses": pet.active_lens_names(), "games": pet.game_stats, "uptime": pet.uptime_minutes, "move_mode": int(pet.move_mode),
+			# 目前的外觀(見 PetAppearances;"" = 預設外觀)。角色庫「桌寵管理」的隱藏臨時實例不換外觀,照讀到的原樣存回去。
+			"appearance": pet.ghost_saved_appearance if pet.ghost_edit else pet.appearance_id}
 
 
 ## 刪掉已存的本體狀態檔(重置記憶時「一併清除已存狀態」用,免得下次啟動又讀回舊記憶)。
@@ -90,6 +101,13 @@ static func load_state(pet: Node) -> bool:
 	var move_mode: Variant = data.get("move_mode")
 	if (move_mode is int or move_mode is float) and int(move_mode) >= 0 and int(move_mode) <= Pet.MoveMode.STATIONARY:
 		pet.remembered_move_mode = int(move_mode)
+	# 上次的外觀(舊狀態檔沒有這個鍵 = 預設外觀):那套外觀已經不在了、壞了就維持預設,不擋生成。
+	var appearance: Variant = data.get("appearance")
+	if appearance is String:
+		if pet.ghost_edit:
+			pet.ghost_saved_appearance = appearance
+		else:
+			pet.set_appearance(appearance, false)
 	return true
 
 
@@ -107,17 +125,21 @@ static func snapshot_pet(pet: Node) -> Dictionary:
 		"ui_style": style_to_dict(pet.ui_style),
 		"chat": {"enabled": pet.auto_chat_enabled, "min": pet.auto_chat_interval.x, "max": pet.auto_chat_interval.y},
 		"dance": {"enabled": pet.auto_dance_enabled, "chance": pet.auto_dance_chance, "follow": pet.auto_dance_follow_enabled},
+		"layerTier": pet.layer_tier,
 		"keywords": Array(pet.keywords),
 		"userKeywords": Array(pet.user_keywords),
 		"keywordTags": pet.keyword_tags.duplicate(),
 		"userKeywordTags": pet.user_keyword_tags.duplicate(),
 		"topicLines": pet.topic_custom.duplicate(true) if pet.topic_custom is Array else null,
+		"topicUseGeneric": pet.topic_use_generic,
+		"topicOff": pet.topic_off,
+		"topicGenericLines": pet.topic_generic_custom.duplicate(true) if pet.topic_generic_custom is Array else null,
 		"interaction": pet.interaction_rules.duplicate(true),
 		"accessories": pet.disabled_accessories.duplicate(),
 		"mute": {"auto_unmute": pet.auto_unmute_enabled},
 		"status": {"energy": pet.status_show_energy, "mood": pet.status_show_mood},
 		"effects": {"sleep_z": pet.sleep_z.enabled, "all": pet.effects.enabled, "auto": pet.effects.auto_enabled, "styles": pet.effects.styles_to_dict(), "links": pet.effects.links_to_dict(), "trail": pet.effects.trail_mode},
-		"body": {"scale": pet.params.scale_multiplier, "art_flipped": pet.art_flipped, "drag_fixed": pet.drag_when_fixed, "climb": pet.climb_enabled, "breath": pet.breathing_enabled, "land_for_props": pet.land_for_props, "fly_behavior": pet.FLY_BEHAVIOR_NAMES[pet.fly_behavior], "no_fatigue": pet.fatigue_disabled, "bottom": pet.bottom_anchored, "hitbox": [pet.hitbox_size.x, pet.hitbox_size.y, pet.hitbox_offset.x, pet.hitbox_offset.y]},
+		"body": {"scale": pet.params.scale_multiplier / pet.appearance_scale_ratio, "art_flipped": pet.art_flipped, "drag_fixed": pet.drag_when_fixed, "climb": pet.climb_enabled, "breath": pet.breathing_enabled, "land_for_props": pet.land_for_props, "fly_behavior": pet.FLY_BEHAVIOR_NAMES[pet.fly_behavior], "no_fatigue": pet.fatigue_disabled, "bottom": pet.bottom_anchored, "hitbox": [pet.hitbox_size.x, pet.hitbox_size.y, pet.hitbox_offset.x, pet.hitbox_offset.y]},
 		"voice": PetVoice.to_dict(pet),
 		"dice": {"sides": pet.dice_sides, "mod": pet.dice_mod, "dc": pet.dice_dc_percent, "best_of": pet.game_best_of, "auto_invite": pet.auto_game_enabled, "always_refuse": pet.game_always_refuse},
 		"game_prefs": {
@@ -202,10 +224,12 @@ static func _apply_pet_data(pet: Node, data: Dictionary) -> void:
 		pet.auto_dance_enabled = bool(dance.get("enabled", pet.auto_dance_enabled))
 		pet.auto_dance_chance = clampf(_number(dance.get("chance"), pet.auto_dance_chance), 0.0, 1.0)
 		pet.auto_dance_follow_enabled = bool(dance.get("follow", pet.auto_dance_follow_enabled))
+	if data.get("layerTier") is float or data.get("layerTier") is int:
+		pet.layer_tier = clampi(int(data.get("layerTier")), PetLayering.Tier.BACK, PetLayering.Tier.FRONT)
 	var body: Variant = data.get("body")
 	if body is Dictionary:
 		if body.get("scale") is float or body.get("scale") is int:
-			pet.set_body_scale(float(body["scale"]))
+			pet.set_body_scale(float(body["scale"]) * pet.appearance_scale_ratio)   # 存的是預設外觀下的倍率(見 Pet.appearance_scale_ratio)
 		pet.set_art_flipped(bool(body.get("art_flipped", pet.art_flipped)))
 		pet.drag_when_fixed = bool(body.get("drag_fixed", pet.drag_when_fixed))
 		pet.set_climb_enabled(bool(body.get("climb", pet.climb_enabled)))
@@ -230,6 +254,9 @@ static func _apply_pet_data(pet: Node, data: Dictionary) -> void:
 	pet.keyword_tags = _keyword_tag_dict(data.get("keywordTags"), pet.keywords)
 	pet.user_keyword_tags = _keyword_tag_dict(data.get("userKeywordTags"), pet.user_keywords)
 	pet.topic_custom = _topic_line_list(data["topicLines"]) if data.get("topicLines") is Array else null
+	pet.topic_use_generic = bool(data.get("topicUseGeneric", false)) if data.get("topicUseGeneric") is bool else false   # 舊設定檔沒有這欄 = 關(跟以前的行為一樣)
+	pet.topic_generic_custom = _topic_line_list(data["topicGenericLines"]) if data.get("topicGenericLines") is Array else null
+	pet.topic_off = bool(data.get("topicOff", false)) if data.get("topicOff") is bool else false
 	var effects: Variant = data.get("effects")
 	if effects is Dictionary:
 		pet.sleep_z.enabled = bool(effects.get("sleep_z", pet.sleep_z.enabled))

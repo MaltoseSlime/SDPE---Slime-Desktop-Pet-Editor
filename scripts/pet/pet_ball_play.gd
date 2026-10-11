@@ -70,7 +70,7 @@ func setup(pet: Node) -> void:
 
 ## 現在想不想玩:ongoing = 已經在玩了(踢球後動作短暫佔用不算忙)。
 func interested(ongoing := false) -> bool:
-	return _pet.ball_play_chance > 0.0 and not _pet.lens_blocks("ball") and not _pet.is_sleeping() and not _pet.entering and not _pet.dragging \
+	return _pet.ball_play_chance > 0.0 and not _pet.relaxing() and not _pet.lens_blocks("ball") and not _pet.is_sleeping() and not _pet.entering and not _pet.dragging \
 			and _pet.is_ground_mode() and (ongoing or not _pet.is_busy_for_game())
 
 
@@ -317,6 +317,7 @@ func _contact() -> void:
 	if ball != null and ball.def != null and ball.def.effect != "" and _pet.effects != null:
 		_pet.effects.play(ball.def.effect)
 	_reward_if_user_involved()
+	_reward_pets_playing_together()
 	_retarget_left = 0.0   # 踢出去之後馬上重新找最近的球
 	if _touches >= 3 and _playing_say_left <= 0.0 and _say(&"ball_playing"):
 		_playing_say_left = PLAYING_SAY_COOLDOWN
@@ -351,6 +352,13 @@ func _tick_balance(delta: float) -> void:
 
 
 ## 使用者最近碰過這顆球:好感度 +1、心情變好、冒小愛心(每 REWARD_INTERVAL 秒最多一次)。
+## 跟其他正在玩同一顆球的桌寵互相增加一點好感(見 PetFavor.ball_together)。
+func _reward_pets_playing_together() -> void:
+	for other: Node in _pet.get_tree().get_nodes_in_group("pets"):
+		if other != _pet and other.ball_play != null and other.ball_play.active() and other.ball_play.ball == ball:
+			PetFavor.ball_together(_pet, other)
+
+
 func _reward_if_user_involved() -> void:
 	if _reward_left > 0.0 or Time.get_ticks_msec() - ball.user_touch_msec > USER_WINDOW_MSEC:
 		return

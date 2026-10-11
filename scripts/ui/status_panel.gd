@@ -203,24 +203,49 @@ func _make_gauge(def: PetValueDef, value: float) -> GaugeBar:
 	return gauge
 
 
-func _make_bar(def: PetValueDef, value: float) -> ProgressBar:
+## 數值條負值時的填色(例如好感度低於 0)。
+const _NEGATIVE_FILL := Color(0.85, 0.42, 0.42)
+
+
+func _make_bar(def: PetValueDef, value: float) -> Control:
+	# 有負值的範圍(例如好感度 -500~1000):正值與負值各一條疊在同一個位置、都從最左邊(0)往右長。
+	# 0 在最左邊;負值用紅色條。兩條不會同時有進度,所以看起來就是一條。
+	if def.min_value < 0.0:
+		var holder := Control.new()
+		holder.custom_minimum_size.y = 8.0 * _factor
+		holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var positive := _make_plain_bar(0.0, def.max_value, maxf(value, 0.0), _style.option, true)
+		var negative := _make_plain_bar(0.0, -def.min_value, maxf(-value, 0.0), _NEGATIVE_FILL, false)
+		for bar: ProgressBar in [positive, negative]:
+			bar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			holder.add_child(bar)
+		return holder
+	return _make_plain_bar(def.min_value if def.min_value >= -1.0e8 else 0.0, def.max_value, value, _style.option, true)
+
+
+## 一條從左往右長的進度條。with_background = 畫底色(疊放時只有底下那條要畫底色)。
+func _make_plain_bar(min_value: float, max_value: float, value: float, fill_color: Color, with_background: bool) -> ProgressBar:
 	var bar := ProgressBar.new()
-	bar.min_value = 0.0 if def.min_value < -1.0e8 else def.min_value
-	bar.max_value = def.max_value
+	bar.min_value = min_value
+	bar.max_value = max_value
 	bar.value = value
 	bar.show_percentage = false
 	bar.custom_minimum_size.y = 8.0 * _factor
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var background := StyleBoxFlat.new()
-	background.bg_color = Color(0.0, 0.0, 0.0, 0.35)
-	background.set_corner_radius_all(int(4 * _factor))
+	var background: StyleBox
+	if with_background:
+		var dark := StyleBoxFlat.new()
+		dark.bg_color = Color(0.0, 0.0, 0.0, 0.35)
+		dark.set_corner_radius_all(int(4 * _factor))
+		background = dark
+	else:
+		background = StyleBoxEmpty.new()
 	var fill := StyleBoxFlat.new()
-	fill.bg_color = _style.option
+	fill.bg_color = fill_color
 	fill.set_corner_radius_all(int(4 * _factor))
 	bar.add_theme_stylebox_override("background", background)
 	bar.add_theme_stylebox_override("fill", fill)
 	return bar
-
 
 func _make_label(text: String) -> Label:
 	var label := Label.new()

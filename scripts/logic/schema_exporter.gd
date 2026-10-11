@@ -57,6 +57,8 @@ static func build(pet: Node) -> Dictionary:
 		"valueDefs": _collect_value_defs(pet),
 		# 使用者輸入給桌寵的文字變數名稱(稱呼、抽籤結果…),給 {text:名稱} 與 cond_text_set 的下拉選單用。
 		"textValues": pet.text_values.keys(),
+		# 這個角色的外觀名稱(整套行走圖的差分,見 PetAppearances),給「切換外觀」積木的下拉選單用;預設外觀不列。
+		"appearances": PetAppearances.list(pet.pack_folder()).map(func(entry: Dictionary) -> String: return str(entry["name"])),
 	}
 
 

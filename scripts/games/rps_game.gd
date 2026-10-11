@@ -44,8 +44,9 @@ static func _open_scoreboard(initiator: Node, title: String) -> GroupScoreboard:
 	return board
 
 
-static func _close_scoreboard(scoreboard: GroupScoreboard) -> void:
-	if scoreboard != null and is_instance_valid(scoreboard):
+## 參數故意不寫型別:棋盤/記分板可能在結算停留(GameChat.hold_result)期間就被收掉,已釋放的物件傳進有型別的參數會直接報錯。
+static func _close_scoreboard(scoreboard: Variant) -> void:
+	if is_instance_valid(scoreboard):
 		scoreboard.queue_free()
 
 
@@ -381,7 +382,11 @@ static func _play_battle_royale(pets: Array) -> Dictionary:
 				var giveup_line := TranslationServer.translate("這樣下去似乎沒完沒了……下次再比吧?")
 				for pet: Node in alive:
 					GameChat.chain_say(pet, giveup_line, 1.8)
-				await _wait(speaker, 1.6)
+				if scoreboard != null:
+					scoreboard.add_line("", TranslationServer.translate("平手,沒有分出勝負!"))
+					await GameChat.hold_result(alive, scoreboard, GroupScoreboard.RESULT_HOLD_SECONDS)
+				else:
+					await _wait(speaker, 1.6)
 				_close_scoreboard(scoreboard)
 				return {"winner": ""}
 			_broadcast_same(alive, "平手!全員晉級,再猜一次!", 1.4, false, scoreboard)
@@ -401,6 +406,8 @@ static func _play_battle_royale(pets: Array) -> Dictionary:
 				# 照舊開對話氣泡,不受計分板影響。
 				GameChat.chain_say(pet, TranslationServer.translate("被淘汰了……下次加油!"), 1.8)
 				GameChat.react(pet, "rps", "lose")
+				if pet.effects != null:
+					pet.effects.play("confetti")   # 使用者要求:全體對戰(大逃殺)結束,輸的桌寵放五彩紙花。
 				GameChat.leave([pet])
 		if user_alive and user_choice != winning_gesture:
 			user_alive = false
@@ -411,14 +418,15 @@ static func _play_battle_royale(pets: Array) -> Dictionary:
 				_close_scoreboard(scoreboard)
 				return {}
 	var winner: Node = alive[0] if alive.size() == 1 else null
+	if scoreboard != null and (winner != null or user_alive):
+		scoreboard.add_line("", TranslationServer.translate("冠軍:%s") % (str(winner.get_label()) if winner != null else TranslationServer.translate("你")))
 	if winner != null:
 		GameChat.chain_say(winner, TranslationServer.translate("[wave]我是冠軍!![/wave]"), 3.0)
 		GameChat.react(winner, "rps", "win")
 	elif user_alive and not pets.is_empty() and is_instance_valid(pets[0]):
 		GameChat.chain_say(pets[0], TranslationServer.translate("你是冠軍!!真厲害!"), 3.0)
-	# 記分板與冠軍訊息停留一下再收(見 GroupScoreboard.RESULT_HOLD_SECONDS),不然來不及看是誰贏。
-	var anchor: Node = winner if winner != null else (pets[0] if not pets.is_empty() else null)
-	if is_instance_valid(anchor):
-		await _wait(anchor, GroupScoreboard.RESULT_HOLD_SECONDS)
+	# 冠軍台詞講完之後,記分板再停留一下才收(見 GameChat.hold_result()),不然來不及看是誰贏。
+	if scoreboard != null:
+		await GameChat.hold_result(pets, scoreboard, GroupScoreboard.RESULT_HOLD_SECONDS)
 	_close_scoreboard(scoreboard)
 	return {"winner": winner.recognition_tag if winner != null else ("user" if user_alive else "")}

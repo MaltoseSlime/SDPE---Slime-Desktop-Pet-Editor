@@ -94,6 +94,8 @@ func stop() -> void:
 	var recorded := laps.duplicate()
 	_clear()
 	if was == Kind.STOPWATCH:
+		if _pet.effects != null:
+			_pet.effects.play("confetti")   # 使用者要求:結束計時也放五彩紙花(跟時間到一樣)。
 		_say(_pet.speak_tr("計時結束,一共 %s。%s") % [format_duration(spent), _laps_text(_pet, recorded)], 6.0)
 	else:
 		_say(_pet.speak_tr("計時器取消了(原本剩 %s)。%s") % [format_duration(maxf(total - spent, 0.0)), _laps_text(_pet, recorded)], 4.0)
@@ -291,6 +293,8 @@ func _alert(finished_kind: Kind, seconds: float) -> void:
 		return
 	if _pet.vitality != null:
 		_pet.vitality.wake_quietly()   # 睡著的桌寵也要叫醒你
+	if _pet.effects != null:
+		_pet.effects.play("confetti")   # 使用者要求:時間到放五彩紙花。
 	# 有寫「當角色正在 timer_done 時」的事件積木就交給積木說話,沒有才用內建台詞。
 	if _pet.logic != null and _pet.logic.has_action_hat(&"timer_done"):
 		_pet.logic.fire_event(&"timer_done")

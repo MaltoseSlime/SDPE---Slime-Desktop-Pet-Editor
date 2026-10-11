@@ -21,6 +21,10 @@ const BASELINE_SOURCE := "calm"
 const ACK_SECTION := "app"
 const ACK_KEY := "defaults_ack"
 
+## 隨程式附的預設角色(Mal)的設定檔寫的簽章:代表「剛裝好、還沒被使用者動過」,第一次放上桌面時直接補到最新、
+## 不用問(2026-10-11 使用者要求:全新安裝不該一開機就跳「預設組資料更新」)。存檔後就換成真正的簽章。
+const FRESH_SIGNATURE := "fresh-install"
+
 static var _signature_cache := ""
 
 

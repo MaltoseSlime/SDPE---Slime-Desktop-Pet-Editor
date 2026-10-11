@@ -687,6 +687,8 @@
       ],
       "idle_hop_chance": 0.25,
       "idle_sit_chance": 0.4,
+      "favor_gain_mult": 1.25,
+      "favor_streak_threshold": 4,
       "joy_proneness": 1.4,
       "jump_variance": 0.15,
       "jump_velocity": 550.0,

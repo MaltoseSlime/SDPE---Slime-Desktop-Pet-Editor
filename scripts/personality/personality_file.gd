@@ -382,7 +382,7 @@ static func _body(base_id: String, entry: Dictionary) -> Dictionary:
 
 ## 反應觸發的白話名稱。
 const TRIGGER_LABELS := {
-	"interact": "被觸摸", "drag": "被拖曳", "enter": "登場", "sleep": "開始睡覺", "sit": "坐下", "dance": "跳舞",
+	"interact": "被觸摸", "interact_sleeping": "睡著時被觸摸", "drag": "被拖曳", "enter": "登場", "sleep": "開始睡覺", "sit": "坐下", "dance": "跳舞",
 	"game_win": "猜拳/拚骰贏了", "game_lose": "猜拳/拚骰輸了", "game_tie": "猜拳/拚骰平手",
 	"invite_accept": "接受對戰邀請", "invite_refuse": "拒絕對戰邀請", "tired": "覺得累", "wake": "睡醒",
 	"ball_found": "發現球", "ball_invite": "邀請其他桌寵玩球", "ball_join": "加入玩球", "ball_decline": "不參與玩球",
@@ -501,6 +501,14 @@ static func section_description(personality: Dictionary, section: String, full :
 					extra.append(TranslationServer.translate("播放 %s") % str(effects["action"]))
 				samples.append("%s → %s%s%s" % [label, "「%s」" % str(say[0]).left(16) if not say.is_empty() else "(不說話)", "(%s)" % "、".join(PackedStringArray(extra)) if not extra.is_empty() else "", TranslationServer.translate("  機率 %d%%") % int(entry["chance"]) if float(entry["chance"]) < 100.0 else ""])
 			return TranslationServer.translate("共 %d 個反應,涵蓋:%s%s。") % [reactions.size() + raw_reactions, "、".join(PackedStringArray(triggers)), TranslationServer.translate("、進階積木 %d") % raw_reactions if raw_reactions > 0 else ""] + ("\n  " + "\n  ".join(PackedStringArray(samples.slice(0, 40 if full else 3))) if not samples.is_empty() else "")
+		"topicLines":
+			var topic_lines: Array = personality.get("topicLines", [])
+			if topic_lines.is_empty():
+				return "這個性格沒有話題文本(不會多出任何話題台詞)。"
+			var topic_samples: Array[String] = []
+			for item: Variant in topic_lines:
+				topic_samples.append("「%s」" % str((item as Dictionary).get("text", "")).left(18))
+			return _join_limited(TranslationServer.translate("共 %d 句話題文本:") % topic_lines.size(), topic_samples, full, 3, "、", "\n  ")
 	return ""
 
 
@@ -655,7 +663,7 @@ static func export_pet(pet: Node, id: String, display_name: String, description 
 			blocks.append(block)
 	return {
 		"fileType": FILE_TYPE, "personalityVersion": VERSION, "id": clean_id(id) if clean_id(id) != "" else "custom", "name": display_name, "description": description,
-		"revision": 1, "sections": {"params": params, "valueDefs": value_defs, "lenses": lenses, "blocks": blocks, "topicLines": pet.topic_lines_effective()},
+		"revision": 1, "sections": {"params": params, "valueDefs": value_defs, "lenses": lenses, "blocks": blocks, "topicLines": pet.topic_lines_own()},
 	}
 
 

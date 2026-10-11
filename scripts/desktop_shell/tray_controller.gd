@@ -17,6 +17,7 @@ signal import_logic_requested(pet: Node)
 signal say_something_requested(pet: Node)
 ## 右鍵選單「強制休息」:不管有沒有開疲勞機制都手動叫桌寵坐下(見 PetVitality.force_rest)。
 signal force_rest_requested(pet: Node)
+signal layer_tier_requested(pet: Node, tier: int)
 signal open_manager_requested
 signal auto_chat_toggled(enabled: bool)
 signal add_pet_requested
@@ -38,6 +39,9 @@ signal debug_polygon_toggled(enabled: bool)
 signal open_settings_requested
 ## 「檢查更新…」(見 UpdateChecker):只有點了才會真的連線,不會自動背景檢查。
 signal check_update_requested
+signal hide_outside_furniture_toggled(enabled: bool)
+signal do_not_disturb_toggled(enabled: bool)
+signal relax_mode_toggled(enabled: bool)
 
 const ID_TOGGLE_FRAME := 0
 const ID_RECALL := 1
@@ -61,6 +65,9 @@ const ID_WINDOWS_RESET := 19
 const ID_OPEN_WEB_EDITOR := 20
 const ID_FURNITURE := 21
 const ID_CHECK_UPDATE := 22
+const ID_HIDE_OUTSIDE_FURNITURE := 23
+const ID_DO_NOT_DISTURB := 24
+const ID_RELAX_MODE := 25
 ## 最近用過的素材包資料夾,選單項目 id = ID_RECENT_PACK_BASE + 索引。
 const ID_RECENT_PACK_BASE := 400
 const MAX_SUMMON_LIBRARY := 16
@@ -71,6 +78,8 @@ const ID_EXPORT_SCHEMA := 101
 const ID_IMPORT_LOGIC := 102
 const ID_SAY_SOMETHING := 103
 const ID_FORCE_REST := 106
+## 桌寵選單「圖層」三個層級:id = ID_LAYER_BASE + 層級(-1 後面 / 0 中間 / 1 前面),見 PetLayering。
+const ID_LAYER_BASE := 111
 const MODE_NAMES: Array[String] = ["地面模式", "飛行模式", "漂浮模式", "固定模式", "靜止模式"]
 const FIXED_MODE := 3
 const ICON_NORMAL := preload("res://SDPE_icon.png")
@@ -79,6 +88,8 @@ const ICON_NOTIF := preload("res://SDPE_icon_notif.png")
 
 ## 選單勾選狀態(除錯用的穿透範圍線是否顯示;由 Shell 同步初值)。
 var debug_polygon_visible := false
+## 「隱藏行動區外的家具」的勾選狀態(DesktopShell 從 FurnitureManager 同步過來,這裡只負責畫勾)。
+var hide_outside_furniture := false
 ## 最近用過的素材包資料夾(由 Shell 設定)。
 var recent_packs: Array[String] = []
 ## 「召喚 / 測試用」選單目前列出的角色資料夾(選單項目的 id 對應這個陣列)。
@@ -154,6 +165,13 @@ func _rebuild_menu() -> void:
 		submenu.add_separator()
 		submenu.add_item(tr("強制休息(坐下,可能再躺下/睡著)"), ID_FORCE_REST)
 		submenu.add_separator()
+		# 圖層:跟別隻桌寵重疊時誰在前面(半身立繪有自己的圖層,不顯示這幾項)。
+		if PetLayering.manages(pet):
+			for tier: int in [PetLayering.Tier.FRONT, PetLayering.Tier.MIDDLE, PetLayering.Tier.BACK]:
+				submenu.add_radio_check_item(tr("圖層:%s") % tr(PetLayering.TIER_LABELS[tier]), ID_LAYER_BASE + tier)
+				submenu.set_item_checked(submenu.get_item_index(ID_LAYER_BASE + tier), pet.layer_tier == tier)
+			submenu.set_item_tooltip(submenu.get_item_index(ID_LAYER_BASE + PetLayering.Tier.MIDDLE), tr("跟別隻桌寵重疊時的前後順序。同一個層級裡,站得比較高的自動排在後面。"))
+			submenu.add_separator()
 		submenu.add_item(tr("說點什麼"), ID_SAY_SOMETHING)
 		submenu.set_item_disabled(submenu.get_item_index(ID_SAY_SOMETHING), not pet.logic.has_chat_lines())
 		submenu.add_item(tr("導出 Schema…"), ID_EXPORT_SCHEMA)
@@ -188,9 +206,12 @@ func _rebuild_menu() -> void:
 
 ## 最上面的除錯區:行動區重設、浮動視窗重設、行動區邊框、重排立繪、穿透範圍線、錯誤紀錄資料夾。
 func _add_debug_block() -> void:
+	_add_behavior_submenu()
 	_menu.add_item(tr("行動區重設"), ID_RECALL)
 	_menu.add_item(tr("浮動視窗重設"), ID_WINDOWS_RESET)
 	_menu.add_item(tr("顯示/隱藏行動區邊框"), ID_TOGGLE_FRAME)
+	_menu.add_check_item(tr("隱藏行動區外的家具"), ID_HIDE_OUTSIDE_FURNITURE)
+	_menu.set_item_checked(_menu.get_item_index(ID_HIDE_OUTSIDE_FURNITURE), hide_outside_furniture)
 	_menu.add_item(tr("重新排開半身立繪"), ID_RELAYOUT_STILLS)
 	_menu.add_check_item(tr("顯示穿透範圍(除錯)"), ID_DEBUG_POLYGON)
 	_menu.set_item_checked(_menu.get_item_index(ID_DEBUG_POLYGON), debug_polygon_visible)
@@ -210,13 +231,29 @@ func summon_candidates() -> Array[String]:
 	return result
 
 
-## 二階選單「召喚 / 測試用」:自動閒聊總開關、從素材包召喚、開發時測試多角色用的桌寵(角色庫上線後這些會慢慢退役)。
+## 二階選單「全體行為」(2026-10-11,排在最上面):對全部桌寵生效的行為開關——自動閒聊總開關(原本在「召喚 / 測試用」)、勿擾模式。
+func _add_behavior_submenu() -> void:
+	var state := get_node("/root/DesktopShellState")
+	var submenu := PopupMenu.new()
+	submenu.name = "BehaviorMenu"
+	submenu.add_check_item(tr("自動閒聊(全部桌寵)"), ID_AUTO_CHAT)
+	submenu.set_item_checked(submenu.get_item_index(ID_AUTO_CHAT), state.auto_chat_enabled)
+	submenu.add_check_item(tr("勿擾模式"), ID_DO_NOT_DISTURB)
+	submenu.set_item_checked(submenu.get_item_index(ID_DO_NOT_DISTURB), state.do_not_disturb)
+	submenu.set_item_tooltip(submenu.get_item_index(ID_DO_NOT_DISTURB), tr("桌寵照常閒聊,但不會主動問你問題:帶選項的事件、問稱呼、問關鍵詞、問要不要一起玩。"))
+	submenu.add_check_item(tr("放鬆模式"), ID_RELAX_MODE)
+	submenu.set_item_checked(submenu.get_item_index(ID_RELAX_MODE), state.relax_mode)
+	submenu.set_item_tooltip(submenu.get_item_index(ID_RELAX_MODE), tr("桌寵大多坐著休息、偶爾換個位置坐到別的桌寵旁邊;少閒聊、少玩遊戲、不追球與道具、不互相跟隨、不問你問題,也比較省效能。仍然可以餵食、叫牠跟著滑鼠。"))
+	submenu.id_pressed.connect(_on_menu_id_pressed)
+	_menu.add_child(submenu)
+	_submenus.append(submenu)
+	_menu.add_submenu_node_item(tr("全體行為"), submenu)
+
+
+## 二階選單「召喚 / 測試用」:從素材包召喚、開發時測試多角色用的桌寵(角色庫上線後這些會慢慢退役)。
 func _add_summon_submenu() -> void:
 	var submenu := PopupMenu.new()
 	submenu.name = "SummonMenu"
-	submenu.add_check_item(tr("自動閒聊(全部桌寵)"), ID_AUTO_CHAT)
-	submenu.set_item_checked(submenu.get_item_index(ID_AUTO_CHAT), get_node("/root/DesktopShellState").auto_chat_enabled)
-	submenu.add_separator()
 	submenu.add_item(tr("從素材包資料夾放一隻桌寵…"), ID_ADD_PACK)
 	_summon_paths = summon_candidates()
 	for i in _summon_paths.size():
@@ -249,6 +286,8 @@ func _on_pet_menu_pressed(id: int, pet: Node) -> void:
 		say_something_requested.emit(pet)
 	elif id == ID_FORCE_REST:
 		force_rest_requested.emit(pet)
+	elif id >= ID_LAYER_BASE + PetLayering.Tier.BACK and id <= ID_LAYER_BASE + PetLayering.Tier.FRONT:
+		layer_tier_requested.emit(pet, id - ID_LAYER_BASE)
 	elif id == ID_MAKE_CANONICAL:
 		make_canonical_requested.emit(pet)
 	elif id == ID_REMOVE_PET:
@@ -300,10 +339,16 @@ func _on_menu_id_pressed(id: int) -> void:
 			debug_polygon_visible = not debug_polygon_visible
 			debug_polygon_toggled.emit(debug_polygon_visible)
 			_rebuild_menu.call_deferred()
+		ID_HIDE_OUTSIDE_FURNITURE:
+			hide_outside_furniture_toggled.emit(not hide_outside_furniture)
 		ID_MANAGER:
 			open_manager_requested.emit()
 		ID_AUTO_CHAT:
 			auto_chat_toggled.emit(not get_node("/root/DesktopShellState").auto_chat_enabled)
+		ID_DO_NOT_DISTURB:
+			do_not_disturb_toggled.emit(not get_node("/root/DesktopShellState").do_not_disturb)
+		ID_RELAX_MODE:
+			relax_mode_toggled.emit(not get_node("/root/DesktopShellState").relax_mode)
 		ID_RECALL:
 			recall_requested.emit()
 		ID_WINDOWS_RESET:
