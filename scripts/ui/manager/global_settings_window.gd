@@ -1,12 +1,14 @@
 class_name GlobalSettingsWindow
 extends FloatingWindow
 ## 全局設定視窗:不屬於任何一隻桌寵的設定——音效(靜音、說話音效、全部桌寵音量)、介面語系、效能、編輯器外觀,另有「關於」頁籤(作者署名、AI 協助聲明、外部素材,見 CreditsData)。
-## 設定的內容在 AppSettingsTab;這裡是浮動視窗外殼 + 底部的狀態文字。所有設定改了立刻生效並存進 user://settings.cfg,沒有「儲存」按鈕。
+## 設定的內容在 AppSettingsTab(它自己就是頁籤列:一般/音效/對話/螢火蟲/外觀);這裡是浮動視窗外殼 +「關於」頁籤 + 底部的狀態文字。所有設定改了立刻生效並存進 user://settings.cfg,沒有「儲存」按鈕。
 
 ## 音效設定要寫進共享狀態並通知 SoundManager,由開啟視窗的 DesktopShell 接手。
 signal audio_setting_requested(kind: String, value: Variant)
 ## 「設定行動框顯示螢幕」改了,index 是使用者選的原始值(-1 = 自動),由 DesktopShell 接手實際搬動視窗與內容。
 signal monitor_setting_requested(index: int)
+## 「關於」頁最底下的「重看新手教學」(見 TutorialGuide),由 DesktopShell 接手。
+signal tutorial_requested
 
 var _app_settings_tab: AppSettingsTab
 var _status_label: Label
@@ -15,7 +17,7 @@ var _credits_label: RichTextLabel
 
 
 func setup() -> void:
-	setup_floating(tr("全局設定"), Vector2i(660, 740), Vector2i(480, 420))
+	setup_floating(tr("全局設定"), Vector2i(540, 700), Vector2i(500, 420))
 	var background := PanelContainer.new()
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)
@@ -26,17 +28,10 @@ func setup() -> void:
 	var page := VBoxContainer.new()
 	page.add_theme_constant_override("separation", 6)
 	margin.add_child(page)
-	_tabs = TabContainer.new()
-	_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	page.add_child(_tabs)
-
-	var scroll := ScrollContainer.new()
-	scroll.name = "設定"
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_tabs.add_child(scroll)
 	_app_settings_tab = AppSettingsTab.new()
-	_app_settings_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(_app_settings_tab)
+	_app_settings_tab.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	page.add_child(_app_settings_tab)
+	_tabs = _app_settings_tab
 	_app_settings_tab.message.connect(func(text: String) -> void: _status_label.text = text)
 	_app_settings_tab.audio_setting_requested.connect(func(kind: String, value: Variant) -> void: audio_setting_requested.emit(kind, value))
 	_app_settings_tab.monitor_setting_requested.connect(func(index: int) -> void: monitor_setting_requested.emit(index))
@@ -50,12 +45,16 @@ func setup() -> void:
 	page.add_child(_status_label)
 
 
-## 「關於」頁籤:CreditsData 產生的文字。
+## 「關於」頁籤:CreditsData 產生的文字,最底下是「重看新手教學」按鈕。
 func _build_credits_tab() -> void:
 	var scroll := ScrollContainer.new()
 	scroll.name = "關於"
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_tabs.add_child(scroll)
+	var column := VBoxContainer.new()
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	column.add_theme_constant_override("separation", 12)
+	scroll.add_child(column)
 	_credits_label = RichTextLabel.new()
 	_credits_label.bbcode_enabled = true
 	_credits_label.fit_content = true
@@ -66,7 +65,12 @@ func _build_credits_tab() -> void:
 	_credits_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_credits_label.text = CreditsData.bbcode()
 	_credits_label.meta_clicked.connect(_on_credit_link)
-	scroll.add_child(_credits_label)
+	column.add_child(_credits_label)
+	var replay := ManagerUi.button("重看新手教學")
+	replay.name = "ReplayTutorial"
+	replay.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	replay.pressed.connect(func() -> void: tutorial_requested.emit())
+	column.add_child(replay)
 
 func _on_credit_link(meta: Variant) -> void:
 	var url := str(meta)

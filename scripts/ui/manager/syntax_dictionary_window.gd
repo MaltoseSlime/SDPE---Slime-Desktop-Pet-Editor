@@ -68,7 +68,7 @@ func _refresh() -> void:
 		if str(entry["category"]) != last_category:
 			last_category = str(entry["category"])
 			var heading := ManagerUi.heading(last_category)
-			heading.add_theme_font_size_override("font_size", 15)
+			ManagerUi.fixed_font_size(heading, 15)
 			_list.add_child(heading)
 		_list.add_child(_row(entry))
 	if _list.get_child_count() == 0:

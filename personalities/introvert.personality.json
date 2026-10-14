@@ -632,8 +632,8 @@
       ],
       "rest_recovery_rate": 30.0,
       "sleep_duration": [
-        90.0,
-        200.0
+        1200.0,
+        3000.0
       ],
       "sociability": 0.15,
       "tired_move_factor": 0.6,

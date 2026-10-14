@@ -39,6 +39,9 @@ func _ready() -> void:
 func _build_left() -> void:
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size.x = 320.0
+	# 左右欄 6:4(2026-10-14 使用者要求):兩邊都設成可延展,分隔線照比例落在六成的位置,使用者仍可自己拖。
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_stretch_ratio = 6.0
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	add_child(scroll)
 	var side := VBoxContainer.new()
@@ -46,7 +49,10 @@ func _build_left() -> void:
 	side.add_theme_constant_override("separation", 6)
 	scroll.add_child(side)
 	side.add_child(ManagerUi.heading("性格"))
-	side.add_child(ManagerUi.syntax_row(self, "台詞能用的語法", "性格的台詞可以用氣泡樣式、數值、名字標記與單字池。點右邊的「語法字典」查所有語法並複製;要寫台詞請用「編輯性格…」。", false))
+	var syntax_row := ManagerUi.syntax_row(self, "台詞能用的語法", "性格的台詞可以用氣泡樣式、數值、名字標記與單字池。點右邊的「語法字典」查所有語法並複製;要寫台詞請用「編輯性格…」。", false)
+	# 這一列右邊還有 ⓘ 與「語法字典」按鈕:文字的底線寬度縮小一點,整列才放得進左欄。
+	(syntax_row.get_child(0) as Label).custom_minimum_size.x = 150.0
+	side.add_child(syntax_row)
 	side.add_child(ManagerUi.hint_row("選一個性格,六個區塊可以各自混搭", "選一個性格,桌寵就會有那個性格的行動節奏、閒聊與各種反應。六個區塊可以各自選不同的性格。你自己寫的積木、改過的設定不會被蓋掉。每隻角色都帶著自己的一份性格副本(套用時複製):在性格編輯器改「這隻角色的版本」只影響這一隻,共用的性格檔不會被動到。"))
 
 	_vitality_label = Label.new()
@@ -68,7 +74,10 @@ func _build_left() -> void:
 	all_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	all_row.add_child(all_label)
 	_all_option = OptionButton.new()
-	_all_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_fit_option(_all_option)
+	# 選單寬度跟著欄位、放不下用刪節號:不要被最長的選項(英文特別長)撐寬整個左欄、擠掉右邊的套用預覽。
+	_all_option.fit_to_longest_item = false
+	_all_option.clip_text = true
 	_all_option.item_selected.connect(_on_all_selected)
 	all_row.add_child(_all_option)
 	side.add_child(all_row)
@@ -80,15 +89,16 @@ func _build_left() -> void:
 		var row := HBoxContainer.new()
 		var label := Label.new()
 		label.text = PersonalityApplier.SECTION_NAMES[section]
+		# 區塊名稱佔掉下拉選單以外的寬度、放不下就換行(英文像「Value Definitions」「Topic Lines」比中文長很多);
+		# 下拉選單固定寬度靠右(2026-10-14 使用者要求:原本選單吃滿整列,把名稱蓋掉了)。
 		label.custom_minimum_size.x = 84.0
-		# 固定寬度的標籤(跟後面的下拉選單排一列):翻成英文可能比 84px 塞得下的還長(例如「數值定義」→
-		# 「Value Definitions」),不截斷/裁切的話會硬撐開整條 row、連帶撐寬整個左側欄位。裁切 + 滑過看完整文字,
-		# 不佔額外版面(2026-09-29 使用者實機回報,英文模式下左側欄位被撐得過寬)。
-		label.clip_text = true
-		label.tooltip_text = label.text
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		row.add_child(label)
 		var option := OptionButton.new()
-		option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_fit_option(option)
+		option.fit_to_longest_item = false
+		option.clip_text = true
 		option.item_selected.connect(func(_i: int) -> void: _refresh_preview())
 		row.add_child(option)
 		side.add_child(row)
@@ -131,6 +141,16 @@ func _build_left() -> void:
 
 
 
+## 左欄「名稱 + 下拉選單」那幾列的選單:固定寬度、靠右,選項太長用刪節號(滑過看得到完整名稱)。
+const OPTION_WIDTH := 170.0
+
+
+func _fit_option(option: OptionButton) -> void:
+	option.custom_minimum_size.x = OPTION_WIDTH
+	option.size_flags_horizontal = Control.SIZE_SHRINK_END
+	option.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+
+
 func _hint(text: String) -> Label:
 	var label := Label.new()
 	label.text = text
@@ -149,6 +169,7 @@ func _build_right() -> void:
 	var right_scroll := ScrollContainer.new()
 	right_scroll.custom_minimum_size.x = 240.0
 	right_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_scroll.size_flags_stretch_ratio = 4.0
 	right_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	add_child(right_scroll)
 	var side := VBoxContainer.new()
@@ -271,6 +292,7 @@ func _reload_mood_lens_options() -> void:
 			if lens.has_nature("正面" if high else "負面") and lens.lens_name != PetVitality.TIRED_LENS:
 				var check := CheckBox.new()
 				check.text = lens.lens_name
+				check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 				check.button_pressed = chosen.has(lens.lens_name)
 				check.toggled.connect(func(_on: bool) -> void: _on_mood_lens_picked(high))
 				list.add_child(check)
@@ -308,7 +330,7 @@ func _reload_options() -> void:
 		if section == "topicLines":
 			option.add_item(tr("不套用(不說話題句)"))
 			option.set_item_metadata(1, TOPIC_OFF_ID)
-			option.set_item_tooltip(1, InfoIcon.wrap_text(tr("這隻桌寵完全不說話題句,通用話題池也不用;平常的閒聊台詞不受影響。你在「交互行為」改過的話題文本會留著,之後切回來就恢復。"), InfoIcon.TIP_WIDTH))
+			option.set_item_tooltip(1, InfoIcon.wrap_text(tr("這隻桌寵完全不說話題句,通用話題池也不用;平常的閒聊台詞不受影響。你在「對話與關係」改過的話題文本會留著,之後切回來就恢復。"), InfoIcon.TIP_WIDTH))
 	for item in _personalities:
 		var text := str(item["name"]) if item["builtin"] else tr("自訂:%s") % item["name"]
 		_all_option.add_item(text)
@@ -512,7 +534,7 @@ static func _params_lines(pet: Node, steps: Array) -> Array[String]:
 		if listed.has(key):
 			continue
 		# 一樣要先翻譯再截斷(見 PersonalityFile.short_label() 旁的說明,同一個坑)。
-		result.append(TranslationServer.translate("  目前  %s:%s") % [TranslationServer.translate(PersonalityParams.label_of(key)).split("(")[0].strip_edges(), _value_text(key, PersonalityParams.get_value(pet, key))])
+		result.append(TranslationServer.translate("  目前  %s:%s") % [PersonalityFile.short_label(key), _value_text(key, PersonalityParams.get_value(pet, key))])
 	return result
 
 

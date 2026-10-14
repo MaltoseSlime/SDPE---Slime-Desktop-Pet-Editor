@@ -1,6 +1,7 @@
 class_name InteractionTab
 extends VBoxContainer
-## 交互行為分頁(桌寵管理):不用寫積木就能調的三件事,資料見 InteractionRules(存在角色設定檔的 "interaction"):
+## 「對話與關係」分頁(桌寵管理;原名「交互行為」,2026-10-13 卡片重新分類時改名,其中整體交互開關/事件對應的動作/
+## 遊戲與對戰三張卡片在管理視窗裡被搬到「行為」分頁,資料與讀寫邏輯仍然在這個類別):不用寫積木就能調的三件事,資料見 InteractionRules(存在角色設定檔的 "interaction"):
 ## ① 各種事件下用哪個動作(下拉選單換動作,沒設 = 原本的);② 對場上另一個角色(角色庫內的,不含自己)的反應,只能新增純對話;
 ## ③ 對某個道具(道具管理裡有的)的反應:對話 + 動作(只做一次,或持續到道具用完 / 離開判定,像摸摸移開才恢復)。
 ## 詳細編輯(條件、選項、連續動作…)要到網頁端積木編輯器調整,每張卡片的 ⓘ 都有這個提醒。改動即時生效(和其他分頁一樣要按「儲存」才寫進檔案)。
@@ -14,6 +15,8 @@ const DEFAULT_LABEL := "(預設)"
 
 var _pet: Node
 var _flow: HFlowContainer
+## 原文標題 → 卡片(PanelContainer)。
+var cards: Dictionary = {}
 var _loading := false
 var _action_options: Dictionary = {}
 var _char_option: OptionButton
@@ -63,7 +66,7 @@ var _user_keyword_count: Label
 
 
 func _ready() -> void:
-	name = "交互行為"
+	name = "對話與關係"
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -73,60 +76,42 @@ func _ready() -> void:
 	_flow.add_theme_constant_override("h_separation", 10)
 	_flow.add_theme_constant_override("v_separation", 10)
 	scroll.add_child(_flow)
+	# 對話與關係的卡片在前;後面三張是行為類,在桌寵管理視窗裡會被搬到「行為」分頁(這個分頁單獨使用時就留在最後面)。
+	_build_keyword_card()
+	_build_reaction_dialogue_card()
+	_build_pets_card()
+	_build_props_card()
 	_build_toggle_card()
-	_build_nickname_card()
 	_build_action_card()
 	_build_game_card()
-	_build_reaction_dialogue_card()
-	_build_keyword_card()
-	_build_character_card()
-	_build_pet_pref_card()
-	_build_prop_card()
-	_build_pref_card()
 
 
-## 卡片標題列可以點開/收合(預設全部展開):標題本身是一顆扁平按鈕(含展開/收合箭頭),旁邊的 ⓘ 是獨立節點不受影響。
-## 收合狀態只存在畫面上(VBoxContainer.visible),不寫進設定檔,每次重開管理視窗都是預設展開。
+## 新增一張卡片(樣式見 ManagerUi.card:可收合的標題 + ⓘ),回傳內容區。卡片依「原文標題」記在 cards,
+## 桌寵管理視窗用它把行為類的卡片搬到「行為」分頁(見 ManagerWindow._build)。
 func _new_card(title_text: String, tip: String) -> VBoxContainer:
-	var card := PanelContainer.new()
-	card.custom_minimum_size.x = CARD_WIDTH
-	var style := StyleBoxFlat.new()
-	style.bg_color = AppSettings.ink(0.05)
-	style.border_color = AppSettings.ink(0.1)
-	style.set_border_width_all(1)
-	style.set_corner_radius_all(8)
-	style.set_content_margin_all(10.0)
-	card.add_theme_stylebox_override("panel", style)
-	var outer := VBoxContainer.new()
-	outer.add_theme_constant_override("separation", 5)
-	card.add_child(outer)
+	var built := ManagerUi.card(title_text, [tip, WEB_HINT], CARD_WIDTH)
+	cards[title_text] = built["card"]
+	_flow.add_child(built["card"])
+	return built["box"]
 
-	var header := HBoxContainer.new()
-	var toggle := Button.new()
-	toggle.flat = true
-	# 卡片標題跟圈圈i的說明文字都要用「查表翻譯後」的字串再組字面,不能先用 + 串起來再整串當查表 key
-	# (串起來的字面幾乎不可能剛好等於 translations/ui_strings.csv 裡的任何一筆原文,一定翻不到——
-	# 2026-09-30 使用者回報「交互行為」的收合卡片標題跟圈圈i沒翻譯到,根因就是這個)。
-	var translated_title := TranslationServer.translate(title_text)
-	toggle.text = "▾ " + translated_title
-	toggle.clip_text = true
-	toggle.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	toggle.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(toggle)
-	var info := InfoIcon.new()
-	info.set_tip_parts([tip, WEB_HINT])
-	header.add_child(info)
-	outer.add_child(header)
 
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 5)
-	outer.add_child(box)
-	toggle.pressed.connect(func() -> void:
-		box.visible = not box.visible
-		toggle.text = ("▾ " if box.visible else "▸ ") + translated_title)
+## 合併卡片裡的一個小節(原本各自一張卡片的內容):小標題 + ⓘ,回傳小節的內容區。
+func _section(host: VBoxContainer, title_text: String, tip: String) -> VBoxContainer:
+	return ManagerUi.card_section(host, title_text, [tip, WEB_HINT])
 
-	_flow.add_child(card)
-	return box
+
+## 對其他角色:好惡 + 看到牠時說的話(2026-10-13 使用者要求兩張卡片合併)。
+func _build_pets_card() -> void:
+	var box := _new_card("對其他角色", "這隻桌寵怎麼看待別的角色:上半部設定好惡程度,下半部寫看到某個角色出現在場上時要說的話。")
+	_build_pet_pref_card(box)
+	_build_character_card(box)
+
+
+## 對道具:好惡 + 反應(2026-10-13 使用者要求兩張卡片合併)。
+func _build_props_card() -> void:
+	var box := _new_card("對道具", "這隻桌寵怎麼看待道具庫裡的道具:上半部設定喜歡、不喜歡或完全無視,下半部設定拿到、被摩擦等時機要說的話與要做的動作。")
+	_build_pref_card(box)
+	_build_prop_card(box)
 
 
 func _build_action_card() -> void:
@@ -138,8 +123,9 @@ func _build_action_card() -> void:
 		box.add_child(ManagerUi.labeled(str(slot[1]), option))
 
 
-func _build_nickname_card() -> void:
-	var box := _new_card("對使用者的稱呼", "對話裡的 {user} 會用這裡填的稱呼(見語法字典)。可以填好幾個,用逗號分隔,桌寵每次要用時隨機挑一個。預設只有「使用者」這一筆;還是這個預設值的時候,桌寵會有比較高的機率主動開口問你要怎麼稱呼(問到答案就自動填進來)。")
+## 對使用者的稱呼:2026-10-13 使用者要求併入「關鍵詞庫」卡片(原本的標題與 ⓘ 留著當卡片裡的小節)。
+func _build_nickname_card(host: VBoxContainer) -> void:
+	var box := _section(host, "對使用者的稱呼", "對話裡的 {user} 會用這裡填的稱呼(見語法字典)。可以填好幾個,用逗號分隔,桌寵每次要用時隨機挑一個。預設只有「使用者」這一筆;還是這個預設值的時候,桌寵會有比較高的機率主動開口問你要怎麼稱呼(問到答案就自動填進來)。")
 	_nickname_line = ManagerUi.line_edit("使用者")
 	# 這裡只有單一輸入框、沒有 labeled() 那樣的固定寬度標籤可以擠掉多餘空間,不特別限制寬度的話會被撐成卡片全寬
 	# (跟其他卡片裡「標籤 + 輸入框」的窄版排版比起來明顯過長)。
@@ -213,8 +199,8 @@ func _commit_toggles() -> void:
 	_apply(rules)
 
 
-func _build_character_card() -> void:
-	var box := _new_card("對其他角色的反應", "選一個角色庫裡的角色(不含自己),寫下看到它出現在場上時要說的話。同一個角色可以新增好幾句,會照順序說。這裡只能新增純對話。")
+func _build_character_card(host: VBoxContainer) -> void:
+	var box := _section(host, "對其他角色的反應", "選一個角色庫裡的角色(不含自己),寫下看到它出現在場上時要說的話。同一個角色可以新增好幾句,會照順序說。這裡只能新增純對話。")
 	box.add_child(ManagerUi.syntax_row(self, "台詞能用的語法", "這裡的對話可以用氣泡樣式、數值、名字標記與單字池等既有語法。點右邊的「語法字典」查全部語法並插入/複製。"))
 	_char_option = OptionButton.new()
 	box.add_child(ManagerUi.labeled("遇見的角色", _char_option))
@@ -232,7 +218,7 @@ func _build_character_card() -> void:
 ## 基本反應對話:列出這隻角色目前用的「反應」性格裡,基於預設反應情境(玩球、被邀請、休息等)已經有的對話內容。
 ## 只能改對話文字本身(跳一下、發抖這類寫死的動作效果不會被動到);要新增反應情境或調整動作,去「性格」分頁按「編輯性格…」。
 func _build_reaction_dialogue_card() -> void:
-	var box := _new_card(tr("對話事件"), "列出這隻角色目前用的性格,在「玩球」「被邀請對戰」「休息」等既有反應情境裡已經有的對話內容。這裡只能改「對話文字」本身,跳一下、發抖這類動作不會被動到,也不能新增新的反應情境;要做這些,請到「性格」分頁按「編輯性格…」。")
+	var box := _new_card("對話事件", "列出這隻角色目前用的性格,在「玩球」「被邀請對戰」「休息」等既有反應情境裡已經有的對話內容。這裡只能改「對話文字」本身,跳一下、發抖這類動作不會被動到,也不能新增新的反應情境;要做這些,請到「性格」分頁按「編輯性格…」。")
 	box.add_child(ManagerUi.heading("事件管理"))
 	var event_manager_button := ManagerUi.button("事件管理(查看/暫時停用/移除目前生效的事件)")
 	event_manager_button.tooltip_text = tr("查看這隻桌寵目前生效的所有事件(閒聊、反應、計時器…),可以暫時停用或移除。跟測試者面板的「事件管理」是同一個視窗,不會寫進檔案、只影響這次執行——性格/交互行為規則帶來的事件下次重新套用或按「儲存」就會恢復,自訂的要重新匯入積木檔才會恢復。")
@@ -381,8 +367,8 @@ func _commit_reaction_dialogue(index: int) -> void:
 	changed.emit()
 
 
-func _build_prop_card() -> void:
-	var box := _new_card("對道具的反應", "選一個道具管理裡的道具與時機,設定要說的話(選填)和要做的動作(選填)。動作可以只做一次,也可以持續到道具用完或離開判定。有設定時就不再播道具的預設動作。")
+func _build_prop_card(host: VBoxContainer) -> void:
+	var box := _section(host, "對道具的反應", "選一個道具庫裡的道具與時機,設定要說的話(選填)和要做的動作(選填)。動作可以只做一次,也可以持續到道具用完或離開判定。有設定時就不再播道具的預設動作。")
 	_prop_option = OptionButton.new()
 	box.add_child(ManagerUi.labeled("道具", _prop_option))
 	_prop_kind_option = OptionButton.new()
@@ -406,8 +392,8 @@ func _build_prop_card() -> void:
 	box.add_child(_prop_list)
 
 
-func _build_pref_card() -> void:
-	var box := _new_card("對道具的好惡", "每個道具選「喜歡」、「不喜歡」或「不與此道具交互」(完全無視:不撿、不被摩擦、不成為候選、不被吸引)。喜歡的道具掉在場上,桌寵會自己走過去撿,撿到心情變好;不喜歡的不會自己撿(拖著遞給它還是會收)。道具資料找不到(被刪掉或搬走)的會變成灰色,可以按「重新連結」改指向現有的另一個道具。")
+func _build_pref_card(host: VBoxContainer) -> void:
+	var box := _section(host, "對道具的好惡", "每個道具選「喜歡」、「不喜歡」或「不與此道具交互」(完全無視:不撿、不被摩擦、不成為候選、不被吸引)。喜歡的道具掉在場上,桌寵會自己走過去撿,撿到心情變好;不喜歡的不會自己撿(拖著遞給它還是會收)。道具資料找不到(被刪掉或搬走)的會變成灰色,可以按「重新連結」改指向現有的另一個道具。")
 	_pref_list = VBoxContainer.new()
 	box.add_child(_pref_list)
 
@@ -417,8 +403,8 @@ func _build_pref_card() -> void:
 ## 桌寵/角色分工一致):每一列一個對象(「全部角色」或角色庫裡的某個)+ 一個好惡程度下拉選單(普通~超級
 ## 喜歡/不喜歡,預設「普通」= 跟沒有這個功能時行為一樣)。「全部角色」那一列是沒被個別指定的其他角色套用
 ## 的預設等級;個別指定某個角色會蓋過「全部角色」那一列。
-func _build_pet_pref_card() -> void:
-	var box := _new_card("對其他角色的好惡", "設定對某個角色、或對全部角色的好惡程度,預設「普通」= 跟沒有這個功能時一樣,沒有額外的好惡表現。目前會影響:主動跟隨的候選與機率(討厭的完全不會主動跟著走,喜歡的機率提高、也更容易被選中);閒置時自己發起對戰要不要挑這隻邀請(討厭的機率降低但不是完全不邀,喜歡的機率提高;「跟場上所有桌寵」這種廣播式邀請不受影響);被邀請對戰時答不答應的機率(喜歡的更容易答應,討厭的更容易拒絕,一樣包括廣播式邀請被邀請的那一端)。目前只能在這裡手動調整,不會自動隨時間漲跌;之後計畫補一顆積木讓你自己設計好惡隨什麼條件變化。")
+func _build_pet_pref_card(host: VBoxContainer) -> void:
+	var box := _section(host, "對其他角色的好惡", "設定對某個角色、或對全部角色的好惡程度,預設「普通」= 跟沒有這個功能時一樣,沒有額外的好惡表現。目前會影響:主動跟隨的候選與機率(討厭的完全不會主動跟著走,喜歡的機率提高、也更容易被選中);閒置時自己發起對戰要不要挑這隻邀請(討厭的機率降低但不是完全不邀,喜歡的機率提高;「跟場上所有桌寵」這種廣播式邀請不受影響);被邀請對戰時答不答應的機率(喜歡的更容易答應,討厭的更容易拒絕,一樣包括廣播式邀請被邀請的那一端)。目前只能在這裡手動調整,不會自動隨時間漲跌;之後計畫補一顆積木讓你自己設計好惡隨什麼條件變化。")
 	_pet_pref_list = VBoxContainer.new()
 	box.add_child(_pet_pref_list)
 
@@ -597,6 +583,7 @@ func _build_keyword_card() -> void:
 		_on_user_keywords_edited())
 	user_row.add_child(user_clear)
 	side.add_child(user_row)
+	_build_nickname_card(side)
 
 
 const SUGGESTED_KEYWORDS: Array[String] = ["晚餐", "星星", "天氣", "下雨天", "零食", "午睡", "夕陽", "音樂", "冒險", "遠方的朋友"]
@@ -728,7 +715,7 @@ func add_prop_rule(prop_name: String, kind: String, line: String, action: String
 	if _pet == null:
 		return "沒有選桌寵"
 	if prop_name == "":
-		return "還沒有道具:先到道具管理新增"
+		return "還沒有道具:先到道具庫新增"
 	if line.strip_edges() == "" and action == "":
 		return "對話和動作至少要設定一個"
 	var rules := _rules()
@@ -1017,7 +1004,7 @@ func _add_pet_pref_row(target: String, display_name: String, rules: Dictionary) 
 	# 2026-10-06:桌寵對這隻桌寵的好感度(參數,不影響好惡等級)。預設列(全部角色)沒有單一對象,不顯示。
 	if target != InteractionRules.ALL_PETS_TARGET and _pet != null:
 		var favor := Label.new()
-		favor.text = tr("當前好感度:%d") % int(roundf(_pet.favor_of(target)))
+		favor.text = tr("好感度:%d") % int(roundf(_pet.favor_of(target)))
 		favor.theme_type_variation = AppSettings.MUTED_LABEL
 		favor.tooltip_text = tr("這隻桌寵對這隻桌寵的好感度(-500~1000)。只是提供的參數,不會自動影響好惡等級;要不要用它做事件,由你自己的積木決定。")
 		row.add_child(favor)

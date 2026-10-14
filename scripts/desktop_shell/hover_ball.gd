@@ -28,12 +28,10 @@ const MENU_ITEMS: Array[Array] = [
 	["inventory", "道具欄"],
 	["library", "角色庫…"],
 	["manager", "桌寵管理…"],
-	["props", "道具管理…"],
-	["furniture", "家具庫…"],
+	["objects", "交互物件管理…"],
 	["hide_outside_furniture", "隱藏行動區外的家具"],
 	["settings", "全局設定…"],
 	["tester", "測試者面板…"],
-	["pack_editor", "精靈圖編輯器…"],
 	["clear_props", "清掃桌面道具"],
 ]
 
@@ -49,6 +47,11 @@ var hide_outside_furniture := false:
 	set(value):
 		hide_outside_furniture = value
 		queue_redraw()
+## 新手教學指著懸浮球時(見 TutorialGuide):非空就讓選單一直展開,並把這個項目("inventory"、"clear_props"…,MENU_ITEMS 的代號)框起來。
+var tutorial_focus := "":
+	set(value):
+		tutorial_focus = value
+		queue_redraw()   # 展開與否由 _process 依這個值決定(下一影格就會重排)
 var _defs: Array[PropDef] = []
 var _icons: Dictionary = {}
 var _refresh_left := 0.0
@@ -67,6 +70,8 @@ var _rects: Dictionary = {}   # id → Rect2(畫布座標),每次排版重算
 var _last_area := Rect2()
 var _shell_state: Node
 
+
+var _font_k := 1.0
 
 func setup(action_area: Node, manager: PropManager) -> void:
 	_area = action_area
@@ -209,7 +214,7 @@ func _process(delta: float) -> void:
 	if _area == null or _shell_state.is_passthrough_frozen:
 		return   # 右鍵穿透期間不能操作(也不會拖動),什麼都不用算
 	var os_mouse := Vector2(DisplayServer.mouse_get_position()) - Vector2(get_window().position)
-	var over_ball := _rect_has("ball", os_mouse) or (_expanded and _rect_has("menu", os_mouse))
+	var over_ball := _rect_has("ball", os_mouse) or (_expanded and _rect_has("menu", os_mouse)) or tutorial_focus != ""
 	var previous := _expanded
 	if over_ball and not _dragging_ball:
 		_expanded = true
@@ -405,6 +410,7 @@ func _draw() -> void:
 	var accent: Color = colors["accent"]
 	var muted: Color = colors["muted"]
 	var font := UiFonts.get_font(str(look["font"]))
+	_font_k = UiFonts.size_correction(str(look["font"]))   # 寫死的字級乘上字體的視覺校正(Silver 會放大)
 	var alpha := 0.95 if (_expanded or _dragging_ball) else IDLE_ALPHA
 	var center := ball_center() - global_position
 	draw_circle(center, BALL_RADIUS, Color(accent, alpha))
@@ -420,25 +426,27 @@ func _draw() -> void:
 			var local_row := Rect2(row.position - global_position, row.size)
 			if _hover_id == id:
 				draw_rect(local_row.grow(-2.0), accent)
+			if tutorial_focus == str(entry[0]):
+				draw_rect(local_row.grow(-2.0), accent, false, 3.0)
 			var label := tr(str(entry[1]))
 			if str(entry[0]) == "inventory":
 				label = ("✔ " if _inventory_open else "") + label
 			elif str(entry[0]) == "hide_outside_furniture":
 				label = ("✔ " if hide_outside_furniture else "") + label
-			draw_string(font, local_row.position + Vector2(12.0, MENU_ROW * 0.68), label, HORIZONTAL_ALIGNMENT_LEFT, MENU_WIDTH - 16.0, 15, text_color)
+			draw_string(font, local_row.position + Vector2(12.0, MENU_ROW * 0.68), label, HORIZONTAL_ALIGNMENT_LEFT, MENU_WIDTH - 16.0, roundi(15 * _font_k), text_color)
 	if _inventory_open and _rects.has("panel"):
 		var panel: Rect2 = _rects["panel"]
 		var local_panel := Rect2(panel.position - global_position, panel.size)
 		_box(local_panel, Color(bg, 0.96), accent)
-		draw_string(font, local_panel.position + Vector2(PANEL_PAD + 2.0, PANEL_HEADER * 0.7), tr("道具欄"), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, text_color)
+		draw_string(font, local_panel.position + Vector2(PANEL_PAD + 2.0, PANEL_HEADER * 0.7), tr("道具欄"), HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(16 * _font_k), text_color)
 		var close: Rect2 = _rects["close"]
 		var local_close := Rect2(close.position - global_position, close.size)
 		if _hover_id == "close":
 			draw_rect(local_close, Color(0.77, 0.17, 0.11, 0.9))
-		draw_string(font, local_close.position + Vector2(5.0, 16.0), "✕", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, text_color)
+		draw_string(font, local_close.position + Vector2(5.0, 16.0), "✕", HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(14 * _font_k), text_color)
 		if _defs.is_empty():
-			draw_string(font, local_panel.position + Vector2(PANEL_PAD, PANEL_HEADER + 26.0), tr("還沒有道具"), HORIZONTAL_ALIGNMENT_LEFT, panel.size.x - 16.0, 14, muted)
-			draw_string(font, local_panel.position + Vector2(PANEL_PAD, PANEL_HEADER + 48.0), tr("到「道具管理」新增"), HORIZONTAL_ALIGNMENT_LEFT, panel.size.x - 16.0, 12, muted)
+			draw_string(font, local_panel.position + Vector2(PANEL_PAD, PANEL_HEADER + 26.0), tr("還沒有道具"), HORIZONTAL_ALIGNMENT_LEFT, panel.size.x - 16.0, roundi(14 * _font_k), muted)
+			draw_string(font, local_panel.position + Vector2(PANEL_PAD, PANEL_HEADER + 48.0), tr("到「道具庫」新增"), HORIZONTAL_ALIGNMENT_LEFT, panel.size.x - 16.0, roundi(12 * _font_k), muted)
 		for id: String in _rects:
 			if not id.begins_with("slot:"):
 				continue
@@ -449,7 +457,7 @@ func _draw() -> void:
 			draw_rect(local_slot, Color(panel_color, 0.9) if _hover_id != id else accent)
 			_draw_icon(font, def, local_slot, text_color)
 		if _max_scroll_col() > 0:
-			draw_string(font, local_panel.position + Vector2(panel.size.x - 90.0, PANEL_HEADER * 0.7), "◀ %d/%d ▶" % [_scroll_col + 1, _max_scroll_col() + 1], HORIZONTAL_ALIGNMENT_RIGHT, 60.0, 11, muted)
+			draw_string(font, local_panel.position + Vector2(panel.size.x - 90.0, PANEL_HEADER * 0.7), "◀ %d/%d ▶" % [_scroll_col + 1, _max_scroll_col() + 1], HORIZONTAL_ALIGNMENT_RIGHT, 60.0, roundi(11 * _font_k), muted)
 
 
 func _box(rect: Rect2, fill: Color, border: Color) -> void:
@@ -476,5 +484,5 @@ func _draw_icon(font: Font, def: PropDef, slot: Rect2, text_color: Color) -> voi
 		style.set_corner_radius_all(6)
 		draw_style_box(style, icon_box)
 		var letter := def.display_name.left(1)
-		draw_string(font, icon_box.position + Vector2(icon_box.size.x * 0.5 - 9.0, icon_box.size.y * 0.7), letter, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(0.1, 0.1, 0.12))
-	draw_string(font, slot.position + Vector2(2.0, slot.size.y - 6.0), def.display_name, HORIZONTAL_ALIGNMENT_CENTER, slot.size.x - 4.0, 11, text_color)
+		draw_string(font, icon_box.position + Vector2(icon_box.size.x * 0.5 - 9.0, icon_box.size.y * 0.7), letter, HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(22 * _font_k), Color(0.1, 0.1, 0.12))
+	draw_string(font, slot.position + Vector2(2.0, slot.size.y - 6.0), def.display_name, HORIZONTAL_ALIGNMENT_CENTER, slot.size.x - 4.0, roundi(11 * _font_k), text_color)

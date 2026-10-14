@@ -64,6 +64,7 @@ func setup(pet: CharacterBody2D) -> void:
 
 ## 蓋在桌寵上面的面板(小遊戲棋盤/記分板/塔羅選牌、聊天室視窗)都在這個群組,各自實作 blocks_pointer(point)。
 const POINTER_BLOCKER_GROUP := "pointer_blockers"
+const SYSTEM_GUIDE_GROUP := "system_guide"
 
 
 ## 這個點上面是不是蓋著面板(2026-10-11 使用者實機回報:拖曳棋盤/聊天室視窗時容易把後面的桌寵一起拖起來)。
@@ -83,7 +84,8 @@ static func topmost_pet_at(tree: SceneTree, point: Vector2, pixel_precise := fal
 	if pointer_blocked(tree, point):
 		return null
 	var hits: Array = []
-	for pet: Node in tree.get_nodes_in_group("pets"):
+	# 新手教學的系統用 Mal 不在 "pets" 群組(見 Pet.system_guide),但一樣要能拖、能右鍵。
+	for pet: Node in tree.get_nodes_in_group("pets") + tree.get_nodes_in_group(SYSTEM_GUIDE_GROUP):
 		if not pet.is_queued_for_deletion() and pet.hit_test(point):
 			hits.append(pet)
 	if hits.is_empty():

@@ -1,6 +1,8 @@
 class_name AppSettingsTab
-extends VBoxContainer
+extends TabContainer
 ## 全局設定的內容(放在「全局設定」視窗裡,不屬於任何一隻桌寵):音效(靜音、說話音效、全部桌寵音量)、介面語系、效能(最高影格率)、視窗化編輯器的外觀(配色組、五個顏色、字體、字級)。
+## 2026-10-13 使用者要求整理版面(原本全部排成一長條):這個節點本身就是頁籤列——「一般」「音效」「對話」「螢火蟲」「外觀」,
+## 每頁是跟桌寵管理同一套的卡片(ManagerUi.card,依視窗寬度自動排成一行幾張);「全局設定」視窗再把「關於」加在最後面。
 ## 這些設定改了就立刻套用並存進 user://settings.cfg(見 AppSettings),沒有「儲存」按鈕。
 ## 外觀影響所有視窗化編輯器(桌寵管理、精靈圖編輯器、性格編輯器、測試者面板…),不影響桌寵的對話氣泡(那是每隻桌寵自己的「介面風格」)。
 
@@ -53,44 +55,72 @@ var _title_auto_check: CheckBox
 var _title_bg_picker: ColorPickerButton
 var _title_text_picker: ColorPickerButton
 var _updating := false
+## 卡片標題(原文)→ 卡片本體。
+var cards: Dictionary = {}
+## 建版面時「目前這一頁」的卡片排版區與「目前這張卡片」的內容區(各 _build_* 往 _box 裡加控制項)。
+var _flow: HFlowContainer
+var _box: VBoxContainer
 
 
 func _ready() -> void:
 	name = "全局設定"
-	add_theme_constant_override("separation", 8)
-	_build_audio()
-	add_child(HSeparator.new())
+	_begin_page("一般")
 	_build_language()
-	add_child(HSeparator.new())
-	_build_performance()
-	add_child(HSeparator.new())
 	_build_display()
-	add_child(HSeparator.new())
 	_build_startup()
-	add_child(HSeparator.new())
+	_build_performance()
+	_begin_page("音效")
+	_build_audio()
+	_begin_page("對話")
+	_build_dialogue()
+	_begin_page("螢火蟲")
 	_build_fireflies()
-	add_child(HSeparator.new())
+	_begin_page("外觀")
 	_build_appearance()
+	# 卡片裡的核取方塊文字很長,讓它自己換行,不要撐寬卡片。
+	for check: CheckBox in find_children("*", "CheckBox", true, false):
+		check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		check.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ManagerUi.fit_options_to_card(self)
 	_load_into_widgets()
 	get_node("/root/DesktopShellState").audio_settings_changed.connect(_load_audio)
 
 
+## 開新的一頁(頁籤標題 = title,原文;頁籤列會自己照語系翻譯)。
+func _begin_page(title: String) -> void:
+	var page := ManagerUi.card_page()
+	(page["scroll"] as Control).name = title
+	add_child(page["scroll"])
+	_flow = page["flow"]
+
+
+## 在目前這一頁開一張新卡片(標題與說明都傳原文),之後的控制項加進 _box。
+func _begin_card(title_text: String, tip := "") -> void:
+	var parts: PackedStringArray = []
+	if tip != "":
+		parts.append(tip)
+	var built := ManagerUi.card(title_text, parts)
+	cards[title_text] = built["card"]
+	_flow.add_child(built["card"])
+	_box = built["box"]
+
+
 func _build_audio() -> void:
-	add_child(ManagerUi.heading_with_info("音效", "全部桌寵共用的音效設定。音量是整個程式的總音量(說話聲與效果音一起調),靜音會讓所有桌寵都不出聲;每隻桌寵自己的靜音在測試者面板與桌寵管理裡。改了立刻生效,下次開機也會沿用。"))
+	_begin_card("音效", "全部桌寵共用的音效設定。音量是整個程式的總音量(說話聲與效果音一起調),靜音會讓所有桌寵都不出聲;每隻桌寵自己的靜音在測試者面板與桌寵管理裡。改了立刻生效,下次開機也會沿用。")
 	_mute_check = CheckBox.new()
 	_mute_check.text = tr("靜音(全部桌寵)")
 	_mute_check.toggled.connect(func(on: bool) -> void:
 		if not _updating:
 			audio_setting_requested.emit("mute", on)
 			message.emit("已靜音。" if on else "已解除靜音。"))
-	add_child(_mute_check)
+	_box.add_child(_mute_check)
 	_speak_check = CheckBox.new()
 	_speak_check.text = tr("說話音效(對話氣泡打字時的聲音)")
 	_speak_check.toggled.connect(func(on: bool) -> void:
 		if not _updating:
 			audio_setting_requested.emit("speak", on)
 			message.emit("說話音效已開啟。" if on else "說話音效已關閉。"))
-	add_child(_speak_check)
+	_box.add_child(_speak_check)
 	var volume_row := HBoxContainer.new()
 	_volume_slider = HSlider.new()
 	_volume_slider.min_value = 0.0
@@ -107,12 +137,12 @@ func _build_audio() -> void:
 	_volume_label = Label.new()
 	_volume_label.custom_minimum_size.x = 48.0
 	volume_row.add_child(_volume_label)
-	add_child(ManagerUi.labeled("全部桌寵音量", volume_row))
-	add_child(ManagerUi.heading_with_info("提醒音效庫", "自己匯入的音效檔(ogg / wav / mp3),不綁定特定桌寵——匯入一次,任何桌寵的右鍵選單「計時提醒音效」都選得到,跟內建的幾個音效並列。"))
+	_box.add_child(ManagerUi.labeled("全部桌寵音量", volume_row))
+	_begin_card("提醒音效庫", "自己匯入的音效檔(ogg / wav / mp3),不綁定特定桌寵——匯入一次,任何桌寵的右鍵選單「計時提醒音效」都選得到,跟內建的幾個音效並列。")
 	_alarm_list = ItemList.new()
 	_alarm_list.custom_minimum_size.y = 80.0
 	_alarm_list.item_selected.connect(func(_index: int) -> void: _alarm_delete.disabled = false)
-	add_child(_alarm_list)
+	_box.add_child(_alarm_list)
 	var alarm_buttons := HBoxContainer.new()
 	var alarm_import := ManagerUi.button("匯入音效…")
 	alarm_import.pressed.connect(_browse_alarm_sound)
@@ -121,7 +151,7 @@ func _build_audio() -> void:
 	_alarm_delete.disabled = true
 	_alarm_delete.pressed.connect(_delete_selected_alarm_sound)
 	alarm_buttons.add_child(_alarm_delete)
-	add_child(alarm_buttons)
+	_box.add_child(alarm_buttons)
 	_refresh_alarm_list()
 
 
@@ -158,7 +188,7 @@ func _delete_selected_alarm_sound() -> void:
 
 
 func _build_language() -> void:
-	add_child(ManagerUi.heading_with_info("介面語系", "程式介面(選單、視窗、按鈕)使用的語言。介面文字的原文是繁體中文;其他語系要有翻譯(translations/ui_strings.csv)才會生效,沒翻的字串顯示原文。桌寵對話的多語系則要去積木編輯器的「翻譯檢視」修改。"))
+	_begin_card("介面語系", "程式介面(選單、視窗、按鈕)使用的語言。介面文字的原文是繁體中文;其他語系要有翻譯(translations/ui_strings.csv)才會生效,沒翻的字串顯示原文。桌寵對話的多語系則要去積木編輯器的「翻譯檢視」修改。")
 	_language_option = OptionButton.new()
 	var languages := AppSettings.available_languages()
 	for code: String in languages:
@@ -171,7 +201,7 @@ func _build_language() -> void:
 		AppSettings.set_language(code)
 		var names := AppSettings.available_languages()
 		message.emit(tr("介面語系已設成 %s(沒有翻譯的字串會顯示原文)。") % names[code] if code != AppSettings.DEFAULT_LANGUAGE else "介面語系已設成繁體中文。"))
-	add_child(ManagerUi.labeled("介面語系", _language_option))
+	_box.add_child(ManagerUi.labeled("介面語系", _language_option))
 
 
 func _load_audio() -> void:
@@ -186,7 +216,7 @@ func _load_audio() -> void:
 
 
 func _build_performance() -> void:
-	add_child(ManagerUi.heading_with_info("效能", "最高影格率:程式每秒最多更新畫面幾次。越低越省電、越省 CPU/GPU;越高動畫與拖曳越順。桌寵的動畫本身通常只有 8~14 fps,調高對畫面的幫助有限,電腦比較吃力時可以調低。改了立刻生效,下次開機也會沿用。"))
+	_begin_card("效能", "最高影格率:程式每秒最多更新畫面幾次。越低越省電、越省 CPU/GPU;越高動畫與拖曳越順。桌寵的動畫本身通常只有 8~14 fps,調高對畫面的幫助有限,電腦比較吃力時可以調低。改了立刻生效,下次開機也會沿用。")
 	_fps_spin = ManagerUi.spin(1.0, AppSettings.MIN_MAX_FPS, AppSettings.MAX_MAX_FPS)
 	_fps_spin.allow_greater = false
 	_fps_spin.allow_lesser = false
@@ -196,7 +226,7 @@ func _build_performance() -> void:
 			return
 		AppSettings.set_max_fps(int(value))
 		message.emit(tr("最高影格率已設成 %d fps。") % int(value)))
-	add_child(ManagerUi.labeled("最高影格率", _fps_spin))
+	_box.add_child(ManagerUi.labeled("最高影格率", _fps_spin))
 	_relax_fps_check = CheckBox.new()
 	_relax_fps_check.text = tr("放鬆模式時降低影格率(最高 %d fps)") % AppSettings.RELAX_FPS
 	_relax_fps_check.toggled.connect(func(on: bool) -> void:
@@ -208,7 +238,7 @@ func _build_performance() -> void:
 	relax_row.add_theme_constant_override("separation", 6)
 	relax_row.add_child(_relax_fps_check)
 	relax_row.add_child(InfoIcon.new(tr("放鬆模式:讓桌寵安靜待著、少佔效能的模式。開啟位置:系統匣圖示右鍵選單 >「全體行為」>「放鬆模式」。\n\n放鬆模式開著時:\n・桌寵更常坐下或去用行動區裡能坐的家具,偶爾起身換個座位(會挑喜歡的對象附近、避開討厭的對象)。\n・「自動閒聊」開著的話,照常閒聊、互相邀請玩小遊戲(坐著也會);只有球不玩,也不會起身去追喜歡的道具(仍然可以餵食)。\n・桌寵之間不會互相跟隨(手動叫牠「跟著滑鼠」仍然可以)。\n・不會跳出帶選項的對話,也不會問稱呼或關鍵詞。\n・特效粒子減少,省略非必要的行為判斷。\n\n勾選這一項後,放鬆模式期間還會把最高影格率降到 %d fps,更省 CPU;代價是動畫和拖曳會比較不順。關掉放鬆模式就恢復上面設定的影格率。") % AppSettings.RELAX_FPS))
-	add_child(relax_row)
+	_box.add_child(relax_row)
 	_lights_check = CheckBox.new()
 	_lights_check.text = tr("啟用光源(角色身上的發光效果;關掉可以省效能)")
 	_lights_check.toggled.connect(func(on: bool) -> void:
@@ -218,7 +248,7 @@ func _build_performance() -> void:
 		get_tree().call_group("pet_lights", "refresh_setting")
 		get_tree().call_group("fireflies", "refresh_setting")
 		message.emit("光源已開啟。" if on else "光源已關閉。"))
-	add_child(_lights_check)
+	_box.add_child(_lights_check)
 	_on_top_check = CheckBox.new()
 	_on_top_check.text = tr("浮動視窗保持在最上層")
 	_on_top_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -229,8 +259,11 @@ func _build_performance() -> void:
 		AppSettings.set_floating_on_top(on)
 		get_tree().call_group("floating_windows", "refresh_on_top")
 		message.emit("浮動視窗保持在最上層。" if on else "浮動視窗保持在最上層已關閉。"))
-	add_child(_on_top_check)
-	add_child(ManagerUi.heading_with_info("對話集中", "關閉時氣泡照舊貼在桌寵旁邊移動(預設)。開啟後從下面選一種集中方式:聊天室式——不用等你互動的句子(閒聊、狀態播報)改成寫進一個可收合的聊天室視窗(拖它標題列移動、拖右下角調整大小、按一下收合成小圖示),一行純文字「桌寵名字: 台詞」;簡訊式——跟聊天室式同一個視窗、同一套規則,只是每句話改畫成圓角訊息氣泡,底色是那隻桌寵原本的泡泡外框色。不管選哪種,需要你選選項或回答的句子都還是照舊用浮動氣泡,不然沒辦法在聊天室裡點選項。之後會再加其他集中款式。個別桌寵的氣泡固定/解除固定是另一件事,隨時都能用(見桌寵右鍵選單「固定氣泡位置」),不受這裡影響。"))
+	_box.add_child(_on_top_check)
+
+
+func _build_dialogue() -> void:
+	_begin_card("對話集中", "關閉時氣泡照舊貼在桌寵旁邊移動(預設)。開啟後從下面選一種集中方式:聊天室式——不用等你互動的句子(閒聊、狀態播報)改成寫進一個可收合的聊天室視窗(拖它標題列移動、拖右下角調整大小、按一下收合成小圖示),一行純文字「桌寵名字: 台詞」;簡訊式——跟聊天室式同一個視窗、同一套規則,只是每句話改畫成圓角訊息氣泡,底色是那隻桌寵原本的泡泡外框色。不管選哪種,需要你選選項或回答的句子都還是照舊用浮動氣泡,不然沒辦法在聊天室裡點選項。之後會再加其他集中款式。個別桌寵的氣泡固定/解除固定是另一件事,隨時都能用(見桌寵右鍵選單「固定氣泡位置」),不受這裡影響。")
 	_bubble_pin_check = CheckBox.new()
 	_bubble_pin_check.text = tr("對話集中")
 	_bubble_pin_check.toggled.connect(func(on: bool) -> void:
@@ -241,7 +274,7 @@ func _build_performance() -> void:
 		AppSettings.set_bubble_display_mode(mode)
 		get_tree().call_group("dialogue_display", "refresh_setting")
 		message.emit(tr("對話集中已開啟(%s)。") % str(_bubble_mode_option.text) if on else "對話集中已關閉,氣泡改回跟隨桌寵。"))
-	add_child(_bubble_pin_check)
+	_box.add_child(_bubble_pin_check)
 	_bubble_mode_option = OptionButton.new()
 	var bubble_mode_labels := {"chatroom": "聊天室式", "sms": "簡訊式"}
 	for mode: String in ["chatroom", "sms"]:
@@ -254,7 +287,7 @@ func _build_performance() -> void:
 		AppSettings.set_bubble_display_mode(mode)
 		get_tree().call_group("dialogue_display", "refresh_setting")
 		message.emit(tr("對話集中方式已設成「%s」。") % str(bubble_mode_labels[mode])))
-	add_child(ManagerUi.labeled("集中方式", _bubble_mode_option))
+	_box.add_child(ManagerUi.labeled("集中方式", _bubble_mode_option))
 	_bubble_clamp_check = CheckBox.new()
 	_bubble_clamp_check.text = tr("對話氣泡不超出行動區")
 	_bubble_clamp_check.tooltip_text = tr("桌寵自己平常用的對話氣泡(不是上面的對話集中視窗)預設只夾在「桌寵所在的那一個螢幕」裡,可以跑到行動區外面。開啟後改夾在行動區的框架內,不會跑到行動區外面。")
@@ -264,7 +297,7 @@ func _build_performance() -> void:
 			return
 		AppSettings.set_bubble_clamp_to_action_area(on)
 		message.emit("對話氣泡已限制在行動區範圍內。" if on else "對話氣泡不超出行動區已關閉,改回只夾在螢幕範圍內。"))
-	add_child(_bubble_clamp_check)
+	_box.add_child(_bubble_clamp_check)
 	_timestamp_option = OptionButton.new()
 	_timestamp_option.tooltip_text = tr("聊天室式/簡訊式視窗裡,每則訊息底下要不要用小小的灰色字顯示時間(裝置目前的系統時間,記下來的當下時間,不是每次開視窗才重算)。跟上面的「對話集中」開不開沒有關係,選了就一直生效。")
 	var timestamp_labels := {"none": "不顯示時間戳", "12h": "12 小時制時間戳", "24h": "24 小時制時間戳"}
@@ -280,14 +313,14 @@ func _build_performance() -> void:
 		# (用跟切換聊天室式/簡訊式同一套「從 _history 整個重畫」機制,見 ChatRoomWindow.refresh_content())。
 		get_tree().call_group("dialogue_display", "refresh_content")
 		message.emit(tr("聊天室時間戳已設成「%s」。") % str(timestamp_labels[mode])))
-	add_child(ManagerUi.labeled("時間戳", _timestamp_option))
+	_box.add_child(ManagerUi.labeled("時間戳", _timestamp_option))
 
 
 ## 多螢幕環境下,選行動框(整個桌寵疊加視窗)要出現在哪個螢幕(2026-09-30 使用者回報:自動判斷有時候會
 ## 落在副螢幕)。改了立刻把視窗、桌寵、家具、道具、固定的氣泡、聊天室視窗、開著的浮動視窗一起搬過去
 ## (見 DesktopShell.apply_monitor_setting())。目前只支援單一螢幕顯示,不支援同時在多個螢幕上都顯示行動區。
 func _build_display() -> void:
-	add_child(ManagerUi.heading_with_info("顯示器設定", "多螢幕時,桌寵行動框(整個疊加視窗)要出現在哪個螢幕。「自動」交給系統判斷,如果它常常判斷到你不想要的那台螢幕,可以在這裡直接指定。改了會把桌寵、家具、道具、固定的氣泡、聊天室視窗、開著的管理視窗全部一起搬到新螢幕(依新舊螢幕比例挪動相對位置)。目前一次只會在一個螢幕上顯示,不支援同時顯示在多個螢幕。"))
+	_begin_card("顯示器設定", "多螢幕時,桌寵行動框(整個疊加視窗)要出現在哪個螢幕。「自動」交給系統判斷,如果它常常判斷到你不想要的那台螢幕,可以在這裡直接指定。改了會把桌寵、家具、道具、固定的氣泡、聊天室視窗、開著的管理視窗全部一起搬到新螢幕(依新舊螢幕比例挪動相對位置)。目前一次只會在一個螢幕上顯示,不支援同時顯示在多個螢幕。")
 	_monitor_option = OptionButton.new()
 	_refresh_monitor_options()
 	_monitor_option.item_selected.connect(func(index: int) -> void:
@@ -296,7 +329,7 @@ func _build_display() -> void:
 		var chosen := int(_monitor_option.get_item_metadata(index))
 		monitor_setting_requested.emit(chosen)
 		message.emit(tr("顯示器設定已改成「%s」,已經搬過去了。") % str(_monitor_option.text)))
-	add_child(ManagerUi.labeled("顯示器設定", _monitor_option))
+	_box.add_child(ManagerUi.labeled("顯示器設定", _monitor_option))
 
 
 ## 列出目前偵測到的螢幕(索引 + 解析度)+ 一個「自動」選項,選到已經選過的那個(選過的螢幕被拔掉時退回自動)。
@@ -318,7 +351,7 @@ func _refresh_monitor_options() -> void:
 
 ## 開機自動啟動(Windows 登入時,不用系統管理員權限):寫進登錄檔的開機清單,預設關閉。只在匯出後的 exe 有意義(見 AutoStart)。
 func _build_startup() -> void:
-	add_child(ManagerUi.heading_with_info("開機", "電腦開機、登入 Windows 之後自動打開這個程式。寫在「目前使用者」的開機清單裡,不需要系統管理員權限,關掉這個選項或在系統的「啟動應用程式」設定裡關掉都可以取消。只支援 Windows;在還沒匯出成 exe 的開發專案裡開這個開關,開機時打開的會是 Godot 編輯器本身,不是遊戲。"))
+	_begin_card("開機", "電腦開機、登入 Windows 之後自動打開這個程式。寫在「目前使用者」的開機清單裡,不需要系統管理員權限,關掉這個選項或在系統的「啟動應用程式」設定裡關掉都可以取消。只支援 Windows;在還沒匯出成 exe 的開發專案裡開這個開關,開機時打開的會是 Godot 編輯器本身,不是遊戲。")
 	_autostart_check = CheckBox.new()
 	_autostart_check.text = tr("開機時自動啟動(預設關閉)")
 	_autostart_check.disabled = not AutoStart.supported()
@@ -335,67 +368,72 @@ func _build_startup() -> void:
 			message.emit(tr("設定失敗:%s") % error)
 			return
 		message.emit("開機時會自動啟動。" if on else "已取消開機自動啟動。"))
-	add_child(_autostart_check)
+	_box.add_child(_autostart_check)
 
 
 ## 夜間螢火蟲:出現時間(自動 / 自己指定幾點到幾點 / 總是 / 關閉)、數量、飄動速度、亮度、真光數量、要不要畫光暈。改了立刻套用並存檔。
 func _build_fireflies() -> void:
-	add_child(ManagerUi.heading_with_info("夜間螢火蟲", "行動區裡飄動的背景裝飾(不會和桌寵、道具互動)。「自動」= 本機時間 18:00 之後出現、隔天 06:00 收起;也可以自己指定幾點到幾點、總是出現或完全關閉。多數螢火蟲只是忽隱忽現的白色小點(假光,幾乎不耗效能),少數「真光」還會有一圈柔和的光暈;不勾「啟用光源」就全部只畫小點。螢火蟲所在的小塊區域滑鼠點不到桌面(很小,飄走就恢復)。"))
+	_begin_card("夜間螢火蟲", "行動區裡飄動的背景裝飾(不會和桌寵、道具互動)。「自動」= 本機時間 18:00 之後出現、隔天 06:00 收起;也可以自己指定幾點到幾點、總是出現或完全關閉。多數螢火蟲只是忽隱忽現的白色小點(假光,幾乎不耗效能),少數「真光」還會有一圈柔和的光暈;不勾「啟用光源」就全部只畫小點。螢火蟲所在的小塊區域滑鼠點不到桌面(很小,飄走就恢復)。")
 	_firefly_mode = OptionButton.new()
 	var labels := {"auto": "自動(本機時間 18:00 之後)", "schedule": "自己指定時段", "always": "總是出現", "off": "總是關閉"}
 	for mode: String in AppSettings.FIREFLY_MODES:
 		_firefly_mode.add_item(str(labels[mode]))
 		_firefly_mode.set_item_metadata(_firefly_mode.item_count - 1, mode)
 	_firefly_mode.item_selected.connect(func(_i: int) -> void: _save_fireflies())
-	add_child(ManagerUi.labeled("出現時間", _firefly_mode))
-	var window_row := HBoxContainer.new()
+	_box.add_child(ManagerUi.labeled("出現時間", _firefly_mode))
+	# 從/到分兩列,四個數字框擠在同一列會把卡片撐寬。
+	var window_row := VBoxContainer.new()
 	_firefly_start_hour = _firefly_time_spin(23.0)
 	_firefly_start_minute = _firefly_time_spin(59.0)
 	_firefly_end_hour = _firefly_time_spin(23.0)
 	_firefly_end_minute = _firefly_time_spin(59.0)
 	for pair: Array in [["從", _firefly_start_hour, _firefly_start_minute], ["到", _firefly_end_hour, _firefly_end_minute]]:
+		var pair_row := HBoxContainer.new()
 		var word := Label.new()
 		word.text = str(pair[0])
-		window_row.add_child(word)
-		window_row.add_child(pair[1])
+		pair_row.add_child(word)
+		pair_row.add_child(pair[1])
 		var colon := Label.new()
 		colon.text = ":"
-		window_row.add_child(colon)
-		window_row.add_child(pair[2])
-	add_child(ManagerUi.labeled("指定時段", window_row))
+		pair_row.add_child(colon)
+		pair_row.add_child(pair[2])
+		window_row.add_child(pair_row)
+	_box.add_child(ManagerUi.labeled("指定時段", window_row))
 	_firefly_count = ManagerUi.spin(1.0, 1.0, float(AppSettings.FIREFLY_MAX_COUNT))
 	_firefly_count.value_changed.connect(func(_v: float) -> void: _save_fireflies())
-	add_child(ManagerUi.labeled("螢火蟲數量", _firefly_count))
+	_box.add_child(ManagerUi.labeled("螢火蟲數量", _firefly_count))
 	_firefly_real = ManagerUi.spin(1.0, 0.0, float(AppSettings.FIREFLY_MAX_REAL))
 	_firefly_real.value_changed.connect(func(_v: float) -> void: _save_fireflies())
-	add_child(ManagerUi.labeled("其中真光(有光暈)", _firefly_real))
+	_box.add_child(ManagerUi.labeled("其中真光(有光暈)", _firefly_real))
 	_firefly_speed = ManagerUi.spin(0.1, 0.3, 3.0)
 	_firefly_speed.value_changed.connect(func(_v: float) -> void: _save_fireflies())
-	add_child(ManagerUi.labeled("飄動速度(倍)", _firefly_speed))
+	_box.add_child(ManagerUi.labeled("飄動速度(倍)", _firefly_speed))
 	_firefly_brightness = ManagerUi.spin(0.1, 0.3, 3.0)
 	_firefly_brightness.value_changed.connect(func(_v: float) -> void: _save_fireflies())
-	add_child(ManagerUi.labeled("整體亮度(倍)", _firefly_brightness))
+	_box.add_child(ManagerUi.labeled("整體亮度(倍)", _firefly_brightness))
 	_firefly_zone = OptionButton.new()
 	var zone_labels := {"all": "全域(整個行動區)", "top": "集中在上方", "middle": "集中在中間", "bottom": "集中在下方"}
 	for zone: String in AppSettings.FIREFLY_ZONES:
 		_firefly_zone.add_item(str(zone_labels[zone]))
 		_firefly_zone.set_item_metadata(_firefly_zone.item_count - 1, zone)
 	_firefly_zone.item_selected.connect(func(_i: int) -> void: _save_fireflies())
-	add_child(ManagerUi.labeled("集中出現位置", _firefly_zone))
+	_box.add_child(ManagerUi.labeled("集中出現位置", _firefly_zone))
 	_firefly_glow_size = ManagerUi.spin(0.1, 0.3, 3.0)
 	_firefly_glow_size.value_changed.connect(func(_v: float) -> void: _save_fireflies())
-	add_child(ManagerUi.labeled("真光光暈大小(倍)", _firefly_glow_size))
+	_box.add_child(ManagerUi.labeled("真光光暈大小(倍)", _firefly_glow_size))
 	_firefly_glow_strength = ManagerUi.spin(0.1, 0.3, 3.0)
 	_firefly_glow_strength.value_changed.connect(func(_v: float) -> void: _save_fireflies())
-	add_child(ManagerUi.labeled("真光光暈濃度(倍)", _firefly_glow_strength))
+	_box.add_child(ManagerUi.labeled("真光光暈濃度(倍)", _firefly_glow_strength))
 	_firefly_lights = CheckBox.new()
-	_firefly_lights.text = tr("啟用光源(真光畫光暈;不勾就只畫粒子假光。上面「效能」的總光源開關關著時也一樣只畫粒子)")
+	_firefly_lights.text = tr("啟用光源(真光畫光暈;不勾就只畫粒子假光。「一般」頁籤「效能」的總光源開關關著時也一樣只畫粒子)")
 	_firefly_lights.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_firefly_lights.toggled.connect(func(_on: bool) -> void: _save_fireflies())
-	add_child(_firefly_lights)
+	_box.add_child(_firefly_lights)
 	_firefly_status = Label.new()
 	_firefly_status.theme_type_variation = AppSettings.MUTED_LABEL
-	add_child(_firefly_status)
+	_firefly_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_firefly_status.custom_minimum_size.x = 220.0
+	_box.add_child(_firefly_status)
 
 
 func _firefly_time_spin(maximum: float) -> SpinBox:
@@ -457,7 +495,7 @@ func _sync_firefly_widgets() -> void:
 	_firefly_status.text = tr("現在是 %02d:%02d,螢火蟲%s。") % [minute / 60, minute % 60, tr("會出現") if AppSettings.firefly_active(config, minute) else tr("不會出現")]
 
 func _build_appearance() -> void:
-	add_child(ManagerUi.heading_with_info("編輯器外觀", "所有視窗化編輯器(桌寵管理、精靈圖編輯器、性格編輯器、測試者面板…)共用的配色、字體與字級,改了立刻套用到開著的視窗。不影響桌寵的對話氣泡(那是每隻桌寵自己的「介面風格」分頁)。"))
+	_begin_card("編輯器外觀", "所有視窗化編輯器(桌寵管理、精靈圖編輯器、性格編輯器、測試者面板…)共用的配色、字體與字級,改了立刻套用到開著的視窗。不影響桌寵的對話氣泡(那是每隻桌寵自己的「介面風格」分頁)。")
 	_preset_option = OptionButton.new()
 	for id: String in AppSettings.PRESETS:
 		_preset_option.add_item(str((AppSettings.PRESETS[id] as Dictionary)["name"]))
@@ -465,28 +503,37 @@ func _build_appearance() -> void:
 	_preset_option.add_item(tr("自訂"))
 	_preset_option.set_item_metadata(_preset_option.item_count - 1, CUSTOM_ID)
 	_preset_option.item_selected.connect(_on_preset_selected)
-	add_child(ManagerUi.labeled("配色組", _preset_option))
+	_box.add_child(ManagerUi.labeled("配色組", _preset_option))
 	for key in AppSettings.COLOR_KEYS:
 		var picker := ColorPickerButton.new()
 		picker.edit_alpha = false
 		picker.custom_minimum_size = Vector2(120, 28)
 		picker.color_changed.connect(func(_color: Color) -> void: _on_color_edited())
 		_color_buttons[key] = picker
-		add_child(ManagerUi.labeled(str(AppSettings.COLOR_LABELS[key]), picker))
+		# 顏色名稱有長有短(「次要文字(停用、無效、提示、說明圖示)」):名稱吃掉剩下的寬度、放不下就換行,色票固定寬度靠右,不要把卡片撐寬。
+		var color_row := ManagerUi.labeled(str(AppSettings.COLOR_LABELS[key]), picker)
+		var color_label := color_row.get_child(0) as Label
+		color_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		color_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		picker.size_flags_horizontal = Control.SIZE_SHRINK_END
+		_box.add_child(color_row)
 	_font_option = OptionButton.new()
 	for font_name in UiFonts.FONT_NAMES:
 		_font_option.add_item(font_name)
 	_font_option.item_selected.connect(func(_i: int) -> void: _apply_appearance(_current_preset_id()))
-	add_child(ManagerUi.labeled("編輯器字體", _font_option))
+	_box.add_child(ManagerUi.labeled("編輯器字體", _font_option))
 	_size_spin = ManagerUi.spin(1.0, 11.0, 28.0)
 	_size_spin.allow_greater = false
 	_size_spin.allow_lesser = false
 	_size_spin.value_changed.connect(func(_v: float) -> void: _apply_appearance(_current_preset_id()))
-	add_child(ManagerUi.labeled("字級", _size_spin))
+	_box.add_child(ManagerUi.labeled("字級", _size_spin))
 	_sample = Label.new()
 	_sample.text = tr("字型預覽:全局設定 — 數值、狀態鏡與性格\nABC abc 123 你好,這是一段範例文字。")
 	_sample.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	add_child(ManagerUi.labeled("預覽", _sample))
+	_sample.custom_minimum_size.x = 220.0
+	_box.add_child(ManagerUi.labeled("預覽", _sample))
+	var look_box := _box
+	_begin_card("標題列")
 	_title_check = CheckBox.new()
 	_title_check.text = tr("使用自訂標題列(可以調色;取消勾選就用系統標題列。之後新開的視窗生效)")
 	_title_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -496,7 +543,7 @@ func _build_appearance() -> void:
 		AppSettings.set_themed_title_bar(on)
 		_sync_title_widgets()
 		message.emit(tr("標題列%s(之後新開的視窗生效)。") % ("改用自訂標題列" if on else "改用系統標題列")))
-	add_child(_title_check)
+	_box.add_child(_title_check)
 	_title_auto_check = CheckBox.new()
 	_title_auto_check.text = tr("標題列顏色自動跟著配色組")
 	_title_auto_check.toggled.connect(func(on: bool) -> void:
@@ -511,17 +558,19 @@ func _build_appearance() -> void:
 		_sync_title_widgets()
 		get_tree().call_group("floating_windows", "refresh_theme")
 		message.emit(tr("標題列顏色%s。") % ("自動跟著配色組" if on else "改成自己選的顏色")))
-	add_child(_title_auto_check)
+	_box.add_child(_title_auto_check)
 	_title_bg_picker = ColorPickerButton.new()
 	_title_bg_picker.edit_alpha = false
 	_title_bg_picker.custom_minimum_size = Vector2(120, 28)
 	_title_bg_picker.color_changed.connect(func(_color: Color) -> void: _on_title_color_edited())
-	add_child(ManagerUi.labeled("標題列底色", _title_bg_picker))
+	_box.add_child(ManagerUi.labeled("標題列底色", _title_bg_picker))
 	_title_text_picker = ColorPickerButton.new()
 	_title_text_picker.edit_alpha = false
 	_title_text_picker.custom_minimum_size = Vector2(120, 28)
 	_title_text_picker.color_changed.connect(func(_color: Color) -> void: _on_title_color_edited())
-	add_child(ManagerUi.labeled("標題列文字", _title_text_picker))
+	_box.add_child(ManagerUi.labeled("標題列文字", _title_text_picker))
+	var look_buttons := HFlowContainer.new()
+	look_box.add_child(look_buttons)
 	var copy_colors := ManagerUi.button("複製目前配色代碼")
 	copy_colors.tooltip_text = tr("把目前的六個顏色複製成文字(bg=#… 一行一個),做好新配色組之後貼給開發者加進預設。")
 	copy_colors.pressed.connect(func() -> void:
@@ -534,14 +583,14 @@ func _build_appearance() -> void:
 		lines.append("title_text=%s" % (title_colors["text"] as Color).to_html(false))
 		DisplayServer.clipboard_set("\n".join(lines))
 		message.emit(tr("已複製目前的配色代碼,可以直接貼上。")))
-	add_child(copy_colors)
+	look_buttons.add_child(copy_colors)
 	var reset := ManagerUi.button("還原預設外觀")
 	reset.pressed.connect(func() -> void:
 		AppSettings.reset_appearance()
 		_load_into_widgets()
 		get_tree().call_group("floating_windows", "refresh_theme")
 		message.emit(tr("已還原預設外觀(筆記本配色、黑體、%d 號字)。") % AppSettings.DEFAULT_FONT_SIZE))
-	add_child(reset)
+	look_buttons.add_child(reset)
 
 
 func _current_preset_id() -> String:
@@ -659,5 +708,8 @@ func _apply_appearance(preset_id: String) -> void:
 
 
 func _update_sample() -> void:
-	_sample.add_theme_font_override("font", UiFonts.get_font(str(UiFonts.FONT_NAMES[_font_option.selected])))
-	_sample.add_theme_font_size_override("font_size", int(_size_spin.value))
+	# 跟編輯器主題同一套換算(AppSettings.build_theme):Silver 這類字體字級要私底下放大,行高校正做在字型上。
+	var font_name := str(UiFonts.FONT_NAMES[_font_option.selected])
+	var font_size := roundi(int(_size_spin.value) * UiFonts.size_correction(font_name))
+	_sample.add_theme_font_override("font", UiFonts.get_ui_font(font_name, font_size))
+	_sample.add_theme_font_size_override("font_size", font_size)

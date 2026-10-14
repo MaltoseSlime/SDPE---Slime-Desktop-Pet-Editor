@@ -60,13 +60,24 @@ static func _install_default(entry: Dictionary, config: ConfigFile) -> String:
 	if DirAccess.dir_exists_absolute(target):
 		_mark_default_installed(config, str(entry["flag"]))
 		return ""
+	if not copy_default_source(source, target):
+		return ""
+	_mark_default_installed(config, str(entry["flag"]))
+	return target
+
+
+## 把專案裡的預設素材包 source(res://…/)整份複製到 target(不存在的資料夾)。來源沒有圖或複製失敗回 false,不留半成品。
+## 新手教學在使用者刪掉角色庫的 Mal 之後,也用它複製一份臨時的帶路 Mal(見 TutorialGuide)。
+static func copy_default_source(source: String, target: String) -> bool:
+	if target.strip_edges() == "" or DirAccess.dir_exists_absolute(target):
+		return false
 	var files := _default_source_files(source, "")
 	var has_image := false
 	for relative: String in files:
 		if relative.get_extension().to_lower() == "png":
 			has_image = true
 	if not has_image:
-		return ""
+		return false
 	DirAccess.make_dir_recursive_absolute(target)
 	for relative: String in files:
 		var to := target.path_join(relative)
@@ -84,9 +95,8 @@ static func _install_default(entry: Dictionary, config: ConfigFile) -> String:
 				ok = true
 		if not ok:
 			_remove_folder(target)
-			return ""
-	_mark_default_installed(config, str(entry["flag"]))
-	return target
+			return false
+	return true
 
 
 ## 預設素材包資料夾裡所有要複製的檔案(相對路徑,遞迴;略過 .import / .remap 附檔、state.json、.bak、說明用的 .txt)。

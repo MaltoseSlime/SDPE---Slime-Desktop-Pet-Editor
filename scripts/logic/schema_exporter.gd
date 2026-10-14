@@ -59,6 +59,8 @@ static func build(pet: Node) -> Dictionary:
 		"textValues": pet.text_values.keys(),
 		# 這個角色的外觀名稱(整套行走圖的差分,見 PetAppearances),給「切換外觀」積木的下拉選單用;預設外觀不列。
 		"appearances": PetAppearances.list(pet.pack_folder()).map(func(entry: Dictionary) -> String: return str(entry["name"])),
+		# 這個角色目前這套外觀的圖層(配件、眨眼、說話差分)名稱,給「顯示/隱藏圖層」「移動圖層」積木的下拉選單用。
+		"layers": Array(pet.overlays().layer_names()) if pet.overlays() != null else [],
 	}
 
 

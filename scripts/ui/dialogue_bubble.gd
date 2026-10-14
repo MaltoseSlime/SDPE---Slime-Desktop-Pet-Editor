@@ -91,7 +91,10 @@ func setup(target_pet: Node, line: Dictionary, show_in_world: bool = true) -> vo
 	_patience = float(line.get("patience", 0.0))
 	_wait_click = bool(line.get("wait_click", false))
 	var factor := _style.scale_factor()
-	var font := UiFonts.get_font(str(line.get("font", "")), _style.default_font)
+	var line_font := UiFonts.canonical(str(line.get("font", "")))
+	if not UiFonts.SYSTEM_FONTS.has(line_font):
+		line_font = _style.default_font
+	var font := UiFonts.get_ui_font(line_font, int(BASE_FONT_SIZE * _style.text_scale_factor()))   # 行高校正做在字型上(Silver 本身上下留白多)
 	var options: Array = line.get("options", [])
 	_has_options = not options.is_empty()
 	is_thought = str(line.get("bubble", "speech")).to_lower() == "thought"

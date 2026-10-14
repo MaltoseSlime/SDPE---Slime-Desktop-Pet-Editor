@@ -20,7 +20,9 @@ const RUB_WINDOW := 1.2
 const RUB_COOLDOWN := 1.5
 ## 桌寵拿到任何道具(collect(),不分道具種類)之後,這麼多秒內不會再自己去拿下一個,避免多隻桌寵在場時
 ## 食物之類的道具總是被同一隻先撿走用掉。使用者手動把道具拖去餵給某隻(delivered_to)不受這個限制。
-const PICKUP_COOLDOWN := 5.0
+## 2026-10-13 使用者實機回報 5 秒還是會被同一隻連續撿走:任何道具 15 秒,同一種道具另外算、要 30 秒(SAME_PICKUP_COOLDOWN)。
+const PICKUP_COOLDOWN := 15.0
+const SAME_PICKUP_COOLDOWN := 30.0
 
 var _action_area: Node
 var items: Array[PropItem] = []
@@ -38,6 +40,8 @@ var _after_pending: Dictionary = {}
 var _rub_cooldown_until := 0.0
 ## 桌寵拿到道具的冷卻(PICKUP_COOLDOWN):桌寵實例 id → 冷卻到期時間(msec)。
 var _pickup_cooldown_until: Dictionary = {}
+## 同一種道具的冷卻(SAME_PICKUP_COOLDOWN):「桌寵實例 id|道具 id」→ 冷卻到期時間(msec)。
+var _same_pickup_cooldown_until: Dictionary = {}
 
 
 func setup(action_area: Node) -> void:
@@ -359,8 +363,8 @@ func _can_collect(pet: Node, item: PropItem = null) -> bool:
 	if not is_instance_valid(pet) or pet.entering or pet.dragging or pet.is_sleeping():
 		return false
 	var delivered := item != null and item.delivered_to == pet
-	if not delivered and Time.get_ticks_msec() < int(_pickup_cooldown_until.get(pet.get_instance_id(), 0)):
-		return false   # 剛拿過別的道具,冷卻中(手動遞交給它的不受這個限制)
+	if not delivered and not pickup_ready(pet, item.def if item != null else null):
+		return false   # 剛拿過別的道具(或同一種道具),冷卻中(手動遞交給它的不受這個限制)
 	if pet.move_mode == Pet.MoveMode.FIXED and (item == null or item.delivered_to != pet):
 		return false
 	if item != null and pet.prop_preference(item.def) == "ignore":
@@ -370,11 +374,29 @@ func _can_collect(pet: Node, item: PropItem = null) -> bool:
 	return true
 
 
+## 這隻桌寵的自主拾取冷卻過了沒:剛拿過任何道具 PICKUP_COOLDOWN 秒內不行;def 是剛拿過的同一種道具要等 SAME_PICKUP_COOLDOWN 秒。
+func pickup_ready(pet: Node, def: PropDef = null) -> bool:
+	var now := Time.get_ticks_msec()
+	if now < int(_pickup_cooldown_until.get(pet.get_instance_id(), 0)):
+		return false
+	return def == null or now >= int(_same_pickup_cooldown_until.get(_same_pickup_key(pet, def), 0))
+
+
+func _same_pickup_key(pet: Node, def: PropDef) -> String:
+	return "%d|%s" % [pet.get_instance_id(), def.id]
+
+
 ## 指定的桌寵拾取這個道具(判定成立時呼叫;測試也直接呼叫)。
 func collect(item: PropItem, pet: Node) -> Dictionary:
 	var def := item.def
 	_consume(item)
-	_pickup_cooldown_until[pet.get_instance_id()] = Time.get_ticks_msec() + int(PICKUP_COOLDOWN * 1000.0)
+	var now := Time.get_ticks_msec()
+	_pickup_cooldown_until[pet.get_instance_id()] = now + int(PICKUP_COOLDOWN * 1000.0)
+	# 順手清掉過期的紀錄(桌寵來來去去、道具種類多,不清會一直長)。
+	for key: String in _same_pickup_cooldown_until.keys():
+		if now >= int(_same_pickup_cooldown_until[key]):
+			_same_pickup_cooldown_until.erase(key)
+	_same_pickup_cooldown_until[_same_pickup_key(pet, def)] = now + int(SAME_PICKUP_COOLDOWN * 1000.0)
 	var result := PropReaction.collect(def, pet)
 	prop_collected.emit(def, pet)
 	if def.effect_after != "":

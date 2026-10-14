@@ -43,6 +43,8 @@ var _idle_left := IDLE_TIMEOUT
 var _last_area_cache := Rect2()
 
 
+var _font_k := 1.0
+
 func setup(area: Node) -> void:
 	_area = area
 	add_to_group("Cutout")
@@ -263,14 +265,15 @@ func _draw() -> void:
 	var accent: Color = colors["accent"]
 	var muted: Color = colors["muted"]
 	var font := UiFonts.get_font(str(look["font"]))
+	_font_k = UiFonts.size_correction(str(look["font"]))   # 寫死的字級乘上字體的視覺校正(Silver 會放大)
 	var panel: Rect2 = _rects["panel"]
 	var local_panel := Rect2(panel.position - global_position, panel.size)
 	draw_rect(local_panel, Color(bg, 0.95), true)
 	draw_rect(local_panel, Color(accent, 0.7), false, 2.0)
 	var header: Rect2 = _rects["header"]
-	draw_string(font, Vector2(header.position.x - global_position.x + 6.0, header.position.y - global_position.y + 19.0), status_text, HORIZONTAL_ALIGNMENT_LEFT, header.size.x, 13, Color(text_color, 0.95))
+	draw_string(font, Vector2(header.position.x - global_position.x + 6.0, header.position.y - global_position.y + 19.0), status_text, HORIZONTAL_ALIGNMENT_LEFT, header.size.x, roundi(13 * _font_k), Color(text_color, 0.95))
 	var close: Rect2 = _rects["close"]
-	draw_string(font, Vector2(close.position.x - global_position.x + 4.0, close.position.y - global_position.y + 16.0), "×", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(muted, 0.9))
+	draw_string(font, Vector2(close.position.x - global_position.x + 4.0, close.position.y - global_position.y + 16.0), "×", HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(16 * _font_k), Color(muted, 0.9))
 	if show_surrender:
 		_draw_mode_buttons(font, text_color, accent, muted)
 	var outline := Color.BLACK if bg.get_luminance() > 0.5 else Color.WHITE
@@ -305,7 +308,7 @@ func _draw() -> void:
 		draw_rect(preview_rect, Color(1.0, 0.85, 0.2, 0.55), true)   # 預覽色跟上面兩種實際牆色(accent/text_color)都不一樣
 	if show_surrender and _rects.has("surrender"):
 		var surrender: Rect2 = _rects["surrender"]
-		draw_string(font, Vector2(surrender.position.x - global_position.x, surrender.position.y - global_position.y + 15.0), tr("投降"), HORIZONTAL_ALIGNMENT_CENTER, surrender.size.x, 14, Color(1.0, 0.55, 0.55, 0.9))
+		draw_string(font, Vector2(surrender.position.x - global_position.x, surrender.position.y - global_position.y + 15.0), tr("投降"), HORIZONTAL_ALIGNMENT_CENTER, surrender.size.x, roundi(14 * _font_k), Color(1.0, 0.55, 0.55, 0.9))
 
 
 func _draw_mode_buttons(font: Font, text_color: Color, accent: Color, muted: Color) -> void:
@@ -322,7 +325,7 @@ func _draw_mode_buttons(font: Font, text_color: Color, accent: Color, muted: Col
 		var disabled := kind != "move" and walls_left_hint <= 0
 		draw_rect(local_rect, Color(accent, 0.45) if active else Color(text_color, 0.06), true)
 		draw_rect(local_rect, Color(muted, 0.5), false, 1.0)
-		draw_string(font, local_rect.position + Vector2(local_rect.size.x * 0.5 - 6.0, 17.0), glyph, HORIZONTAL_ALIGNMENT_CENTER, local_rect.size.x, 14, Color(text_color, 0.4 if disabled else 0.95))
+		draw_string(font, local_rect.position + Vector2(local_rect.size.x * 0.5 - 6.0, 17.0), glyph, HORIZONTAL_ALIGNMENT_CENTER, local_rect.size.x, roundi(14 * _font_k), Color(text_color, 0.4 if disabled else 0.95))
 	var caption := tr("移動棋子")
 	match wall_mode_kind:
 		"vwall":
@@ -331,4 +334,4 @@ func _draw_mode_buttons(font: Font, text_color: Color, accent: Color, muted: Col
 			caption = tr("放置橫牆(剩 %d 面)") % walls_left_hint
 	var caption_y: float = (_rects["mode_move"] as Rect2).end.y - global_position.y + 14.0
 	var caption_x: float = (_rects["mode_vwall"] as Rect2).position.x - global_position.x
-	draw_string(font, Vector2(caption_x, caption_y), caption, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(text_color, 0.85))
+	draw_string(font, Vector2(caption_x, caption_y), caption, HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(12 * _font_k), Color(text_color, 0.85))

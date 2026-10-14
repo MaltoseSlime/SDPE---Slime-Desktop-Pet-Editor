@@ -26,7 +26,6 @@ signal relayout_stills_requested
 signal add_buddy_requested
 signal add_pack_requested
 signal add_pack_path_requested(path: String)
-signal edit_pack_requested
 signal open_library_requested
 signal open_props_requested
 signal clear_props_requested
@@ -56,7 +55,6 @@ const ID_RELAYOUT_STILLS := 10
 const ID_ADD_BUDDY := 11
 const ID_ERROR_LOG := 12
 const ID_ADD_PACK := 13
-const ID_EDIT_PACK := 14
 const ID_LIBRARY := 15
 const ID_SETTINGS := 16
 const ID_PROPS := 17
@@ -90,6 +88,8 @@ const ICON_NOTIF := preload("res://SDPE_icon_notif.png")
 var debug_polygon_visible := false
 ## 「隱藏行動區外的家具」的勾選狀態(DesktopShell 從 FurnitureManager 同步過來,這裡只負責畫勾)。
 var hide_outside_furniture := false
+## 「隱藏行動區邊框」的勾選狀態(DesktopShell 從 ActionArea 同步過來;設定存在 ActionArea,下次開程式照舊)。
+var frame_hidden := false
 ## 最近用過的素材包資料夾(由 Shell 設定)。
 var recent_packs: Array[String] = []
 ## 「召喚 / 測試用」選單目前列出的角色資料夾(選單項目的 id 對應這個陣列)。
@@ -188,10 +188,9 @@ func _rebuild_menu() -> void:
 	# 會開出獨立視窗的功能放在同一區。
 	_menu.add_item(tr("角色庫…"), ID_LIBRARY)
 	_menu.add_item(tr("桌寵管理…"), ID_MANAGER)
-	_menu.add_item(tr("道具管理…"), ID_PROPS)
+	# 2026-10-13:「道具管理…」「家具庫…」合併成一個視窗(兩個頁籤),選單也只留一項(開在家具庫頁籤)。
+	_menu.add_item(tr("交互物件管理…"), ID_FURNITURE)
 	_menu.add_item(tr("清掃桌面道具"), ID_CLEAR_PROPS)
-	_menu.add_item(tr("家具庫…"), ID_FURNITURE)
-	_menu.add_item(tr("精靈圖編輯器…"), ID_EDIT_PACK)
 	_menu.add_item(tr("全局設定…"), ID_SETTINGS)
 	_menu.add_item(tr("測試者面板…"), ID_TESTER)
 	_menu.add_item(tr("開啟網頁編輯工具(需要連網)"), ID_OPEN_WEB_EDITOR)
@@ -209,7 +208,8 @@ func _add_debug_block() -> void:
 	_add_behavior_submenu()
 	_menu.add_item(tr("行動區重設"), ID_RECALL)
 	_menu.add_item(tr("浮動視窗重設"), ID_WINDOWS_RESET)
-	_menu.add_item(tr("顯示/隱藏行動區邊框"), ID_TOGGLE_FRAME)
+	_menu.add_check_item(tr("隱藏行動區邊框"), ID_TOGGLE_FRAME)
+	_menu.set_item_checked(_menu.get_item_index(ID_TOGGLE_FRAME), frame_hidden)
 	_menu.add_check_item(tr("隱藏行動區外的家具"), ID_HIDE_OUTSIDE_FURNITURE)
 	_menu.set_item_checked(_menu.get_item_index(ID_HIDE_OUTSIDE_FURNITURE), hide_outside_furniture)
 	_menu.add_item(tr("重新排開半身立繪"), ID_RELAYOUT_STILLS)
@@ -323,8 +323,6 @@ func _on_menu_id_pressed(id: int) -> void:
 			clear_props_requested.emit()
 		ID_FURNITURE:
 			open_furniture_requested.emit()
-		ID_EDIT_PACK:
-			edit_pack_requested.emit()
 		ID_SETTINGS:
 			open_settings_requested.emit()
 		ID_ERROR_LOG:

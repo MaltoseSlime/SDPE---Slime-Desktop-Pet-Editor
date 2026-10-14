@@ -96,6 +96,10 @@ func _build() -> void:
 	_count_label = Label.new()
 	_count_label.theme_type_variation = AppSettings.MUTED_LABEL
 	_count_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# 這一行帶著角色資料夾的完整路徑,很長:放不下就用刪節號(滑過看完整),不要把整個視窗的最小寬度撐到比視窗還寬。
+	_count_label.clip_text = true
+	_count_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_count_label.mouse_filter = Control.MOUSE_FILTER_PASS
 	footer.add_child(_count_label)
 	_status = Label.new()
 	_status.theme_type_variation = AppSettings.WARN_LABEL
@@ -133,6 +137,7 @@ func refresh() -> void:
 	for summary in shown:
 		cards.append(_add_card(summary))
 	_count_label.text = tr("共 %d 個角色%s。角色放在:%s") % [_folders.size(), tr("(顯示 %d 個)") % shown.size() if wanted != "" else "", SpriteLibrary.root_dir()]
+	_count_label.tooltip_text = _count_label.text
 	if _folders.is_empty():
 		var empty := Label.new()
 		empty.text = tr("角色庫還是空的。\n按「＋ 新建角色…」從空白開始,或「從資料夾匯入…」把現有的素材包放進來。")
@@ -185,7 +190,7 @@ func _add_card(summary: Dictionary) -> Dictionary:
 	box.add_child(name_label)
 	var state := Label.new()
 	state.theme_type_variation = AppSettings.MUTED_LABEL
-	state.add_theme_font_size_override("font_size", 12)
+	ManagerUi.fixed_font_size(state, 12)
 	state.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	state.text = tr("%d 個動作 · %d 幀") % [summary["actions"], summary["frames"]] if bool(summary["ok"]) else tr("(讀不出素材)")
 	if not bool(summary["ok"]):
@@ -193,7 +198,7 @@ func _add_card(summary: Dictionary) -> Dictionary:
 	box.add_child(state)
 	var pick := CheckBox.new()
 	pick.text = tr("勾選(一起放上桌面)")
-	pick.add_theme_font_size_override("font_size", 12)
+	ManagerUi.fixed_font_size(pick, 12)
 	pick.disabled = not bool(summary["ok"])
 	pick.button_pressed = _checked.has(str(summary["folder"]))
 	pick.toggled.connect(func(on: bool) -> void: set_checked(str(summary["folder"]), on))
@@ -209,7 +214,7 @@ func _add_card(summary: Dictionary) -> Dictionary:
 	edit.tooltip_text = tr("開精靈圖編輯器:改貼圖、動作、光源、家具/道具貼圖等造型相關內容。")
 	edit.pressed.connect(func() -> void: edit_requested.emit(str(summary["folder"])))
 	var settings := ManagerUi.button("桌寵管理")
-	settings.tooltip_text = tr("不用放上桌面就能改數值、狀態鏡、性格、介面與自動行為、交互行為(自動建一隻隱藏的臨時實例,關視窗就存回去)。")
+	settings.tooltip_text = tr("不用放上桌面就能改數值、狀態鏡、性格、外觀與介面、行為、對話與關係(自動建一隻隱藏的臨時實例,關視窗就存回去)。")
 	settings.pressed.connect(func() -> void: settings_requested.emit(str(summary["folder"])))
 	buttons.add_child(place)
 	buttons.add_child(edit)

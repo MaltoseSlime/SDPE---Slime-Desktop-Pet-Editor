@@ -27,6 +27,8 @@ const THOUGHT_PREVIEW_TEXT := "嗯……這是思考泡泡的預覽\n[i]不知�
 var _pet: Node
 var _flow: HFlowContainer
 var _cards: Array[VBoxContainer] = []
+## 原文標題 → 卡片(PanelContainer);桌寵管理視窗用它把行為類的卡片搬到「行為」分頁(見 ManagerWindow._build)。
+var cards: Dictionary = {}
 var _loading := false
 var _preview_box: VBoxContainer
 var _pickers: Dictionary = {}
@@ -81,6 +83,9 @@ var _voice_label: Label
 var _voice_pitch_spin: SpinBox
 var _voice_volume_spin: SpinBox
 var _voice_player: AudioStreamPlayer
+var _voice_library_list: ItemList
+var _voice_library_apply: Button
+var _voice_library_delete: Button
 var _chatroom_bubble_check: CheckBox
 var _sms_direction_option: OptionButton
 var _sms_bubble_scale_option: OptionButton
@@ -88,7 +93,7 @@ var _sms_bubble_width_spin: SpinBox
 
 
 func _ready() -> void:
-	name = "介面與自動行為"
+	name = "外觀與介面"
 	add_child(ManagerUi.heading("預覽"))
 	_preview_box = VBoxContainer.new()
 	_preview_box.custom_minimum_size.y = 150.0
@@ -105,10 +110,11 @@ func _ready() -> void:
 	_flow.add_theme_constant_override("h_separation", 10)
 	_flow.add_theme_constant_override("v_separation", 10)
 	scroll.add_child(_flow)
-	var form := _new_card("對話泡泡顏色")
+	var form := _new_card("泡泡配色")
+	form.add_child(ManagerUi.heading("對話泡泡顏色"))
 	_add_color_rows(form, COLOR_FIELDS)
-
-	form = _new_card("思考泡泡配色")
+	form.add_child(HSeparator.new())
+	form.add_child(ManagerUi.heading("思考泡泡配色"))
 	_add_color_rows(form, THOUGHT_COLOR_FIELDS)
 	form.add_child(ManagerUi.hint_row("說明", "對話積木的「泡泡」選「思考」時用這組顏色(和上面的對話框配色分開設定);樣子跟對話框很像,尾巴換成往角色頭部飄的幾顆小圓泡泡。框線粗細、縮放與字體沿用上面的設定,圓角至少 16。"))
 	form = _new_card("外框與縮放")
@@ -150,13 +156,13 @@ func _ready() -> void:
 		_font_option.add_item(font_name)
 	_font_option.item_selected.connect(_on_field_changed)
 	form.add_child(ManagerUi.labeled("預設對話字體", _font_option))
-	form.add_child(ManagerUi.hint_row("說明", "黑體(源樣黑體)、圓體(粉圓體)、像素體 Sliver ,標楷體用系統字型(沒有則退回預設字型);自訂上傳字型之後由素材匯入流程加入。"))
+	form.add_child(ManagerUi.hint_row("說明", "黑體(源樣黑體)、圓體(粉圓體)、像素體 Silver,標楷體用系統字型(沒有則退回預設字型);自訂上傳字型之後由素材匯入流程加入。"))
 	_font_scale_option = OptionButton.new()
 	for step in PetUiStyle.SCALE_STEPS:
 		_font_scale_option.add_item("%d%%" % step)
 	_font_scale_option.item_selected.connect(_on_field_changed)
 	form.add_child(ManagerUi.labeled("字級", _font_scale_option))
-	form.add_child(ManagerUi.hint_row("說明", "只放大/縮小文字本身,不像「介面縮放率」連框體、間距一起變大;像素體 Sliver 看起來比其他字體小是已知現象,已經私底下補了視覺大小,不用為了 Sliver 特別調高這裡。"))
+	form.add_child(ManagerUi.hint_row("說明", "只放大/縮小文字本身,不像「介面縮放率」連框體、間距一起變大;像素體 Silver 看起來比其他字體小是已知現象,已經私底下補了視覺大小,不用為了 Silver 特別調高這裡。"))
 	_dialogue_locale_option = OptionButton.new()
 	_dialogue_locale_option.add_item(tr("預設(原始語言)"))
 	_dialogue_locale_option.set_item_metadata(0, "")
@@ -169,7 +175,7 @@ func _ready() -> void:
 	form.add_child(ManagerUi.labeled("桌寵語系", _dialogue_locale_option))
 	form.add_child(ManagerUi.hint_row("說明", "這隻角色存在多種語系的對話文本時用來切換;不用檢查這隻角色原本是哪個語系寫的,初始一律是「預設」。翻譯內容要請 HTML 端(積木編輯器)另外製作,這裡只是先讓你能指定切換到哪個語系。"))
 	_wait_spin = ManagerUi.spin(5.0, PetUiStyle.MIN_OPTION_WAIT, PetUiStyle.MAX_OPTION_WAIT)
-	_wait_spin.suffix = "秒"
+	_wait_spin.suffix = tr(" 秒")
 	_wait_spin.value_changed.connect(_on_field_changed)
 	form.add_child(ManagerUi.labeled("選項最長等待", _wait_spin))
 
@@ -199,7 +205,8 @@ func _ready() -> void:
 	form.add_child(ManagerUi.labeled("簡訊氣泡最大寬度", _sms_bubble_width_spin))
 	form.add_child(ManagerUi.hint_row("說明", "簡訊式氣泡換行前的最大寬度(縮放前的基準值,上面「簡訊氣泡尺寸」的縮放百分比會再乘上這個寬度)。"))
 
-	form = _new_card("角色尺寸")
+	form = _new_card("角色外觀與判定框")
+	form.add_child(ManagerUi.heading("角色外觀"))
 	_body_scale_spin = ManagerUi.spin(0.05, Pet.MIN_BODY_SCALE, Pet.MAX_BODY_SCALE)
 	_body_scale_spin.value_changed.connect(_on_field_changed)
 	form.add_child(ManagerUi.labeled("角色縮放倍率", _body_scale_spin))
@@ -221,19 +228,12 @@ func _ready() -> void:
 	_flip_check.text = tr("翻轉整隻(左右鏡像;素材原本朝向和慣例(朝右)相反時用)")
 	_flip_check.toggled.connect(_on_field_changed)
 	form.add_child(_flip_check)
-	_drag_fixed_check = CheckBox.new()
-	_drag_fixed_check.text = tr("固定模式下也能隨時拖曳(貼底的半身立繪只能沿底邊左右拖)")
-	_drag_fixed_check.toggled.connect(_on_field_changed)
-	form.add_child(_drag_fixed_check)
-	_climb_check = CheckBox.new()
-	_climb_check.text = tr("允許攀爬")
-	_climb_check.toggled.connect(_on_field_changed)
-	form.add_child(_climb_check)
 	_breath_check = CheckBox.new()
 	_breath_check.text = tr("呼吸動畫")
 	_breath_check.toggled.connect(_on_field_changed)
 	form.add_child(_breath_check)
-	form = _new_card("判定框(可點擊範圍)")
+	form.add_child(HSeparator.new())
+	form.add_child(ManagerUi.heading("判定框(可點擊範圍)"))
 	form.add_child(ManagerUi.hint_row("說明", "只有判定框裡點得到、抓得起這隻桌寵;畫在框外的翅膀、武器、特效仍然會完整顯示,只是不能點。寬/高填 0 = 自動(用素材包設定或待機圖本體大小)。單位是縮放前的像素,錨點是腳底線的中心點(偏移:X 向右、Y 向下)。系統匣「顯示穿透範圍(除錯)」會用藍框畫出判定框。"))
 	_hitbox_auto_label = Label.new()
 	form.add_child(_hitbox_auto_label)
@@ -243,22 +243,24 @@ func _ready() -> void:
 		form.add_child(ManagerUi.labeled(entry[0], spin))
 		_hitbox_spins.append(spin)
 
-	form = _new_card("自動閒聊")
+	form = _new_card("自動閒聊與跳舞")
+	form.add_child(ManagerUi.heading("自動閒聊"))
 	_chat_check = CheckBox.new()
 	_chat_check.text = tr("讓這隻桌寵隔一段時間自己「說點什麼」")
 	_chat_check.toggled.connect(_on_field_changed)
 	form.add_child(_chat_check)
 	_chat_min_spin = ManagerUi.spin(10.0, PetProfile.MIN_AUTO_CHAT_SECONDS, 86400.0)
-	_chat_min_spin.suffix = "秒"
+	_chat_min_spin.suffix = tr(" 秒")
 	_chat_min_spin.value_changed.connect(_on_field_changed)
 	form.add_child(ManagerUi.labeled("最短間隔", _chat_min_spin))
 	_chat_max_spin = ManagerUi.spin(10.0, PetProfile.MIN_AUTO_CHAT_SECONDS, 86400.0)
-	_chat_max_spin.suffix = "秒"
+	_chat_max_spin.suffix = tr(" 秒")
 	_chat_max_spin.value_changed.connect(_on_field_changed)
 	form.add_child(ManagerUi.labeled("最長間隔", _chat_max_spin))
 	form.add_child(ManagerUi.hint_row("說明", "每次在最短~最長之間隨機等待。全部桌寵的總開關在系統匣選單「自動閒聊」;使用者剛互動過、正在對話、拖曳或入場中時不會開口。"))
 
-	form = _new_card("自動跳舞")
+	form.add_child(HSeparator.new())
+	form.add_child(ManagerUi.heading("自動跳舞"))
 	_dance_check = CheckBox.new()
 	_dance_check.text = tr("沒有負面狀態時,待機結束有機率自己跳一段舞")
 	_dance_check.toggled.connect(_on_field_changed)
@@ -273,7 +275,7 @@ func _ready() -> void:
 	form.add_child(_dance_follow_check)
 	form.add_child(ManagerUi.hint_row("說明", "需要角色有 dance 動作素材才會跳(沒有就不會觸發);身上有任何「負面」狀態鏡(疲憊等)時不跳,跳到一半出現負面狀態也會立刻收舞。"))
 
-	form = _new_card("道具互動")
+	form = _new_card("移動與飛行")
 	_land_check = CheckBox.new()
 	_land_check.text = tr("飛行模式:道具交互時降落(被拿來洗澡、使用道具時先降落,結束再起飛;取消 = 原地懸停)")
 	_land_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -285,6 +287,14 @@ func _ready() -> void:
 	_fly_option.tooltip_text = tr("總是飛行:做什麼都不落地,休息、睡覺也在空中。\n會落地:累了、道具交互等某些時候才落地,其餘時候在飛。\n行走與飛行兼具:以地面行為為主;大跳躍、從平臺下來、偶爾(心情好機率高)會改成飛行一小段,再降落。")
 	_fly_option.item_selected.connect(_on_field_changed)
 	form.add_child(ManagerUi.labeled("飛行模式的行為", _fly_option))
+	_drag_fixed_check = CheckBox.new()
+	_drag_fixed_check.text = tr("固定模式下也能隨時拖曳(貼底的半身立繪只能沿底邊左右拖)")
+	_drag_fixed_check.toggled.connect(_on_field_changed)
+	form.add_child(_drag_fixed_check)
+	_climb_check = CheckBox.new()
+	_climb_check.text = tr("允許攀爬")
+	_climb_check.toggled.connect(_on_field_changed)
+	form.add_child(_climb_check)
 	_no_fatigue_check = CheckBox.new()
 	_no_fatigue_check.text = tr("桌寵不計算疲勞值(不會累、不會自己休息或睡覺,也不會因疲勞陷入負面狀態;奔跑最多持續 15 秒)")
 	_no_fatigue_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -307,6 +317,23 @@ func _ready() -> void:
 	voice_row.add_child(clear_button)
 	voice_row.add_child(preview_button)
 	form.add_child(voice_row)
+	# 說話聲音庫:導入過的聲音檔都留一份(不綁定桌寵,見 VoiceLibrary),給別隻桌寵用同一個聲音時直接選,概念同全局設定的「提醒音效庫」。
+	form.add_child(ManagerUi.heading_with_info("說話聲音庫", "導入過的說話聲音都會留在這裡,不綁定特定桌寵:選一個按「套用選取的聲音」,這隻桌寵就改用它,不用再去找原本的檔案。從這裡刪除只是把它從清單拿掉,正在用這個聲音的桌寵不受影響。"))
+	_voice_library_list = ItemList.new()
+	_voice_library_list.custom_minimum_size.y = 80.0
+	_voice_library_list.item_selected.connect(func(_index: int) -> void: _sync_voice_library_buttons())
+	_voice_library_list.item_activated.connect(func(_index: int) -> void: _apply_library_voice())
+	form.add_child(_voice_library_list)
+	var library_row := HBoxContainer.new()
+	_voice_library_apply = ManagerUi.button("套用選取的聲音")
+	_voice_library_apply.pressed.connect(_apply_library_voice)
+	library_row.add_child(_voice_library_apply)
+	_voice_library_delete = ManagerUi.button("刪除選取的聲音")
+	_voice_library_delete.pressed.connect(_delete_library_voice)
+	library_row.add_child(_voice_library_delete)
+	form.add_child(library_row)
+	VoiceLibrary.sync_from_voices()
+	_refresh_voice_library()
 	_voice_pitch_spin = ManagerUi.spin(0.05, PetVoice.PITCH_RANGE.x, PetVoice.PITCH_RANGE.y)
 	_voice_pitch_spin.value_changed.connect(_on_field_changed)
 	form.add_child(ManagerUi.labeled("音高(1.0 = 原音)", _voice_pitch_spin))
@@ -351,7 +378,8 @@ func _ready() -> void:
 	form.add_child(_sleep_z_check)
 	form.add_child(ManagerUi.hint_row("說明", "純裝飾的小特效,不需要素材;字體跟「字體與對話」的預設對話字體一致,字級跟著角色大小與介面縮放率。"))
 
-	form = _new_card("連帶觸發特效")
+	form.add_child(HSeparator.new())
+	form.add_child(ManagerUi.heading("連帶觸發特效"))
 	form.add_child(ManagerUi.hint_row("說明", "使用者互動時自動播的特效(不用寫積木)。例如「被觸摸 → 幸福」。積木的事件照常執行,兩邊可以同時作用;上面「啟用角色特效」關掉時這裡也不會播。"))
 	for kind: String in PetEffects.LINK_KEYS:
 		var link_option := OptionButton.new()
@@ -362,7 +390,8 @@ func _ready() -> void:
 		_link_options[kind] = link_option
 		form.add_child(ManagerUi.labeled(str(PetEffects.LINK_LABELS[kind]), link_option))
 
-	form = _new_card("特效外觀(顏色、大小、密度)")
+	form.add_child(HSeparator.new())
+	form.add_child(ManagerUi.heading("特效外觀(顏色、大小、密度)"))
 	_fx_option = OptionButton.new()
 	for effect_label in PetEffects.CATALOG:
 		_fx_option.add_item(effect_label)
@@ -398,7 +427,7 @@ func _ready() -> void:
 	_fx_range_row = ManagerUi.labeled("生成點範圍(離角色遠近)", _fx_range_spin)
 	form.add_child(_fx_range_row)
 	_fx_hold_spin = ManagerUi.spin(0.05, PetEffects.HOLD_RANGE.x, PetEffects.HOLD_RANGE.y)
-	_fx_hold_spin.suffix = " 秒"
+	_fx_hold_spin.suffix = tr(" 秒")
 	_fx_hold_spin.value_changed.connect(_on_fx_changed)
 	_fx_trail_spin = ManagerUi.spin(0.01, PetEffects.TRAIL_RANGE.x, PetEffects.TRAIL_RANGE.y)
 	_fx_trail_spin.value_changed.connect(_on_fx_changed)
@@ -507,24 +536,13 @@ func _load_form() -> void:
 const CARD_WIDTH := 430.0
 
 
-## 新增一張功能板塊卡片(標題 + 內容區),回傳內容區(往裡面加控制項)。
+## 新增一張功能板塊卡片(樣式見 ManagerUi.card:可收合的標題 + 內容區),回傳內容區(往裡面加控制項)。
 func _new_card(title_text: String) -> VBoxContainer:
-	var card := PanelContainer.new()
-	card.custom_minimum_size.x = CARD_WIDTH
-	var style := StyleBoxFlat.new()
-	style.bg_color = AppSettings.ink(0.05)
-	style.border_color = AppSettings.ink(0.1)
-	style.set_border_width_all(1)
-	style.set_corner_radius_all(8)
-	style.set_content_margin_all(10.0)
-	card.add_theme_stylebox_override("panel", style)
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 5)
-	card.add_child(box)
-	box.add_child(ManagerUi.heading(title_text))
-	_flow.add_child(card)
-	_cards.append(box)
-	return box
+	var built := ManagerUi.card(title_text, [], CARD_WIDTH)
+	cards[title_text] = built["card"]
+	_flow.add_child(built["card"])
+	_cards.append(built["box"])
+	return built["box"]
 
 
 ## 卡片裡的核取方塊文字很長,讓它自己換行,不要撐寬卡片。
@@ -711,8 +729,49 @@ func _import_voice(path: String) -> void:
 	var result := PetVoice.import_file(_pet, path)
 	message.emit(str(result["message"]))
 	if result["ok"]:
+		# 通過驗證的檔案順便留一份在說話聲音庫(從庫裡套用的檔案本來就在庫裡,內容相同不會重複存)。
+		VoiceLibrary.add_file(path)
+		_refresh_voice_library()
 		_update_voice_label()
 		changed.emit()
+
+
+func _refresh_voice_library() -> void:
+	if _voice_library_list == null:
+		return
+	_voice_library_list.clear()
+	for file_name: String in VoiceLibrary.list():
+		_voice_library_list.add_item(VoiceLibrary.display_name(file_name))
+		_voice_library_list.set_item_metadata(_voice_library_list.item_count - 1, file_name)
+	_sync_voice_library_buttons()
+
+
+func _sync_voice_library_buttons() -> void:
+	var none := _voice_library_list.get_selected_items().is_empty()
+	_voice_library_apply.disabled = none
+	_voice_library_delete.disabled = none
+
+
+func _selected_library_voice() -> String:
+	var selected := _voice_library_list.get_selected_items()
+	return "" if selected.is_empty() else str(_voice_library_list.get_item_metadata(selected[0]))
+
+
+## 把庫裡選到的聲音套用到這隻桌寵:跟「導入聲音檔…」走同一條路(複製一份成這個角色自己的聲音檔)。
+func _apply_library_voice() -> void:
+	var source := VoiceLibrary.path_of(_selected_library_voice())
+	if _pet == null or source == "":
+		return
+	_import_voice(source)
+
+
+func _delete_library_voice() -> void:
+	var file_name := _selected_library_voice()
+	if file_name == "":
+		return
+	if VoiceLibrary.delete(file_name):
+		message.emit(tr("已從說話聲音庫移除「%s」。") % VoiceLibrary.display_name(file_name))
+	_refresh_voice_library()
 
 
 func _clear_voice() -> void:
@@ -794,7 +853,7 @@ func _rebuild_preview() -> void:
 func _make_preview(parent: Control, thought: bool) -> Dictionary:
 	var style: PetUiStyle = _pet.ui_style
 	var factor := style.scale_factor()
-	var font := UiFonts.get_font(style.default_font)
+	var font := UiFonts.get_ui_font(style.default_font, int(UiStyleKit.BASE_FONT_SIZE * style.text_scale_factor()))   # 跟對話氣泡同一套(行高校正做在字型上)
 	var colors := style.palette(thought)
 
 	var holder := Control.new()

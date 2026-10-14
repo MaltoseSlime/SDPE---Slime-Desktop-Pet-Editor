@@ -41,8 +41,9 @@ var _settings_window: Window
 var _tester_window: Window
 var _pack_editor_window: Window
 var _library_window: Window
-var _props_window: Window
-var _furniture_window: Window
+var _objects_window: ObjectManagerWindow
+## 進行中的新手教學(見 TutorialGuide),同時只會有一個。
+var _tutorial: TutorialGuide
 ## 打開著的「容器內容物」查看視窗:家具實例 → 視窗,雙擊同一件容器只會叫到前景,不會開第二個。
 var _container_windows: Dictionary = {}
 ## 桌面上的小道具(丟入拾取判定、逾時消失),見 PropManager。
@@ -406,10 +407,13 @@ func _restore_roster() -> void:
 			"pack":
 				_spawn_pack(str(entry["path"]), true, entry)
 				await get_tree().process_frame
-	if get_tree().get_nodes_in_group("pets").is_empty():
+	# 桌面上一隻都沒有、這次又會播新手教學(第一次啟動通常就是這樣):先不放預設角色,教學由系統用的 Mal 帶,
+	# 結束後才放(見 start_tutorial),不然桌面上會同時有兩隻 Mal。
+	if get_tree().get_nodes_in_group("pets").is_empty() and not (PetRoster.enabled() and TutorialGuide.needed()):
 		_spawn_default_pet()
 	_save_roster()
 	_check_defaults_update.call_deferred()
+	_maybe_start_tutorial.call_deferred()
 
 
 ## 開機名單是空的(或全部失敗)時放的預設桌寵:開發專案放範例 Mal;發行版沒有測試素材,改放角色庫裡的預設活動桌寵(第一次會先把預設角色裝進角色庫),都放不出來就什麼都不放。
@@ -556,14 +560,6 @@ func _warn_about_pack_limits(result: Dictionary) -> void:
 func _on_add_pack() -> void:
 	FloatingWindow.native_file_dialog(tr("選擇素材包資料夾"), SpriteLibrary.root_dir(), DisplayServer.FILE_DIALOG_MODE_OPEN_DIR, PackedStringArray(),
 			func(paths: PackedStringArray) -> void: _spawn_pack(paths[0]))
-
-
-## 精靈圖編輯器(見 PackEditorWindow):開一個空的編輯視窗(同時只會有一個),素材包資料夾與圖片都在視窗裡用按鈕選。
-func _on_edit_pack() -> void:
-	if is_instance_valid(_pack_editor_window):
-		_pack_editor_window.bring_to_front()
-		return
-	open_pack_editor()
 
 
 ## 角色庫(見 CharacterLibraryWindow):同時只會有一個。放上桌面與編輯都交給這裡的既有流程。
@@ -883,7 +879,6 @@ func _create_tray() -> void:
 	_tray.add_buddy_requested.connect(_on_add_buddy)
 	_tray.add_pack_requested.connect(_on_add_pack)
 	_tray.add_pack_path_requested.connect(_spawn_pack)
-	_tray.edit_pack_requested.connect(_on_edit_pack)
 	_tray.open_library_requested.connect(_open_library)
 	_tray.open_props_requested.connect(_open_props)
 	_tray.clear_props_requested.connect(clear_props)
@@ -896,6 +891,7 @@ func _create_tray() -> void:
 	_tray.open_tester_requested.connect(_open_tester)
 	_tray.open_error_log_requested.connect(func() -> void: OS.shell_open(PetErrorLog.folder_global()))
 	_tray.debug_polygon_visible = show_debug_polygon
+	_tray.frame_hidden = not action_area.frame_visible
 	_tray.debug_polygon_toggled.connect(_on_debug_polygon_toggled)
 	_tray.say_something_requested.connect(func(pet: Node) -> void: pet.say_something())
 	_tray.force_rest_requested.connect(func(pet: Node) -> void: pet.vitality.force_rest())
@@ -1005,14 +1001,61 @@ func _open_settings() -> void:
 	_settings_window.setup()
 	_settings_window.audio_setting_requested.connect(_on_audio_setting)
 	_settings_window.monitor_setting_requested.connect(apply_monitor_setting)
+	_settings_window.tutorial_requested.connect(start_tutorial)
+
+
+## 新手教學(見 TutorialGuide):開機時這一版的教學還沒看過就自動播(等語言選好、桌寵進場之後);
+## 「全局設定 > 關於」的「重看新手教學」隨時可以再播。無頭測試不自動播。
+func _maybe_start_tutorial() -> void:
+	if not PetRoster.enabled() or not TutorialGuide.needed():
+		return
+	TutorialGuide.cleanup_temporary_files()   # 上次教學途中關掉程式留下的臨時帶路 Mal
+	while not AppSettings.language_choice_prompted():
+		await get_tree().create_timer(0.5).timeout
+	await get_tree().create_timer(TutorialGuide.START_DELAY).timeout
+	if TutorialGuide.needed():
+		start_tutorial()
+
+
+func start_tutorial() -> void:
+	if is_instance_valid(_tutorial):
+		return
+	var guide := TutorialGuide.new()
+	add_child(guide)
+	_tutorial = guide
+	guide.finished.connect(func(_completed: bool) -> void:
+		guide.queue_free()
+		# 教學結束、系統用的 Mal 收回之後,桌面上沒有桌寵(第一次啟動、或本來就空著)就放一隻正常的預設角色。
+		if get_tree().get_nodes_in_group("pets").is_empty():
+			_spawn_default_pet())
+	guide.run(self)
+
+
+## 新手教學的系統用 Mal(見 TutorialGuide、Pet.system_guide):只用素材包的圖與預設值,不讀寫任何設定檔、狀態、積木檔,
+## 不進名單、不進 "pets" 群組(其他桌寵、積木、好感度、邀請、家具、道具、系統匣、管理視窗都看不到它)。
+func spawn_system_guide(pack: Dictionary) -> Node2D:
+	var pet: Node2D = (load(PET_SCENE_PATH) as PackedScene).instantiate()
+	pet.system_guide = true
+	_pets_layer.add_child(pet)
+	pet.bind_action_area(action_area)
+	var meta: Dictionary = pack["meta"]
+	pet.set_sprite_frames(pack["frames"])
+	pet.set_smooth_scaling(bool(meta["smooth"]))
+	pet.set_body_scale(float(meta["scale"]))
+	pet.set_art_flipped(bool(meta["art_flipped"]))
+	pet.display_name = "Mal"
+	pet.recognition_tag = TutorialGuide.GUIDE_TAG
+	pet.auto_dance_enabled = false
+	var rect: Rect2 = action_area.boundary_rect
+	pet.position = Vector2(rect.get_center().x, rect.position.y + 60.0)
+	pet.begin_entrance()
+	return pet
 
 
 ## 懸浮球選單的按鈕:開對應的視窗(道具欄與清空道具由球自己處理)。
 func _on_ball_action(action: String) -> void:
 	match action:
-		"props":
-			_open_props()
-		"furniture":
+		"objects":
 			_open_furniture_library()
 		"hide_outside_furniture":
 			_on_hide_outside_furniture_toggled(not furniture_manager.hide_outside_area)
@@ -1024,8 +1067,6 @@ func _on_ball_action(action: String) -> void:
 			_open_settings()
 		"tester":
 			_open_tester()
-		"pack_editor":
-			_on_edit_pack()
 
 
 ## 清空桌面上丟出來的道具(系統匣、小道具視窗、懸浮球共用),回傳清掉幾個。
@@ -1033,26 +1074,29 @@ func clear_props() -> int:
 	return prop_manager.clear_all()
 
 
-## 開啟(或叫到前景)小道具視窗(物品欄:丟到桌面、新增與編輯小道具)。同時只會有一個。
+## 開啟(或叫到前景)「交互物件管理」視窗並切到指定的頁籤("furniture" 家具庫 / "props" 道具庫,見 ObjectManagerWindow)。
+## 同時只會有一個。2026-10-13 以前家具庫、道具管理各是一個視窗。
+func _open_objects(tab: String) -> void:
+	if is_instance_valid(_objects_window):
+		_objects_window.show_tab(tab)
+		_objects_window.bring_to_front()
+		return
+	_objects_window = ObjectManagerWindow.new()
+	add_child(_objects_window)
+	_objects_window.setup(prop_manager, furniture_manager)
+	_objects_window.edit_prop_sprite_requested.connect(func(prop_id: String) -> void: open_prop_editor(prop_id))
+	_objects_window.edit_furniture_sprite_requested.connect(func(furniture_id: String) -> void: open_furniture_editor(furniture_id))
+	_objects_window.show_tab(tab)
+
+
+## 道具庫頁籤(物品欄:丟到桌面、新增與編輯小道具)。
 func _open_props() -> void:
-	if is_instance_valid(_props_window):
-		_props_window.bring_to_front()
-		return
-	_props_window = PropsWindow.new()
-	add_child(_props_window)
-	_props_window.setup(prop_manager)
-	(_props_window as PropsWindow).edit_sprite_requested.connect(func(prop_id: String) -> void: open_prop_editor(prop_id))
+	_open_objects("props")
 
 
-## 開啟(或叫到前景)家具庫視窗(第一批純裝飾:新增/改名/觸發方式、放上桌面,見 FurnitureWindow)。同時只會有一個。
+## 家具庫頁籤(新增/改名/觸發方式、放上桌面,見 FurnitureLibraryTab)。
 func _open_furniture_library() -> void:
-	if is_instance_valid(_furniture_window):
-		_furniture_window.bring_to_front()
-		return
-	_furniture_window = FurnitureWindow.new()
-	add_child(_furniture_window)
-	_furniture_window.setup(furniture_manager)
-	(_furniture_window as FurnitureWindow).edit_sprite_requested.connect(func(furniture_id: String) -> void: open_furniture_editor(furniture_id))
+	_open_objects("furniture")
 
 
 ## 使用者雙擊一件容器家具:開啟(或叫到前景)它的「查看內容物」視窗(見 FurnitureManager.container_open_requested、
@@ -1127,6 +1171,9 @@ func _on_import_logic(pet: Node) -> void:
 
 func _on_tray_toggle_frame() -> void:
 	action_area.set_frame_visible(not action_area.frame_visible)
+	action_area.save_frame_visible()
+	_tray.frame_hidden = not action_area.frame_visible
+	_tray.refresh_pets()
 
 
 func _on_tray_move_mode(pet: Node, mode: int) -> void:
@@ -1282,6 +1329,7 @@ func _process(_delta: float) -> void:
 	var window := get_window()
 	if not window.transparent:
 		window.transparent = true
+	_poll_os_passthrough()
 	if _shell_state.is_passthrough_frozen:
 		# 右鍵暫時穿透:整個視窗完全無視點擊。
 		window.mouse_passthrough = true
@@ -1585,6 +1633,12 @@ func _start_passthrough() -> void:
 	_shell_state.passthrough_started.emit()
 	modulate.a = PASSTHROUGH_ALPHA
 	_set_overlay_passthrough_fade(PASSTHROUGH_ALPHA)
+	# 系統層級的穿透要開一個小行程去套用(約 1 秒,見 _set_os_passthrough):等它生效才開始倒數,使用者拿到的是完整的穿透時間。
+	_set_os_passthrough(true)
+	var waited := 0.0
+	while not _os_passthrough_job.is_empty() and waited < OS_PASSTHROUGH_WAIT:
+		await get_tree().process_frame
+		waited += get_process_delta_time()
 	await get_tree().create_timer(PASSTHROUGH_DURATION).timeout
 	_end_passthrough()
 
@@ -1594,6 +1648,39 @@ func _end_passthrough() -> void:
 	_set_overlay_passthrough_fade(1.0)
 	_shell_state.is_passthrough_frozen = false
 	_shell_state.passthrough_ended.emit()
+	_set_os_passthrough(false)
+
+
+## 右鍵暫時穿透期間,讓主視窗在系統層級真的不收滑鼠(加上 WS_EX_TRANSPARENT,見 ClickThrough)。
+## 2026-10-13 使用者實機回報:觸發了右鍵穿透,桌寵擋住的後方內容(瀏覽器的上一頁、網頁按鈕)還是點不到。
+## 原因:Window.mouse_passthrough 在 Windows 只是讓點擊測試回 HTTRANSPARENT,只會穿給「同一個程式」的視窗;
+## 桌寵身上那一塊仍然是主視窗的形狀(穿透多邊形),別的程式照樣被擋住——看起來淡掉了,實際上沒有穿透。
+## 套用/拿掉都是開一個一次性的小行程去做(GDScript 沒有系統呼叫),結果在 _process 裡收(_poll_os_passthrough);
+## 「拿掉」失敗的話主視窗會一直點不到,所以失敗會重試。無頭、非 Windows 時 start 回空字典,什麼都不做(照舊)。
+const OS_PASSTHROUGH_WAIT := 4.0
+const OS_PASSTHROUGH_RETRIES := 3
+var _os_passthrough_job := {}
+var _os_passthrough_wanted := false
+var _os_passthrough_retries := 0
+
+
+func _set_os_passthrough(on: bool) -> void:
+	_os_passthrough_wanted = on
+	_os_passthrough_retries = OS_PASSTHROUGH_RETRIES
+	_os_passthrough_job = ClickThrough.start(get_window(), true, on)
+
+
+func _poll_os_passthrough() -> void:
+	if _os_passthrough_job.is_empty():
+		return
+	var done: Variant = ClickThrough.poll(_os_passthrough_job)
+	if done == null:
+		return
+	_os_passthrough_job = {}
+	if done == false and _os_passthrough_retries > 0:
+		var retries := _os_passthrough_retries - 1
+		_set_os_passthrough(_os_passthrough_wanted)
+		_os_passthrough_retries = retries
 
 
 ## modulate 設在 self(Node2D)上只會淡化基礎 2D 世界(桌寵、行動區框)那一層——CanvasLayer 不是 CanvasItem,

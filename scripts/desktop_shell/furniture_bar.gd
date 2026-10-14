@@ -25,6 +25,8 @@ var _was_open := false
 var _shell_state: Node
 
 
+var _font_k := 1.0
+
 func setup(action_area: Node, manager: FurnitureManager) -> void:
 	_area = action_area
 	_manager = manager
@@ -167,6 +169,7 @@ func _draw() -> void:
 	var accent: Color = colors["accent"]
 	var muted: Color = colors["muted"]
 	var font := UiFonts.get_font(str(look["font"]))
+	_font_k = UiFonts.size_correction(str(look["font"]))   # 寫死的字級乘上字體的視覺校正(Silver 會放大)
 	var panel: Rect2 = _rects["panel"]
 	var local_panel := Rect2(panel.position - global_position, panel.size)
 	var style := StyleBoxFlat.new()
@@ -175,10 +178,10 @@ func _draw() -> void:
 	style.set_border_width_all(1)
 	style.set_corner_radius_all(8)
 	draw_style_box(style, local_panel)
-	draw_string(font, local_panel.position + Vector2(PANEL_PAD + 2.0, PANEL_HEADER * 0.7), tr("家具欄(編輯模式)"), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, text_color)
+	draw_string(font, local_panel.position + Vector2(PANEL_PAD + 2.0, PANEL_HEADER * 0.7), tr("家具欄(編輯模式)"), HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(14 * _font_k), text_color)
 	if _defs.is_empty():
-		draw_string(font, local_panel.position + Vector2(PANEL_PAD, PANEL_HEADER + 26.0), tr("還沒有家具"), HORIZONTAL_ALIGNMENT_LEFT, panel.size.x - 16.0, 14, muted)
-		draw_string(font, local_panel.position + Vector2(PANEL_PAD, PANEL_HEADER + 48.0), tr("到「家具庫」新增"), HORIZONTAL_ALIGNMENT_LEFT, panel.size.x - 16.0, 12, muted)
+		draw_string(font, local_panel.position + Vector2(PANEL_PAD, PANEL_HEADER + 26.0), tr("還沒有家具"), HORIZONTAL_ALIGNMENT_LEFT, panel.size.x - 16.0, roundi(14 * _font_k), muted)
+		draw_string(font, local_panel.position + Vector2(PANEL_PAD, PANEL_HEADER + 48.0), tr("到「家具庫」新增"), HORIZONTAL_ALIGNMENT_LEFT, panel.size.x - 16.0, roundi(12 * _font_k), muted)
 	for id: String in _rects:
 		if not id.begins_with("slot:"):
 			continue
@@ -189,7 +192,7 @@ func _draw() -> void:
 		draw_rect(local_slot, Color(panel_color, 0.9) if _hover_id != id else accent)
 		_draw_icon(font, def, local_slot, text_color)
 	if _max_scroll_col() > 0:
-		draw_string(font, local_panel.position + Vector2(panel.size.x - 90.0, PANEL_HEADER * 0.7), "◀ %d/%d ▶" % [_scroll_col + 1, _max_scroll_col() + 1], HORIZONTAL_ALIGNMENT_RIGHT, 60.0, 11, muted)
+		draw_string(font, local_panel.position + Vector2(panel.size.x - 90.0, PANEL_HEADER * 0.7), "◀ %d/%d ▶" % [_scroll_col + 1, _max_scroll_col() + 1], HORIZONTAL_ALIGNMENT_RIGHT, 60.0, roundi(11 * _font_k), muted)
 
 
 func _draw_icon(font: Font, def: FurnitureDef, slot: Rect2, text_color: Color) -> void:
@@ -207,5 +210,5 @@ func _draw_icon(font: Font, def: FurnitureDef, slot: Rect2, text_color: Color) -
 		style.set_corner_radius_all(6)
 		draw_style_box(style, icon_box)
 		var letter := def.display_name.left(1)
-		draw_string(font, icon_box.position + Vector2(icon_box.size.x * 0.5 - 9.0, icon_box.size.y * 0.7), letter, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(0.1, 0.1, 0.12))
-	draw_string(font, slot.position + Vector2(2.0, slot.size.y - 6.0), def.display_name, HORIZONTAL_ALIGNMENT_CENTER, slot.size.x - 4.0, 11, text_color)
+		draw_string(font, icon_box.position + Vector2(icon_box.size.x * 0.5 - 9.0, icon_box.size.y * 0.7), letter, HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(22 * _font_k), Color(0.1, 0.1, 0.12))
+	draw_string(font, slot.position + Vector2(2.0, slot.size.y - 6.0), def.display_name, HORIZONTAL_ALIGNMENT_CENTER, slot.size.x - 4.0, roundi(11 * _font_k), text_color)

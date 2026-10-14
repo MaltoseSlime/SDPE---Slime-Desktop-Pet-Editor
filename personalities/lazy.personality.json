@@ -690,8 +690,8 @@
       "run_chance": 0.015,
       "run_speed_multiplier": 1.5,
       "sleep_duration": [
-        300.0,
-        900.0
+        1800.0,
+        3600.0
       ],
       "sociability": 0.25,
       "tired_move_factor": 0.5,

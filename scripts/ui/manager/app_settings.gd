@@ -523,7 +523,7 @@ static func appearance() -> Dictionary:
 			colors[key] = Color.html(str(base[key]))
 		else:
 			colors[key] = Color.WHITE
-	var font_name := str(config.get_value("editor_ui", "font", "黑體"))
+	var font_name := UiFonts.canonical(str(config.get_value("editor_ui", "font", "黑體")))
 	if not UiFonts.FONT_NAMES.has(font_name):
 		font_name = "黑體"
 	return {"preset": preset if preset == "custom" or PRESETS.has(preset) else DEFAULT_PRESET, "colors": colors, "font": font_name,
@@ -554,13 +554,20 @@ static func reset_appearance() -> void:
 	config.save(SETTINGS_PATH)
 
 
+## 編輯器介面目前字體的視覺大小校正倍率(Silver 這類看起來偏小的字體 > 1,見 UiFonts.size_correction)。
+## 寫死字級的地方(標題、版本號、自己畫字的面板)要乘上它才會跟主題的字級一起變。會讀設定檔,別在迴圈裡一直叫。
+static func font_correction() -> float:
+	return UiFonts.size_correction(str(appearance()["font"]))
+
+
 ## 依外觀設定做出視窗化編輯器共用的主題:字體、字級、按鈕/輸入框/清單/分頁的配色與只有滾輪的細捲軸。
 static func build_theme() -> Theme:
 	var look := appearance()
 	var c: Dictionary = look["colors"]
 	var theme := Theme.new()
-	theme.default_font = UiFonts.get_font(str(look["font"]))
-	theme.default_font_size = int(look["font_size"])
+	# 像素體 Silver 同一個字級看起來明顯比較小:編輯器介面也照對話氣泡那套倍率私底下放大(見 UiFonts.size_correction)。
+	theme.default_font_size = roundi(int(look["font_size"]) * UiFonts.size_correction(str(look["font"])))
+	theme.default_font = UiFonts.get_ui_font(str(look["font"]), theme.default_font_size)   # 行高校正做在字型上(見 UiFonts.get_ui_font)
 	var bg: Color = c["bg"]
 	var panel: Color = c["panel"]
 	var text: Color = c["text"]
@@ -589,10 +596,13 @@ static func build_theme() -> Theme:
 	theme.set_stylebox("hover", "Button", _flat(button.lightened(0.14), 5, 10, 5))
 	theme.set_stylebox("pressed", "Button", _flat(accent, 5, 10, 5))   # 強調色一律用原色,不要調暗或加透明(配色組是使用者調好的)
 	theme.set_stylebox("disabled", "Button", _flat(Color(button, 0.5), 5, 10, 5))
+	# 「按下 + 滑過」也要明著給:勾選項(CheckBox/CheckButton)沿用按鈕的樣式,這一個沒給的話會掉回引擎預設的空樣式
+	# (邊距 4,其他狀態是 10/5)——勾起來的項目一滑過邊距就變,文字跟著位移、自動換行的還會重排閃爍(2026-10-14 使用者回報)。
+	theme.set_stylebox("hover_pressed", "Button", _flat(accent, 5, 10, 5))
 	# focus 外框的 content_margin 要跟 normal 完全一樣(不能留給引擎自動算),不然拿到焦點的瞬間控制項的最小尺寸會變,
 	# 逼旁邊自動換行的文字重排、焦點框又跟著重排後的新位置再抖一次,兩個一直互相觸發就會閃爍。
 	theme.set_stylebox("focus", "Button", _outline(accent, 5, 10, 5))
-	for state in ["normal", "hover", "pressed", "disabled"]:
+	for state in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
 		theme.set_stylebox(state, "OptionButton", theme.get_stylebox(state, "Button"))
 	theme.set_stylebox("focus", "OptionButton", theme.get_stylebox("focus", "Button"))
 	for input_type in ["LineEdit", "TextEdit"]:

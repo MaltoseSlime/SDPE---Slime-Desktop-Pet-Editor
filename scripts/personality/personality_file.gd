@@ -398,8 +398,15 @@ static func trigger_label(trigger: String) -> String:
 ## 參數名稱的短版(去掉括號裡的補充說明)。要先翻譯再截斷:反過來的話,截斷後的片段幾乎不可能剛好等於
 ## translations/ui_strings.csv 裡的完整原文,查表永遠對不上(2026-09-30 使用者回報桌寵管理→性格分頁的
 ## 參數列表大半沒翻譯到,只有原文剛好沒有括號、截斷等於沒截的那幾項才翻得到,根因就是這個)。
+## 翻譯後的括號可能是半形(英文「Fatigue rate (energy used…)」):全形、半形都要截,不然英文介面每個參數都顯示整句,
+## 把性格分頁的左欄撐得很寬(2026-10-13 使用者實機回報)。
 static func short_label(key: String) -> String:
-	return TranslationServer.translate(PersonalityParams.label_of(key)).split("(")[0].strip_edges()
+	return cut_note(TranslationServer.translate(PersonalityParams.label_of(key)))
+
+
+## 去掉文字後面括號裡的補充說明(全形「(」或前面有空格的半形「 (」)。
+static func cut_note(text: String) -> String:
+	return text.split("(")[0].split(" (")[0].strip_edges()
 
 
 ## 一個參數值相對預設值的白話註解(偏快/偏慢…);沒有特別的就回空字串。

@@ -258,6 +258,8 @@ var hops_left := 0
 var action_generation := 0
 
 var _interact_left := 0.0
+## 睡覺/休息/玩球中被摸(不切 interact 動作的那種,見 _on_petted)的「還在摸」倒數,作用等同 _interact_left。
+var _quiet_petting_left := 0.0
 var _shell_state: Node
 var _auto_chat_left := -1.0
 var _dance_left := 0.0
@@ -397,12 +399,20 @@ var _gravity: float = ProjectSettings.get_setting("physics/2d/default_gravity", 
 ## 用 get_nodes_in_group("pets") 找對象),也不觸發 pet_registered(不會被存進桌寵名單/開機自動召喚清單)。
 ## 其餘初始化(邏輯直譯器、數值、性格套用元件)照常建立,管理視窗的各個分頁才讀寫得到。
 var ghost_edit := false
+## 新手教學的「系統用 Mal」(見 TutorialGuide、DesktopShell.spawn_system_guide):看得到、點得到、會說話,但不是使用者的桌寵——
+## 不進 "pets" 群組,所以其他桌寵、積木事件、好感度、遊戲邀請、家具、道具、系統匣與管理視窗都找不到它;右鍵選單只有移動模式。
+## 拖曳/右鍵的命中判定另外從 PetInteraction.SYSTEM_GUIDE_GROUP 群組找它。
+## 要在加進場景樹之前設好。
+var system_guide := false
 
 
 func _ready() -> void:
 	if not ghost_edit:
 		add_to_group("Cutout")
-		add_to_group("pets")
+		if not system_guide:
+			add_to_group("pets")
+		else:
+			add_to_group(PetInteraction.SYSTEM_GUIDE_GROUP)
 	if params == null:
 		params = PetMovementParams.new()
 	floor_max_angle = deg_to_rad(5.0)
@@ -1294,6 +1304,7 @@ func attach_overlays(spec: Dictionary, base_dir: String) -> Array[String]:
 	_visual_root.add_child(_overlays)
 	report = _overlays.setup(self, spec, base_dir, base_size, _sprite.position)
 	_overlays.set_disabled(disabled_accessories)
+	_overlays.set_offsets(layer_offsets)
 	if _overlays.part_count() == 0:
 		_overlays.queue_free()
 		_overlays = null
@@ -1326,6 +1337,83 @@ func set_accessory_enabled(part_name: String, enabled: bool) -> void:
 	if _overlays != null:
 		_overlays.set_disabled(disabled_accessories)
 	PetProfile.save_pet(self)
+
+
+## 積木「移動圖層」累積下來的位移(存在角色設定檔的 "layerOffsets"):{圖層名稱: Vector2}。
+## 位移是加在圖層錨點上的像素(縮放前;角色左右翻轉時跟著一起翻)。上下左右各最多 LAYER_OFFSET_LIMIT。
+const LAYER_OFFSET_LIMIT := 2000.0
+var layer_offsets: Dictionary = {}
+
+
+## 積木指定的圖層名稱 → 實際要動的圖層名稱清單。空白或「*」= 這隻桌寵的所有圖層;找不到的名稱回空清單(什麼都不做)。
+func _layer_targets(layer_name: String) -> Array[String]:
+	var all: Array[String] = _overlays.layer_names() if _overlays != null else ([] as Array[String])
+	var wanted := layer_name.strip_edges()
+	if wanted == "" or wanted == "*":
+		return all
+	var found: Array[String] = []
+	if all.has(wanted):
+		found.append(wanted)
+	return found
+
+
+## 積木「顯示/隱藏圖層」:跟右鍵選單「變更配件」是同一份開關(會記住,重開後維持),差別是眨眼、說話差分也能關。
+func set_layer_visible(layer_name: String, on: bool) -> void:
+	var targets := _layer_targets(layer_name)
+	if targets.is_empty():
+		return
+	for target in targets:
+		disabled_accessories.erase(target)
+		if not on:
+			disabled_accessories.append(target)
+	_overlays.set_disabled(disabled_accessories)
+	PetProfile.save_pet(self)
+
+
+func is_layer_visible(layer_name: String) -> bool:
+	var targets := _layer_targets(layer_name)
+	return not targets.is_empty() and targets.all(func(target: String) -> bool: return not disabled_accessories.has(target))
+
+
+## 積木「移動圖層」:在目前的位移上再加 delta(像素);會記住,重開後維持。
+func move_layer(layer_name: String, delta: Vector2) -> void:
+	var targets := _layer_targets(layer_name)
+	if targets.is_empty():
+		return
+	for target in targets:
+		var moved: Vector2 = (layer_offsets.get(target, Vector2.ZERO) as Vector2) + delta
+		moved = moved.clamp(Vector2.ONE * -LAYER_OFFSET_LIMIT, Vector2.ONE * LAYER_OFFSET_LIMIT)
+		if moved.is_zero_approx():
+			layer_offsets.erase(target)
+		else:
+			layer_offsets[target] = moved
+	_overlays.set_offsets(layer_offsets)
+	PetProfile.save_pet(self)
+
+
+## 積木「圖層回到原位」:清掉移動圖層累積的位移。
+func reset_layer_offset(layer_name: String) -> void:
+	var targets := _layer_targets(layer_name)
+	if targets.is_empty():
+		return
+	for target in targets:
+		layer_offsets.erase(target)
+	_overlays.set_offsets(layer_offsets)
+	PetProfile.save_pet(self)
+
+
+## 從設定檔讀回圖層位移({名稱: [x, y]});格式不對的略過。
+func set_layer_offsets(data: Variant) -> void:
+	layer_offsets.clear()
+	if data is Dictionary:
+		for key: Variant in data:
+			var value: Variant = data[key]
+			if value is Array and (value as Array).size() >= 2 and layer_offsets.size() < PetOverlays.MAX_PARTS:
+				var point := Vector2(float(str(value[0]).to_float()), float(str(value[1]).to_float()))
+				if is_finite(point.x) and is_finite(point.y) and not point.is_zero_approx():
+					layer_offsets[str(key)] = point.clamp(Vector2.ONE * -LAYER_OFFSET_LIMIT, Vector2.ONE * LAYER_OFFSET_LIMIT)
+	if _overlays != null:
+		_overlays.set_offsets(layer_offsets)
 
 
 ## 貼合行動框底部移動(右鍵選單開關;半身立繪預設開):腳底永遠貼著行動區底邊,拖曳與各種移動只沿著底邊橫向走。
@@ -1589,6 +1677,12 @@ func _is_petting_protected() -> bool:
 ## 沒寫這個反應就退回睡眠中的閒聊文本(夢話)說一句,連那個都沒有才完全沒反應。休息中/玩球中照舊用 interact。
 func _on_petted() -> void:
 	if _is_petting_protected():
+		# 平時的摸摸靠「interact 動作開始」觸發反應,一直摸著動作沒換就只觸發一次、停手 PETTING_TAIL 秒後才算下一次;
+		# 這裡不切動作,要自己記同樣的冷卻(2026-10-13 使用者實機回報:坐下/休息時一直摸會每一兩秒重複觸發反應)。
+		var continuing := _quiet_petting_left > 0.0
+		_quiet_petting_left = PETTING_TAIL
+		if continuing:
+			return
 		var reacted := false
 		if logic != null and is_sleeping():
 			if logic.has_action_hat(&"interact_sleeping"):
@@ -1614,6 +1708,8 @@ func _on_petted() -> void:
 
 ## 摸摸中每次來回搖晃都把倒數重新拉回 PETTING_TAIL,所以是「停手後 1 秒」而不是「偵測到摸摸後 1 秒」。
 func _on_petting_moved() -> void:
+	if _quiet_petting_left > 0.0:
+		_quiet_petting_left = PETTING_TAIL
 	if _interact_left > 0.0:
 		_last_user_msec = Time.get_ticks_msec()
 		_interact_left = maxf(_interact_left, PETTING_TAIL)
@@ -2675,14 +2771,28 @@ func clamp_to_bounds(point: Vector2) -> Vector2:
 	return clamped
 
 
+## 休息中(站著發呆/坐下/睡著)被拖起來(2026-10-13 使用者要求):放下、落地後接著原本那一段休息(見
+## PetVitality.remember_rest_for_drag);睡著的不會被吵醒——拖著的期間維持睡覺的樣子,不播 drag、不觸發
+## 「被拖曳」的反應與心情變化(_drag_asleep)。坐在家具上的照舊(拖走就是離開家具)。
+var _drag_asleep := false
+
+
 func begin_drag() -> void:
 	_exit_climb(false, false)
+	_drag_asleep = false
+	if vitality != null and not is_using_furniture():
+		_drag_asleep = vitality.mode == PetVitality.Mode.SLEEPING and is_sleeping()
+		vitality.remember_rest_for_drag()
+	if relax != null and not relaxing():
+		relax.reset()   # 平時正走去挑好的座位(見 PetRelax 檔頭):被拖走就算了
 	dragging = true
 	_interrupt()
 	velocity = Vector2.ZERO
 	_interact_left = 0.0
 	_edge_committed = false
 	_jump_target_x = NAN
+	if _drag_asleep:
+		return
 	_play(&"drag", -1, ActionPriority.INTERACTION)
 	effects.play_interaction("drag")
 
@@ -2690,6 +2800,9 @@ func begin_drag() -> void:
 ## 放開拖曳:把拖曳速度當成初速度拋出,之後交還給目前移動模式(地面/飛行順著重力落下或飛回巡航高度)。
 func end_drag(throw_velocity: Vector2) -> void:
 	dragging = false
+	_drag_asleep = false
+	if vitality != null:
+		vitality.drag_released()
 	if move_mode == MoveMode.FIXED:
 		velocity = Vector2.ZERO
 		if bottom_anchored:
@@ -2959,7 +3072,8 @@ func _react_to_pet_contact(other: Node, level: int) -> void:
 	if not free_to_move:
 		return
 	if level > 0:
-		if not is_following() and not has_negative_lens():
+		# 正走去挑好的座位(多半就是牠旁邊,見 PetRelax 檔頭的非放鬆模式)就不改成跟隨,照原本的打算走到位坐下。
+		if not is_following() and not has_negative_lens() and not relax.seeking():
 			start_follow(other.recognition_tag)
 	else:
 		_avoid_pet_tag = other.recognition_tag
@@ -3442,7 +3556,7 @@ func prop_preference(def: PropDef) -> String:
 	return InteractionRules.preference_of(interaction_rules, def.id)
 
 
-## 最低優先的移動目標:正在玩的球 > 喜歡的道具(已經掉在地上、能直接撿) > 容器裡有庫存的喜歡道具(要走過去拿)。
+## 最低優先的移動目標:正在玩的球 > 喜歡的道具(已經掉在地上、能直接撿) > 容器裡有庫存的喜歡道具(要走過去拿) > 挑好的座位。
 func _secondary_goal() -> Variant:
 	var play_goal: Variant = ball_play.goal() if ball_play != null else null
 	if play_goal != null:
@@ -3450,7 +3564,11 @@ func _secondary_goal() -> Variant:
 	var liked: Variant = _liked_prop_goal()
 	if liked != null:
 		return liked
-	return _container_goal()
+	var container: Variant = _container_goal()
+	if container != null:
+		return container
+	# 非放鬆模式的找座位(見 PetRelax 檔頭):什麼都不追的時候才走去挑好的座位。
+	return relax.movement_goal() if relax != null else null
 
 
 func _liked_prop_goal() -> Variant:
@@ -3467,6 +3585,10 @@ func _liked_prop_goal() -> Variant:
 			if item == null or item.def == null or not item.def.toss or item.consuming or item.dragging or item.collected or not item.landed:
 				continue
 			if prop_preference(item.def) != "like":
+				continue
+			# 拾取冷卻中(剛拿過道具/剛拿過同一種,見 PropManager.pickup_ready)撿不起來的不去追,免得走過去站在道具上乾等。
+			var manager := item.get_parent() as PropManager
+			if manager != null and item.delivered_to != self and not manager.pickup_ready(self, item.def):
 				continue
 			var distance := global_position.distance_to(item.global_position)
 			if distance < best:
@@ -3746,6 +3868,10 @@ func _build_context_menu() -> RID:
 	var header_index := NativeMenu.add_item(root, "▍" + _bold_letters(get_label()))
 	NativeMenu.set_item_disabled(root, header_index, true)
 	NativeMenu.add_separator(root)
+	if system_guide:
+		# 新手教學的系統用 Mal:只留教學講到的「移動模式」,其他項目(外觀、配件、計時…)會讀寫角色資料,不給它。
+		_add_move_mode_menu(root)
+		return root
 	var status_index := NativeMenu.add_item(root, tr("查看狀態"), _on_context_item, Callable(), "status")
 	NativeMenu.set_item_disabled(root, status_index, status_requested.get_connections().is_empty())
 	NativeMenu.add_item(root, tr("幫我決定…"), _on_context_item, Callable(), "decide")
@@ -3778,13 +3904,17 @@ func _build_context_menu() -> RID:
 	var pin_index := NativeMenu.add_check_item(root, tr("固定氣泡位置"), _on_context_item, Callable(), "bubble_pin")
 	NativeMenu.set_item_checked(root, pin_index, bubble_pinned)
 	NativeMenu.set_item_disabled(root, pin_index, not bubble_pinned and not has_open_bubble)
+	_add_move_mode_menu(root)
+	return root
+
+
+func _add_move_mode_menu(root: RID) -> void:
 	var modes := NativeMenu.create_menu()
 	_context_rids.append(modes)
 	for mode in MODE_LABELS.size():
 		var index := NativeMenu.add_radio_check_item(modes, tr(MODE_LABELS[mode]), _on_context_item, Callable(), mode)
 		NativeMenu.set_item_checked(modes, index, mode == move_mode)
 	NativeMenu.add_submenu_item(root, tr("移動模式"), modes)
-	return root
 
 
 ## 「幫我占卜…」子選單(2026-10-03 新增運勢籤,2026-10-04 新增塔羅牌)。
@@ -4206,7 +4336,8 @@ func _physics_process(delta: float) -> void:
 	if not _active_lenses.is_empty():
 		_tick_lenses()
 	if dragging:
-		_play(&"drag", -1, ActionPriority.INTERACTION)
+		if not _drag_asleep:
+			_play(&"drag", -1, ActionPriority.INTERACTION)
 		_offscreen_seconds = 0.0
 		return
 	if invisible:
@@ -4237,6 +4368,7 @@ func _physics_process(delta: float) -> void:
 			if may_ask:
 				_tick_ask_user_game(delta)
 	_interact_left = maxf(_interact_left - delta, 0.0)
+	_quiet_petting_left = maxf(_quiet_petting_left - delta, 0.0)
 	_converse_left = maxf(_converse_left - delta, 0.0)
 	_land_left = maxf(_land_left - delta, 0.0)
 	_airborne_grace = maxf(_airborne_grace - delta, 0.0)

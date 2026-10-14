@@ -49,7 +49,7 @@ func font_scale_factor() -> float:
 
 
 ## 文字實際大小要乘的總倍率:介面縮放 × 字級 × 這個字體自己的視覺大小校正(見 UiFonts.size_correction,
-## 例如像素體 Sliver 套用後看起來比其他字體小很多,私底下多放大一點,不需要使用者自己調)。
+## 例如像素體 Silver 套用後看起來比其他字體小很多,私底下多放大一點,不需要使用者自己調)。
 func text_scale_factor() -> float:
 	return scale_factor() * font_scale_factor() * UiFonts.size_correction(default_font)
 

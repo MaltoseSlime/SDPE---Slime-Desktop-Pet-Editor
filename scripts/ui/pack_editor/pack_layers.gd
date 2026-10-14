@@ -63,3 +63,42 @@ static func move(parts: Array, part_index: int, direction: int) -> Dictionary:
 			new_index = result.size()
 		result.append(copies[entry])
 	return {"parts": result, "index": new_index, "changed": true}
+
+
+# --- 逐幀顯示(overlays.json 部件的 frame_visible:{動作: [true / false / null, …]},執行端見 PetOverlays._frame_rule)---
+
+## 這個部件在這個動作、這一幀有沒有自己的顯示設定:true(這一幀顯示)/ false(這一幀不顯示);沒有回 null(照平常的規則)。
+static func frame_rule(part: Dictionary, action: String, frame: int) -> Variant:
+	var by_action: Variant = part.get("frame_visible")
+	if not (by_action is Dictionary and (by_action as Dictionary).get(action) is Array):
+		return null
+	var flags: Array = (by_action as Dictionary)[action]
+	if frame < 0 or frame >= flags.size() or not flags[frame] is bool:
+		return null
+	return flags[frame]
+
+
+## 寫入(value = true / false)或清掉(value = null)這一幀的顯示設定;整個動作都沒有設定了就把欄位拿掉,檔案保持乾淨。
+## frame_count = 這個動作有幾幀。動作是空字串時不做事。
+static func set_frame_rule(part: Dictionary, action: String, frame: int, frame_count: int, value: Variant) -> void:
+	if action == "" or frame < 0:
+		return
+	var by_action: Dictionary = (part.get("frame_visible") as Dictionary) if part.get("frame_visible") is Dictionary else {}
+	var flags: Array = (by_action.get(action) as Array).duplicate() if by_action.get(action) is Array else []
+	while flags.size() < maxi(frame_count, frame + 1):
+		flags.append(null)
+	flags[frame] = value if value is bool else null
+	if flags.any(func(entry: Variant) -> bool: return entry is bool):
+		by_action[action] = flags
+	else:
+		by_action.erase(action)
+	if by_action.is_empty():
+		part.erase("frame_visible")
+	else:
+		part["frame_visible"] = by_action
+
+
+## 沒有逐幀設定時,這個部件照平常的規則在這個動作會不會出現(「在這些動作顯示」有沒有列到)。
+static func shown_in_action(part: Dictionary, action: String) -> bool:
+	var actions: Variant = part.get("actions", ["*"])
+	return not actions is Array or (actions as Array).is_empty() or (actions as Array).has("*") or (actions as Array).has(action)

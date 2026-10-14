@@ -39,6 +39,8 @@ var _last_area_cache := Rect2()
 var _done := false
 
 
+var _font_k := 1.0
+
 func setup(area: Node, wanted: int, asked_question := "") -> void:
 	_area = area
 	need = clampi(wanted, 1, TarotDeck.MAJOR_ARCANA.size())
@@ -221,21 +223,22 @@ func _draw() -> void:
 	var accent: Color = colors["accent"]
 	var muted: Color = colors["muted"]
 	var font := UiFonts.get_font(str(look["font"]))
+	_font_k = UiFonts.size_correction(str(look["font"]))   # 寫死的字級乘上字體的視覺校正(Silver 會放大)
 	var panel: Rect2 = _rects["panel"]
 	var local_panel := Rect2(panel.position - global_position, panel.size)
 	draw_rect(local_panel, Color(bg, 0.95), true)
 	draw_rect(local_panel, Color(accent, 0.7), false, 2.0)
 	var header: Rect2 = _rects["header"]
 	var status := tr("選 %d 張牌(%d/%d)") % [need, picked.size(), need]
-	draw_string(font, Vector2(header.position.x - global_position.x + 6.0, header.position.y - global_position.y + 20.0), status, HORIZONTAL_ALIGNMENT_LEFT, header.size.x, 15, Color(text_color, 0.95))
+	draw_string(font, Vector2(header.position.x - global_position.x + 6.0, header.position.y - global_position.y + 20.0), status, HORIZONTAL_ALIGNMENT_LEFT, header.size.x, roundi(15 * _font_k), Color(text_color, 0.95))
 	var close: Rect2 = _rects["close"]
-	draw_string(font, Vector2(close.position.x - global_position.x + 4.0, close.position.y - global_position.y + 16.0), "×", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(muted, 0.9))
+	draw_string(font, Vector2(close.position.x - global_position.x + 4.0, close.position.y - global_position.y + 16.0), "×", HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(16 * _font_k), Color(muted, 0.9))
 	if question != "" and _rects.has("question"):
 		var bold_font := FontVariation.new()
 		bold_font.base_font = font
 		bold_font.variation_embolden = BOLD_EMBOLDEN
 		var question_rect: Rect2 = _rects["question"]
-		draw_string(bold_font, Vector2(question_rect.position.x - global_position.x, question_rect.position.y - global_position.y + 16.0), question, HORIZONTAL_ALIGNMENT_LEFT, question_rect.size.x, 15, Color(text_color, 0.95))
+		draw_string(bold_font, Vector2(question_rect.position.x - global_position.x, question_rect.position.y - global_position.y + 16.0), question, HORIZONTAL_ALIGNMENT_LEFT, question_rect.size.x, roundi(15 * _font_k), Color(text_color, 0.95))
 	for i in TarotDeck.MAJOR_ARCANA.size():
 		var cell: Rect2 = _rects["card:%d" % i]
 		var local_cell := Rect2(cell.position - global_position, cell.size)

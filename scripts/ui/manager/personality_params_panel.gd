@@ -6,7 +6,8 @@ extends VBoxContainer
 
 signal value_changed(key: String, value: Variant)
 
-const LABEL_WIDTH := 150.0
+## 名稱欄的最小寬度(放不下會換行)。「範圍」那種兩個數值框的列最寬:名稱 + 兩個數值框 + ↺ 要放得進性格分頁左欄的 320。
+const LABEL_WIDTH := 110.0
 
 var _rows: Dictionary = {}
 var _updating := false
@@ -60,11 +61,7 @@ func _build_row(key: String) -> void:
 					low.value = value
 					_updating = false
 				_emit(key, Vector2(low.value, high.value)))
-			var separator := Label.new()
-			separator.text = "~"
-			for control in [low, separator, high]:
-				row.add_child(control)
-			controls = [low, high]
+			controls = [low, high]   # 兩個數值框放第二列(下面 range_row):跟名稱擠同一列會超過性格分頁左欄的寬度,把右邊的套用預覽擠掉
 		"bool":
 			var box := CheckBox.new()
 			box.toggled.connect(func(on: bool) -> void: _emit(key, on))
@@ -79,13 +76,19 @@ func _build_row(key: String) -> void:
 		_emit(key, PersonalityParams.default_of(key)))
 	row.add_child(reset)
 	add_child(row)
+	if str(spec["kind"]) == "range":
+		var range_row := HBoxContainer.new()
+		range_row.alignment = BoxContainer.ALIGNMENT_END
+		var separator := Label.new()
+		separator.text = "~"
+		for control: Control in [controls[0], separator, controls[1]]:
+			range_row.add_child(control)
+		add_child(range_row)
 	if str(spec["kind"]) == "weights":
-		# 三個數值框(1/3/5 戰)擠在第一列裡會把整個視窗撐寬,改放第二列、跟標籤欄位對齊縮排。
-		var weight_row := HBoxContainer.new()
-		weight_row.add_theme_constant_override("separation", 6)
-		var indent := Control.new()
-		indent.custom_minimum_size.x = LABEL_WIDTH
-		weight_row.add_child(indent)
+		# 三個數值框(1/3/5 戰)擠在第一列裡會把整個視窗撐寬,改放第二列;欄位窄的時候自己換行。
+		var weight_row := HFlowContainer.new()
+		weight_row.alignment = FlowContainer.ALIGNMENT_END
+		weight_row.add_theme_constant_override("h_separation", 6)
 		for weight_key: int in PersonalityParams.WEIGHT_KEYS:
 			var caption := Label.new()
 			caption.text = tr("%d戰") % weight_key
@@ -95,11 +98,13 @@ func _build_row(key: String) -> void:
 			spin.allow_lesser = false
 			spin.custom_minimum_size.x = 64.0
 			spin.value_changed.connect(func(_value: float) -> void: _emit_weights(key))
-			weight_row.add_child(caption)
-			weight_row.add_child(spin)
+			var pair := HBoxContainer.new()
+			pair.add_child(caption)
+			pair.add_child(spin)
+			weight_row.add_child(pair)
 			controls.append(spin)
 		add_child(weight_row)
-	_rows[key] = {"kind": str(spec["kind"]), "controls": controls}
+	_rows[key] = {"kind": str(spec["kind"]), "controls": controls, "row": row}
 
 
 func _default_text(key: String) -> String:
@@ -113,7 +118,7 @@ func _spin(spec: Dictionary) -> SpinBox:
 	var spin := ManagerUi.spin(step, float(spec["min"]), float(spec["max"]))
 	spin.allow_greater = false
 	spin.allow_lesser = false
-	spin.custom_minimum_size.x = 84.0
+	spin.custom_minimum_size.x = 72.0
 	return spin
 
 

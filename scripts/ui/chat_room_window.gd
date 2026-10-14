@@ -93,6 +93,8 @@ var _icon_dragging := false
 ## action_area:收合後的圖示要能拖曳、且不能跑出行動區(跟懸浮球同一套做法,見 HoverBall.ball_center())。
 ## hover_ball:收合圖示要避開懸浮球,兩個都是使用者能拖著到處放的東西,疊在一起會分不清楚哪個是哪個
 ## (2026-09-30 使用者要求;彼此互推沒關係,這裡做成圖示自己避開球,球本身的位置不受影響)。
+var _font_k := 1.0
+
 func setup(action_area: Node, hover_ball: HoverBall) -> void:
 	_area = action_area
 	_hover_ball = hover_ball
@@ -624,6 +626,7 @@ func _make_line_label(pet: Node, text: String, color: Color, is_thought: bool) -
 	if style != null:
 		label.add_theme_font_override("normal_font", UiFonts.get_font(str(style.default_font)))
 		label.add_theme_font_size_override("normal_font_size", int(UiStyleKit.BASE_FONT_SIZE * style.text_scale_factor()))
+		label.add_theme_constant_override("line_separation", UiFonts.line_spacing(str(style.default_font), int(UiStyleKit.BASE_FONT_SIZE * style.text_scale_factor())))
 	label.text = _format_line(pet.get_label(), text, color, is_thought)
 	return label
 
@@ -825,4 +828,5 @@ func _draw() -> void:
 	style.set_corner_radius_all(10)
 	draw_style_box(style, Rect2(Vector2.ZERO, size))
 	var font := UiFonts.get_font(str((AppSettings.appearance() as Dictionary)["font"]))
-	draw_string(font, Vector2(10.0, TITLE_HEIGHT * 0.68), tr("聊天室"), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, accent)
+	_font_k = UiFonts.size_correction(str((AppSettings.appearance() as Dictionary)["font"]))   # 寫死的字級乘上字體的視覺校正(Silver 會放大)
+	draw_string(font, Vector2(10.0, TITLE_HEIGHT * 0.68), tr("聊天室"), HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(14 * _font_k), accent)

@@ -54,7 +54,7 @@ func _group_title(key: String) -> String:
 func _add_group(key: String) -> void:
 	var header := HBoxContainer.new()
 	var title := ManagerUi.heading(_group_title(key))
-	title.add_theme_font_size_override("font_size", 15)
+	ManagerUi.fixed_font_size(title, 15)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
 	var add := ManagerUi.button("＋新增一項")

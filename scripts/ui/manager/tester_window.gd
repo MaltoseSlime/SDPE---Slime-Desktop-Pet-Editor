@@ -252,7 +252,7 @@ func _build() -> void:
 	card = _new_card("跟著滑鼠")
 	_follow_seconds_spin = ManagerUi.spin(1.0, 3.0, 3600.0)
 	_follow_seconds_spin.value = 60.0
-	_follow_seconds_spin.suffix = " 秒"
+	_follow_seconds_spin.suffix = tr(" 秒")
 	card.add_child(_follow_seconds_spin)
 	var follow_row := _button_row()
 	follow_row.add_child(_action_button("這隻", func() -> void:

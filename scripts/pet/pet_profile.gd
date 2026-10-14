@@ -136,6 +136,7 @@ static func snapshot_pet(pet: Node) -> Dictionary:
 		"topicGenericLines": pet.topic_generic_custom.duplicate(true) if pet.topic_generic_custom is Array else null,
 		"interaction": pet.interaction_rules.duplicate(true),
 		"accessories": pet.disabled_accessories.duplicate(),
+		"layerOffsets": _layer_offsets_of(pet),
 		"mute": {"auto_unmute": pet.auto_unmute_enabled},
 		"status": {"energy": pet.status_show_energy, "mood": pet.status_show_mood},
 		"effects": {"sleep_z": pet.sleep_z.enabled, "all": pet.effects.enabled, "auto": pet.effects.auto_enabled, "styles": pet.effects.styles_to_dict(), "links": pet.effects.links_to_dict(), "trail": pet.effects.trail_mode},
@@ -249,6 +250,7 @@ static func _apply_pet_data(pet: Node, data: Dictionary) -> void:
 		pet.keywords = PetText.sanitize_keywords(data["keywords"])
 	pet.set_interaction_rules(data.get("interaction"))
 	pet.set_disabled_accessories(data.get("accessories"))
+	pet.set_layer_offsets(data.get("layerOffsets"))
 	if data.get("userKeywords") is Array:
 		pet.user_keywords = PetText.sanitize_keywords(data["userKeywords"])
 	pet.keyword_tags = _keyword_tag_dict(data.get("keywordTags"), pet.keywords)
@@ -440,7 +442,7 @@ static func apply_style(style: PetUiStyle, data: Variant) -> void:
 	style.corner_radius = clampi(int(_number(data.get("corner_radius"), style.corner_radius)), 0, PetUiStyle.MAX_CORNER_RADIUS)
 	style.ui_scale = PetUiStyle.nearest_scale_step(int(_number(data.get("ui_scale"), style.ui_scale)))
 	style.font_scale = PetUiStyle.nearest_scale_step(int(_number(data.get("font_scale"), style.font_scale)))
-	var font_name := str(data.get("default_font", style.default_font))
+	var font_name := UiFonts.canonical(str(data.get("default_font", style.default_font)))
 	if UiFonts.FONT_NAMES.has(font_name):
 		style.default_font = font_name
 	style.option_wait_seconds = clampf(_number(data.get("option_wait_seconds"), style.option_wait_seconds), PetUiStyle.MIN_OPTION_WAIT, PetUiStyle.MAX_OPTION_WAIT)
@@ -525,4 +527,13 @@ static func _topic_line_list(raw: Variant) -> Array:
 					if en != "":
 						line["en"] = en
 					result.append(line)
+	return result
+
+
+## 積木移動過的圖層位移,存成 {圖層名稱: [x, y]}。
+static func _layer_offsets_of(pet: Node) -> Dictionary:
+	var result := {}
+	for layer_name: String in pet.layer_offsets:
+		var offset: Vector2 = pet.layer_offsets[layer_name]
+		result[layer_name] = [offset.x, offset.y]
 	return result

@@ -62,6 +62,9 @@ func _ready() -> void:
 
 func _init_default_rect() -> void:
 	boundary_rect = _load_saved_rect()
+	var config := ConfigFile.new()
+	if config.load(SETTINGS_PATH) == OK:
+		frame_visible = not bool(config.get_value("frame", "hidden", false))
 
 
 ## 讀上次存的行動區(沒有、壞掉、數值不合理就用預設),並把它限制在目前視窗(螢幕)範圍內:
@@ -102,6 +105,15 @@ func set_frame_visible(value: bool) -> void:
 	frame_visible = value
 	_dragging_side = ""
 	queue_redraw()
+
+
+## 把「邊框要不要隱藏」記下來,下次開程式照舊(2026-10-13 使用者要求:不想每次開程式都要隱藏一遍)。
+## 只有使用者從系統匣切換時才存(見 DesktopShell._on_tray_toggle_frame),set_frame_visible() 本身不存。
+func save_frame_visible() -> void:
+	var config := ConfigFile.new()
+	config.load(SETTINGS_PATH)
+	config.set_value("frame", "hidden", not frame_visible)
+	config.save(SETTINGS_PATH)
 
 
 ## 把行動區重設為預設大小,並置中於指定的視窗座標(緊急召回用)。

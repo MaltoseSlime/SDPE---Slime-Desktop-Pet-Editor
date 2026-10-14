@@ -23,14 +23,26 @@ var _last_load: Dictionary = {}
 var _slot_rows: Array[Dictionary] = []
 
 
+## 目前正在蓋的卡片的內容區(_ready 裡三張卡片依序建立:重置記憶、記憶存檔、設定檔匯出/匯入)。
+var _box: VBoxContainer
+
+
+## 整列寬的卡片(這個分頁的內容都是橫向一長列的按鈕/欄位,不像其他分頁排成一行幾張)。
+func _new_card(title_text: String) -> VBoxContainer:
+	var built := ManagerUi.card(title_text)
+	(built["card"] as Control).size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	add_child(built["card"])
+	return built["box"]
+
+
 func _ready() -> void:
-	name = "記憶"
-	add_child(ManagerUi.heading("重置記憶"))
+	name = "記憶與檔案"
+	add_theme_constant_override("separation", 10)
+	_box = _new_card("重置記憶")
 	_summary = Label.new()
 	_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	add_child(_summary)
-	add_child(ManagerUi.hint_row("洗掉 Flag、局部數值與輸入的文字", "洗掉這隻桌寵所有事件 Flag、局部數值(回到宣告的預設值)與使用者輸入的文字(稱呼等)。動作、對話氣泡、事件積木、狀態鏡定義與介面設定完全不受影響。"))
-	add_child(HSeparator.new())
+	_box.add_child(_summary)
+	_box.add_child(ManagerUi.hint_row("洗掉 Flag、局部數值與輸入的文字", "洗掉這隻桌寵所有事件 Flag、局部數值(回到宣告的預設值)與使用者輸入的文字(稱呼等)。動作、對話氣泡、事件積木、狀態鏡定義與介面設定完全不受影響。"))
 	_clones_check = _check("同角色的所有複製品一起重置", true)
 	_saved_check = _check("一併清除已存的本體狀態檔(否則下次啟動會讀回舊記憶)", true)
 	_globals_check = _check("同時重置「全域數值」(所有桌寵共用,通常不要勾)", false)
@@ -40,23 +52,22 @@ func _ready() -> void:
 	_forget_check = _check("同時讓場上其他桌寵對這隻桌寵的好感度歸零(不能復原)", false)
 	var reset := ManagerUi.button("重置記憶…")
 	reset.pressed.connect(_open_confirm)
-	add_child(reset)
+	_box.add_child(reset)
 	_undo_button = ManagerUi.button("復原上一次重置 / 讀取")
 	_undo_button.disabled = true
 	_undo_button.pressed.connect(_undo)
-	add_child(_undo_button)
-	_build_personality_shortcuts()
+	_box.add_child(_undo_button)
 	_build_slots()
+	_build_personality_shortcuts()
 
 
 ## 性格檔的匯入/匯出跟性格分頁是同一份功能,這裡放一份方便使用者操作,不用特地切分頁(2026-09-30 使用者要求)。
 ## 2026-09-30 使用者要求把原本放在性格分頁的「導出 Schema / 匯入積木檔 / 匯出積木檔」也一併移來這裡集中,
 ## 標題正名為「設定檔匯出/匯入」(不再只是性格檔的捷徑)。
 func _build_personality_shortcuts() -> void:
-	add_child(HSeparator.new())
-	add_child(ManagerUi.heading("設定檔匯出/匯入"))
-	add_child(ManagerUi.hint_row("性格檔、Schema、積木檔的匯入/匯出都集中在這裡", "性格檔的匯入/匯出跟「性格」分頁裡的是同一份功能,匯入後切回性格分頁下拉選單會自動重新整理。Schema 跟積木檔的匯入/匯出跟系統匣右鍵選單是同一個功能,這裡放一份方便一起操作。"))
-	var row := HBoxContainer.new()
+	_box = _new_card("設定檔匯出/匯入")
+	_box.add_child(ManagerUi.hint_row("性格檔、Schema、積木檔的匯入/匯出都集中在這裡", "性格檔的匯入/匯出跟「性格」分頁裡的是同一份功能,匯入後切回性格分頁下拉選單會自動重新整理。Schema 跟積木檔的匯入/匯出跟系統匣右鍵選單是同一個功能,這裡放一份方便一起操作。"))
+	var row := HFlowContainer.new()   # 五顆按鈕排不下就折到下一列(英文版一整列會比視窗還寬)
 	var import_button := ManagerUi.button("匯入自訂性格…")
 	import_button.pressed.connect(_import_personality)
 	var export_button := ManagerUi.button("匯出目前設定為性格檔…")
@@ -72,7 +83,7 @@ func _build_personality_shortcuts() -> void:
 	export_logic.pressed.connect(_export_logic)
 	for control in [import_button, export_button, export_schema, import_logic, export_logic]:
 		row.add_child(control)
-	add_child(row)
+	_box.add_child(row)
 
 
 func _export_schema() -> void:
@@ -197,9 +208,8 @@ func export_personality_to(path: String) -> Error:
 
 ## 記憶存檔:5 格,把目前的記憶存起來、之後再讀回來(見 MemorySlots)。
 func _build_slots() -> void:
-	add_child(HSeparator.new())
-	add_child(ManagerUi.heading("記憶存檔(5 格)"))
-	add_child(ManagerUi.hint_row("把目前的記憶存起來,之後讀回來", "把這隻桌寵目前的記憶(局部數值、事件 Flag、使用者輸入的文字)存進一格,之後隨時讀回來,也可以在重置前先存一份。同角色的複製品共用這 5 格;狀態鏡與全域數值不在裡面。存檔立刻寫進檔案,不需要再按「儲存」。"))
+	_box = _new_card("記憶存檔(5 格)")
+	_box.add_child(ManagerUi.hint_row("把目前的記憶存起來,之後讀回來", "把這隻桌寵目前的記憶(局部數值、事件 Flag、使用者輸入的文字)存進一格,之後隨時讀回來,也可以在重置前先存一份。同角色的複製品共用這 5 格;狀態鏡與全域數值不在裡面。存檔立刻寫進檔案,不需要再按「儲存」。"))
 	for i in MemorySlots.SLOT_COUNT:
 		var row := HBoxContainer.new()
 		var index_label := Label.new()
@@ -220,7 +230,7 @@ func _build_slots() -> void:
 		clear_button.pressed.connect(_clear_slot.bind(i))
 		for control in [index_label, name_edit, info, save_button, load_button, clear_button]:
 			row.add_child(control)
-		add_child(row)
+		_box.add_child(row)
 		_slot_rows.append({"name": name_edit, "info": info, "load": load_button, "clear": clear_button})
 
 
@@ -320,7 +330,7 @@ func _check(text: String, on: bool) -> CheckBox:
 	var box := CheckBox.new()
 	box.text = text
 	box.button_pressed = on
-	add_child(box)
+	_box.add_child(box)
 	return box
 
 

@@ -21,7 +21,6 @@ public static class CT {
   public static void Apply(long handle) {
     IntPtr h = new IntPtr(handle);
     long ex = GetLong(h, -20).ToInt64();
-    SetLong(h, -20, new IntPtr(ex | 0x80000L | 0x20L));
     %s
   }
 }
@@ -31,10 +30,15 @@ Set-Content -Path '%s' -Value 'OK'
 """
 ## SetLayeredWindowAttributes 的變體(測試用,見 start 的 layered_alpha):空字串 = 不呼叫。
 const LAYERED_CALL := "SetLayeredWindowAttributes(h, 0, 255, 2);"
+## 加上穿透(WS_EX_LAYERED | WS_EX_TRANSPARENT)。
+const APPLY_CALL := "SetLong(h, -20, new IntPtr(ex | 0x80000L | 0x20L));"
+## 拿掉穿透(只拿掉 WS_EX_TRANSPARENT;WS_EX_LAYERED 留著,來回切換視窗不會閃)。主視窗「右鍵暫時穿透」結束時用。
+const REMOVE_CALL := "SetLong(h, -20, new IntPtr(ex & ~0x20L));"
 
 
 ## 開始套用;回傳 {pid, result}(給 poll);不是 Windows、沒有原生視窗代碼、開不了行程時回空字典。call_layered 是測試用(是否再呼叫 SetLayeredWindowAttributes)。
-static func start(window: Window, call_layered := true) -> Dictionary:
+## enable = false 是把之前加上的穿透拿掉(視窗恢復收得到滑鼠)。
+static func start(window: Window, call_layered := true, enable := true) -> Dictionary:
 	if OS.get_name() != "Windows" or DisplayServer.get_name() == "headless":
 		return {}
 	var handle := DisplayServer.window_get_native_handle(DisplayServer.WINDOW_HANDLE, window.get_window_id())
@@ -43,7 +47,8 @@ static func start(window: Window, call_layered := true) -> Dictionary:
 	var result_path := ProjectSettings.globalize_path("user://click_through_%d.txt" % handle)
 	if FileAccess.file_exists(result_path):
 		DirAccess.remove_absolute(result_path)
-	var script := SCRIPT_TEMPLATE % [LAYERED_CALL if call_layered else "", handle, result_path]
+	var body := (APPLY_CALL + (" " + LAYERED_CALL if call_layered else "")) if enable else REMOVE_CALL
+	var script := SCRIPT_TEMPLATE % [body, handle, result_path]
 	var encoded := Marshalls.raw_to_base64(script.to_utf16_buffer())
 	var pid := OS.create_process(POWERSHELL, ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded], false)
 	if pid <= 0:

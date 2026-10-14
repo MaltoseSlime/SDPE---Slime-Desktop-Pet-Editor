@@ -42,6 +42,8 @@ var _slot_colors: Array = []
 var _idle_left := IDLE_TIMEOUT
 
 
+var _font_k := 1.0
+
 func setup(area: Node, panel_title: String) -> void:
 	_area = area
 	title = panel_title
@@ -230,19 +232,20 @@ func _draw() -> void:
 	var accent: Color = colors["accent"]
 	var muted: Color = colors["muted"]
 	var font := UiFonts.get_font(str(look["font"]))
+	_font_k = UiFonts.size_correction(str(look["font"]))   # 寫死的字級乘上字體的視覺校正(Silver 會放大)
 	var panel: Rect2 = _rects["panel"]
 	var local_panel := Rect2(panel.position - global_position, panel.size)
 	draw_rect(local_panel, Color(bg, 0.95), true)
 	draw_rect(local_panel, Color(accent, 0.7), false, 2.0)
 	var header: Rect2 = _rects["header"]
-	draw_string(font, Vector2(header.position.x - global_position.x + 8.0, header.position.y - global_position.y + 18.0), title, HORIZONTAL_ALIGNMENT_LEFT, header.size.x - 16.0, 14, Color(text_color, 0.95))
+	draw_string(font, Vector2(header.position.x - global_position.x + 8.0, header.position.y - global_position.y + 18.0), title, HORIZONTAL_ALIGNMENT_LEFT, header.size.x - 16.0, roundi(14 * _font_k), Color(text_color, 0.95))
 	var close: Rect2 = _rects["close"]
-	draw_string(font, Vector2(close.position.x - global_position.x + 4.0, close.position.y - global_position.y + 16.0), "×", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(muted, 0.9))
+	draw_string(font, Vector2(close.position.x - global_position.x + 4.0, close.position.y - global_position.y + 16.0), "×", HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(16 * _font_k), Color(muted, 0.9))
 	var status_y := header.position.y - global_position.y + HEADER + 13.0
-	draw_string(font, Vector2(header.position.x - global_position.x + PAD - 2.0, status_y), status_text, HORIZONTAL_ALIGNMENT_LEFT, WIDTH - PAD * 2.0, 12, Color(text_color, 0.85))
+	draw_string(font, Vector2(header.position.x - global_position.x + PAD - 2.0, status_y), status_text, HORIZONTAL_ALIGNMENT_LEFT, WIDTH - PAD * 2.0, roundi(12 * _font_k), Color(text_color, 0.85))
 	var y := status_y + STATUS_HEIGHT
 	for line: String in _lines:
-		draw_string(font, Vector2(header.position.x - global_position.x + PAD - 2.0, y + 13.0), line, HORIZONTAL_ALIGNMENT_LEFT, WIDTH - PAD * 2.0, 12, Color(text_color, 0.85))
+		draw_string(font, Vector2(header.position.x - global_position.x + PAD - 2.0, y + 13.0), line, HORIZONTAL_ALIGNMENT_LEFT, WIDTH - PAD * 2.0, roundi(12 * _font_k), Color(text_color, 0.85))
 		y += LINE_HEIGHT
 	if controls_active:
 		for i in code_length:
@@ -255,8 +258,8 @@ func _draw() -> void:
 		var submit: Rect2 = _rects["submit"]
 		var local_submit := Rect2(submit.position - global_position, submit.size)
 		draw_rect(local_submit, Color(accent, 0.25), true)
-		draw_string(font, local_submit.position + Vector2(local_submit.size.x * 0.5 - 20.0, 17.0), tr("猜測"), HORIZONTAL_ALIGNMENT_CENTER, local_submit.size.x, 13, Color(text_color, 0.95))
+		draw_string(font, local_submit.position + Vector2(local_submit.size.x * 0.5 - 20.0, 17.0), tr("猜測"), HORIZONTAL_ALIGNMENT_CENTER, local_submit.size.x, roundi(13 * _font_k), Color(text_color, 0.95))
 		var forfeit: Rect2 = _rects["forfeit"]
 		var local_forfeit := Rect2(forfeit.position - global_position, forfeit.size)
 		draw_rect(local_forfeit, Color(text_color, 0.05), true)
-		draw_string(font, local_forfeit.position + Vector2(local_forfeit.size.x * 0.5 - 20.0, 17.0), tr("棄權"), HORIZONTAL_ALIGNMENT_CENTER, local_forfeit.size.x, 13, Color(1.0, 0.55, 0.55, 0.9))
+		draw_string(font, local_forfeit.position + Vector2(local_forfeit.size.x * 0.5 - 20.0, 17.0), tr("棄權"), HORIZONTAL_ALIGNMENT_CENTER, local_forfeit.size.x, roundi(13 * _font_k), Color(1.0, 0.55, 0.55, 0.9))

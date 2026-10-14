@@ -42,10 +42,79 @@ static func spin(step := 1.0, min_value := -1.0e9, max_value := 1.0e9) -> SpinBo
 	return box
 
 
+## 按鈕文字超過這個寬度就自動換行(見 button())。
+const BUTTON_WRAP_WIDTH := 220.0
+
+
+## 一般按鈕。文字很長(多半是翻成英文之後)時自動換行,不要整句擠在一行把所在的欄位、卡片撐寬
+## (2026-10-13 使用者實機回報英文介面常見)。文字本來就放得下 BUTTON_WRAP_WIDTH 的按鈕完全不受影響。
 static func button(text: String) -> Button:
 	var button := Button.new()
 	button.text = text
+	var fit := func() -> void: wrap_long_button(button)
+	button.ready.connect(fit)
+	button.theme_changed.connect(fit)
 	return button
+
+
+## 依目前的字體量按鈕文字(翻譯後)的寬度:超過 BUTTON_WRAP_WIDTH 就開自動換行並把最小寬度定在那個寬度
+## (開了自動換行的按鈕最小寬度會變成幾乎 0,不給底線會被擠成一個字一行);沒超過就維持單行。
+static func wrap_long_button(button: Button) -> void:
+	if button.clip_text or not button.is_inside_tree():
+		return
+	var text := button.tr(button.text) if button.auto_translate_mode != Node.AUTO_TRANSLATE_MODE_DISABLED else button.text
+	var width := button.get_theme_font("font").get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, button.get_theme_font_size("font_size")).x
+	var long := width > BUTTON_WRAP_WIDTH
+	var wanted := TextServer.AUTOWRAP_WORD_SMART if long else TextServer.AUTOWRAP_OFF
+	if button.autowrap_mode != wanted:
+		button.autowrap_mode = wanted
+	if long and button.custom_minimum_size.x < BUTTON_WRAP_WIDTH:
+		button.custom_minimum_size.x = BUTTON_WRAP_WIDTH
+
+
+## 單行的說明文字超過這個寬度就改成自動換行(見 wrap_long_label)。
+const LABEL_WRAP_WIDTH := 260.0
+## 下拉選單最長的選項超過這個寬度就不再跟著選項變寬(見 cap_option_width)。
+const OPTION_MAX_WIDTH := 190.0
+
+
+## 單行、沒有裁切的長文字(多半是翻成英文之後的說明):改成自動換行,並給一個換行估算用的底線寬度
+## (換行 Label 沒有底線寬度會被估出離譜的高度,見 hint_row 的說明)。排在一列裡的,讓它吃掉那一列剩下的寬度。
+static func wrap_long_label(label: Label) -> void:
+	if label.clip_text or label.autowrap_mode != TextServer.AUTOWRAP_OFF or not label.is_inside_tree() or label.text.contains("\n"):
+		return
+	var text := label.tr(label.text) if label.auto_translate_mode != Node.AUTO_TRANSLATE_MODE_DISABLED else label.text
+	var width := label.get_theme_font("font").get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, label.get_theme_font_size("font_size")).x
+	# 呼叫端給了固定寬度的(「標籤 + 欄位」那種列的標籤):文字比那個寬度長就在那個寬度裡換行,不要把整列撐寬。
+	var fixed := label.custom_minimum_size.x > 0.0
+	if width <= (label.custom_minimum_size.x if fixed else LABEL_WRAP_WIDTH):
+		return
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if not fixed:
+		label.custom_minimum_size.x = 200.0
+		if label.get_parent() is HBoxContainer:
+			label.size_flags_horizontal |= Control.SIZE_EXPAND_FILL
+
+
+## 下拉選單預設會寬到放得下最長的選項:選項很長(英文常見)時改成固定寬度、放不下用刪節號,不要一個選項就把整列撐寬。
+## 呼叫端已經自己限制過(fit_to_longest_item 關掉)的不動。
+static func cap_option_width(option: OptionButton) -> void:
+	if not option.fit_to_longest_item or not option.is_inside_tree():
+		return
+	var font := option.get_theme_font("font")
+	var font_size := option.get_theme_font_size("font_size")
+	var longest := 0.0
+	for i in option.item_count:
+		var text := option.get_item_text(i)
+		if option.auto_translate_mode != Node.AUTO_TRANSLATE_MODE_DISABLED:
+			text = option.tr(text)
+		longest = maxf(longest, font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x)
+	if longest <= OPTION_MAX_WIDTH:
+		return
+	option.fit_to_longest_item = false
+	option.clip_text = true
+	if option.custom_minimum_size.x < OPTION_MAX_WIDTH:
+		option.custom_minimum_size.x = OPTION_MAX_WIDTH
 
 
 ## 問使用者一個名字的小視窗(加在 parent 底下):problem_of(名字) 回傳問題文字(空字串 = 可以),有問題時確定鈕停用並顯示原因;按確定呼叫 on_chosen(名字)。
@@ -251,6 +320,93 @@ static func open_event_manager_window(host: Node, pet: Node) -> EventManagerWind
 	return window
 
 
+## 卡片式分頁共用的卡片(桌寵管理的「外觀與介面」「行為」「對話與關係」「記憶與檔案」):圓角底框 + 可以點開/收合的標題列
+## (預設展開;收合狀態只存在畫面上,不寫進設定檔)+ 內容區。tip_parts 有東西時標題旁邊多一個 ⓘ(整張卡片的說明;
+## 每段各自是字串表裡獨立的一筆原文,見 InfoIcon.set_tip_parts)。回傳 {card = 整張卡片, box = 內容區(往裡面加控制項)}。
+## 標題與說明都傳「原文」進來,這裡才翻譯——不要先組字串再當查表 key(2026-09-30 踩過的坑)。
+const CARD_WIDTH := 440.0
+
+
+static func card(title_text: String, tip_parts: PackedStringArray = [], min_width := CARD_WIDTH) -> Dictionary:
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size.x = min_width
+	var style := StyleBoxFlat.new()
+	style.bg_color = AppSettings.ink(0.05)
+	style.border_color = AppSettings.ink(0.1)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(8)
+	style.set_content_margin_all(10.0)
+	panel.add_theme_stylebox_override("panel", style)
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 5)
+	panel.add_child(outer)
+
+	var header := HBoxContainer.new()
+	var toggle := Button.new()
+	toggle.flat = true
+	var translated_title := TranslationServer.translate(title_text)
+	toggle.text = "▾ " + translated_title
+	toggle.clip_text = true
+	toggle.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	toggle.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	fixed_font_size(toggle, 17)
+	header.add_child(toggle)
+	if not tip_parts.is_empty():
+		var info := InfoIcon.new()
+		info.set_tip_parts(tip_parts)
+		header.add_child(info)
+	outer.add_child(header)
+
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 5)
+	outer.add_child(box)
+	toggle.pressed.connect(func() -> void:
+		box.visible = not box.visible
+		toggle.text = ("▾ " if box.visible else "▸ ") + translated_title)
+	return {"card": panel, "box": box}
+
+
+## 卡片裡的一個小節(幾張主題相近的卡片合併成一張時用):前面已經有內容就先畫一條分隔線,再放小標題(+ ⓘ),
+## 回傳這個小節自己的內容區。
+static func card_section(box: VBoxContainer, title_text: String, tip_parts: PackedStringArray = []) -> VBoxContainer:
+	if box.get_child_count() > 0:
+		box.add_child(HSeparator.new())
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.add_child(heading(title_text))
+	if not tip_parts.is_empty():
+		var info := InfoIcon.new()
+		info.set_tip_parts(tip_parts)
+		row.add_child(info)
+	box.add_child(row)
+	var section := VBoxContainer.new()
+	section.add_theme_constant_override("separation", 5)
+	box.add_child(section)
+	return section
+
+
+## 卡片式分頁的版面:可以上下捲動的區塊,裡面的卡片依寬度自動排成一行幾張。回傳 {scroll, flow}。
+static func card_page() -> Dictionary:
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var flow := HFlowContainer.new()
+	flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	flow.add_theme_constant_override("h_separation", 10)
+	flow.add_theme_constant_override("v_separation", 10)
+	scroll.add_child(flow)
+	return {"scroll": scroll, "flow": flow}
+
+
+## 跟著卡片寬度伸縮的下拉選單(ManagerUi.labeled 那種「標籤 + 選單」):最小寬度不要跟著最長的選項走,不然一個長選項就把整張卡片撐寬;
+## 放不下的文字用刪節號(展開的清單照樣看得到全文)。
+static func fit_options_to_card(root: Node) -> void:
+	for option: OptionButton in root.find_children("*", "OptionButton", true, false):
+		if option.size_flags_horizontal & Control.SIZE_EXPAND:
+			option.fit_to_longest_item = false
+			option.clip_text = true
+
+
 ## 標題文字後面跟一個 i 圖示。
 static func heading_with_info(text: String, tip: String) -> HBoxContainer:
 	var row := HBoxContainer.new()
@@ -267,8 +423,28 @@ static func heading(text: String) -> Label:
 	# 是誤判——各處原本翻得到都是因為呼叫端自己包了 TranslationServer.translate(),不是引擎自動處理的)。heading() 是整個管理視窗
 	# 用最多的共用函式(幾乎每個分頁的每個區段標題都靠它),明著翻譯,一次修全部呼叫點。
 	label.text = TranslationServer.translate(text)
-	label.add_theme_font_size_override("font_size", 17)
+	fixed_font_size(label, 17)
 	return label
+
+
+## 寫死字級的文字(標題、版本號、小字):字級乘上目前編輯器字體的視覺校正倍率(Silver 會放大),換字體時跟著重算。
+## 不這樣做的話,主題的字級放大了、這些寫死的卻沒跟上(2026-10-14 使用者回報 Silver 的標題字比內文還小)。
+static func fixed_font_size(control: Control, base_size: int) -> void:
+	# 同一個控制項可能被叫兩次(heading() 先給 17、呼叫端再改成 15):只留一條連線,字級以最後一次給的為準,
+	# 不然兩條連線各自堅持自己的值、互相觸發 theme_changed 到堆疊爆掉。
+	var hooked := control.has_meta("fixed_font_base")
+	control.set_meta("fixed_font_base", base_size)
+	_apply_fixed_font_size(control)
+	if not hooked:
+		control.theme_changed.connect(_apply_fixed_font_size.bind(control))
+
+
+static func _apply_fixed_font_size(control: Control) -> void:
+	var wanted := roundi(int(control.get_meta("fixed_font_base", 0)) * AppSettings.font_correction())
+	# 加覆寫本身會再發一次 theme_changed:先記下「已經套過這個值」再加。
+	if wanted > 0 and int(control.get_meta("fixed_font_size", 0)) != wanted:
+		control.set_meta("fixed_font_size", wanted)
+		control.add_theme_font_size_override("font_size", wanted)
 
 
 ## 給所有視窗化編輯器用的主題:配色、字體、字級跟著「程式設定」分頁的外觀設定(見 AppSettings.build_theme),含只有滾輪的細捲軸。

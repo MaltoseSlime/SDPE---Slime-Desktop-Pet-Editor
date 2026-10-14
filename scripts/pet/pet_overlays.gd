@@ -23,6 +23,11 @@ extends Node2D
 ##   "clip_for": {"pose_03": "sip", "*": "steam"}
 ## 部件本身的 images / fps / loop 是「預設動畫」(名字 default);沒有 clip_for 對到的動作就播預設動畫(沒有預設就播 clip_for["*"] 或第一段)。
 ## loop = false 的動畫每次(重新)顯示時從頭播一次,停在最後一幀。
+## 逐幀顯示(frame_visible:{動作: [true / false / null, 第 0 幀, 第 1 幀…]},2026-10-13):角色在動畫裡每一幀的角度可能不同,
+## 某幾幀要把圖層藏起來(或只在某幾幀露出來)時用。null(或沒寫)= 這一幀照平常的規則;false = 這一幀不顯示;
+## true = 這一幀要顯示——一般部件(part)連「在這些動作顯示」沒列到的動作也會顯示,眨眼/說話差分則照樣只在眨眼/說話時出現。
+## 執行期的開關與位移(積木「顯示/隱藏圖層」「移動圖層」,見 Pet.set_layer_visible / move_layer):關掉的圖層不管種類都不顯示;
+## 位移是加在錨點上的像素(縮放前,跟錨點同一個座標空間)。
 ## 安全:圖檔路徑只能是資料夾內的相對路徑(不允許 .. 或絕對路徑),圖片有大小上限,部件、動畫與幀數有上限,壞的部件略過並回報。
 
 const MAX_PARTS := 48
@@ -49,6 +54,8 @@ var _blink_next := 3.0
 var _clock := 0.0
 ## 使用者在右鍵選單「變更配件」關掉的配件(部件名稱);關掉的不顯示、不佔穿透形狀。眨眼與說話差分(role blink / speak)不算配件,不能關。
 var _disabled: Array[String] = []
+## 積木移動過的圖層:{部件名稱: Vector2(加在錨點上的位移)}。
+var _offsets: Dictionary = {}
 
 
 ## 建立部件。base_size = 立繪一幀的像素大小(座標參考畫布),sprite_position = 本體精靈在視覺根節點裡的位置。回傳讀取報告。
@@ -148,6 +155,12 @@ func _build_part(raw: Variant, base_dir: String, report: Array[String]) -> Dicti
 					points.append(point if point is Vector2 else Vector2.ZERO)
 				if not points.is_empty():
 					frame_anchors[action] = points
+	var frame_visible: Dictionary = {}
+	if raw.get("frame_visible") is Dictionary:
+		for action: String in raw["frame_visible"]:
+			var flags: Variant = raw["frame_visible"][action]
+			if flags is Array and not (flags as Array).is_empty():
+				frame_visible[action] = (flags as Array).slice(0, 256).map(func(entry: Variant) -> Variant: return entry if entry is bool else null)
 	if not anchor is Vector2 and anchors_by_action.is_empty() and frame_anchors.is_empty():
 		report.append(tr("部件「%s」沒有 anchor(錨點座標),已略過。") % part_name)
 		return {}
@@ -189,6 +202,7 @@ func _build_part(raw: Variant, base_dir: String, report: Array[String]) -> Dicti
 		"anchor": anchor if anchor is Vector2 else Vector2.ZERO,
 		"anchors": anchors_by_action,
 		"frame_anchors": frame_anchors,
+		"frame_visible": frame_visible,
 		"duration": clampf(float(raw.get("duration", DEFAULT_BLINK_SECONDS)) if (raw.get("duration") is float or raw.get("duration") is int) else DEFAULT_BLINK_SECONDS, 0.05, 3.0),
 		"clip_name": "",
 		"clip_start": 0.0,
@@ -267,6 +281,37 @@ func is_accessory_enabled(part_name: String) -> bool:
 	return not _disabled.has(part_name)
 
 
+## 所有圖層(部件)的名稱,不分種類,依素材包裡的順序,同名只列一次。給積木的圖層選單(Schema 的 layers)用。
+func layer_names() -> Array[String]:
+	var names: Array[String] = []
+	for part: Dictionary in _parts:
+		if not names.has(str(part["name"])):
+			names.append(str(part["name"]))
+	return names
+
+
+## 積木移動過的圖層位移:{部件名稱: Vector2}。
+func set_offsets(offsets: Dictionary) -> void:
+	_offsets = offsets.duplicate()
+
+
+## 這個部件在這個動作、這一幀的逐幀顯示設定:true / false,沒有設定回 null。
+static func _frame_rule(part: Dictionary, action: String, frame: int) -> Variant:
+	var by_action: Dictionary = part["frame_visible"]
+	if not by_action.has(action):
+		return null
+	var flags: Array = by_action[action]
+	return flags[frame] if frame >= 0 and frame < flags.size() else null
+
+
+## 這個部件在這個動作、這一幀算不算「在場」(還要再看種類:眨眼/說話只在眨眼/說話時才真的顯示)。
+static func _shown_on(part: Dictionary, action: String, frame: int) -> bool:
+	var rule: Variant = _frame_rule(part, action, frame)
+	if rule is bool:
+		return rule and (str(part["role"]) == "part" or _matches(part, action))
+	return _matches(part, action)
+
+
 ## 目前這個動作、說話狀態下每個部件是否顯示(測試與除錯用):{部件名: 是否顯示}。
 func visibility_map() -> Dictionary:
 	var result := {}
@@ -304,10 +349,10 @@ func _process(delta: float) -> void:
 		var node: Sprite2D = part["node"]
 		var visible_now := false
 		var texture: Texture2D = null
-		if _matches(part, action):
+		if _shown_on(part, action, body_frame) and not _disabled.has(str(part["name"])):
 			match str(part["role"]):
 				"part":
-					visible_now = not _disabled.has(str(part["name"]))
+					visible_now = true
 					texture = _clip_texture(part, action)
 				"speak":
 					visible_now = speaking
@@ -375,7 +420,7 @@ func _anchor_for(part: Dictionary, action: String, frame: int) -> Vector2:
 
 ## 錨點換算成部件在控制節點座標裡的位置:image 空間要扣掉畫布一半並加上本體精靈的位置;pivot 空間就是相對腳底軸心的偏移。
 func _anchor_position(part: Dictionary, action: String, frame: int) -> Vector2:
-	var anchor := _anchor_for(part, action, frame)
+	var anchor: Vector2 = _anchor_for(part, action, frame) + (_offsets.get(str(part["name"]), Vector2.ZERO) as Vector2)
 	return anchor if _pivot_space else _sprite_position + (anchor - _base_size * 0.5)
 
 
@@ -390,7 +435,7 @@ func union_rect() -> Rect2:
 	var result := Rect2()
 	var first := true
 	for part: Dictionary in _parts:
-		if not _matches(part, action) or (str(part["role"]) == "part" and _disabled.has(str(part["name"]))):
+		if not _shown_on(part, action, frame) or _disabled.has(str(part["name"])):
 			continue
 		var size: Vector2 = part["largest"] * float(part["scale"])
 		var rect: Rect2 = to_pet * Rect2(_anchor_position(part, action, frame) - _origin_pixels(part["origin"], size), size)

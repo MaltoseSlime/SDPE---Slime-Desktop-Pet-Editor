@@ -22,6 +22,7 @@ var _dirty := false
 var _snapshots: Dictionary = {}
 var _global_snapshot: Dictionary = {}
 var _confirm: ConfirmationDialog
+var _behavior_flow: HFlowContainer
 var _apply_guard: ConfirmationDialog
 
 
@@ -75,15 +76,21 @@ func _build() -> void:
 	_interaction_tab = InteractionTab.new()
 	_memory_tab = MemoryTab.new()
 	_personality_tab = PersonalityTab.new()
-	# 2026-10-06 順序調整:性格放最前面(初次製作的使用者先看到可以設定性格),數值/狀態鏡移到交互行為右邊。
+	# 2026-10-06 順序調整:性格放最前面(初次製作的使用者先看到可以設定性格),數值/狀態鏡移到後面。
+	# 2026-10-13 卡片重新分類:性格 → 外觀與介面 → 行為 → 對話與關係 → 數值 → 狀態鏡 → 記憶與檔案。
 	tabs.add_child(_personality_tab)
 	tabs.add_child(_style_tab)
+	var behavior := ManagerUi.card_page()
+	_behavior_flow = behavior["flow"]
+	(behavior["scroll"] as Control).name = "行為"
+	tabs.add_child(behavior["scroll"])
 	tabs.add_child(_interaction_tab)
+	_collect_behavior_cards()
 	tabs.add_child(_value_tab)
 	tabs.add_child(_lens_tab)
 	# 記憶分頁內容很長:包一層捲動區塊(分頁標題用捲動區塊的名字,要和分頁自己設的名字一樣)。
 	var memory_scroll := ScrollContainer.new()
-	memory_scroll.name = "記憶"
+	memory_scroll.name = "記憶與檔案"
 	memory_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_memory_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	memory_scroll.add_child(_memory_tab)
@@ -111,6 +118,20 @@ func _build() -> void:
 		if action == &"discard":
 			_discard_and_close())
 	add_child(_confirm)
+
+
+## 「行為」分頁:桌寵「會自己做什麼、怎麼動」的卡片集中在這裡。卡片本身(欄位與讀寫邏輯)仍然屬於原本的兩個分頁類別
+## (StyleEditorTab / InteractionTab 各自單獨使用時卡片留在自己那一頁),這裡只是把卡片節點搬過來排好順序。
+const BEHAVIOR_CARDS: Array[String] = ["整體交互開關", "自動閒聊與跳舞", "移動與飛行", "說話聲音", "事件對應的動作", "遊戲與對戰"]
+
+
+func _collect_behavior_cards() -> void:
+	for title in BEHAVIOR_CARDS:
+		var card: Control = _style_tab.cards.get(title, _interaction_tab.cards.get(title))
+		if card == null:
+			push_warning("行為分頁找不到卡片:" + title)
+			continue
+		card.reparent(_behavior_flow, false)
 
 
 ## 儲存 / 儲存並關閉 / 不儲存並關閉 + 狀態文字:釘在視窗底部的浮動面板(視窗不夠高、分頁內容很長時,按鈕還是看得到)。

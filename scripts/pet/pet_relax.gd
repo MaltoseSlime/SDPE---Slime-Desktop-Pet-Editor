@@ -20,6 +20,11 @@ extends RefCounted
 ##  - 被使用者拖到別處放開:先站著發呆一下(SETTLE_SECONDS)再坐下;拖到家具上放開由既有的「拖到家具上就使用」處理。
 ##  - 好感度(使用者指定,冷卻 1 小時):走到喜歡的對象旁邊坐下 → 自己對牠的好感增加;討厭自己的對象被自己坐到旁邊 → 牠對自己的好感減少。
 ## 飛行:會降落的落地歇腳後就一直待著;兼具模式提早降落後照地面的規則;總是飛行、漂浮的盡量待在原地(見 Pet.relax_hovering())。
+##
+## 非放鬆模式(2026-10-13 使用者要求:平時也會找座位):只借用「挑座位 → 走過去 → 坐下」這一段——走在地上的桌寵
+## 「沒事自己坐下」(PetVitality._maybe_idle_sit)那一刻先挑一次座位(seek_seat_casual),挑到別處就用平常的速度走過去才坐。
+## 優先度最低(跟隨、追球/道具都排在前面,見 Pet._secondary_goal),被別的事打斷就算了;不遊蕩、不起身換位置、不結算好感,
+## 其餘放鬆模式的行為(更常坐、坐更久、不跟隨…)都沒有。
 
 enum State { NONE, SETTLE, SEEK, SEEK_FURNITURE, WANDER }
 
@@ -46,6 +51,9 @@ const FURNITURE_SIT_SECONDS := Vector2(120.0, 300.0)
 const NEAR_RADIUS := 220.0
 const MIN_RELOCATE_DISTANCE := 80.0
 const SEAT_GAP := 14.0
+## 喜歡的對象可以貼得更近(2026-10-13 使用者要求:容許入座的判定更放鬆):跟牠之間不留空隙,好惡每高一級
+## 還容許判定框多疊「兩隻半寬相加」的這個比例(有點喜歡 15%、喜歡 30%、超級喜歡 45%)。只看自己喜不喜歡對方。
+const LIKED_OVERLAP_PER_LEVEL := 0.15
 const SAME_LEVEL_Y := 60.0
 ## 空曠處的取樣間距(像素):每個站得上去的平面(地面、平臺頂)每隔這麼遠試一個位置。
 ## 2026-10-11 使用者實機回報「同一層遠一點明明有空位卻不去坐、也不往上往下找」:原本整層只取 7 個固定點、而且只看自己這一層,
@@ -109,6 +117,8 @@ func reset() -> void:
 func on_dropped() -> void:
 	if not _pet.relaxing():
 		return
+	if _pet.vitality != null and _pet.vitality.has_drag_resume():
+		return   # 本來就在休息/睡覺的:落地後直接接回原本那一段(見 PetVitality._tick_drag_resume)
 	state = State.SETTLE
 	_left = SETTLE_SECONDS
 	_goal = null
@@ -128,6 +138,35 @@ func wants_relocate() -> bool:
 	return true
 
 
+## 非放鬆模式的找座位(見檔頭):PetVitality 決定「現在要自己坐下」時先問這裡。回 true = 挑到別處的座位、正要走過去
+## (到了才坐,呼叫端這次先不要坐);回 false = 原地就是最好的位置或沒得挑,呼叫端照舊原地坐下。
+func seek_seat_casual() -> bool:
+	if _pet.relaxing() or state != State.NONE or not _pet.is_ground_mode() or not _free_to_sit():
+		return false
+	var seat := _pick_seat(true, false)
+	if seat.is_empty() or bool(seat.get("here", false)):
+		return false
+	_go_to(seat)
+	return state != State.NONE
+
+
+## 非放鬆模式:只推進「正走去座位」的狀態;中途有別的事(被拖、跟隨、對戰、累了先休息…)就放棄。
+func _tick_casual(delta: float) -> void:
+	match state:
+		State.SEEK:
+			if _pet.dragging or _pet.entering or _pet.vitality == null or _pet.vitality.mode != PetVitality.Mode.ACTIVE \
+					or _pet.is_following() or _pet.is_following_mouse() or _pet.is_in_game():
+				reset()
+			else:
+				_tick_seek(delta)
+		State.SEEK_FURNITURE:
+			_tick_seek_furniture(delta)
+		State.NONE:
+			pass
+		_:
+			reset()
+
+
 func tick(delta: float) -> void:
 	var on: bool = _pet.relaxing()
 	if on != _was_on:
@@ -138,6 +177,7 @@ func tick(delta: float) -> void:
 		if not on and _pet.vitality != null:
 			_pet.vitality.relax_ended()   # 解除:正在坐的這一段縮回平常的長度,之後照平常的規則
 	if not on:
+		_tick_casual(delta)
 		return
 	if _pet.entering or _pet.move_mode == Pet.MoveMode.FIXED or _pet.move_mode == Pet.MoveMode.STATIONARY:
 		return
@@ -183,7 +223,7 @@ func _decide_flying() -> void:
 
 
 func _free_to_sit() -> bool:
-	return _pet.vitality != null and _pet.vitality.mode == PetVitality.Mode.ACTIVE and _pet.is_on_floor() and not _pet.is_busy_for_game() and _pet.hold_left() <= 0.0 \
+	return _pet.vitality != null and _pet.vitality.mode == PetVitality.Mode.ACTIVE and not _pet.vitality.has_drag_resume() and _pet.is_on_floor() and not _pet.is_busy_for_game() and _pet.hold_left() <= 0.0 \
 			and not _pet.is_using_furniture() and not _pet.heading_to_furniture() and not _pet.is_following_mouse() and not _pet.is_holding_still()
 
 
@@ -206,7 +246,8 @@ func _go_to(seat: Dictionary) -> void:
 			_left = SEEK_TIMEOUT * 2.0
 			return
 		_seat_near = null
-		_start_wander()
+		if _pet.relaxing():
+			_start_wander()
 		return
 	if bool(seat.get("here", false)):
 		_sit_down(false)
@@ -244,18 +285,25 @@ func _tick_seek(delta: float) -> void:
 	_left -= delta
 	var goal := _goal as Vector2
 	var arrived: bool = absf(_pet.position.x - goal.x) <= Pet.FOLLOW_DEADZONE + 2.0 and absf(_pet.position.y - goal.y) < SAME_LEVEL_Y and _pet.is_on_floor()
-	if arrived:
+	if arrived and not _pet.relaxing() and _pet.is_busy_for_game():
+		# 非放鬆模式:到了但正好在忙(說話、被摸…),等一下再坐;等到逾時就算了。
+		if _left <= 0.0:
+			reset()
+	elif arrived:
 		# 走到了才發現位置被佔走:晃一下再挑。只看「判定框真的疊到」(不含預留的空隙,也扣掉走路停下來的誤差);
 		# 本來就是允許擠才挑的位置不用再看(不然會走到→嫌擠→遊蕩→再挑同一個,永遠坐不下去)。
-		if not _seat_crowded_ok and _crowded(_pet.position, -ARRIVE_SLACK):
+		# 非放鬆模式不遊蕩:走到了就坐。
+		if _pet.relaxing() and not _seat_crowded_ok and _crowded(_pet.position, -ARRIVE_SLACK):
 			_start_wander()
 		else:
 			_sit_down(true)
 	elif _left <= 0.0:
 		# 走太久到不了(被擋住、對象走掉…):這裡不擠就直接坐,不然遊蕩一下再挑。
 		_seat_near = null
+		if not _pet.relaxing():
+			reset()   # 非放鬆模式:到不了就算了,下次想坐再挑
 		# 腳下站得住就直接在這裡坐,不再挑(再挑很可能又挑到同一個到不了的地方,一直走不停)。
-		if _pet.is_on_floor():
+		elif _pet.is_on_floor():
 			_sit_down(false)
 		else:
 			_start_wander()
@@ -264,7 +312,8 @@ func _tick_seek(delta: float) -> void:
 func _tick_seek_furniture(delta: float) -> void:
 	if _pet.is_using_furniture():
 		_pet.extend_furniture_use(randf_range(FURNITURE_SIT_SECONDS.x, FURNITURE_SIT_SECONDS.y))
-		_settle_favor()
+		if _pet.relaxing():
+			_settle_favor()
 		reset()
 		return
 	_left -= delta
@@ -315,9 +364,10 @@ func _tick_wander(delta: float) -> void:
 func _sit_down(moved: bool) -> void:
 	var near := _seat_near
 	reset()
-	if not _pet.vitality.force_rest():
+	var relaxed: bool = _pet.relaxing()
+	if not (_pet.vitality.force_rest() if relaxed else _pet.vitality.idle_sit_now()):
 		return
-	if moved:
+	if moved and relaxed:   # 好感結算只在放鬆模式(使用者指定的範圍)
 		_seat_near = near
 		_settle_favor()
 		_seat_near = null
@@ -360,13 +410,22 @@ static func _occupies(other: Node) -> bool:
 	return PetLayering.manages(other) and not other.invisible and not other.dragging and other.move_mode != Pet.MoveMode.FIXED
 
 
+## 跟 other 坐在同一層時,兩隻的中心至少要隔多遠才不算擠。gap = 判定框之間要多留的空隙(負的 = 容許疊一點);
+## 自己喜歡的對象不留空隙、還可以疊一點(見 LIKED_OVERLAP_PER_LEVEL)。
+func _reach(other: Node, gap: float) -> float:
+	var widths := _half_width(_pet) + _half_width(other)
+	var level: int = _pet.pet_affinity(other)
+	if level > 0:
+		return maxf(widths * (1.0 - LIKED_OVERLAP_PER_LEVEL * float(mini(level, 3))) + minf(gap, 0.0), 4.0)
+	return maxf(widths + gap, 4.0)
+
+
 ## spot 這個位置坐下去,判定框會不會跟別隻桌寵重疊。gap = 兩隻判定框之間要多留的空隙(負的 = 容許疊一點)。
 func _crowded(spot: Vector2, gap: float = SEAT_GAP) -> bool:
-	var mine := _half_width(_pet)
 	for other: Node in _pet.get_tree().get_nodes_in_group("pets"):
 		if other == _pet or not is_instance_valid(other) or other.is_queued_for_deletion() or not _occupies(other):
 			continue
-		var reach := maxf(mine + _half_width(other) + gap, 4.0)
+		var reach := _reach(other, gap)
 		if absf(other.position.y - spot.y) < SAME_LEVEL_Y and absf(other.position.x - spot.x) < reach:
 			return true
 		# 別隻正要走去的座位也算有人了(不然兩隻同時出發會挑到同一個位置)。
@@ -387,10 +446,11 @@ func _pick_seat(include_here: bool, allow_crowded: bool) -> Dictionary:
 	if include_here:
 		candidates.append({"pos": _pet.position, "item": null, "near": null, "here": true})
 	var parent: Node = _pet.get_parent()
-	# 空著的家具座位(行動區內、沒被藏起來的)。
+	# 空著的家具座位(行動區內、沒被藏起來的);交互行為關了「自己去用家具」的不挑。
+	var skip_furniture := bool(_pet.interaction_rules.get("ignore_furniture", false))
 	for node: Node in _pet.get_tree().get_nodes_in_group("furniture"):
 		var item := node as FurnitureItem
-		if item == null or item.def == null or item.area_hidden or not area.has_point(_to_local(parent, item.global_position)):
+		if skip_furniture or item == null or item.def == null or item.area_hidden or not area.has_point(_to_local(parent, item.global_position)):
 			continue
 		for i in item.def.anchors.size():
 			if str((item.def.anchors[i] as Dictionary).get("type")) == "sit" and item.anchor_holder(i) == null:
@@ -402,7 +462,7 @@ func _pick_seat(include_here: bool, allow_crowded: bool) -> Dictionary:
 			continue
 		if not _occupies(other):
 			continue
-		var spacing := mine + _half_width(other) + SEAT_GAP + ARRIVE_SLACK
+		var spacing := _reach(other, SEAT_GAP) + ARRIVE_SLACK
 		for side: float in [-1.0, 1.0]:
 			candidates.append({"pos": Vector2(other.position.x + side * spacing, other.position.y), "item": null, "near": other, "here": false})
 	# 每個站得上去的平面(最底下的地面、跳得上去或在下面的平臺頂)的空曠處:自己這層滿了可以往上或往下找。

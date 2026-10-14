@@ -33,6 +33,8 @@ var _last_area_cache := Rect2()
 var _lines: Array[String] = []
 
 
+var _font_k := 1.0
+
 func setup(area: Node, panel_title: String) -> void:
 	_area = area
 	title = panel_title
@@ -168,13 +170,14 @@ func _draw() -> void:
 	var text_color: Color = colors["text"]
 	var accent: Color = colors["accent"]
 	var font := UiFonts.get_font(str(look["font"]))
+	_font_k = UiFonts.size_correction(str(look["font"]))   # 寫死的字級乘上字體的視覺校正(Silver 會放大)
 	var panel: Rect2 = _rects["panel"]
 	var local_panel := Rect2(panel.position - global_position, panel.size)
 	draw_rect(local_panel, Color(bg, 0.85), true)
 	draw_rect(local_panel, Color(accent, 0.7), false, 2.0)
 	var header: Rect2 = _rects["header"]
-	draw_string(font, Vector2(header.position.x - global_position.x + 8.0, header.position.y - global_position.y + 18.0), title, HORIZONTAL_ALIGNMENT_LEFT, header.size.x - 16.0, 14, Color(text_color, 0.95))
+	draw_string(font, Vector2(header.position.x - global_position.x + 8.0, header.position.y - global_position.y + 18.0), title, HORIZONTAL_ALIGNMENT_LEFT, header.size.x - 16.0, roundi(14 * _font_k), Color(text_color, 0.95))
 	var y := header.position.y - global_position.y + HEADER + PAD
 	for line in _lines:
-		draw_string(font, Vector2(header.position.x - global_position.x + PAD, y + 13.0), line, HORIZONTAL_ALIGNMENT_LEFT, WIDTH - PAD * 2.0, 12, Color(text_color, 0.85))
+		draw_string(font, Vector2(header.position.x - global_position.x + PAD, y + 13.0), line, HORIZONTAL_ALIGNMENT_LEFT, WIDTH - PAD * 2.0, roundi(12 * _font_k), Color(text_color, 0.85))
 		y += LINE_HEIGHT

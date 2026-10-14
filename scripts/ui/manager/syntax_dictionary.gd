@@ -37,7 +37,7 @@ const ENTRIES: Array[Dictionary] = [
 	{"category": "名字與稱呼", "syntax": "{loser}", "meaning": "輸家的名字"},
 	{"category": "名字與稱呼", "syntax": "{inviter}", "meaning": "發起挑戰的人(自己被邀請時)"},
 	{"category": "名字與稱呼", "syntax": "{invitee}", "meaning": "被自己邀請的人"},
-	{"category": "名字與稱呼", "syntax": "{user}", "meaning": "使用者的稱呼(交互行為分頁設定,可以填好幾個逗號分隔、每次隨機挑一個;預設是「使用者」)"},
+	{"category": "名字與稱呼", "syntax": "{user}", "meaning": "使用者的稱呼(「對話與關係」分頁設定,可以填好幾個逗號分隔、每次隨機挑一個;預設是「使用者」)"},
 	{"category": "名字與稱呼", "syntax": "{user|朋友}", "meaning": "使用者的稱呼,還沒自訂過(還是預設「使用者」)時顯示「朋友」"},
 	{"category": "隨機", "syntax": "{pick:甲|乙|丙}", "meaning": "單字池:夾在句子裡,每次隨機挑一個字(不能再放 { })"},
 	{"category": "隨機", "syntax": "第一句|第二句|第三句", "meaning": "用在「隨機說一句」積木:用 | 隔開的整句備選(性格檔的 say 是陣列)"},

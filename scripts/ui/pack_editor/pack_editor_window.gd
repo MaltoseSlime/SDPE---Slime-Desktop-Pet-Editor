@@ -81,6 +81,8 @@ var _acc_origin: OptionButton
 var _acc_x: SpinBox
 var _acc_y: SpinBox
 var _acc_actions: LineEdit
+var _acc_frame_unlock: CheckBox
+var _acc_frame_show: CheckBox
 var _acc_fps: SpinBox
 var _acc_loop: CheckBox
 var _acc_images: Label
@@ -1071,7 +1073,8 @@ func _build_prop_panel(right: VBoxContainer) -> void:
 		mode.add_item(tr("觸發時播放"))
 		mode.add_item(tr("循環播放"))
 		var count := ManagerUi.spin(1.0, 1.0, PropDef.MAX_STATE_COUNT)
-		count.suffix = " 次(觸發式)"
+		count.suffix = tr(" 次")
+		count.tooltip_text = tr("觸發式才用")
 		mode.item_selected.connect(func(_i: int) -> void: _edit_prop_state(state))
 		count.value_changed.connect(func(_v: float) -> void: _edit_prop_state(state))
 		_prop_mode_options[state] = mode
@@ -1386,7 +1389,7 @@ func _build_furn_light_slot_row(right: VBoxContainer, slot_name: String) -> void
 		_sync_furn_light_slot_visibility(slot_name))
 	right.add_child(ManagerUi.labeled(tr(str(SLOT_LABELS.get(slot_name, slot_name))), mode_option))
 	_furn_light_slot_mode[slot_name] = mode_option
-	var frame_row := HBoxContainer.new()
+	var frame_row := HFlowContainer.new()   # 兩組「標籤 + 數字框」放不下右欄的寬度就折成兩列
 	var start_spin := ManagerUi.spin(1.0, 0, FurnitureDef.LIGHT_FRAME_MAX)
 	start_spin.value_changed.connect(func(v: float) -> void: _edit_furn_light_slot(slot_name, "start", int(v)))
 	frame_row.add_child(ManagerUi.labeled("從第幾幀", start_spin))
@@ -2183,6 +2186,17 @@ func _build_accessory_section(right: VBoxContainer) -> void:
 	_acc_actions = ManagerUi.line_edit("* = 所有動作;或動作名稱用逗號分隔,例如 idle, walk")
 	_acc_actions.text_changed.connect(func(text: String) -> void: _edit_accessory("actions", _parse_actions(text), "acc_actions"))
 	right.add_child(ManagerUi.labeled("在這些動作顯示", _acc_actions))
+	# 逐幀顯示(2026-10-13):角色在動畫裡每一幀的角度可能不同,某幾幀要把這個圖層藏起來(或只在某幾幀露出來)。做法比照光源的「單獨調整此幀」。
+	_acc_frame_unlock = CheckBox.new()
+	_acc_frame_unlock.text = tr("單獨調整此幀的顯示")
+	_acc_frame_unlock.tooltip_text = tr("沒勾選的幀照平常的規則(上面「在這些動作顯示」)。勾選這裡才能單獨決定目前這一幀要不要顯示這個圖層,不影響其他幀;取消勾選會清掉這一幀的設定。眨眼、說話差分也能用:這一幀設成不顯示,播到這一幀就不會眨眼/動嘴。")
+	_acc_frame_unlock.toggled.connect(_on_acc_frame_unlock_toggled)
+	right.add_child(_acc_frame_unlock)
+	_acc_frame_show = CheckBox.new()
+	_acc_frame_show.text = tr("這一幀顯示這個圖層")
+	_acc_frame_show.tooltip_text = tr("只有勾選「單獨調整此幀的顯示」時才能改。取消 = 這一幀不顯示;勾選 = 這一幀顯示(一般配件連「在這些動作顯示」沒列到的動作也會顯示)。")
+	_acc_frame_show.toggled.connect(_on_acc_frame_show_toggled)
+	right.add_child(_acc_frame_show)
 	_acc_fps = ManagerUi.spin(0.5, 0.5, 60.0)
 	_acc_fps.value_changed.connect(func(value: float) -> void: _edit_accessory("fps", value, "acc_fps"))
 	right.add_child(ManagerUi.labeled("多張圖的播放速度(fps)", _acc_fps))
@@ -2279,7 +2293,7 @@ func _accessory_preview() -> Array[Dictionary]:
 		var origin := PetOverlays._origin_pixels(part.get("origin", "center"), Vector2(texture.get_size()) if texture != null else Vector2.ZERO)
 		result.append({"x": (anchor as Vector2).x if anchor is Vector2 else 0.0, "y": (anchor as Vector2).y if anchor is Vector2 else 0.0,
 				"scale": float(part.get("scale", 1.0)), "origin": origin, "texture": texture, "name": str(part.get("name", "")), "role": str(part.get("role", "part")),
-				"layer": PackLayers.layer_of(part), "hidden": bool(_layer_hidden.get(str(part.get("name", "")), false))})
+				"layer": PackLayers.layer_of(part), "hidden": bool(_layer_hidden.get(str(part.get("name", "")), false)) or PackLayers.frame_rule(part, _action, _index) == false})
 	return result
 
 
@@ -2361,8 +2375,47 @@ func _refresh_anchor_widgets() -> void:
 		_acc_scope_label.text = tr("「%s」在動作「%s」目前套用:%s") % [part.get("name", "?"), _action if _action != "" else "-", [tr("整個配件的預設位置"), tr("這個動作的位置"), tr("每一幀各自的位置")][AccessoryAnchors.source_of(part, _action)]]
 	else:
 		_acc_scope_label.text = ""
+	_refresh_frame_visible_widgets()
 	if _canvas != null:
 		_canvas.set_accessories(_accessory_preview(), _acc_index)
+
+
+## 逐幀顯示的兩個勾選框跟著目前選的圖層、動作、幀走:沒有動作可選就都不能用;沒勾「單獨調整」時第二個框顯示平常的規則(不能改)。
+func _refresh_frame_visible_widgets() -> void:
+	if _acc_frame_unlock == null:
+		return
+	var has_part := _acc_index >= 0 and _acc_index < _accs.size()
+	var has_action := _action != "" and _model.has_pack() and _model.frame_count(_action) > 0
+	var rule: Variant = PackLayers.frame_rule(_accs[_acc_index], _action, _index) if has_part and has_action else null
+	var was_updating := _updating
+	_updating = true
+	_acc_frame_unlock.disabled = not (has_part and has_action)
+	_acc_frame_unlock.button_pressed = rule is bool
+	_acc_frame_show.disabled = not rule is bool
+	_acc_frame_show.button_pressed = rule if rule is bool else (has_part and PackLayers.shown_in_action(_accs[_acc_index], _action))
+	_updating = was_updating
+
+
+## 「單獨調整此幀的顯示」:打開 = 把這一幀目前的樣子(照平常規則顯示或不顯示)寫成這一幀自己的設定;關掉 = 清掉這一幀的設定。
+func _on_acc_frame_unlock_toggled(on: bool) -> void:
+	if _updating or _acc_index < 0 or _acc_index >= _accs.size() or _action == "":
+		return
+	_model.checkpoint()
+	var part: Dictionary = _accs[_acc_index]
+	PackLayers.set_frame_rule(part, _action, _index, _model.frame_count(_action), PackLayers.shown_in_action(part, _action) if on else null)
+	_model.set_accessories(_accs)
+	_refresh_anchor_widgets()
+	_after_edit("" if on else tr("已清除這一幀的顯示設定"))
+
+
+func _on_acc_frame_show_toggled(on: bool) -> void:
+	if _updating or _acc_index < 0 or _acc_index >= _accs.size() or _action == "" or not _acc_frame_unlock.button_pressed:
+		return
+	_model.checkpoint("acc_frame_visible")
+	PackLayers.set_frame_rule(_accs[_acc_index], _action, _index, _model.frame_count(_action), on)
+	_model.set_accessories(_accs)
+	_refresh_anchor_widgets()
+	_after_edit("")
 
 
 ## 用選好的圖片新增一個配件(預設放在頭部上方),選中它。回傳錯誤文字,空字串 = 成功。給按鈕與測試用。
@@ -2440,7 +2493,7 @@ func _build_layers_section(right: VBoxContainer) -> void:
 	_layer_list.custom_minimum_size.y = 130.0
 	_layer_list.item_selected.connect(_on_layer_selected)
 	right.add_child(_layer_list)
-	var row := HBoxContainer.new()
+	var row := HFlowContainer.new()
 	_layer_up = ManagerUi.button("▲ 上移")
 	_layer_up.pressed.connect(func() -> void: _move_layer(1))
 	_layer_down = ManagerUi.button("▼ 下移")

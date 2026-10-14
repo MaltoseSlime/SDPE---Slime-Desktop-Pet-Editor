@@ -45,6 +45,48 @@ func setup_floating(window_title: String, window_size: Vector2i, window_min_size
 	if AppSettings.themed_title_bar():
 		_install_title_bar.call_deferred()
 	place_on_screen.call_deferred()
+	if is_inside_tree():
+		_watch_long_buttons()
+	else:
+		tree_entered.connect(_watch_long_buttons, CONNECT_ONE_SHOT)
+
+
+## 視窗裡太寬的東西一律收斂(見 ManagerUi.wrap_long_button / wrap_long_label / cap_option_width):文字太長的按鈕、
+## 勾選項、說明文字自動換行,下拉選單不跟著最長的選項變寬。不管是不是用 ManagerUi 的函式做的、也不管是一開始就有
+## 還是之後才加進來的(清單列):翻成英文後一整句的勾選項、說明與很長的選項會把卡片、分頁撐得比視窗還寬
+## (2026-10-14 使用者回報狀態鏡、記憶、家具庫、道具庫、角色庫、精靈圖編輯器都有)。已經設成裁切或換行的不動。
+func _watch_long_buttons() -> void:
+	if not get_tree().node_added.is_connected(_on_tree_node_added):
+		get_tree().node_added.connect(_on_tree_node_added)
+		tree_exiting.connect(func() -> void:
+			if get_tree().node_added.is_connected(_on_tree_node_added):
+				get_tree().node_added.disconnect(_on_tree_node_added))
+	_wrap_long_buttons.call_deferred()
+
+
+func _on_tree_node_added(node: Node) -> void:
+	if (node is Button or node is Label) and not node is MenuButton and is_ancestor_of(node):
+		_wrap_later.call_deferred(node)
+
+
+func _wrap_later(node: Node) -> void:
+	if not is_instance_valid(node) or not node.is_inside_tree() or (_title_bar != null and _title_bar.is_ancestor_of(node)):
+		return
+	if node is OptionButton:
+		ManagerUi.cap_option_width(node as OptionButton)
+	elif node is Button:
+		ManagerUi.wrap_long_button(node as Button)
+	elif node is Label:
+		ManagerUi.wrap_long_label(node as Label)
+
+
+func _wrap_long_buttons() -> void:
+	if not is_inside_tree():
+		return
+	for type in ["Button", "Label"]:
+		for node: Node in find_children("*", type, true, false):
+			if not node is MenuButton:
+				_wrap_later(node)
 
 
 ## 視窗底色:視窗本身沒有背景色(沒鋪底的地方是黑的),所以墊一塊跟著編輯器配色的底(z_index 壓到最底,子類別自己鋪的背景照樣蓋在上面)。
@@ -104,7 +146,7 @@ func _install_title_bar(forced_height := 0) -> void:
 	_title_version.name = "TitleVersion"
 	_title_version.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_title_version.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_title_version.add_theme_font_size_override("font_size", 12)
+	ManagerUi.fixed_font_size(_title_version, 12)
 	_title_version.add_theme_constant_override("outline_size", 0)
 	row.add_child(_title_version)
 	var version_gap := Control.new()
@@ -216,8 +258,13 @@ func _apply_title_colors() -> void:
 	if _title_version != null:
 		_title_version.add_theme_color_override("font_color", Color(text_color, 0.65))
 	_title_label.text = title
+	# 「—」「✕」是符號不是文字:固定用黑體、照使用者設定的字級原樣畫,不跟著字體的視覺校正放大
+	# (Silver 沒有 ✕ 這個字,會退回系統字型再被放大 1.6 倍,兩顆按鈕看起來特別大;2026-10-14 使用者回報)。
+	var symbol_size := int(AppSettings.appearance()["font_size"])
 	for button: Button in [_title_min_button, _title_close_button]:
 		var danger := button == _title_close_button
+		button.add_theme_font_override("font", UiFonts.get_font("黑體"))
+		button.add_theme_font_size_override("font_size", symbol_size)
 		for state in ["normal", "hover", "pressed"]:
 			var box := StyleBoxFlat.new()
 			match state:
@@ -254,6 +301,7 @@ func _on_themed_title_input(event: InputEvent) -> void:
 func refresh_theme() -> void:
 	theme = ManagerUi.make_theme()
 	_apply_title_colors()
+	_wrap_long_buttons.call_deferred()   # 字體、字級變了,文字寬度跟著變:重新判斷哪些要換行
 
 
 ## 最小化:無邊框視窗在工作列沒有圖示,作業系統的最小化會讓它整個消失、叫不回來,所以改成「藏起來」;

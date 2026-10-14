@@ -35,6 +35,8 @@ var _idle_left := IDLE_TIMEOUT
 var _last_area_cache := Rect2()
 
 
+var _font_k := 1.0
+
 func setup(area: Node) -> void:
 	_area = area
 	add_to_group("Cutout")
@@ -205,14 +207,15 @@ func _draw() -> void:
 	var accent: Color = colors["accent"]
 	var muted: Color = colors["muted"]
 	var font := UiFonts.get_font(str(look["font"]))
+	_font_k = UiFonts.size_correction(str(look["font"]))   # 寫死的字級乘上字體的視覺校正(Silver 會放大)
 	var panel: Rect2 = _rects["panel"]
 	var local_panel := Rect2(panel.position - global_position, panel.size)
 	draw_rect(local_panel, Color(bg, 0.95), true)
 	draw_rect(local_panel, Color(accent, 0.7), false, 2.0)
 	var header: Rect2 = _rects["header"]
-	draw_string(font, Vector2(header.position.x - global_position.x + 6.0, header.position.y - global_position.y + 20.0), status_text, HORIZONTAL_ALIGNMENT_LEFT, header.size.x, 15, Color(text_color, 0.95))
+	draw_string(font, Vector2(header.position.x - global_position.x + 6.0, header.position.y - global_position.y + 20.0), status_text, HORIZONTAL_ALIGNMENT_LEFT, header.size.x, roundi(15 * _font_k), Color(text_color, 0.95))
 	var close: Rect2 = _rects["close"]
-	draw_string(font, Vector2(close.position.x - global_position.x + 4.0, close.position.y - global_position.y + 16.0), "×", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(muted, 0.9))
+	draw_string(font, Vector2(close.position.x - global_position.x + 4.0, close.position.y - global_position.y + 16.0), "×", HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(16 * _font_k), Color(muted, 0.9))
 	for i in 9:
 		var cell: Rect2 = _rects["cell:%d" % i]
 		var local_cell := Rect2(cell.position - global_position, cell.size)
@@ -234,4 +237,4 @@ func _draw() -> void:
 			draw_arc(c, 18.0, 0.0, TAU, 24, Color(text_color, 0.85), 4.0)
 	if show_surrender and _rects.has("surrender"):
 		var surrender: Rect2 = _rects["surrender"]
-		draw_string(font, Vector2(surrender.position.x - global_position.x, surrender.position.y - global_position.y + 15.0), tr("投降"), HORIZONTAL_ALIGNMENT_CENTER, surrender.size.x, 14, Color(1.0, 0.55, 0.55, 0.9))
+		draw_string(font, Vector2(surrender.position.x - global_position.x, surrender.position.y - global_position.y + 15.0), tr("投降"), HORIZONTAL_ALIGNMENT_CENTER, surrender.size.x, roundi(14 * _font_k), Color(1.0, 0.55, 0.55, 0.9))

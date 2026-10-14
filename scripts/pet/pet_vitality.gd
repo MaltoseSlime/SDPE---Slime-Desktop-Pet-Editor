@@ -88,7 +88,7 @@ var fatigue_rate := 0.0
 var rest_recovery_rate := 30.0
 var tired_threshold := 35.0
 var exhausted_threshold := 12.0
-var sleep_duration := Vector2(60.0, 120.0)
+var sleep_duration := Vector2(900.0, 1800.0)
 var rest_duration := Vector2(15.0, 40.0)
 var tired_move_factor := 0.6
 ## 情緒(0 = 沒有這種情緒反應)。
@@ -173,6 +173,7 @@ func _process(delta: float) -> void:
 	_mood_process(delta)
 	_run_process(delta)
 	_cooldown = maxf(_cooldown - delta, 0.0)
+	_tick_drag_resume(delta)
 	if not fatigue_enabled():
 		if tired:
 			_set_tired(false)
@@ -249,8 +250,21 @@ func _maybe_idle_sit() -> void:
 			chance = PetRelax.scaled(chance, PetRelax.SIT_CHANCE_PCT, PetRelax.SIT_CHANCE_UNIT)   # 其餘(靜止、漂浮、飛行)原地休息,一樣更常坐
 	if chance <= 0.0 or tired:
 		return
+	if _pet.relax != null and _pet.relax.seeking():
+		return   # 正走去挑好的座位,到了才坐(見下面)
 	if randf() < clampf(chance * CHECK_INTERVAL, 0.0, 1.0):
+		# 平時也會先挑座位(2026-10-13 使用者要求):挑到別處就走過去才坐,原地最好就照舊直接坐。
+		if _pet.relax != null and _pet.relax.seek_seat_casual():
+			return
 		_begin_chain(Mode.RESTING)
+
+
+## PetRelax 用:非放鬆模式走到挑好的座位了,照「沒事自己坐下」的規則坐下。
+func idle_sit_now() -> bool:
+	if mode != Mode.ACTIVE or not _can_rest():
+		return false
+	_begin_chain(Mode.RESTING)
+	return true
 
 
 ## 奔跑判定:每秒檢查一次。跑到一半累了(疲憊)或進入休息就立刻停;結束一輪後有冷卻。開始條件見 run_chance。
@@ -319,17 +333,73 @@ func _begin_chain(first_stage: Mode, autonomous: bool = true) -> void:
 
 ## 進入(或換到)某個休息階段:排這一段的長度、播對應的動作並佔住動作。
 ## 桌寵正在幫你計時的話不會睡著:可以站著、坐著(躺著),但「睡著」自動改成坐下休息。
-func _enter_stage(new_mode: Mode) -> void:
+## resume_length >= 0 = 接著被拖曳打斷的那一段(見 _tick_drag_resume):長度用剩下的秒數,而且不算「開始」這個動作
+## (不再觸發一次「當角色正在 sit/sleep 時」)。
+func _enter_stage(new_mode: Mode, resume_length: float = -1.0) -> void:
 	if new_mode == Mode.SLEEPING and _pet.pet_timer != null and _pet.pet_timer.active():
 		new_mode = Mode.RESTING
 	mode = new_mode
 	_mode_elapsed = 0.0
+	if resume_length >= 0.0:
+		_mode_length = resume_length
+		_pet.play_action_silently(stage_action(new_mode), -1, true)
+		_pet.extend_hold(_mode_length)
+		return
 	var range_seconds := sleep_duration if new_mode == Mode.SLEEPING else rest_duration
 	_mode_length = randf_range(minf(range_seconds.x, range_seconds.y), maxf(range_seconds.x, range_seconds.y))
 	if new_mode == Mode.RESTING and _pet.relaxing():
 		_mode_length = PetRelax.scaled(_mode_length, PetRelax.SIT_DURATION_PCT)   # 放鬆模式:每一段坐得比較久
 	_pet.play_action(stage_action(new_mode), -1, true)
 	_pet.extend_hold(_mode_length)
+
+
+## 休息/睡覺中被使用者拖起來(2026-10-13 使用者要求:放下後繼續休息,睡著的不會被吵醒):
+## 拖起來那一刻記下「正在哪個階段、這一段還剩多久、第幾段」(remember_rest_for_drag),休息本身照舊因為動作佔用
+## 被解除而結束(_recover → _end_rest(false),不觸發 wake);放開後(drag_released)等牠落地站穩
+## (DRAG_RESUME_SETTLE 秒後 _can_rest() 成立;飛行的先叫牠降落)就接回原本那一段。放到家具上、落地前又開始別的休息、
+## 或 DRAG_RESUME_TIMEOUT 秒內一直沒辦法休息(對戰中、落不了地…)就算了。
+const DRAG_RESUME_SETTLE := 0.4
+const DRAG_RESUME_TIMEOUT := 20.0
+const DRAG_RESUME_MIN_SECONDS := 3.0
+var _drag_resume: Dictionary = {}
+var _drag_resume_wait := 0.0
+var _drag_resume_left := 0.0
+
+
+func remember_rest_for_drag() -> void:
+	_drag_resume = {}
+	if mode != Mode.ACTIVE:
+		_drag_resume = {"mode": mode, "left": maxf(_mode_length - _mode_elapsed, DRAG_RESUME_MIN_SECONDS), "round": _rest_round, "manual": _manual_rest}
+
+
+func drag_released() -> void:
+	_drag_resume_wait = DRAG_RESUME_SETTLE
+	_drag_resume_left = DRAG_RESUME_TIMEOUT
+
+
+## 有一段被拖曳打斷、等著接回去的休息。
+func has_drag_resume() -> bool:
+	return not _drag_resume.is_empty()
+
+
+func _tick_drag_resume(delta: float) -> void:
+	if _drag_resume.is_empty() or _pet.dragging:
+		return
+	_drag_resume_wait -= delta
+	_drag_resume_left -= delta
+	if mode != Mode.ACTIVE or _pet.is_using_furniture() or _pet.heading_to_furniture() or _drag_resume_left <= 0.0:
+		_drag_resume = {}
+		return
+	if _drag_resume_wait > 0.0:
+		return
+	if not _can_rest():
+		_pet.request_landing()
+		return
+	var saved := _drag_resume
+	_drag_resume = {}
+	_rest_round = int(saved["round"])
+	_manual_rest = bool(saved["manual"])
+	_enter_stage(saved["mode"] as Mode, float(saved["left"]))
 
 
 ## 休息階段對應的動作:站著 idle、坐下 sit、睡著 sleep。

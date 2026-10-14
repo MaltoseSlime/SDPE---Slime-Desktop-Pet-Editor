@@ -757,8 +757,8 @@
       "run_any_mood": false,
       "run_chance": 0.03,
       "sleep_duration": [
-        50.0,
-        110.0
+        600.0,
+        1500.0
       ],
       "sociability": 1.0,
       "tired_move_factor": 0.75,
