@@ -57,6 +57,7 @@ var _flip_check: CheckBox
 var _drag_fixed_check: CheckBox
 var _climb_check: CheckBox
 var _breath_check: CheckBox
+var _sharp_check: CheckBox
 var _hitbox_spins: Array[SpinBox] = []
 var _hitbox_auto_label: Label
 var _unmute_check: CheckBox
@@ -232,6 +233,11 @@ func _ready() -> void:
 	_breath_check.text = tr("呼吸動畫")
 	_breath_check.toggled.connect(_on_field_changed)
 	form.add_child(_breath_check)
+	_sharp_check = CheckBox.new()
+	_sharp_check.text = tr("像素清晰縮放(像素風角色放大成 1.5 倍這種非整數倍時,每顆像素一樣大、邊緣不糊)")
+	_sharp_check.tooltip_text = tr("取消 = 照原本的最近點取樣,非整數倍時像素會有的寬有的窄。整數倍(1、2、3 倍)本來就均勻,開不開都一樣;大張立繪(平滑取樣)不受影響。")
+	_sharp_check.toggled.connect(_on_field_changed)
+	form.add_child(_sharp_check)
 	form.add_child(HSeparator.new())
 	form.add_child(ManagerUi.heading("判定框(可點擊範圍)"))
 	form.add_child(ManagerUi.hint_row("說明", "只有判定框裡點得到、抓得起這隻桌寵;畫在框外的翅膀、武器、特效仍然會完整顯示,只是不能點。寬/高填 0 = 自動(用素材包設定或待機圖本體大小)。單位是縮放前的像素,錨點是腳底線的中心點(偏移:X 向右、Y 向下)。系統匣「顯示穿透範圍(除錯)」會用藍框畫出判定框。"))
@@ -520,6 +526,8 @@ func _load_form() -> void:
 	_drag_fixed_check.button_pressed = _pet.drag_when_fixed
 	_climb_check.button_pressed = _pet.climb_enabled
 	_breath_check.button_pressed = _pet.breathing_enabled
+	_sharp_check.button_pressed = _pet.sharp_pixels_enabled
+	_sharp_check.disabled = not _pet.uses_pixel_sampling()
 	_hitbox_spins[0].value = _pet.hitbox_size.x
 	_hitbox_spins[1].value = _pet.hitbox_size.y
 	_hitbox_spins[2].value = _pet.hitbox_offset.x
@@ -681,6 +689,8 @@ func _on_field_changed(_value: Variant = null) -> void:
 		_pet.set_climb_enabled(_climb_check.button_pressed)
 	if _pet.breathing_enabled != _breath_check.button_pressed:
 		_pet.set_breathing(_breath_check.button_pressed)
+	if _pet.sharp_pixels_enabled != _sharp_check.button_pressed:
+		_pet.set_sharp_pixels(_sharp_check.button_pressed)
 	var box_width := _hitbox_spins[0].value
 	var box_height := _hitbox_spins[1].value
 	_pet.hitbox_size = Vector2(box_width, box_height) if box_width > 0.0 and box_height > 0.0 else Vector2.ZERO

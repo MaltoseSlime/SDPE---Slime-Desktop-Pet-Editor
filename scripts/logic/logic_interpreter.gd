@@ -1744,6 +1744,10 @@ func _exec(block: Dictionary, token: int, prev_type: String = "") -> String:
 		"action_layer_visible":
 			# 顯示/隱藏指定的圖層(精靈圖編輯器「圖層」的名稱;空白或 * = 全部圖層)。找不到這個圖層就什麼都不做。
 			_pet.set_layer_visible(str(fields.get("LAYER", "")), str(fields.get("MODE", "show")) != "hide")
+		"action_layer_show_timed":
+			# 2026-10-15:暫時顯示圖層 SEC 秒(0 = 不限時);LENS 非空 = 綁定那個狀態鏡,它解除就收起(沒在啟用中就不顯示)。
+			# 兩個都沒填(0 秒、不綁)什麼都不做;「平常不顯示」的圖層也會出現(見 Pet.show_layer_temporarily)。
+			_pet.show_layer_temporarily(str(fields.get("LAYER", "")), clampf(_number(fields.get("SEC", 0.0)), 0.0, 86400.0), str(fields.get("LENS", "")).replace("__none__", ""))
 		"action_layer_move":
 			# 把指定的圖層往某個方向移幾像素(累加);方向 reset = 回到原位。像素夾在 0~LAYER_OFFSET_LIMIT。
 			var layer_step := clampf(_number(fields.get("PX", 0.0)), 0.0, Pet.LAYER_OFFSET_LIMIT)
@@ -1905,6 +1909,8 @@ func _exec(block: Dictionary, token: int, prev_type: String = "") -> String:
 			_pet.extend_furniture_use(_number(fields.get("SECONDS", 0.0)))
 		"action_furniture_toggle":
 			_exec_furniture_toggle(fields)
+		"action_furniture_layer":
+			_exec_furniture_layer(fields)
 		"action_invisible":
 			await _exec_invisible(block, token)
 		"action_set_pet_affinity":
@@ -2801,6 +2807,15 @@ func _exec_furniture_toggle(fields: Dictionary) -> void:
 	var mode := str(fields.get("MODE", "toggle")).strip_edges().to_lower()
 	for item in _furniture_candidates(fields):
 		item.try_toggle(mode)
+
+
+## 「家具圖層」(2026-10-15):選到的每一件家具,把圖層 LAYER(空白或 * = 全部)設成 MODE = show / hide / auto(回到圖層自己的規則),
+## SEC > 0 秒後自動回到自己的規則(0 = 一直到再改)。見 FurnitureItem.set_layer_override。
+func _exec_furniture_layer(fields: Dictionary) -> void:
+	var mode := str(fields.get("MODE", "show")).strip_edges().to_lower()
+	var seconds := clampf(_number(fields.get("SEC", 0.0)), 0.0, 86400.0)
+	for item in _furniture_candidates(fields):
+		item.set_layer_override(str(fields.get("LAYER", "*")), mode, seconds)
 
 
 ## 「等待直到…」輪詢間隔與保險上限(action_invisible 用;共用元件,之後其他「等待直到…」類積木可以直接呼叫 _wait_until)。

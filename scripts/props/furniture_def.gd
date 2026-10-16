@@ -102,6 +102,8 @@ var template := ""
 ## FurnitureItem.anchor_action)。type 欄位本身永遠是 claim_anchor/邀請共用等配對邏輯認的「基本類型」,不受這個影響。
 ## facing(見 ANCHOR_FACINGS,預設 "both"):桌寵坐/躺到這個錨點時要面向哪邊;"both" = 每次使用時隨機擇一方向
 ## (不是左右來回切換),"left"/"right" = 固定面向。
+## hide_pet(選填,預設 false,2026-10-15):桌寵坐/躺定位後整隻不畫(判定框照舊,點得到、拖得走),
+## 畫面上只剩家具的圖層——例如鑽進被窩、躲進紙箱,配合圖層的「誰在用時顯示」換成那隻桌寵專屬的樣子。
 var anchors: Array[Dictionary] = []
 ## 光源清單(2026-09-23 從單一 Dictionary 改成清單,可以放好幾盞;2026-09-27 enabled 布林改成 slots 依動作槽分開設定,
 ## 見 LIGHT_SLOT_NAMES):每筆 {slots, x, y, radius, energy, color, shape, angle, spread}(x/y 跟錨點一樣是相對家具
@@ -217,6 +219,16 @@ static func clean_light(raw: Variant, family_condition: Dictionary = {}) -> Dict
 	ScopedProperty.write_cleaned(result, "energy", ScopedProperty.clean_float_by_frame(raw.get("energy_by_frame"), LIGHT_LIMITS["energy"]))
 	ScopedProperty.write_cleaned(result, "color", ScopedProperty.clean_color_by_frame(raw.get("color_by_frame")))
 	ScopedProperty.write_cleaned(result, "enabled", ScopedProperty.clean_bool_by_frame(raw.get("enabled_by_frame")))
+	for prefix in ["radius", "energy", "color", "enabled"]:
+		var by_frame: Variant = result.get(prefix + "_by_frame")
+		if not by_frame is Dictionary:
+			continue
+		for action: String in (by_frame as Dictionary).keys():
+			var key := slot_key(action)
+			if key != action:
+				if not (by_frame as Dictionary).has(key):
+					by_frame[key] = by_frame[action]
+				(by_frame as Dictionary).erase(action)
 	return result
 
 
@@ -226,70 +238,79 @@ static func clean_light(raw: Variant, family_condition: Dictionary = {}) -> Dict
 ## 所以 enabled_of() 回傳的是「這一幀有沒有被單獨調整過」的 Variant(null = 沒調整,交給 slot 判斷;true/false =
 ## 單獨調整過,直接以它為準,可以雙向覆蓋 slot 原本的判斷——這是使用者明確要求的:「即使第一幀關燈了也能藉此
 ## 打開」,跟 PackLights 的「總開關優先於逐幀覆蓋」不同,因為家具沒有那種簡單的總開關概念)。
+## 逐幀覆蓋存在哪個鍵底下:一律用動作槽的名字(normal_0…,桌面上 FurnitureItem.current_animation() 給的就是這個)。
+## 精靈圖編輯器裡的動作叫 normal / conditional / interacted(沒有 _0),傳進來會自動補上;2026-10-16 之前編輯器
+## 寫成沒有 _0 的鍵,桌面上讀不到(逐幀調整在遊戲裡沒效果),clean_light 讀檔時會搬到正確的鍵。
+static func slot_key(slot: String) -> String:
+	if slot == "" or LIGHT_SLOT_NAMES.has(slot):
+		return slot
+	return slot + "_0" if LIGHT_SLOT_NAMES.has(slot + "_0") else slot
+
+
 static func radius_of(light: Dictionary, slot: String, frame: int) -> float:
-	return float(ScopedProperty.effective(light, "radius", light.get("radius", 90.0), slot, frame))
+	return float(ScopedProperty.effective(light, "radius", light.get("radius", 90.0), slot_key(slot), frame))
 
 
 static func energy_of(light: Dictionary, slot: String, frame: int) -> float:
-	return float(ScopedProperty.effective(light, "energy", light.get("energy", 0.9), slot, frame))
+	return float(ScopedProperty.effective(light, "energy", light.get("energy", 0.9), slot_key(slot), frame))
 
 
 static func color_of(light: Dictionary, slot: String, frame: int) -> String:
-	return str(ScopedProperty.effective(light, "color", light.get("color", "#ffe4a0"), slot, frame))
+	return str(ScopedProperty.effective(light, "color", light.get("color", "#ffe4a0"), slot_key(slot), frame))
 
 
 ## 這一幀有沒有單獨調整「是否亮著」:null = 沒有,交給 slot 的 mode/frames 範圍判斷;true/false = 單獨調整過,
 ## 不管 slot 怎麼判斷都以這個為準。
 static func enabled_override(light: Dictionary, slot: String, frame: int) -> Variant:
-	return ScopedProperty.effective(light, "enabled", null, slot, frame)
+	return ScopedProperty.effective(light, "enabled", null, slot_key(slot), frame)
 
 
 static func set_radius(light: Dictionary, scope: int, slot: String, frame: int, frame_count: int, value: float) -> void:
-	ScopedProperty.set_value(light, "radius", "radius", scope, slot, frame, frame_count, clampf(value, LIGHT_LIMITS["radius"].x, LIGHT_LIMITS["radius"].y))
+	ScopedProperty.set_value(light, "radius", "radius", scope, slot_key(slot), frame, frame_count, clampf(value, LIGHT_LIMITS["radius"].x, LIGHT_LIMITS["radius"].y))
 
 
 static func set_energy(light: Dictionary, scope: int, slot: String, frame: int, frame_count: int, value: float) -> void:
-	ScopedProperty.set_value(light, "energy", "energy", scope, slot, frame, frame_count, clampf(value, LIGHT_LIMITS["energy"].x, LIGHT_LIMITS["energy"].y))
+	ScopedProperty.set_value(light, "energy", "energy", scope, slot_key(slot), frame, frame_count, clampf(value, LIGHT_LIMITS["energy"].x, LIGHT_LIMITS["energy"].y))
 
 
 static func set_color(light: Dictionary, scope: int, slot: String, frame: int, frame_count: int, value: String) -> void:
-	ScopedProperty.set_value(light, "color", "color", scope, slot, frame, frame_count, value if Color.html_is_valid(value) and value.begins_with("#") else "#ffe4a0")
+	ScopedProperty.set_value(light, "color", "color", scope, slot_key(slot), frame, frame_count, value if Color.html_is_valid(value) and value.begins_with("#") else "#ffe4a0")
 
 
 static func set_enabled_override(light: Dictionary, scope: int, slot: String, frame: int, frame_count: int, value: bool) -> void:
-	ScopedProperty.set_value(light, "enabled", "enabled", scope, slot, frame, frame_count, value)
+	ScopedProperty.set_value(light, "enabled", "enabled", scope, slot_key(slot), frame, frame_count, value)
 
 
 static func radius_source_of(light: Dictionary, slot: String, frame: int) -> int:
-	return ScopedProperty.source_of(light, "radius", slot, frame)
+	return ScopedProperty.source_of(light, "radius", slot_key(slot), frame)
 
 
 static func energy_source_of(light: Dictionary, slot: String, frame: int) -> int:
-	return ScopedProperty.source_of(light, "energy", slot, frame)
+	return ScopedProperty.source_of(light, "energy", slot_key(slot), frame)
 
 
 static func color_source_of(light: Dictionary, slot: String, frame: int) -> int:
-	return ScopedProperty.source_of(light, "color", slot, frame)
+	return ScopedProperty.source_of(light, "color", slot_key(slot), frame)
 
 
 static func enabled_source_of(light: Dictionary, slot: String, frame: int) -> int:
-	return ScopedProperty.source_of(light, "enabled", slot, frame)
+	return ScopedProperty.source_of(light, "enabled", slot_key(slot), frame)
 
 
 static func clear_radius_scope(light: Dictionary, scope: int, slot: String, frame: int) -> void:
-	ScopedProperty.clear_scope(light, "radius", "radius", scope, slot, frame)
+	ScopedProperty.clear_scope(light, "radius", "radius", scope, slot_key(slot), frame)
 
 
 static func clear_energy_scope(light: Dictionary, scope: int, slot: String, frame: int) -> void:
-	ScopedProperty.clear_scope(light, "energy", "energy", scope, slot, frame)
+	ScopedProperty.clear_scope(light, "energy", "energy", scope, slot_key(slot), frame)
 
 
 static func clear_color_scope(light: Dictionary, scope: int, slot: String, frame: int) -> void:
-	ScopedProperty.clear_scope(light, "color", "color", scope, slot, frame)
+	ScopedProperty.clear_scope(light, "color", "color", scope, slot_key(slot), frame)
 
 
 static func clear_enabled_scope(light: Dictionary, scope: int, slot: String, frame: int) -> void:
-	ScopedProperty.clear_scope(light, "enabled", "enabled", scope, slot, frame)
+	ScopedProperty.clear_scope(light, "enabled", "enabled", scope, slot_key(slot), frame)
 
 
 ## 逐筆驗證光源清單,壞的整筆用 clean_light 補成合法值(不丟棄,理由跟單筆一致:避免存進中間值),最多 MAX_LIGHTS 筆。
@@ -519,7 +540,10 @@ static func _clean_anchors(raw: Variant) -> Array[Dictionary]:
 		var facing := str((entry as Dictionary).get("facing", "both"))
 		if not ANCHOR_FACINGS.has(facing):
 			facing = "both"
-		result.append({"type": kind, "x": clampf(float(x), -ANCHOR_RANGE, ANCHOR_RANGE), "y": clampf(float(y), -ANCHOR_RANGE, ANCHOR_RANGE), "action": action, "facing": facing})
+		var cleaned := {"type": kind, "x": clampf(float(x), -ANCHOR_RANGE, ANCHOR_RANGE), "y": clampf(float(y), -ANCHOR_RANGE, ANCHOR_RANGE), "action": action, "facing": facing}
+		if (entry as Dictionary).get("hide_pet") is bool and bool((entry as Dictionary)["hide_pet"]):
+			cleaned["hide_pet"] = true
+		result.append(cleaned)
 	return result
 
 

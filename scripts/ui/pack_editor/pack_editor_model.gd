@@ -30,6 +30,14 @@ var dirty := false
 
 ## 複製的幀(項目格式同 frame_refs,連同各幀實際生效的軸心/偏移);換素材包就清掉(路徑是相對於素材包資料夾的)。
 var clipboard: Array = []
+## 跟 clipboard 一一對應:複製當時每一幀上圖層與光源實際的樣子({物件鍵: {欄位: 值}},見 _frame_object_values),貼上時照著重現。
+var clipboard_objects: Array = []
+## 編輯家具的進階貼圖時,那件家具的設定(燈存在 furniture.json,不在 pack.json):幀的移動/複製/刪除/貼上時,家具燈的逐幀設定也跟著搬。
+## 不是在編輯家具就是 null。家具燈改了會呼叫 furniture_saver(呼叫端負責存檔、通知桌面上的家具)。
+var furniture_def: FurnitureDef = null
+var furniture_saver: Callable
+## 剛打開時,原圖被換成大小不同的新圖而自動重新對位的說明(沒有就是空字串;視窗開檔後顯示,見 PackSourceSizes)。
+var realign_notice := ""
 
 var _frames: Dictionary = {}
 var _animations: Dictionary = {}
@@ -49,7 +57,7 @@ func has_pack() -> bool:
 
 ## 開啟素材包資料夾。成功回空字串,失敗回原因。有圖片的、有 pack.json 的、完全空的資料夾都能開(空的就是還沒放圖的新素材包)。
 func open(folder: String) -> String:
-	var inspected := SpritePackLoader.inspect_pack(folder)
+	var inspected := SpritePackLoader.inspect_pack(folder, false)
 	if bool(inspected["ok"]):
 		_start(inspected["root"], inspected["manifest"])
 		return ""
@@ -87,6 +95,8 @@ func _start(new_root: String, new_manifest: Dictionary) -> void:
 		if parsed is Dictionary:
 			manifest[OVERLAY_KEY] = parsed
 	clipboard.clear()
+	clipboard_objects.clear()
+	furniture_def = null   # 開家具時由呼叫端開完再設
 	_frames.clear()
 	_rebuild_actions()
 	dirty = false
@@ -95,6 +105,29 @@ func _start(new_root: String, new_manifest: Dictionary) -> void:
 	_redo_stack.clear()
 	_last_checkpoint_tag = ""
 	_saved_hash = manifest.hash()
+	_realign_sources()
+	reset_sync_baselines()
+
+
+## 原圖被直接換成大小不同的新圖:幀與圖層照新圖重新對位,標成未存檔(存檔後寫進檔案)。
+func _realign_sources() -> void:
+	realign_notice = ""
+	var files := PackSourceSizes.realign_manifest(root, manifest)
+	var skipped: Array[String] = []
+	if manifest.get(OVERLAY_KEY) is Dictionary:
+		var result: Dictionary = PackSourceSizes.realign_overlays(root, manifest[OVERLAY_KEY], manifest)
+		for file: String in result["done"]:
+			if not files.has(file):
+				files.append(file)
+		skipped = result["skipped"]
+	if files.is_empty():
+		return
+	_frames.clear()
+	_rebuild_actions()
+	dirty = true
+	realign_notice = tr("有 %d 張圖換成了大小不同的新圖,幀的裁切、軸心和圖層的位置已照新圖自動重新對位(假設角色在畫布裡的相對位置不變)。請檢查一下,沒問題就存檔。") % files.size()
+	if not skipped.is_empty():
+		realign_notice += "\n" + tr("這些圖層只換了部分圖片,沒辦法自動對位,請手動調整:%s") % "、".join(skipped)
 
 
 ## 關閉時釋放精靈圖的讀圖快取。
@@ -149,8 +182,9 @@ func can_redo() -> bool:
 func undo() -> bool:
 	if _undo_stack.is_empty():
 		return false
-	_redo_stack.append(manifest.duplicate(true))
-	_restore(_undo_stack.pop_back())
+	var snapshot: Dictionary = _undo_stack.pop_back()
+	_redo_stack.append(_reverse_snapshot(snapshot))
+	_restore(snapshot)
 	return true
 
 
@@ -158,16 +192,31 @@ func undo() -> bool:
 func redo() -> bool:
 	if _redo_stack.is_empty():
 		return false
-	_undo_stack.append(manifest.duplicate(true))
-	_restore(_redo_stack.pop_back())
+	var snapshot: Dictionary = _redo_stack.pop_back()
+	_undo_stack.append(_reverse_snapshot(snapshot))
+	_restore(snapshot)
 	return true
 
 
+## 撤回/重做時,反方向要存的那一步:目前的 pack.json;要回去的那一步帶著家具燈的變化(FURNITURE_STEP_KEY)就反過來一起帶著。
+func _reverse_snapshot(snapshot: Dictionary) -> Dictionary:
+	var reverse := manifest.duplicate(true)
+	if snapshot.get(FURNITURE_STEP_KEY) is Dictionary:
+		var step: Dictionary = snapshot[FURNITURE_STEP_KEY]
+		reverse[FURNITURE_STEP_KEY] = {"before": step["after"], "after": step["before"]}
+	return reverse
+
+
 func _restore(snapshot: Dictionary) -> void:
+	var step: Variant = snapshot.get(FURNITURE_STEP_KEY)
+	snapshot.erase(FURNITURE_STEP_KEY)
+	if step is Dictionary and furniture_def != null:
+		_restore_furniture_step(step)
 	manifest = snapshot
 	_last_checkpoint_tag = ""
 	_rebuild_actions()
 	dirty = manifest.hash() != _saved_hash
+	reset_sync_baselines()   # 撤回/重做不算「來源動作改了」,不往外帶
 
 
 func action_names() -> Array[String]:
@@ -213,11 +262,140 @@ func offset(action: String, index: int) -> Vector2:
 
 
 ## 設定軸心。whole_action = true 寫成整個動作共用(並清掉這個動作底下逐幀的舊值),否則只改這一幀。
-func set_pivot(action: String, index: int, value: Vector2, whole_action: bool) -> void:
+## 圖層與光源跟著圖片走(見 _follow_pivot_change);follow = false 給「位置本來就不變」的換算用(裁切、自動裁邊)。
+func set_pivot(action: String, index: int, value: Vector2, whole_action: bool, follow := true) -> void:
 	var info := frame(action, index)
 	if info.is_empty():
 		return
+	var before := _pivots_of(action) if follow else []
 	_write("pivot", action, index, _clamp_pivot(value, info["size"]), whole_action)
+	if follow:
+		_follow_pivot_change(action, before)
+
+
+## 幀清單多選時一起調:每一幀在自己原本的值上加同一個移動量(逐幀寫入)。軸心的話圖層與光源一樣跟著圖片走。
+func shift_frames(setting: String, action: String, frames: Array, delta: Vector2) -> void:
+	if delta == Vector2.ZERO:
+		return
+	var before := _pivots_of(action) if setting == "pivot" else []
+	for i in frames:
+		var info := frame(action, int(i))
+		if info.is_empty():
+			continue
+		if setting == "pivot":
+			_write("pivot", action, int(i), _clamp_pivot(pivot(action, int(i)) + delta, info["size"]), false)
+		else:
+			_write("offset", action, int(i), _clamp_offset(offset(action, int(i)) + delta), false)
+	if setting == "pivot":
+		_follow_pivot_change(action, before)
+
+
+# --- 軸心改了,圖層與光源跟著圖片走(2026-10-16 使用者要求:調腳底線時光源與圖層沒有一起動)---
+# 圖層、光源的位置是相對軸心(腳底線中心)記的。軸心在圖上的位置改了,畫面上是圖片相對軸心移動,
+# 所以把圖層、光源在這些幀的位置反向補回去,它們就跟圖片黏在一起(跟遊戲裡看起來一樣)。
+
+func _pivots_of(action: String) -> Array:
+	var result: Array = []
+	for i in frame_count(action):
+		result.append(pivot(action, i))
+	return result
+
+
+## before = 改之前每一幀的軸心(_pivots_of)。呼叫端已經 checkpoint 過(跟軸心是同一個撤回步驟)。
+func _follow_pivot_change(action: String, before: Array) -> void:
+	var count := frame_count(action)
+	if before.size() != count or count == 0:
+		return
+	var deltas: Array = []
+	var moved := false
+	for i in count:
+		var delta: Vector2 = pivot(action, i) - (before[i] as Vector2)
+		deltas.append(delta)
+		moved = moved or delta != Vector2.ZERO
+	if not moved:
+		return
+	var parts := accessories()
+	var light_list := lights()
+	if parts.is_empty() and light_list.is_empty():
+		return
+	_freeze_directional(action, parts, light_list)
+	var uniform := deltas.all(func(delta: Vector2) -> bool: return delta == deltas[0])
+	for part: Dictionary in parts:
+		if not PackLayers.is_locked(part):   # 鎖住的圖層不跟著動
+			_shift_holder(part, action, deltas, uniform, false)
+	for light: Dictionary in light_list:
+		_shift_holder(light, action, deltas, uniform, true)
+	if not parts.is_empty():
+		set_accessories(parts)
+	if not light_list.is_empty():
+		set_lights(light_list)
+
+
+## 一個圖層或一盞燈在這個動作的位置補 −軸心移動量:每一幀移動量一樣就改動作層(本來是逐幀的就每幀一起移),
+## 不一樣就寫成逐幀位置(只有移動過的幀變)。
+static func _shift_holder(holder: Dictionary, action: String, deltas: Array, uniform: bool, is_light: bool) -> void:
+	var count := deltas.size()
+	var source := PackLights.source_of(holder, action) if is_light else AccessoryAnchors.source_of(holder, action)
+	if uniform and source != AccessoryAnchors.SCOPE_FRAME:
+		var at := (PackLights.position_of(holder, action, 0) if is_light else AccessoryAnchors.effective(holder, action, 0)) - (deltas[0] as Vector2)
+		if is_light:
+			PackLights.set_position(holder, AccessoryAnchors.SCOPE_ACTION, action, 0, count, at)
+		else:
+			AccessoryAnchors.set_anchor(holder, AccessoryAnchors.SCOPE_ACTION, action, 0, count, at)
+		return
+	var targets: Array = []
+	for i in count:
+		targets.append(PackLights.position_of(holder, action, i) if is_light else AccessoryAnchors.effective(holder, action, i))
+	for i in count:
+		if (deltas[i] as Vector2) == Vector2.ZERO and source != AccessoryAnchors.SCOPE_FRAME:
+			continue
+		var at: Vector2 = (targets[i] as Vector2) - (deltas[i] as Vector2)
+		if is_light:
+			PackLights.set_position(holder, AccessoryAnchors.SCOPE_FRAME, action, i, count, at)
+		else:
+			AccessoryAnchors.set_anchor(holder, AccessoryAnchors.SCOPE_FRAME, action, i, count, at)
+
+
+## 朝向版本(walk_left)沒有自己的位置時,遊戲裡沿用原動作(walk)的位置(平常會鏡像的那一邊左右翻過來,見 PetOverlays)。
+## 改原動作之前先把朝向版本現在看起來的位置寫成它自己的,它的圖沒動,圖層和光源也不該跟著動。
+func _freeze_directional(action: String, parts: Array, light_list: Array) -> void:
+	for side: String in SpritePackLoader.DIRECTIONS:
+		var directional := "%s_%s" % [action, side]
+		var count := frame_count(directional)
+		if not actions.has(directional) or count == 0:
+			continue
+		# 播朝向版本時整隻不鏡像;會被鏡像的是「跟原圖朝向相反」的那一邊(原圖朝右時的 _left)
+		var mirrored := (side == "left") != facing_left()
+		for part: Dictionary in parts:
+			if PackLayers.is_locked(part) or AccessoryAnchors.source_of(part, directional) != AccessoryAnchors.SCOPE_DEFAULT:
+				continue
+			_freeze_one(part, action, directional, count, mirrored, false)
+			if mirrored:
+				var list: Array = (part["mirror_for"] as Array).duplicate() if part.get("mirror_for") is Array else []
+				if list.has(directional):
+					list.erase(directional)   # 原本靠沿用時的自動鏡像又加了一次 = 抵消
+				else:
+					list.append(directional)
+				if list.is_empty():
+					part.erase("mirror_for")
+				else:
+					part["mirror_for"] = list
+		for light: Dictionary in light_list:
+			if PackLights.source_of(light, directional) == AccessoryAnchors.SCOPE_DEFAULT:
+				_freeze_one(light, action, directional, count, mirrored, true)
+
+
+static func _freeze_one(holder: Dictionary, action: String, directional: String, count: int, mirrored: bool, is_light: bool) -> void:
+	var by_frame := (PackLights.source_of(holder, action) if is_light else AccessoryAnchors.source_of(holder, action)) == AccessoryAnchors.SCOPE_FRAME
+	for i in (count if by_frame else 1):
+		var at := PackLights.position_of(holder, action, i) if is_light else AccessoryAnchors.effective(holder, action, i)
+		if mirrored:
+			at.x = -at.x
+		var scope := AccessoryAnchors.SCOPE_FRAME if by_frame else AccessoryAnchors.SCOPE_ACTION
+		if is_light:
+			PackLights.set_position(holder, scope, directional, i, count, at)
+		else:
+			AccessoryAnchors.set_anchor(holder, scope, directional, i, count, at)
 
 
 func set_offset(action: String, index: int, value: Vector2, whole_action: bool) -> void:
@@ -228,12 +406,15 @@ func set_offset(action: String, index: int, value: Vector2, whole_action: bool) 
 func apply_to_action(action: String, index: int) -> void:
 	var current_pivot := pivot(action, index)
 	var current_offset := offset(action, index)
+	var before := _pivots_of(action)
 	_write("pivot", action, index, current_pivot, true)
 	_write("offset", action, index, current_offset, true)
+	_follow_pivot_change(action, before)
 
 
 ## 重設成自動值(軸心)與 0(圖片偏移)。whole_action = true 連整個動作底下的設定一起清掉。
 func reset(action: String, index: int, whole_action: bool) -> void:
+	var before := _pivots_of(action)
 	for setting: String in ["pivot", "offset"]:
 		var table_name := setting + "s"
 		var table: Variant = manifest.get(table_name)
@@ -247,6 +428,7 @@ func reset(action: String, index: int, whole_action: bool) -> void:
 			_clear_ref_setting(action, -1, setting)
 		else:
 			_clear_ref_setting(action, index, setting)
+	_follow_pivot_change(action, before)
 	dirty = manifest.hash() != _saved_hash
 
 
@@ -399,6 +581,8 @@ func save() -> String:
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
 		return tr("無法寫入 %s") % path
+	# 記下每張原圖現在的大小:之後在檔案總管直接換成大小不同的圖也能自動重新對位(見 PackSourceSizes)
+	PackSourceSizes.record(root, manifest, manifest[OVERLAY_KEY] if manifest.get(OVERLAY_KEY) is Dictionary else {})
 	file.store_string(JSON.stringify(_manifest_for_file(), "  ") + "\n")
 	file.close()
 	var overlay_error := _save_overlays(root)
@@ -522,9 +706,12 @@ func delete_frames(action: String, indices: Array) -> String:
 	checkpoint()
 	materialize(action)
 	var refs := frame_refs(action)
+	var mapping := range(refs.size())
 	for i in range(picked.size() - 1, -1, -1):
 		refs.remove_at(picked[i])
+		mapping.remove_at(picked[i])
 	_set_refs(action, refs)
+	_remap_frame_objects(action, mapping)
 	return ""
 
 
@@ -537,12 +724,15 @@ func duplicate_frames(action: String, indices: Array) -> Array[int]:
 	checkpoint()
 	materialize(action)
 	var refs := frame_refs(action)
+	var mapping := range(refs.size())
 	var insert_at: int = picked[picked.size() - 1] + 1
 	for i in picked.size():
 		var ref: Variant = refs[picked[i]]
 		refs.insert(insert_at + i, ref.duplicate(true) if ref is Dictionary else ref)
+		mapping.insert(insert_at + i, picked[i])   # 複製出來的幀沿用原本那一幀的圖層/光源設定
 		created.append(insert_at + i)
 	_set_refs(action, refs)
+	_remap_frame_objects(action, mapping)
 	return created
 
 
@@ -557,12 +747,16 @@ func move_frames(action: String, indices: Array, delta: int) -> Array[int]:
 	checkpoint()
 	materialize(action)
 	var refs := frame_refs(action)
+	var mapping := range(refs.size())
 	var moved: Array[int] = []
 	if delta < 0:
 		for i in picked:
 			var swap: Variant = refs[i - 1]
 			refs[i - 1] = refs[i]
 			refs[i] = swap
+			var swap_index: Variant = mapping[i - 1]
+			mapping[i - 1] = mapping[i]
+			mapping[i] = swap_index
 			moved.append(i - 1)
 	else:
 		for k in range(picked.size() - 1, -1, -1):
@@ -570,19 +764,25 @@ func move_frames(action: String, indices: Array, delta: int) -> Array[int]:
 			var swap: Variant = refs[i + 1]
 			refs[i + 1] = refs[i]
 			refs[i] = swap
+			var swap_index: Variant = mapping[i + 1]
+			mapping[i + 1] = mapping[i]
+			mapping[i] = swap_index
 			moved.append(i + 1)
 		moved.reverse()
 	_set_refs(action, refs)
+	_remap_frame_objects(action, mapping)
 	return moved
 
 
 ## 複製這些幀到剪貼簿(連同每一幀實際生效的軸心/圖片偏移)。剪貼簿只在同一個素材包裡有效。回傳複製了幾幀。
 func copy_frames(action: String, indices: Array) -> int:
 	clipboard.clear()
+	clipboard_objects.clear()
 	for i in _sorted_indices(action, indices):
 		var ref: Variant = _ref_with_effective_settings(action, i)
 		if ref != null:
 			clipboard.append(ref)
+			clipboard_objects.append(_frame_object_values(action, i))
 	return clipboard.size()
 
 
@@ -596,13 +796,284 @@ func paste_frames(action: String, at_index := -1) -> Array[int]:
 	if actions.has(action):
 		materialize(action)
 	var refs := frame_refs(action)
+	var mapping := range(refs.size())
 	var insert_at := refs.size() if at_index < 0 or at_index > refs.size() else at_index
 	for i in clipboard.size():
 		var ref: Variant = clipboard[i]
 		refs.insert(insert_at + i, ref.duplicate(true) if ref is Dictionary else ref)
+		mapping.insert(insert_at + i, -1)
 		created.append(insert_at + i)
 	_set_refs(action, refs)
+	_remap_frame_objects(action, mapping)
+	if clipboard_objects.size() == clipboard.size():
+		_apply_frame_object_values(action, created, clipboard_objects)
 	return created
+
+
+# --- 圖層與光源的逐幀設定跟著幀走(2026-10-16 使用者回報:複製貼上、調整幀順序沒帶走圖層的位置與顯示時機)---
+
+## 逐幀設定存在物件(一個圖層或一盞燈)的哪些欄位:{動作: Array},陣列第 n 項是第 n 幀。
+## frame_visible 超出陣列 = 沒設定;其餘(位置、ScopedProperty 的 *_by_frame)超出陣列時循環取用(frame % size),搬動前先攤平成完整長度。
+static func _frame_keys(holder: Dictionary) -> Array[String]:
+	var keys: Array[String] = []
+	for key: Variant in holder.keys():
+		var name := str(key)
+		if (name == "frame_anchors" or name == "frame_visible" or name.ends_with("_by_frame")) and holder[key] is Dictionary:
+			keys.append(name)
+	return keys
+
+
+## 幀的順序變了:mapping[新位置] = 舊位置(-1 = 新加進來的幀,沒有逐幀設定)。這個動作每個圖層、每盞燈的逐幀設定照著搬。
+## 呼叫端已經 checkpoint 過(跟幀的改動是同一個撤回步驟)。
+func _remap_frame_objects(action: String, mapping: Array) -> void:
+	var light_list := lights()
+	var parts := accessories()
+	var lights_changed := false
+	var parts_changed := false
+	for holder: Dictionary in light_list:
+		lights_changed = _remap_holder(holder, action, mapping) or lights_changed
+	for holder: Dictionary in parts:
+		parts_changed = _remap_holder(holder, action, mapping) or parts_changed
+	if lights_changed:
+		set_lights(light_list)
+	if parts_changed:
+		set_accessories(parts)
+	if furniture_def != null:
+		var before := furniture_def.lights.duplicate(true)
+		var furniture_changed := false
+		for holder: Dictionary in furniture_def.lights:
+			furniture_changed = _remap_holder(holder, FurnitureDef.slot_key(action), mapping) or furniture_changed
+		if not _undo_stack.is_empty():
+			_undo_stack[_undo_stack.size() - 1][FURNITURE_STEP_KEY] = {"before": before, "after": furniture_def.lights.duplicate(true)}
+		if furniture_changed and furniture_saver.is_valid():
+			furniture_saver.call()
+
+
+## 家具燈換回那一步之前的逐幀設定:只換「現在還是那一步做完的樣子」的欄位(每盞燈、每個逐幀欄位分開比),
+## 之後在光源頁另外改過的(預設半徑、某一幀的值…)就不動,不會把那些改動吃掉。燈的數量變了就整個不動。
+func _restore_furniture_step(step: Dictionary) -> void:
+	var before: Array = step["before"]
+	var after: Array = step["after"]
+	if furniture_def.lights.size() != before.size() or before.size() != after.size():
+		return
+	var changed := false
+	for n in furniture_def.lights.size():
+		var light: Dictionary = furniture_def.lights[n]
+		var keys := {}
+		for holder: Dictionary in [light, before[n], after[n]]:
+			for key in _frame_keys(holder):
+				keys[key] = true
+		for key: String in keys:
+			if JSON.stringify(light.get(key)) != JSON.stringify((after[n] as Dictionary).get(key)):
+				continue
+			var wanted: Variant = (before[n] as Dictionary).get(key)
+			if JSON.stringify(light.get(key)) == JSON.stringify(wanted):
+				continue
+			if wanted == null:
+				light.erase(key)
+			else:
+				light[key] = (wanted as Dictionary).duplicate(true)
+			changed = true
+	if changed and furniture_saver.is_valid():
+		furniture_saver.call()
+
+
+## 撤回步驟裡記家具燈變化的鍵({before, after},見 _restore);不會寫進 pack.json。
+const FURNITURE_STEP_KEY := "__furniture_lights_step"
+
+
+## 家具燈這一幀的樣子(半徑、亮度、顏色、這一幀單獨設定的亮不亮;null = 沒單獨設定,照動作槽的規則)。
+static func _furniture_light_values(light: Dictionary, action: String, frame: int) -> Dictionary:
+	var slot := FurnitureDef.slot_key(action)
+	return {"radius": FurnitureDef.radius_of(light, slot, frame), "energy": FurnitureDef.energy_of(light, slot, frame), "color": FurnitureDef.color_of(light, slot, frame), "on": FurnitureDef.enabled_override(light, slot, frame)}
+
+
+static func _remap_holder(holder: Dictionary, action: String, mapping: Array) -> bool:
+	var changed := false
+	for key in _frame_keys(holder):
+		var by_action: Dictionary = holder[key]
+		if not by_action.get(action) is Array:
+			continue
+		var old: Array = by_action[action]
+		var wraps := key != "frame_visible"
+		var rebuilt: Array = []
+		for source: Variant in mapping:
+			var from := int(source)
+			if from < 0 or old.is_empty():
+				rebuilt.append(null)
+			elif wraps:
+				rebuilt.append(old[from % old.size()])
+			else:
+				rebuilt.append(old[from] if from < old.size() else null)
+		if rebuilt.any(func(entry: Variant) -> bool: return entry != null):
+			by_action[action] = rebuilt
+		else:
+			by_action.erase(action)
+		if by_action.is_empty():
+			holder.erase(key)
+		changed = true
+	return changed
+
+
+## 這一幀上每個圖層/光源實際的樣子(位置、會不會出現;光源加半徑、亮度、顏色、亮不亮)。鍵用名稱(見 PackFrameSync._object_keys)。
+func _frame_object_values(action: String, frame: int) -> Dictionary:
+	var result := {}
+	var light_list := lights()
+	var parts := accessories()
+	var light_keys := PackFrameSync._object_keys(light_list, "L")
+	var part_keys := PackFrameSync._object_keys(parts, "P")
+	for n in light_list.size():
+		result[light_keys[n]] = PackFrameSync._light_values(light_list[n], action, frame)
+	for n in parts.size():
+		result[part_keys[n]] = {"pos": AccessoryAnchors.effective(parts[n], action, frame), "show": PackLayers.shows_in_game(parts[n], action, frame)}
+	if furniture_def != null:
+		for n in furniture_def.lights.size():
+			result["F:%d" % n] = _furniture_light_values(furniture_def.lights[n], action, frame)
+	return result
+
+
+## 貼上:新的幀上每個同名的圖層/光源,跟複製時的樣子不一樣的地方寫成這一幀自己的設定(本來就一樣就不寫,檔案保持乾淨)。
+func _apply_frame_object_values(action: String, frames: Array[int], values: Array) -> void:
+	var light_list := lights()
+	var parts := accessories()
+	var holders := {}
+	var light_keys := PackFrameSync._object_keys(light_list, "L")
+	var part_keys := PackFrameSync._object_keys(parts, "P")
+	for n in light_list.size():
+		holders[light_keys[n]] = light_list[n]
+	for n in parts.size():
+		holders[part_keys[n]] = parts[n]
+	var count := frame_count(action)
+	var changed := false
+	for k in frames.size():
+		var frame: int = frames[k]
+		var wanted_all: Dictionary = values[k]
+		for object_key: String in wanted_all:
+			if not holders.has(object_key):
+				continue
+			var holder: Dictionary = holders[object_key]
+			var is_light := object_key.begins_with("L:")
+			var wanted: Dictionary = wanted_all[object_key]
+			var current := PackFrameSync._light_values(holder, action, frame) if is_light else {"pos": AccessoryAnchors.effective(holder, action, frame), "show": PackLayers.shows_in_game(holder, action, frame)}
+			for field: String in wanted:
+				if PackFrameSync._same(current.get(field), wanted[field]):
+					continue
+				if field == "show":
+					PackLayers.set_frame_rule(holder, action, frame, count, bool(wanted[field]))
+				else:
+					PackFrameSync._write_object_field(holder, is_light, field, action, frame, count, wanted[field])
+				changed = true
+	if changed:
+		set_lights(light_list)
+		set_accessories(parts)
+	if furniture_def != null:
+		_apply_furniture_light_values(action, frames, values)
+
+
+## 貼上時家具燈的部分(燈沒有名字,照第幾盞對應;同一件家具裡貼才有意義)。
+func _apply_furniture_light_values(action: String, frames: Array[int], values: Array) -> void:
+	var slot := FurnitureDef.slot_key(action)
+	var count := frame_count(action)
+	var changed := false
+	for k in frames.size():
+		var frame: int = frames[k]
+		for n in furniture_def.lights.size():
+			var wanted: Variant = (values[k] as Dictionary).get("F:%d" % n)
+			if not wanted is Dictionary:
+				continue
+			var light: Dictionary = furniture_def.lights[n]
+			var current := _furniture_light_values(light, action, frame)
+			for field: String in wanted:
+				var value: Variant = wanted[field]
+				if PackFrameSync._same(current.get(field), value):
+					continue
+				match field:
+					"radius":
+						FurnitureDef.set_radius(light, ScopedProperty.SCOPE_FRAME, slot, frame, count, float(value))
+					"energy":
+						FurnitureDef.set_energy(light, ScopedProperty.SCOPE_FRAME, slot, frame, count, float(value))
+					"color":
+						FurnitureDef.set_color(light, ScopedProperty.SCOPE_FRAME, slot, frame, count, str(value))
+					"on":
+						if value is bool:
+							FurnitureDef.set_enabled_override(light, ScopedProperty.SCOPE_FRAME, slot, frame, count, value)
+						else:
+							FurnitureDef.clear_enabled_scope(light, ScopedProperty.SCOPE_FRAME, slot, frame)
+				changed = true
+	if not changed:
+		return
+	if not _undo_stack.is_empty() and _undo_stack[_undo_stack.size() - 1].get(FURNITURE_STEP_KEY) is Dictionary:
+		_undo_stack[_undo_stack.size() - 1][FURNITURE_STEP_KEY]["after"] = furniture_def.lights.duplicate(true)
+	if furniture_saver.is_valid():
+		furniture_saver.call()
+
+
+## 朝向專用動畫(2026-10-15,見 SpritePackLoader.DIRECTIONS):用 source 動作的幀建立 target(例如 walk → walk_left),
+## 整組複製過來並左右翻轉(軸心跟著換算、圖片偏移左右對調),當作畫朝向版本的起點;一個撤回步驟。成功回空字串。
+func create_mirrored_copy(source: String, target: String) -> String:
+	if not actions.has(source) or frame_count(source) == 0:
+		return "原本的動作沒有幀"
+	if actions.has(target) or SpritePackLoader.clean_action_name(target) != target:
+		return "這個朝向版本已經有幀了"
+	var refs: Array = []
+	for i in frame_count(source):
+		var ref: Variant = _ref_with_effective_settings(source, i)
+		if ref is Dictionary and (ref as Dictionary).get("offset") is Array and ((ref as Dictionary)["offset"] as Array).size() >= 2:
+			ref = (ref as Dictionary).duplicate(true)
+			ref["offset"][0] = -float(ref["offset"][0])
+		refs.append(ref)
+	checkpoint()
+	_set_refs(target, refs)
+	var indices: Array = []
+	for i in refs.size():
+		indices.append(i)
+	var error := apply_fx(target, indices, {"op": "h"}, false)
+	if error == "":
+		_mirror_frame_objects(source, target, refs.size())
+	return error
+
+
+## 建立朝向版本時,圖層與光源也帶過去:位置左右翻過來(軸心空間 x → -x;原動作有逐幀位置就逐幀翻)寫成朝向版本自己的位置,
+## 圖層的逐幀顯示照抄,圖層的圖記進 mirror_for(這個動作整個圖層左右鏡像,見 PetOverlays)。
+## 光源的半徑、亮度等逐幀設定遊戲裡本來就照原動作(見 PetLights._current_action),不用抄。跟建立幀是同一個撤回步驟。
+func _mirror_frame_objects(source: String, target: String, count: int) -> void:
+	var parts := accessories()
+	var light_list := lights()
+	# 這個朝向版本以前留下的設定(清掉動作再重建時)先拿掉,免得蓋過新寫的
+	for holder: Dictionary in parts + light_list:
+		for key: String in ["anchors", "frame_anchors", "frame_visible"]:
+			if holder.get(key) is Dictionary:
+				(holder[key] as Dictionary).erase(target)
+				if (holder[key] as Dictionary).is_empty():
+					holder.erase(key)
+	for part: Dictionary in parts:
+		if AccessoryAnchors.source_of(part, source) == AccessoryAnchors.SCOPE_FRAME:
+			for i in count:
+				var at := AccessoryAnchors.effective(part, source, i)
+				AccessoryAnchors.set_anchor(part, AccessoryAnchors.SCOPE_FRAME, target, i, count, Vector2(-at.x, at.y))
+		else:
+			var at := AccessoryAnchors.effective(part, source, 0)
+			AccessoryAnchors.set_anchor(part, AccessoryAnchors.SCOPE_ACTION, target, 0, count, Vector2(-at.x, at.y))
+		for i in count:
+			var rule: Variant = PackLayers.frame_rule(part, source, i)
+			if rule is bool:
+				PackLayers.set_frame_rule(part, target, i, count, rule)
+		var mirrored: Array = (part["mirror_for"] as Array).duplicate() if part.get("mirror_for") is Array else []
+		if not mirrored.has(target):
+			mirrored.append(target)
+		part["mirror_for"] = mirrored
+	if not parts.is_empty():
+		set_accessories(parts)
+	for light: Dictionary in light_list:
+		if PackLights.source_of(light, source) == AccessoryAnchors.SCOPE_FRAME:
+			for i in count:
+				var at := PackLights.position_of(light, source, i)
+				PackLights.set_position(light, AccessoryAnchors.SCOPE_FRAME, target, i, count, Vector2(-at.x, at.y))
+		else:
+			var at := PackLights.position_of(light, source, 0)
+			PackLights.set_position(light, AccessoryAnchors.SCOPE_ACTION, target, 0, count, Vector2(-at.x, at.y))
+	if not light_list.is_empty():
+		set_lights(light_list)
 
 
 # --- 圖片處理(裁切 / 翻轉 / 旋轉,見 PackImageFx):寫在幀項目的 fx 欄位,不改原圖檔 ---
@@ -620,7 +1091,7 @@ func fx_text(action: String, index: int) -> String:
 
 ## 對選取的幀各加一步圖片處理(op 見 PackImageFx:{op:"h"}、{op:"v"}、{op:"r", degrees}、{op:"c", rect})。
 ## 已經設定過的軸心會跟著換算,圖片偏移不動。全部檢查通過才會改(任何一幀不行就整個不做),成功回空字串。
-func apply_fx(action: String, indices: Array, op: Dictionary) -> String:
+func apply_fx(action: String, indices: Array, op: Dictionary, record := true) -> String:
 	var picked := _sorted_indices(action, indices)
 	if picked.is_empty():
 		return "沒有選取的幀"
@@ -641,7 +1112,8 @@ func apply_fx(action: String, indices: Array, op: Dictionary) -> String:
 		var explicit: Variant = _effective_setting("pivot", action, i)
 		var next_pivot: Variant = _clamp_pivot(PackImageFx.map_point(explicit, size, op), next_size) if explicit is Vector2 else null
 		plans.append({"index": i, "fx": PackImageFx.serialize(merged as Array), "pivot": next_pivot})
-	checkpoint()
+	if record:
+		checkpoint()
 	materialize(action)
 	var refs := frame_refs(action)
 	for plan: Dictionary in plans:
@@ -656,6 +1128,56 @@ func apply_fx(action: String, indices: Array, op: Dictionary) -> String:
 		refs[plan["index"]] = _normalize_ref(entry)
 	_set_refs(action, refs)
 	return ""
+
+
+## 自動裁掉透明邊(2026-10-15):選取的幀各自找出有畫東西(不透明)的範圍,裁掉四周的透明部分。
+## 角色在畫面上的位置不變——記下每一幀目前的軸心(包括自動算的),範圍一定包含軸心那一點(軸心不會被擠到圖外而移位),
+## 裁切後把軸心換算到裁切後的圖上寫回去。shared = true:選取的幀疊在一起取聯集,全部裁成同一個範圍(動畫裡晃動的角色不會被切到、幀的大小一致);
+## false:每一幀各自裁到自己的範圍。全透明的幀、沒有東西可裁的幀略過。一個撤回步驟。
+## 回傳 {error: 錯誤文字(空 = 成功), count: 裁了幾幀, saved_percent: 像素少了百分之幾}。
+func auto_trim(action: String, indices: Array, shared: bool) -> Dictionary:
+	var picked := _sorted_indices(action, indices)
+	if picked.is_empty():
+		return {"error": "沒有選取的幀", "count": 0, "saved_percent": 0}
+	var wanted := {}
+	var sizes := {}
+	var union := Rect2i()
+	for i in picked:
+		var info := frame(action, i)
+		if info.is_empty():
+			return {"error": tr("第 %d 幀讀不出圖") % i, "count": 0, "saved_percent": 0}
+		var used: Rect2i = (info["image"] as Image).get_used_rect()
+		if used.size.x <= 0 or used.size.y <= 0:
+			continue
+		var keep := used.expand(Vector2i(pivot(action, i).round()))
+		wanted[i] = keep
+		sizes[i] = info["size"]
+		union = keep if union.size == Vector2i.ZERO else union.merge(keep)
+	var plans := {}
+	var before := 0
+	var after := 0
+	for i: int in wanted:
+		var size: Vector2i = sizes[i]
+		var rect: Rect2i = (union if shared else wanted[i] as Rect2i).intersection(Rect2i(Vector2i.ZERO, size))
+		if rect.size.x <= 0 or rect.size.y <= 0 or rect == Rect2i(Vector2i.ZERO, size):
+			continue
+		plans[i] = rect
+		before += size.x * size.y
+		after += rect.size.x * rect.size.y
+	if plans.is_empty():
+		return {"error": "", "count": 0, "saved_percent": 0}
+	var pivots := {}
+	for i: int in plans:
+		pivots[i] = pivot(action, i)
+	checkpoint()
+	for i: int in plans:
+		var error := apply_fx(action, [i], {"op": "c", "rect": plans[i]}, false)
+		if error != "":
+			undo()
+			return {"error": error, "count": 0, "saved_percent": 0}
+		# 裁切後的自動軸心是新圖的底邊中央,跟原本不一樣:把原本那一點換算過來寫回去(剛好等於自動值時 _write 不會多存)
+		set_pivot(action, i, (pivots[i] as Vector2) - Vector2((plans[i] as Rect2i).position), false, false)
+	return {"error": "", "count": plans.size(), "saved_percent": roundi(100.0 * float(before - after) / float(maxi(before, 1)))}
 
 
 ## 拿掉選取的幀的所有圖片處理(回到原圖)。這些幀手動設定過的軸心是相對處理後的圖,拿掉處理後就不對了,一併清掉(回到自動軸心)。回傳有幾幀被還原。
@@ -894,6 +1416,17 @@ func clear_action_files(action_name: String) -> Dictionary:
 	var files := own_files_of(action_name)
 	checkpoint()
 	_set_refs(action_name, [])
+	# 圖層「這個動作整個鏡像」(建立朝向版本時記的)跟著清掉,之後重新放圖不會莫名其妙翻過來
+	var parts := accessories()
+	var mirrored_changed := false
+	for part: Dictionary in parts:
+		if part.get("mirror_for") is Array and (part["mirror_for"] as Array).has(action_name):
+			(part["mirror_for"] as Array).erase(action_name)
+			if (part["mirror_for"] as Array).is_empty():
+				part.erase("mirror_for")
+			mirrored_changed = true
+	if mirrored_changed:
+		set_accessories(parts)
 	var stamp := Time.get_datetime_string_from_system().replace("-", "").replace(":", "").replace("T", "_")
 	var backup := SpriteLibrary.backup_root_dir().path_join("%s_動作_%s_%s" % [root.get_file(), action_name, stamp])
 	var moved := 0
@@ -1081,6 +1614,77 @@ func import_images(paths: Array, action_name: String, mode: String) -> String:
 	return ""
 
 
+## 逐幀更換圖片(2026-10-15 使用者要求):把 action 的第 indices 幀依序換成 paths 的圖(張數取兩邊少的那個),
+## 圖片處理(裁切翻轉旋轉)、軸心、圖片偏移都保留——換之前實際生效的軸心/偏移寫成這一幀自己的設定(換了檔名,依檔名查的舊設定會對不上;
+## 沒設定過的自動軸心也固定下來,不會因為新圖尺寸不同而跑掉)。精靈圖切片換成一般圖檔。
+## action 打開了同步(見 PackFrameSync)的話,其他動作裡用同一張原圖的幀也一起換(各自的設定保留),同步關係才不會斷掉。
+## 呼叫端先 checkpoint。回傳 {count: 換了幾幀(含其他動作), error: 錯誤文字}。
+func replace_frame_images(action: String, indices: Array, paths: Array) -> Dictionary:
+	if not has_pack() or not actions.has(action):
+		return {"count": 0, "error": "還沒有選動作"}
+	var picked: Array[int] = []
+	for value: Variant in indices:
+		var at := int(value)
+		if at >= 0 and at < frame_count(action) and not picked.has(at):
+			picked.append(at)
+	if picked.is_empty() or paths.is_empty():
+		return {"count": 0, "error": "沒有選擇圖片"}
+	var errors: Array[String] = []
+	var usable := mini(picked.size(), paths.size())
+	for k in usable:
+		if _check_image(str(paths[k]), errors) == null:
+			return {"count": 0, "error": errors[0]}
+	# 原圖身分 → 新檔案(同一張原圖選了兩次以第一次為準)
+	var mapping := {}
+	var plans := {action: {}}
+	for k in usable:
+		var key := PackFrameSync.base_key(self, frame_path(action, picked[k]))
+		if not mapping.has(key):
+			var relative := _copy_into_pack(str(paths[k]), IMPORT_FOLDER)
+			if relative == "":
+				return {"count": 0, "error": tr("無法複製檔案進素材包:%s") % str(paths[k]).get_file()}
+			mapping[key] = relative
+		plans[action][picked[k]] = mapping[key]
+	if is_sync_source(action):
+		for other in action_names():
+			if other == action:
+				continue
+			for j in frame_count(other):
+				var key := PackFrameSync.base_key(self, frame_path(other, j))
+				if mapping.has(key):
+					if not plans.has(other):
+						plans[other] = {}
+					plans[other][j] = mapping[key]
+	var count := 0
+	for target: String in plans:
+		var targets: Dictionary = plans[target]
+		if targets.is_empty():
+			continue
+		var kept := {}
+		for j: int in targets:
+			kept[j] = [pivot(target, j), offset(target, j)]
+		materialize(target)
+		var refs := frame_refs(target)
+		for j: int in targets:
+			var ref: Variant = refs[j]
+			var entry: Dictionary = {"file": ref} if ref is String else (ref as Dictionary).duplicate(true)
+			entry.erase("sheet")
+			entry.erase("rect")
+			entry["file"] = targets[j]
+			var at: Vector2 = kept[j][0]
+			entry["pivot"] = [int(at.x), int(at.y)]
+			var shift: Vector2 = kept[j][1]
+			if shift == Vector2.ZERO:
+				entry.erase("offset")
+			else:
+				entry["offset"] = [int(shift.x), int(shift.y)]
+			refs[j] = entry
+			count += 1
+		_set_refs(target, refs)
+	reset_sync_baselines()
+	return {"count": count, "error": ""}
+
+
 ## 精靈圖的格線切片。grid:{cols, rows} 或 {cell: Vector2i};邊距 margin、間距 spacing(Vector2i);skip_empty 略過全透明的格子;count > 0 只取前 count 個。
 ## 回傳依「由左到右、由上到下」排好的切片範圍;算不出來回空陣列。image 給 skip_empty 檢查透明用。
 static func sheet_rects(size: Vector2i, grid: Dictionary, image: Image = null) -> Array[Rect2i]:
@@ -1213,6 +1817,169 @@ func clear_hitbox() -> void:
 	manifest.erase("hitbox")
 	manifest.erase("hitbox_offset")
 	dirty = manifest.hash() != _saved_hash
+
+
+# --- 圖片朝向(pack.json 的 facing;見 SpritePackLoader 的 art_flipped) ---
+
+## 圖片裡的角色是不是朝左畫的(沒寫 = 朝右)。桌寵用它判斷往哪邊走時要不要鏡像。
+func facing_left() -> bool:
+	return str(manifest.get("facing", "right")).to_lower() == "left"
+
+
+func set_facing_left(left: bool) -> void:
+	if left:
+		manifest["facing"] = "left"
+	else:
+		manifest.erase("facing")
+	dirty = manifest.hash() != _saved_hash
+
+
+# --- 同步到其他動作(pack.json 的 sync_sources;見 PackFrameSync) ---
+
+## 每個同步來源動作上一次的狀態(PackFrameSync.state),用來找出這次改了什麼。
+var _sync_baselines: Dictionary = {}
+
+
+## 打開了同步的來源動作(只列還存在的動作)。
+func sync_sources() -> Array[String]:
+	var result: Array[String] = []
+	var raw: Variant = manifest.get("sync_sources")
+	if raw is Array:
+		for entry: Variant in raw:
+			if actions.has(str(entry)) and not result.has(str(entry)):
+				result.append(str(entry))
+	return result
+
+
+func is_sync_source(action: String) -> bool:
+	return sync_sources().has(action)
+
+
+## 打開/關掉一個動作的同步(呼叫端先 checkpoint)。打開時記下現在的狀態,之後的修改才往外帶。
+func set_sync_source(action: String, on: bool) -> void:
+	var list: Array = []
+	var raw: Variant = manifest.get("sync_sources")
+	if raw is Array:
+		for entry: Variant in raw:
+			if str(entry) != action and not list.has(str(entry)):
+				list.append(str(entry))
+	if on:
+		list.append(action)
+	if list.is_empty():
+		manifest.erase("sync_sources")
+	else:
+		manifest["sync_sources"] = list
+	dirty = manifest.hash() != _saved_hash
+	reset_sync_baselines()
+
+
+func reset_sync_baselines() -> void:
+	_sync_baselines.clear()
+	for source in sync_sources():
+		_sync_baselines[source] = PackFrameSync.state(self, source)
+
+
+## 每次修改之後呼叫:來源動作有變化就帶到其他動作(寫進目前這一步,撤回時一起撤回)。回傳 {frames, objects}。
+func propagate_sync() -> Dictionary:
+	var total := {"frames": 0, "objects": false}
+	var sources := sync_sources()
+	if sources.is_empty():
+		return total
+	for source in sources:
+		if not _sync_baselines.has(source):
+			continue
+		var result := PackFrameSync.propagate(self, source, _sync_baselines[source])
+		total["frames"] = int(total["frames"]) + int(result["frames"])
+		total["objects"] = bool(total["objects"]) or bool(result["objects"])
+	reset_sync_baselines()   # 一個來源帶過去的變化不會再從另一個來源接力帶出去
+	return total
+
+
+## 「立刻全部同步一次」:把其他動作裡用同一張原圖的幀直接改成跟來源一樣(呼叫端先 checkpoint)。
+func push_sync(source: String) -> Dictionary:
+	var result := PackFrameSync.propagate(self, source, {}, true)
+	reset_sync_baselines()
+	return result
+
+
+# --- 把圖片處理寫進檔案(2026-10-15) ---
+
+## 有圖片處理(裁切翻轉旋轉)的幀,把處理後的樣子存成素材包裡的一張新 PNG(.imports 資料夾),幀改成直接用那張圖、拿掉圖片處理;
+## 精靈圖切片也一樣變成一張張的圖。畫面上看起來完全一樣:軸心、圖片偏移都寫成這一幀自己的設定(換了檔名,依檔名查的舊設定會對不上)。
+## 同一張原圖 + 同一串處理只存一次,所以同步(見 PackFrameSync)的來源與目標還是對得上。原圖檔不刪,之後用「清理未使用檔案」收掉。
+## only_action 非空 = 只處理那個動作。呼叫端先 checkpoint;撤回只會改回 pack.json,新寫的圖會留著變成未使用檔案。
+## 回傳 {frames: 改了幾幀, files: 新存了幾張, error: 錯誤文字}。
+func bake_fx(only_action := "") -> Dictionary:
+	var written := {}
+	var frames_done := 0
+	for action in action_names():
+		if only_action != "" and action != only_action:
+			continue
+		var plans := {}
+		for i in frame_count(action):
+			var fx := fx_text(action, i)
+			if fx == "":
+				continue
+			var key := "%s|%s" % [PackFrameSync.base_key(self, frame_path(action, i)), fx]
+			if not written.has(key):
+				var info := frame(action, i)
+				if info.is_empty():
+					return {"frames": frames_done, "files": written.size(), "error": tr("動作「%s」第 %d 幀讀不出圖") % [action, i]}
+				var parsed := SpritePackLoader.parse_virtual(frame_path(action, i))
+				var stem := str(parsed.get("file", "frame")).get_file().get_basename().replace(" ", "_")
+				var relative := _save_baked(info["image"], stem)
+				if relative == "":
+					return {"frames": frames_done, "files": written.size(), "error": tr("無法寫入圖片(動作「%s」第 %d 幀)") % [action, i]}
+				written[key] = relative
+			plans[i] = {"file": written[key], "pivot": pivot(action, i), "offset": offset(action, i)}
+		if plans.is_empty():
+			continue
+		materialize(action)
+		var refs := frame_refs(action)
+		for i: int in plans:
+			var ref: Variant = refs[i]
+			var entry: Dictionary = {"file": ref} if ref is String else (ref as Dictionary).duplicate(true)
+			for key: String in ["fx", "sheet", "rect"]:
+				entry.erase(key)
+			entry["file"] = plans[i]["file"]
+			var at: Vector2 = plans[i]["pivot"]
+			entry["pivot"] = [int(at.x), int(at.y)]
+			var shift: Vector2 = plans[i]["offset"]
+			if shift == Vector2.ZERO:
+				entry.erase("offset")
+			else:
+				entry["offset"] = [int(shift.x), int(shift.y)]
+			refs[i] = entry
+			frames_done += 1
+		_set_refs(action, refs)
+	reset_sync_baselines()
+	return {"frames": frames_done, "files": written.size(), "error": ""}
+
+
+func _save_baked(image: Image, stem: String) -> String:
+	var folder := root.path_join(IMPORT_FOLDER)
+	if DirAccess.make_dir_recursive_absolute(folder) != OK and not DirAccess.dir_exists_absolute(folder):
+		return ""
+	var target := folder.path_join("%s_baked.png" % stem)
+	var counter := 2
+	while FileAccess.file_exists(target):
+		target = folder.path_join("%s_baked_%d.png" % [stem, counter])
+		counter += 1
+	if image.save_png(target) != OK:
+		return ""
+	return _relative(target)
+
+
+## 有幾幀有圖片處理(寫進檔案按鈕的提示用)。
+func fx_frame_count(only_action := "") -> int:
+	var count := 0
+	for action in action_names():
+		if only_action != "" and action != only_action:
+			continue
+		for i in frame_count(action):
+			if fx_text(action, i) != "":
+				count += 1
+	return count
 
 
 # --- 光源(lights;見 PackLights) ---

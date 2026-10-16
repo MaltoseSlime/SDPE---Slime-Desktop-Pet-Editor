@@ -108,8 +108,9 @@ func is_lit() -> bool:
 	return _enabled and not _current_lights().is_empty()
 
 
+## 目前動作(朝向專用動畫 walk_left 算成原動作 walk:光源的「只在某個動作亮」、逐幀設定都照原動作,見 _position_of)。
 func _current_action() -> String:
-	return str(_pet.current_animation_action()) if _pet != null else ""
+	return str(_pet.current_plain_action()) if _pet != null and _pet.has_method("current_plain_action") else (str(_pet.current_animation_action()) if _pet != null else "")
 
 
 func _current_frame() -> int:
@@ -124,10 +125,17 @@ func _current_lights() -> Array[Dictionary]:
 
 
 ## 這盞光現在的位置:依目前動作與動畫幀(動作專屬發光錨點,見 PackLights)。
+## 播朝向專用動畫(walk_left)時:這盞光有為它另外設定位置就用那個;沒有就用原動作的位置,平常會鏡像的那一邊左右翻過來
+## (朝向專用動畫整隻不鏡像,見 Pet.directional_mirrored)。
 func _position_of(light: Dictionary) -> Vector2:
-	if not light.has("anchors") and not light.has("frame_anchors"):
-		return Vector2(float(light["x"]), float(light["y"]))
-	return PackLights.position_of(light, str(_pet.current_animation_action()) if _pet != null else "", int(_pet.body_frame()) if _pet != null else 0)
+	var full := str(_pet.current_animation_action()) if _pet != null else ""
+	var frame := int(_pet.body_frame()) if _pet != null else 0
+	if full != _current_action() and ((light.get("anchors", {}) as Dictionary).has(full) or (light.get("frame_anchors", {}) as Dictionary).has(full)):
+		return PackLights.position_of(light, full, frame)
+	var position := Vector2(float(light["x"]), float(light["y"])) if not light.has("anchors") and not light.has("frame_anchors") else PackLights.position_of(light, _current_action(), frame)
+	if _pet != null and _pet.has_method("directional_mirrored") and _pet.directional_mirrored():
+		position.x = -position.x
+	return position
 
 
 func _process(delta: float) -> void:

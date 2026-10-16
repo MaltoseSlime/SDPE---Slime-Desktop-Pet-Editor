@@ -142,8 +142,8 @@ func _build() -> void:
 		_note(tr("播放特效「%s」%s") % [effect_name, "" if known else "(不認得)"] + ("" if _pet.effects.enabled else "(這隻的角色特效總開關是關的,故不會繪製)"))))
 	effect_row.add_child(_action_button("睡覺 Zzz", func() -> void:
 		_pet.play_action(&"sleep", -1, true)
-		_pet.extend_hold(6.0)
-		_note("強制睡覺 6 秒")))
+		_pet.extend_hold(30.0)
+		_note("強制睡覺 30 秒")))
 	effect_row.add_child(_action_button("全部停止", func() -> void:
 		_pet.effects.stop_all()
 		_note("停止所有特效")))

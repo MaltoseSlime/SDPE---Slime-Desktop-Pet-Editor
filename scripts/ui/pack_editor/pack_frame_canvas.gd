@@ -31,6 +31,8 @@ signal light_selected(index: int)
 ## 配件模式:拖曳(或方向鍵微調)配件的錨點(相對腳底軸心的像素);按到別的配件就換選。
 signal accessory_edited(index: int, at: Vector2)
 signal accessory_selected(index: int)
+## 想拖曳 / 微調鎖住的圖層(編輯器在狀態列提示先解除鎖定)。
+signal locked_accessory_touched(index: int)
 
 enum Mode { VIEW, PIVOT, IMAGE, HITBOX, CROP, LIGHT, ACCESSORY }
 
@@ -65,6 +67,8 @@ var show_ghost := true
 var show_body := true
 var show_hitbox := true
 var show_lights := true
+## 預覽要不要畫圖層(配件)的圖;關掉時「調整配件位置」模式照樣畫錨點十字可以拖。
+var show_layers := true
 ## 光源清單(PackLights 的格式)與目前選取、正在拖曳的是第幾盞。
 var _lights: Array[Dictionary] = []
 var _light_selected := -1
@@ -147,6 +151,46 @@ func set_accessories(list: Array[Dictionary], selected: int) -> void:
 	queue_redraw()
 
 
+## 只畫圖、不能選也不能拖的圖層(格式同 set_accessories):家具停在「坐躺位置」頁時,拖的是坐躺位置,圖層照樣畫出來對照。
+var _backdrop: Array[Dictionary] = []
+
+
+func set_backdrop(list: Array[Dictionary]) -> void:
+	_backdrop = list
+	queue_redraw()
+
+
+func _draw_acc_image(acc: Dictionary, phase: int, ghost := false) -> void:
+	if not show_layers or bool(acc.get("hidden", false)):
+		return
+	var texture: Texture2D = acc.get("texture")
+	var behind := str(acc.get("layer", "front")) == "back"
+	if texture == null or (phase == 0) != behind:
+		return
+	var factor := float(acc["scale"]) * float(zoom)
+	var origin: Vector2 = acc["origin"]
+	var alpha := 0.95 if str(acc.get("role", "part")) == "part" else 0.6
+	var size := texture.get_size() * factor
+	var at := _acc_screen(acc) - origin * factor
+	# 朝向版本的鏡像(mirror):以錨點為中心左右翻,範圍換到錨點另一邊(跟遊戲裡 scale.x = -1 一樣)
+	var mirror := bool(acc.get("mirror", false))
+	if mirror:
+		at.x = _acc_screen(acc).x + origin.x * factor - size.x
+	# 圖層翻轉:負的大小 = 在同一塊範圍裡翻過來畫(跟遊戲裡 Sprite2D 的 flip_h / flip_v 一樣)
+	if bool(acc.get("flip_h", false)) != mirror:
+		size.x = -size.x
+	if bool(acc.get("flip_v", false)):
+		size.y = -size.y
+	draw_texture_rect(texture, Rect2(at, size), false, Color(1, 1, 1, alpha * (0.3 if ghost else 1.0)))
+
+
+## 這個配件現在要不要畫、能不能點:眼睛關掉的不畫;遊戲裡這一幀不會出現的("ghost")只有選取中的才畫(半透明),
+## 這樣預覽跟遊戲一致,選到的圖層還是看得到、拖得動。
+func _acc_shown(i: int) -> bool:
+	var acc := _accs[i]
+	return not bool(acc.get("hidden", false)) and (not bool(acc.get("ghost", false)) or i == _acc_selected)
+
+
 func _acc_screen(acc: Dictionary) -> Vector2:
 	return _anchor() + Vector2(float(acc["x"]), float(acc["y"])) * float(zoom)
 
@@ -155,31 +199,30 @@ func _acc_screen(acc: Dictionary) -> Vector2:
 ## phase 0 = 「本體後面」的配件圖(畫在本體之前)、1 = 本體上面與最上層的配件圖、2 = 錨點十字與名字(所有沒被隱藏的配件)。
 ## 配件的 "layer"(back / front / top)和 "hidden"(編輯器裡暫時隱藏,只影響預覽)由編輯器的「圖層」頁籤設定。
 func _draw_accessories(phase: int = 1) -> void:
+	if phase < 2:
+		for acc: Dictionary in _backdrop:
+			if not bool(acc.get("ghost", false)):
+				_draw_acc_image(acc, phase)
 	for i in _accs.size():
 		var acc := _accs[i]
-		if bool(acc.get("hidden", false)):
+		if not _acc_shown(i):
 			continue
 		var center := _acc_screen(acc)
-		var texture: Texture2D = acc.get("texture")
-		var factor := float(acc["scale"]) * float(zoom)
-		var behind := str(acc.get("layer", "front")) == "back"
-		if texture != null and phase < 2 and (phase == 0) == behind:
-			var origin: Vector2 = acc["origin"]
-			draw_texture_rect(texture, Rect2(center - origin * factor, texture.get_size() * factor), false, Color(1, 1, 1, 0.95 if str(acc.get("role", "part")) == "part" else 0.6))
 		if phase < 2:
+			_draw_acc_image(acc, phase, bool(acc.get("ghost", false)))
 			continue
 		var selected := i == _acc_selected
 		var color := Color(0.5, 1.0, 0.6, 0.95) if selected else Color(ink_color, 0.6 if mode == Mode.ACCESSORY else 0.25)
 		if mode == Mode.ACCESSORY or selected:
 			_draw_cross(center, color, 8.0 if selected else 6.0)
-			draw_string(get_theme_default_font(), center + Vector2(10.0, -10.0), str(acc["name"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, color)
+			draw_string(get_theme_default_font(), center + Vector2(10.0, -10.0), str(acc["name"]) + (" 🔒" if bool(acc.get("locked", false)) else ""), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, color)
 
 
 func _begin_acc_drag(mouse: Vector2) -> void:
 	var best := -1
 	var best_distance := 18.0
 	for i in _accs.size():
-		if bool(_accs[i].get("hidden", false)):
+		if not _acc_shown(i):
 			continue
 		var distance := mouse.distance_to(_acc_screen(_accs[i]))
 		if distance <= best_distance:
@@ -187,10 +230,21 @@ func _begin_acc_drag(mouse: Vector2) -> void:
 			best = i
 	_acc_selected = best
 	accessory_selected.emit(best)
-	if best >= 0:
+	if best >= 0 and bool(_accs[best].get("locked", false)):
+		locked_accessory_touched.emit(best)   # 鎖住的圖層可以選,不能拖
+	elif best >= 0:
 		edit_started.emit("drag")
 		_acc_drag = best
 	queue_redraw()
+
+
+## 滑鼠停在鎖住的圖層錨點上:提示先解除鎖定。
+func _get_tooltip(at_position: Vector2) -> String:
+	if mode == Mode.ACCESSORY:
+		for i in _accs.size():
+			if _acc_shown(i) and bool(_accs[i].get("locked", false)) and at_position.distance_to(_acc_screen(_accs[i])) <= 18.0:
+				return PackLayers.lock_hint()
+	return tooltip_text
 
 
 func _update_acc_drag(mouse: Vector2) -> void:
@@ -574,7 +628,9 @@ func _on_key(event: InputEventKey) -> void:
 	if _texture == null or mode == Mode.VIEW or mode == Mode.CROP:
 		return
 	if mode == Mode.ACCESSORY:
-		if _acc_selected >= 0 and _acc_selected < _accs.size():
+		if _acc_selected >= 0 and _acc_selected < _accs.size() and bool(_accs[_acc_selected].get("locked", false)):
+			locked_accessory_touched.emit(_acc_selected)
+		elif _acc_selected >= 0 and _acc_selected < _accs.size():
 			edit_started.emit("key")
 			var acc_moved := Vector2(float(_accs[_acc_selected]["x"]), float(_accs[_acc_selected]["y"])) + direction * step
 			_accs[_acc_selected]["x"] = acc_moved.x

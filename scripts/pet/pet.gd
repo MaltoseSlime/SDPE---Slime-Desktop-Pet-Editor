@@ -91,7 +91,11 @@ const JUMP_CLEARANCE := 12.0
 const MIN_BODY_SCALE := 0.1
 const MAX_BODY_SCALE := 6.0
 const PETTING_TAIL := 1.0
-const DANCE_DURATION := Vector2(3.0, 6.0)
+## 2026-10-16 使用者回饋「跳舞只跳一次」:一段舞 4~15 秒(動畫照 dance 的播放方式循環,或播一次停在指定幀);
+## 跳舞中有別的桌寵加入就延長(每次加 DANCE_EXTEND 秒,剩餘時間最多到 DANCE_DURATION.y);跳完冷卻 3~5 分鐘才會再自己跳或跟著跳。
+const DANCE_DURATION := Vector2(4.0, 15.0)
+const DANCE_EXTEND := Vector2(3.0, 6.0)
+const DANCE_COOLDOWN := Vector2(180.0, 300.0)
 const DANCE_FOLLOW_CHANCE := 0.5
 const AUTO_CHAT_RETRY_SECONDS := Vector2(8.0, 20.0)
 const AUTO_CHAT_QUIET_MSEC := 10000
@@ -282,6 +286,9 @@ var _warned_lenses := {}
 ## 眨眼(_bl)與說話(_sp)子差分:_logical_animation 是「邏輯上正在播」的基底動畫(例如 idle_0),
 ## 子差分只是暫時蓋在上面顯示,結束後回到基底動畫原本的影格。
 var _logical_animation: StringName = &""
+## 朝向專用動畫:_base_animation = 選朝向之前的動畫名稱(walk_0);_directional_playing = 現在播的是朝向專用版本(walk_left_0)。
+var _base_animation: StringName = &""
+var _directional_playing := false
 var _overlay_shown := false
 var _saved_frame := 0
 var _saved_progress := 0.0
@@ -490,6 +497,8 @@ var muted := false
 @export var auto_dance_follow_enabled := true
 var _mute_stamp := 0
 var _dance_cue_left := -1.0
+var _dance_cooldown_left := 0.0
+var _was_dancing := false
 
 
 func set_muted(on: bool) -> void:
@@ -1281,6 +1290,22 @@ func current_animation_action() -> StringName:
 	return _logical_animation
 
 
+## 目前動作去掉朝向後綴(播朝左專用的 walk_left 時回 walk)。
+func current_plain_action() -> StringName:
+	return StringName(SpritePackLoader.plain_action(String(current_animation_action())))
+
+
+## 正在播朝左/朝右專用的動畫(見 _directional):這時圖本身已經是那一邊的樣子,整隻不鏡像。
+func is_directional_playing() -> bool:
+	return _directional_playing
+
+
+## 正在播朝向專用動畫、而且照平常的規則這時本來應該要鏡像:沒有為朝向動畫另外設定的配件、光源位置,
+## 拿原動作的位置左右翻過來用(見 PetOverlays / PetLights)。
+func directional_mirrored() -> bool:
+	return _directional_playing and _normal_sign() < 0.0
+
+
 func is_speaking_now() -> bool:
 	return _speaking
 
@@ -1301,6 +1326,8 @@ func attach_overlays(spec: Dictionary, base_dir: String) -> Array[String]:
 		return report
 	var base_size := Vector2(_sprite.sprite_frames.get_frame_texture(&"idle_0", 0).get_size())
 	_overlays = PetOverlays.new()
+	_overlays.texture_filter = _sprite.texture_filter   # 圖層的取樣方式跟本體一樣(像素風不糊)
+	_overlays.material = _sprite.material
 	_visual_root.add_child(_overlays)
 	report = _overlays.setup(self, spec, base_dir, base_size, _sprite.position)
 	_overlays.set_disabled(disabled_accessories)
@@ -1366,13 +1393,79 @@ func set_layer_visible(layer_name: String, on: bool) -> void:
 		disabled_accessories.erase(target)
 		if not on:
 			disabled_accessories.append(target)
+			_forced_layers.erase(target)   # 隱藏也會收掉「暫時顯示」
 	_overlays.set_disabled(disabled_accessories)
 	PetProfile.save_pet(self)
 
 
+## 圖層現在看得到嗎(條件積木「圖層顯示中」):暫時顯示中的算;平常不顯示的圖層(精靈圖編輯器種類設成「待呼叫」)不算;
+## 其餘看有沒有被「顯示/隱藏圖層」積木或右鍵選單關掉。
 func is_layer_visible(layer_name: String) -> bool:
 	var targets := _layer_targets(layer_name)
-	return not targets.is_empty() and targets.all(func(target: String) -> bool: return not disabled_accessories.has(target))
+	return not targets.is_empty() and targets.all(func(target: String) -> bool:
+		return is_layer_forced(target) or (not _overlays.is_dormant(target) and not disabled_accessories.has(target)))
+
+
+## 暫時顯示的圖層(2026-10-15,積木「暫時顯示圖層」與狀態鏡的「啟用時暫時顯示圖層」):
+## {圖層名稱: {"until": 到期時間(毫秒,0 = 不限時), "lens": 綁定的狀態鏡("" = 不綁;狀態鏡解除時一起收起)}}。
+## 暫時顯示期間不管動作、右鍵選單的開關、「平常不顯示」都會畫出來(那一幀設成不顯示的除外);不存檔,重開就沒了。
+var _forced_layers: Dictionary = {}
+## 上一次看到的啟用中狀態鏡(判斷哪個是剛啟用的,見 _sync_lens_layers)。
+var _lens_layer_seen: Dictionary = {}
+## 綁定狀態鏡的暫時顯示做過了沒:{"圖層|狀態鏡": 那次生效的時間戳(lens_stamp)}。
+var _lens_layer_done: Dictionary = {}
+
+
+## 暫時顯示圖層 seconds 秒(0 = 不限時);lens_name 非空時綁定那個狀態鏡,它解除就收起(沒在啟用中就不顯示)。
+## 兩個都沒給(0 秒、不綁)什麼都不做,免得圖層一直掛著收不回來。同一個圖層再叫一次就用新的設定取代。
+func show_layer_temporarily(layer_name: String, seconds: float, lens_name := "") -> void:
+	var lens := LensBehavior.canonical_name(lens_name.strip_edges()) if lens_name.strip_edges() != "" else ""
+	if (seconds <= 0.0 and lens == "") or (lens != "" and not _active_lenses.has(lens)):
+		return
+	var until := Time.get_ticks_msec() + int(minf(seconds, 86400.0) * 1000.0) if seconds > 0.0 else 0
+	for target in _layer_targets(layer_name):
+		if lens != "":
+			# 綁定狀態鏡的:同一次生效只顯示一次(條件事件每秒重複執行時不會一直重來、時間到後也不會又冒出來)。
+			var key := "%s|%s" % [target, lens]
+			if int(_lens_layer_done.get(key, -1)) == lens_stamp(lens):
+				continue
+			_lens_layer_done[key] = lens_stamp(lens)
+		_forced_layers[target] = {"until": until, "lens": lens}
+
+
+## 收起暫時顯示的圖層(空白或 * = 全部)。
+func stop_layer_temporarily(layer_name: String) -> void:
+	for target in _layer_targets(layer_name):
+		_forced_layers.erase(target)
+
+
+func is_layer_forced(layer_name: String) -> bool:
+	var entry: Variant = _forced_layers.get(layer_name)
+	if entry == null:
+		return false
+	if int(entry["until"]) > 0 and Time.get_ticks_msec() >= int(entry["until"]):
+		_forced_layers.erase(layer_name)
+		return false
+	return true
+
+
+## 狀態鏡啟用/解除後:剛啟用的狀態鏡照它的「啟用時暫時顯示圖層」設定顯示圖層;綁定已解除狀態鏡的圖層收起。
+func _sync_lens_layers() -> void:
+	for layer: String in _forced_layers.keys():
+		var bound := str(_forced_layers[layer]["lens"])
+		if bound != "" and not _active_lenses.has(bound):
+			_forced_layers.erase(layer)
+	for lens_name: String in _active_lenses:
+		if _lens_layer_seen.has(lens_name):
+			continue
+		var lens := _find_lens(lens_name)
+		if lens == null:
+			continue
+		for entry: Dictionary in lens.layer_shows:
+			show_layer_temporarily(str(entry.get("layer", "")), float(entry.get("seconds", 0.0)), lens_name)
+	_lens_layer_seen.clear()
+	for lens_name: String in _active_lenses:
+		_lens_layer_seen[lens_name] = true
 
 
 ## 積木「移動圖層」:在目前的位移上再加 delta(像素);會記住,重開後維持。
@@ -1497,8 +1590,37 @@ func set_body_scale(multiplier: float) -> void:
 
 
 ## 大張立繪縮小顯示用平滑取樣(像素風小圖維持最近點取樣才不會糊)。
+## 像素風放大成非整數倍時另外套清晰像素取樣(見 SharpPixel),倍率改變時由 _apply_scale 重新判斷。
 func set_smooth_scaling(smooth: bool) -> void:
 	_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR if smooth else CanvasItem.TEXTURE_FILTER_NEAREST
+	if _overlays != null:
+		_overlays.texture_filter = _sprite.texture_filter
+	_update_pixel_sampling()
+
+
+## 像素清晰縮放(SharpPixel)的開關,角色外觀設定裡可以關掉(關掉 = 一律最近點取樣)。
+var sharp_pixels_enabled := true
+
+
+func set_sharp_pixels(on: bool) -> void:
+	sharp_pixels_enabled = on
+	_update_pixel_sampling()
+
+
+## 這隻用的是像素風取樣(最近點);大張立繪用平滑取樣,像素清晰縮放對它沒有作用。
+func uses_pixel_sampling() -> bool:
+	return _sprite.texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST
+
+
+func _update_pixel_sampling() -> void:
+	var sharp := sharp_pixels_enabled and uses_pixel_sampling() and SharpPixel.wanted(params.scale_multiplier)
+	_sprite.material = SharpPixel.material() if sharp else null
+	if _overlays != null:
+		_overlays.material = _sprite.material   # 圖層的 Sprite2D 用 use_parent_material 跟著
+
+
+func uses_sharp_pixels() -> bool:
+	return _sprite.material != null
 
 
 ## 使用者輸入給桌寵記下來的文字(稱呼等,名稱 → 已消毒的字串)。只當資料存放與顯示,見 PetText。
@@ -1811,6 +1933,8 @@ func reload_pack(pack: Dictionary) -> void:
 	var keep_action := _requested_action
 	set_sprite_frames(pack["frames"])
 	set_smooth_scaling(bool(meta["smooth"]))
+	if base_pack_scale > 0.0:
+		_sync_pack_facing(bool(meta["art_flipped"]))
 	var spec: Dictionary = meta.get("overlays", {})
 	if not spec.is_empty():
 		for line: String in attach_overlays(spec, str(meta["path"])):
@@ -1885,7 +2009,7 @@ func set_appearance(wanted: String, remember := true) -> bool:
 	if id == "":
 		# 剛讀了預設外觀的素材包:順便更新「預設外觀自己的縮放與朝向」(開機只讀外觀那一套時用的是存檔裡記的,見 adopt_appearance)。
 		base_pack_scale = float((pack["meta"] as Dictionary)["scale"])
-		base_pack_flipped = bool((pack["meta"] as Dictionary)["art_flipped"])
+		_sync_pack_facing(bool((pack["meta"] as Dictionary)["art_flipped"]))
 	apply_appearance_pack(pack)
 	if remember and not ghost_edit:
 		PetProfile.save_state(self)
@@ -1918,6 +2042,17 @@ func adopt_appearance(saved: Dictionary, meta: Dictionary) -> void:
 	_appearance_flip = bool(meta["art_flipped"]) != base_pack_flipped
 	set_body_scale(base_pack_scale * appearance_scale_ratio)
 	set_art_flipped(base_pack_flipped)
+
+
+## 素材包的「圖片裡角色面向」(精靈圖編輯器設定,pack.json 的 facing)改了:這隻桌寵的鏡像跟著換邊,
+## 使用者用右鍵「鏡像翻轉」個別調過的也一樣換邊(相對素材包的翻轉狀態維持不變),並存檔。
+func _sync_pack_facing(pack_flipped: bool) -> void:
+	if pack_flipped == base_pack_flipped:
+		return
+	base_pack_flipped = pack_flipped
+	set_art_flipped(not art_flipped)
+	if not ghost_edit and not system_guide:
+		PetProfile.save_pet(self)
 
 
 ## 把一份載入好的素材包當成「目前外觀」套上(切換外觀、精靈圖編輯器存檔後重新載入都走這裡)。
@@ -2136,6 +2271,7 @@ func _rebuild_lens_effects() -> void:
 				if PetStateLens.BEHAVIOR_KEYS.has(key):
 					_lens_mods[key] = float(_lens_mods.get(key, 1.0)) * float(lens.behavior_overrides[key])
 	_lens_gravity = float(_lens_mods.get("gravity", 1.0))
+	_sync_lens_layers()
 
 
 func lens_mod(key: String) -> float:
@@ -2350,10 +2486,14 @@ func _start_animation(action_name: StringName, variant_index: int, priority: Act
 	var index: int = variant_index if variants.has(variant_index) else variants.pick_random()
 	var animation := StringName("%s_%d" % [base, index])
 	_current_action = resolved
+	_base_animation = animation
+	animation = _directional(animation)
+	_directional_playing = animation != _base_animation
 	_logical_animation = animation
 	_overlay_shown = false
 	_blink_left = 0.0
 	_sprite.play(animation)
+	_visual_root.scale.x = _visual_sign() * absf(_visual_root.scale.x)
 	_apply_overlay()
 	if priority == ActionPriority.SCRIPTED:
 		_start_hold(resolved, animation)
@@ -2659,6 +2799,7 @@ func maybe_drop_through(goal: Vector2, delta: float, roll := -1.0) -> bool:
 	velocity.y = 160.0
 	position.y += 2.0
 	_airborne_grace = maxf(_airborne_grace, 0.15)
+	_fell_off_edge = true   # 翻下平臺:這段墜落也播 downward(2026-10-15 使用者回報之前播的是一般的 fall)
 	return true
 
 
@@ -3307,8 +3448,23 @@ func stop_using_furniture() -> void:
 	_furniture_anchor = -1
 	_furniture_seated = false
 	_furniture_use_left = -1.0
+	_set_furniture_hidden(false)
 	if was_seated:
 		_shell_state.furniture_use_changed.emit(self, item, anchor_kind, false)
+
+
+## 坐/躺在設定了「使用時隱藏桌寵」的位置上(見 FurnitureDef.anchors 的 hide_pet):整隻不畫,判定框照舊(點得到、拖得走,
+## 拖走就結束使用、重新出現)。跟積木的「暫時隱形」(invisible)是兩回事,兩個都要沒有才畫。
+var _furniture_hidden := false
+
+
+func _set_furniture_hidden(value: bool) -> void:
+	_furniture_hidden = value
+	_visual_root.visible = not (invisible or _furniture_hidden)
+
+
+func is_hidden_by_furniture() -> bool:
+	return _furniture_hidden
 
 
 ## 正在使用家具(已經走到定位、坐著/躺著);走去的路上算「還沒」。
@@ -3374,6 +3530,7 @@ func _tick_furniture_seek() -> void:
 		_furniture_seated = true
 		global_position = _furniture_target.anchor_global_position(_furniture_anchor)
 		velocity = Vector2.ZERO
+		_set_furniture_hidden(_furniture_target.anchor_hides_pet(_furniture_anchor))
 		_shell_state.furniture_use_changed.emit(self, _furniture_target, _furniture_target.anchor_type(_furniture_anchor), true)
 
 
@@ -4141,7 +4298,7 @@ func set_invisible(value: bool) -> void:
 	if invisible == value:
 		return
 	invisible = value
-	_visual_root.visible = not value
+	_visual_root.visible = not (value or _furniture_hidden)
 
 
 ## 目前生效的判定框大小(縮放前像素):使用者設定 > 素材包設定 > 待機幀本體大小。
@@ -4335,6 +4492,7 @@ func _physics_process(delta: float) -> void:
 	_last_global_position = global_position
 	if not _active_lenses.is_empty():
 		_tick_lenses()
+	_tick_dance_cooldown(delta)
 	if dragging:
 		if not _drag_asleep:
 			_play(&"drag", -1, ActionPriority.INTERACTION)
@@ -4465,11 +4623,16 @@ func _process_ground_seek(delta: float, goal: Vector2) -> void:
 	else:
 		release_hold()
 		_steer_toward_jump_target()
+	if is_on_floor() and _landing_now():
+		velocity.x = 0.0
 	move_and_slide()
+	_detect_ground_landing(delta)
 	if entering:
 		_play(&"enter", -1, ActionPriority.SYSTEM)
 	elif not is_on_floor():
 		play_action(_fall_action())
+	elif _landing_now():
+		_play_locomotion(&"land")
 	elif _ground_state == GroundState.WALK:
 		play_action(&"run" if is_running() else &"walk")
 	else:
@@ -4556,6 +4719,7 @@ func _process_ground(delta: float) -> void:
 	if is_on_floor() and _airborne_grace <= 0.0 and hops_left > 0 and not entering:
 		hops_left -= 1
 		velocity.y = -_normal_jump_speed() * _hop_scale
+		_hop_airborne = true   # 原地小跳落地不播 land
 	if move_mode == MoveMode.GROUND or (move_mode == MoveMode.FLYING and fly_behavior == FlyBehavior.HYBRID):
 		var goal: Variant = _movement_goal()
 		if goal is Vector2:
@@ -4599,7 +4763,10 @@ func _process_ground(delta: float) -> void:
 		_dance_left = 0.0
 		release_hold()
 		_steer_toward_jump_target()
+	if is_on_floor() and _landing_now():
+		velocity.x = 0.0
 	move_and_slide()
+	_detect_ground_landing(delta)
 	if is_on_wall() and _ground_state == GroundState.WALK:
 		if not _try_start_climb():
 			_walk_dir = -_walk_dir
@@ -4610,6 +4777,8 @@ func _process_ground(delta: float) -> void:
 		_play(&"enter", -1, ActionPriority.SYSTEM)
 	elif not is_on_floor():
 		play_action(_fall_action())
+	elif _landing_now():
+		_play_locomotion(&"land")
 	elif _ground_state == GroundState.WALK and _interact_left <= 0.0 and _converse_left <= 0.0:
 		play_action(&"run" if is_running() else &"walk")
 	else:
@@ -4814,7 +4983,7 @@ func _process_climb(delta: float) -> void:
 
 
 ## 自主跳舞(新的系統動作 dance):待機時間結束時,沒有負面狀態鏡、開關開著、素材有 dance 動作,
-## 就有 auto_dance_chance 的機率改成原地跳一段舞(DANCE_DURATION 秒)再繼續原本的行程。
+## 就有 auto_dance_chance 的機率改成原地跳一段舞(DANCE_DURATION 秒,跳完冷卻 DANCE_COOLDOWN 秒)再繼續原本的行程。
 ## 沒有 dance 素材就不跳(不退回 idle,免得桌寵站著不動卻被當成在跳舞)。地面/靜止模式限定,跟隨中不會跳。
 func _try_start_dance() -> bool:
 	if relaxing():
@@ -4830,7 +4999,8 @@ func _try_start_dance() -> bool:
 
 ## 開始跳一段舞(自己待機結束擲中、或看到別人跳舞被帶動時共用)。沒有素材、有負面狀態鏡、正在做別的事就不跳。
 func _start_dance() -> bool:
-	if not auto_dance_enabled or entering or _dance_left > 0.0 or _interact_left > 0.0 or _hold_left > 0.0:
+	_tick_dance_cooldown(0.0)   # 這一格剛跳完的話先進冷卻,不要立刻再跳一段
+	if not auto_dance_enabled or entering or _dance_left > 0.0 or _interact_left > 0.0 or _hold_left > 0.0 or _dance_cooldown_left > 0.0:
 		return false
 	if lens_blocks("dance") or _find_variants(_lens_base(&"dance")).is_empty():
 		return false
@@ -4838,14 +5008,36 @@ func _start_dance() -> bool:
 	_dance_left = duration
 	_state_timer = duration
 	_ground_state = GroundState.IDLE
+	_was_dancing = true
 	_shell_state.pet_dance_started.emit(self)
 	return true
+
+
+## 一段舞結束(跳完、被摸、被拖、被積木或狀態鏡打斷都算):開始冷卻。
+func _tick_dance_cooldown(delta: float) -> void:
+	if _was_dancing and _dance_left <= 0.0:
+		_was_dancing = false
+		_dance_cooldown_left = randf_range(DANCE_COOLDOWN.x, DANCE_COOLDOWN.y)
+	elif _dance_cooldown_left > 0.0:
+		_dance_cooldown_left = maxf(_dance_cooldown_left - delta, 0.0)
+
+
+func dance_time_left() -> float:
+	return _dance_left
 
 
 ## 場內別的桌寵開始跳舞:自己(開著「跟著跳」、沒有負面狀態鏡)隔 0.5~2 秒後有 DANCE_FOLLOW_CHANCE 的機率也跳,
 ## 只在站著待機時才會加入。這是內建的自主行為,不需要積木。
 func _on_dance_cue(source: Node) -> void:
-	if source == self or not auto_dance_follow_enabled or not auto_dance_enabled or _dance_left > 0.0:
+	if source == self:
+		return
+	if _dance_left > 0.0:
+		# 自己正在跳、有別的桌寵加入:延長,至少陪對方跳完(剩餘時間最多 DANCE_DURATION.y)
+		var joined: float = source.dance_time_left() if source.has_method("dance_time_left") else 0.0
+		_dance_left = minf(maxf(_dance_left + randf_range(DANCE_EXTEND.x, DANCE_EXTEND.y), joined), maxf(_dance_left, DANCE_DURATION.y))
+		_state_timer = maxf(_state_timer, _dance_left)
+		return
+	if not auto_dance_follow_enabled or not auto_dance_enabled or _dance_cooldown_left > 0.0:
 		return
 	_dance_cue_left = randf_range(0.5, 2.0)
 
@@ -5241,6 +5433,34 @@ func _fly_landing(delta: float) -> void:
 		_trigger_land()
 
 
+## 地面模式落地(2026-10-15 使用者要求:地面模式落地的那一刻也算「落地」,播一次 land):
+## 在空中待超過 LAND_MIN_AIR 秒(掉下平臺、翻下平臺、被丟出去、跳上平臺)後踩到地面,就播一次 land(素材沒有 land 就照舊);
+## 原地小跳(perform_hops,開心、慶祝)不算。播 land 期間原地不走。
+const LAND_MIN_AIR := 0.35
+var _air_time := 0.0
+var _hop_airborne := false
+
+
+func _detect_ground_landing(delta: float) -> void:
+	if not is_on_floor():
+		_air_time += delta
+		return
+	# 走下/翻下平臺那一下可能還算踩在地上(_fell_off_edge 已經設了),要真的離地過一小段才算
+	if (_air_time >= LAND_MIN_AIR or (_fell_off_edge and _air_time >= 0.08)) and not _hop_airborne and not entering and not dragging and _has_land_animation():
+		_land_left = clampf(_animation_length(StringName("land_0")), 0.2, 1.5)
+	_air_time = 0.0
+	_hop_airborne = false
+
+
+func _has_land_animation() -> bool:
+	return _sprite.sprite_frames != null and _sprite.sprite_frames.has_animation(&"land_0")
+
+
+## 正在播落地動作(地面模式落地後的那一下,見 _detect_ground_landing)。
+func _landing_now() -> bool:
+	return _land_left > 0.0 and _climb == ClimbState.NONE and _interact_left <= 0.0 and _hold_left <= 0.0
+
+
 ## 飛行降落瞬間觸發一次性的 land 動作:讓 _fly_resting() 接下來 LAND_HOLD_SECONDS 內改播 land(不是直接
 ## 跳 sit),時間到自動退回 sit。不用像 tired/wake 那樣額外呼叫 logic.fire_event()——land 本身就是真的會
 ## 被 _play_locomotion() 播放的動作,_requested_action 變成 &"land" 時 _play() 自己就會 announce 一次
@@ -5397,11 +5617,52 @@ func _face(direction: int) -> void:
 	if direction == 0:
 		return
 	_facing = direction
+	_refresh_direction()
 	_visual_root.scale.x = _visual_sign() * params.scale_multiplier
 
 
 func _visual_sign() -> float:
+	return 1.0 if _directional_playing else _normal_sign()
+
+
+## 沒有朝向專用動畫時的鏡像方向(1 = 照原圖、-1 = 左右翻)。
+func _normal_sign() -> float:
 	return -float(_facing) if art_flipped != _appearance_flip else float(_facing)
+
+
+## 朝左/朝右專用動畫(2026-10-15,見 SpritePackLoader.DIRECTIONS):animation 是一般的動畫名稱(walk_0),
+## 素材包有這一邊的專用動畫(walk_left_0,沒有同編號就用 walk_left_0 號)就換成它;沒有就原樣回傳(照舊用鏡像)。
+func _directional(animation: StringName) -> StringName:
+	var frames := _sprite.sprite_frames
+	var text := String(animation)
+	var split := text.rfind("_")
+	if frames == null or split <= 0 or not text.substr(split + 1).is_valid_int():
+		return animation
+	var base := text.substr(0, split)
+	if SpritePackLoader.plain_action(base) != base:
+		return animation
+	var side := "left" if _facing < 0 else "right"
+	for candidate: String in ["%s_%s_%s" % [base, side, text.substr(split + 1)], "%s_%s_0" % [base, side]]:
+		if frames.has_animation(candidate):
+			return StringName(candidate)
+	return animation
+
+
+## 轉身了:目前動作有沒有這一邊的專用動畫可能跟著變,換過去並接著原本播到的幀(換圖不重頭播)。
+func _refresh_direction() -> void:
+	if _base_animation == &"" or _sprite.sprite_frames == null:
+		return
+	var wanted := _directional(_base_animation)
+	if wanted == _logical_animation:
+		return
+	var frame := _sprite.frame if not _overlay_shown else _saved_frame
+	var progress := _sprite.frame_progress if not _overlay_shown else _saved_progress
+	_logical_animation = wanted
+	_directional_playing = wanted != _base_animation
+	_overlay_shown = false
+	_sprite.play(wanted)
+	_sprite.set_frame_and_progress(mini(frame, _sprite.sprite_frames.get_frame_count(wanted) - 1), progress)
+	_apply_overlay()
 
 
 func _apply_scale() -> void:
@@ -5411,6 +5672,7 @@ func _apply_scale() -> void:
 	shape.size = BODY_SIZE * multiplier
 	_shape_node.shape = shape
 	_shape_node.position = Vector2(0.0, -BODY_SIZE.y * multiplier * 0.5)
+	_update_pixel_sampling()
 
 
 ## 動作名稱 → 差分編號清單的快取(2026-10-11 效能):自主行為每個物理影格都會問好幾次「這個動作有哪些差分」,

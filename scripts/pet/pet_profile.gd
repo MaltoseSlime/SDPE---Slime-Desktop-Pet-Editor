@@ -140,7 +140,7 @@ static func snapshot_pet(pet: Node) -> Dictionary:
 		"mute": {"auto_unmute": pet.auto_unmute_enabled},
 		"status": {"energy": pet.status_show_energy, "mood": pet.status_show_mood},
 		"effects": {"sleep_z": pet.sleep_z.enabled, "all": pet.effects.enabled, "auto": pet.effects.auto_enabled, "styles": pet.effects.styles_to_dict(), "links": pet.effects.links_to_dict(), "trail": pet.effects.trail_mode},
-		"body": {"scale": pet.params.scale_multiplier / pet.appearance_scale_ratio, "art_flipped": pet.art_flipped, "drag_fixed": pet.drag_when_fixed, "climb": pet.climb_enabled, "breath": pet.breathing_enabled, "land_for_props": pet.land_for_props, "fly_behavior": pet.FLY_BEHAVIOR_NAMES[pet.fly_behavior], "no_fatigue": pet.fatigue_disabled, "bottom": pet.bottom_anchored, "hitbox": [pet.hitbox_size.x, pet.hitbox_size.y, pet.hitbox_offset.x, pet.hitbox_offset.y]},
+		"body": {"scale": pet.params.scale_multiplier / pet.appearance_scale_ratio, "art_flipped": pet.art_flipped, "pack_flipped": pet.base_pack_flipped, "drag_fixed": pet.drag_when_fixed, "climb": pet.climb_enabled, "breath": pet.breathing_enabled, "sharp_pixels": pet.sharp_pixels_enabled, "land_for_props": pet.land_for_props, "fly_behavior": pet.FLY_BEHAVIOR_NAMES[pet.fly_behavior], "no_fatigue": pet.fatigue_disabled, "bottom": pet.bottom_anchored, "hitbox": [pet.hitbox_size.x, pet.hitbox_size.y, pet.hitbox_offset.x, pet.hitbox_offset.y]},
 		"voice": PetVoice.to_dict(pet),
 		"dice": {"sides": pet.dice_sides, "mod": pet.dice_mod, "dc": pet.dice_dc_percent, "best_of": pet.game_best_of, "auto_invite": pet.auto_game_enabled, "always_refuse": pet.game_always_refuse},
 		"game_prefs": {
@@ -231,10 +231,15 @@ static func _apply_pet_data(pet: Node, data: Dictionary) -> void:
 	if body is Dictionary:
 		if body.get("scale") is float or body.get("scale") is int:
 			pet.set_body_scale(float(body["scale"]) * pet.appearance_scale_ratio)   # 存的是預設外觀下的倍率(見 Pet.appearance_scale_ratio)
-		pet.set_art_flipped(bool(body.get("art_flipped", pet.art_flipped)))
+		var flipped := bool(body.get("art_flipped", pet.art_flipped))
+		# 存檔之後,素材包的「圖片裡角色面向」在精靈圖編輯器改過了:個別的鏡像設定跟著換邊(見 Pet._sync_pack_facing)。
+		if body.get("pack_flipped") is bool and pet.base_pack_scale > 0.0 and bool(body["pack_flipped"]) != pet.base_pack_flipped:
+			flipped = not flipped
+		pet.set_art_flipped(flipped)
 		pet.drag_when_fixed = bool(body.get("drag_fixed", pet.drag_when_fixed))
 		pet.set_climb_enabled(bool(body.get("climb", pet.climb_enabled)))
 		pet.set_breathing(bool(body.get("breath", pet.breathing_enabled)))
+		pet.set_sharp_pixels(bool(body.get("sharp_pixels", pet.sharp_pixels_enabled)))
 		pet.land_for_props = bool(body.get("land_for_props", pet.land_for_props))
 		var fly_index: int = pet.FLY_BEHAVIOR_NAMES.find(str(body.get("fly_behavior", pet.FLY_BEHAVIOR_NAMES[pet.fly_behavior])))
 		pet.fly_behavior = maxi(fly_index, 0) as Pet.FlyBehavior
@@ -363,12 +368,16 @@ static func value_from_dict(data: Variant) -> PetValueDef:
 
 
 static func lens_to_dict(lens: PetStateLens) -> Dictionary:
-	return {
+	var result := {
 		"name": lens.lens_name, "prefix": lens.prefix, "nature": Array(lens.nature),
 		"movement_overrides": lens.movement_overrides, "behavior_overrides": lens.behavior_overrides, "timeout_min": lens.timeout_min, "timeout_max": lens.timeout_max,
 		"continue_chance": lens.continue_chance, "continue_decay": lens.continue_decay, "max_rounds": lens.max_rounds, "force_run": lens.force_run, "mood_callable": lens.mood_callable,
 		"source": lens.source, "source_hash": lens.source_hash,
 	}
+	# 沒設定就不寫這個欄位:性格帶進來的狀態鏡用整份內容算雜湊(見 PersonalityApplier),多一個空欄位會被當成使用者改過。
+	if not lens.layer_shows.is_empty():
+		result["layer_shows"] = lens.layer_shows.duplicate(true)
+	return result
 
 
 static func lens_from_dict(data: Variant) -> PetStateLens:
@@ -404,6 +413,11 @@ static func lens_from_dict(data: Variant) -> PetStateLens:
 	var force_run_raw: Variant = data.get("force_run", false)
 	lens.force_run = force_run_raw if force_run_raw is bool else false
 	lens.mood_callable = clampi(int(_number(data.get("mood_callable"), -1.0)), -1, 1)
+	var layer_shows: Array = []
+	for entry: Variant in _array(data.get("layer_shows")).slice(0, PetStateLens.MAX_LAYER_SHOWS):
+		if entry is Dictionary and str(entry.get("layer", "")).strip_edges() != "":
+			layer_shows.append({"layer": str(entry["layer"]).strip_edges().left(40), "seconds": clampf(_number(entry.get("seconds"), 0.0), 0.0, 86400.0)})
+	lens.layer_shows = layer_shows
 	lens.source = str(data.get("source", "")).left(60)
 	lens.source_hash = int(_number(data.get("source_hash"), 0.0))
 	return lens

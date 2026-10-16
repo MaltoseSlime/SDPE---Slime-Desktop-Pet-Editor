@@ -153,6 +153,22 @@ func count() -> int:
 
 ## 精靈圖編輯器改了某件家具的定義並存檔後呼叫(見 PackEditorWindow._save_furniture):場上同一件家具的每個實例都換上
 ## 剛存的新定義,不然光源座標/大小/顏色、above_light 疊層順序、坐躺錨點都會停在放上桌面那一刻讀到的舊版本。
+## 精靈圖編輯器存檔後(見 DesktopShell.reload_pack_pets):folder 是某件家具的 sprite/ 資料夾的話,場上那件家具換上新圖與圖層。回傳更新了幾件。
+func reload_sprites(folder: String) -> int:
+	var wanted := ProjectSettings.globalize_path(folder).replace("\\", "/").trim_suffix("/")
+	var updated := 0
+	for item in items:
+		if not is_instance_valid(item) or item.def == null:
+			continue
+		if ProjectSettings.globalize_path(FurnitureLibrary.sprite_folder(item.def.id)).replace("\\", "/").trim_suffix("/") != wanted:
+			continue
+		var frames := FurnitureLibrary.load_sprite(item.def)
+		if frames != null:
+			item.set_frames(frames)
+			updated += 1
+	return updated
+
+
 func refresh_def(furniture_id: String) -> void:
 	var fresh := FurnitureLibrary.load_def(furniture_id)
 	if fresh == null:

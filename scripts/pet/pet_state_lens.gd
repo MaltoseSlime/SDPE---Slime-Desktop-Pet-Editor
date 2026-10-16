@@ -38,6 +38,10 @@ const BEHAVIOR_LABELS := {"dance": "跳舞", "run": "奔跑", "rest": "休息系
 @export var max_rounds := 6
 ## 啟用期間桌寵一律用奔跑的速度與動作(走路變成 run);只要有一個啟用中的鏡片勾了就算。
 @export var force_run := false
+## 啟用時暫時顯示的圖層(2026-10-15):[{"layer": 圖層名稱, "seconds": 秒數(0 = 一直到這個狀態鏡解除)}]。
+## 圖層是精靈圖編輯器「圖層」頁的名稱;這隻桌寵沒有那個圖層就什麼都不做。狀態鏡解除時一律收起(見 Pet._sync_lens_layers)。
+@export var layer_shows: Array = []
+const MAX_LAYER_SHOWS := 16
 ## 是否可以被「心情門檻」叫出來:-1 = 依名稱(開心、悠哉、緊張、生氣、悲傷預設會,其他不會);0 = 不會;1 = 會。要不要用哪個看性格的「心情高/低時的狀態鏡」,沒指定就在勾了的正面/負面狀態鏡裡隨機挑。
 @export var mood_callable := -1
 ## 這個狀態鏡是誰帶進來的:空字串 = 使用者自己建的;"personality:<性格 id>" = 套用性格時加入的。source_hash = 加入當下內容的雜湊,

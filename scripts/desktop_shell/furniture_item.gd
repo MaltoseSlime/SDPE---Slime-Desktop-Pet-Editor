@@ -5,6 +5,9 @@ extends Node2D
 ## interacted 這個動畫狀態的素材已經能準備,但目前播放邏輯還沒接上(桌寵使用家具時播的是自己身上的 sit/lie 動作,不是家具的 interacted)。
 ## 錨點(可坐/可躺的位置,見 FurnitureDef.anchors):桌寵想用時呼叫 claim_anchor() 佔一個,見 Pet.use_furniture()。
 ## 光源(見 FurnitureDef.lights/FurnitureLight,一件家具可以有好幾盞):z_index 依 def.above_light 決定貼圖疊在光暈上面還是下面。
+## 圖層(2026-10-15,跟角色同一套 overlays.json,見 PetOverlays):放在家具的 sprite/ 資料夾,用精靈圖編輯器的「圖層」頁編輯;
+## 「動作」是家具的狀態(normal / conditional / interacted),每個圖層可以設定「誰在用時顯示」(見 overlay_allows),
+## 例如同一張床,不同的桌寵躺上去時蓋上不同顏色的被子。
 ## 手動開關(積木「觸發家具」,見 try_toggle):蓋掉 FurnitureCondition 的自動判斷,直到再被觸發一次;
 ## 有冷卻時間防止好幾隻桌寵同時偵測到同一件家具、結果一起瘋狂開關。
 
@@ -19,6 +22,10 @@ const INTERACTED_SECONDS := 1.2
 var def: FurnitureDef
 var _sprite: AnimatedSprite2D
 var _light: FurnitureLight
+var _overlays: PetOverlays
+## 積木「家具圖層」的手動設定(見 set_layer_override):{圖層名稱: {"show": 顯示/隱藏, "until": 到期時間(毫秒,0 = 一直到再改)}}。
+## 蓋過圖層自己的規則(動作、誰在用);不存檔,重開就沒了。
+var _layer_overrides: Dictionary = {}
 var _check_left := 0.0
 ## 測試用:>= 0 時用這個當「現在是一天的第幾分鐘」(見 FurnitureCondition 的 time_range)。
 var override_minute := -1
@@ -66,9 +73,149 @@ func setup(new_def: FurnitureDef, frames: SpriteFrames) -> void:
 	_light.z_index = LIGHT_Z
 	add_child(_light)
 	_light.setup(self)
+	attach_overlays()
 	_sync_container_items()
 	add_to_group("furniture")
 	evaluate()
+
+
+## 換上新的貼圖(精靈圖編輯器存檔後,見 FurnitureManager.reload_sprites),圖層一起重讀。
+func set_frames(frames: SpriteFrames) -> void:
+	if _sprite == null or frames == null:
+		return
+	var playing := _sprite.animation
+	_sprite.sprite_frames = frames
+	if frames.has_animation(playing):
+		_sprite.animation = playing
+	_sprite.play()
+	attach_overlays()
+	evaluate()
+
+
+## (重新)讀 sprite/overlays.json 掛上圖層;沒有檔案或沒有可用的圖層就不掛。回傳讀取報告。
+func attach_overlays() -> Array[String]:
+	if _overlays != null:
+		_overlays.queue_free()
+		_overlays = null
+	var report: Array[String] = []
+	if def == null or def.id == "" or _sprite == null or _sprite.sprite_frames == null:
+		return report
+	var folder := FurnitureLibrary.sprite_folder(def.id)
+	var path := folder.path_join("overlays.json")
+	if not FileAccess.file_exists(path):
+		return report
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not parsed is Dictionary:
+		report.append(tr("overlays.json 格式不對,已略過。"))
+		return report
+	PackSourceSizes.realign_overlays(folder, parsed, SpritePackLoader.read_manifest(folder))
+	_overlays = PetOverlays.new()
+	_overlays.texture_filter = _sprite.texture_filter
+	add_child(_overlays)
+	report = _overlays.setup(self, parsed, folder, Vector2.ZERO, Vector2.ZERO)
+	if _overlays.part_count() == 0:
+		_overlays.queue_free()
+		_overlays = null
+		return report
+	_place_overlays()
+	_sync_layer_overrides()
+	return report
+
+
+## 積木「家具圖層」:layer_name 空白或 * = 全部圖層;mode = "show"(強制顯示)/ "hide"(強制隱藏)/ "auto"(回到圖層自己的規則);
+## seconds > 0 時那麼多秒後自動回到自己的規則,0 = 一直到再被改。
+func set_layer_override(layer_name: String, mode: String, seconds := 0.0) -> void:
+	var targets: Array[String] = []
+	var wanted := layer_name.strip_edges()
+	if wanted == "" or wanted == "*":
+		targets = _overlays.layer_names() if _overlays != null else ([] as Array[String])
+	else:
+		targets.append(wanted)
+	var until := Time.get_ticks_msec() + int(minf(seconds, 86400.0) * 1000.0) if seconds > 0.0 else 0
+	for target in targets:
+		if mode == "show" or mode == "hide":
+			_layer_overrides[target] = {"show": mode == "show", "until": until}
+		else:
+			_layer_overrides.erase(target)
+	_sync_layer_overrides()
+
+
+## 拿掉到期的手動設定,把「強制隱藏」的圖層交給 PetOverlays(強制顯示走 is_layer_forced)。
+func _sync_layer_overrides() -> void:
+	var now := Time.get_ticks_msec()
+	var hidden: Array = []
+	for target: String in _layer_overrides.keys():
+		var entry: Dictionary = _layer_overrides[target]
+		if int(entry["until"]) > 0 and now >= int(entry["until"]):
+			_layer_overrides.erase(target)
+		elif not bool(entry["show"]):
+			hidden.append(target)
+	if _overlays != null:
+		_overlays.set_disabled(hidden)
+
+
+## PetOverlays 問:這個圖層現在被積木強制顯示嗎(蓋過動作與「誰在用時顯示」)。
+func is_layer_forced(layer_name: String) -> bool:
+	var entry: Variant = _layer_overrides.get(layer_name)
+	if not entry is Dictionary or not bool(entry["show"]):
+		return false
+	return int(entry["until"]) == 0 or Time.get_ticks_msec() < int(entry["until"])
+
+
+## 圖層的座標是相對軸心(跟光源、坐躺位置一樣,見 pivot_offset),疊層跟著貼圖走(貼圖疊在光源之上時圖層也一起上去)。
+func _place_overlays() -> void:
+	if _overlays == null:
+		return
+	_overlays.position = pivot_offset()
+	_overlays.z_index = _sprite.z_index
+
+
+func overlays() -> PetOverlays:
+	return _overlays
+
+
+# --- PetOverlays 需要的介面(圖層掛在家具上時,家具扮演桌寵的角色) ---
+
+## 目前的狀態名稱(normal / conditional / interacted),圖層的「在這些動作顯示」比對的就是它。
+func current_animation_action() -> StringName:
+	var name := current_animation()
+	var split := name.rfind("_")
+	return StringName(name.substr(0, split) if split > 0 and name.substr(split + 1).is_valid_int() else name)
+
+
+func body_frame() -> int:
+	return current_frame()
+
+
+func is_speaking_now() -> bool:
+	return false
+
+
+## 圖層的「誰在用時顯示」(見 PetOverlays 檔頭的 used_by):看已經坐/躺定位的桌寵(走過去的路上不算),
+## used_seat >= 0 時只看那一個位置。
+func overlay_allows(part: Dictionary) -> bool:
+	var mode := str(part.get("used_by", "always"))
+	if mode == "always":
+		return true
+	var seat := int(part.get("used_seat", -1))
+	var tags: Array = part.get("used_by_tags", [])
+	var users: Array = []
+	for index: int in _anchor_holders:
+		var holder: Variant = _anchor_holders[index]
+		if seat >= 0 and index != seat:
+			continue
+		if holder is Node and is_instance_valid(holder) and holder.has_method("is_using_furniture") and bool(holder.is_using_furniture()):
+			users.append(holder)
+	match mode:
+		"idle":
+			return users.is_empty()
+		"in_use":
+			return not users.is_empty()
+		"pets":
+			return users.any(func(pet: Node) -> bool: return tags.has(str(pet.get("recognition_tag"))))
+		"not_pets":
+			return users.any(func(pet: Node) -> bool: return not tags.has(str(pet.get("recognition_tag"))))
+	return true
 
 
 ## 讓容器的道具清單跟上目前的 def:新加的道具種類補滿、被移除的道具種類清掉,已經在追蹤的種類保留目前數量不動
@@ -97,6 +244,7 @@ func apply_def(new_def: FurnitureDef) -> void:
 	def = new_def
 	if _sprite != null:
 		_sprite.z_index = LIGHT_Z + 1 if def.above_light else 0
+	_place_overlays()
 	if _light != null:
 		_light.queue_redraw()
 	_sync_container_items()
@@ -105,6 +253,8 @@ func apply_def(new_def: FurnitureDef) -> void:
 
 func _process(delta: float) -> void:
 	_toggle_cooldown_left = maxf(_toggle_cooldown_left - delta, 0.0)
+	if not _layer_overrides.is_empty():
+		_sync_layer_overrides()
 	if _interacted_left > 0.0:
 		_interacted_left = maxf(_interacted_left - delta, 0.0)
 		_play(&"interacted_0")
@@ -420,6 +570,13 @@ func anchor_type(index: int) -> String:
 	if def == null or index < 0 or index >= def.anchors.size():
 		return "sit"
 	return str((def.anchors[index] as Dictionary).get("type", "sit"))
+
+
+## 這個錨點坐/躺定位後要不要把桌寵整隻藏起來(見 FurnitureDef.anchors 的 hide_pet)。
+func anchor_hides_pet(index: int) -> bool:
+	if def == null or index < 0 or index >= def.anchors.size():
+		return false
+	return bool((def.anchors[index] as Dictionary).get("hide_pet", false))
 
 
 ## 這個錨點設定的面向("both"/"left"/"right",見 FurnitureDef.ANCHOR_FACINGS)。

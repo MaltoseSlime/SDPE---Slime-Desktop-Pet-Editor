@@ -54,6 +54,18 @@ const ALIASES := {
 	"climb_wall": ["climb_wall", "climb", "ladder"],
 	"climb_ceiling": ["climb_ceiling", "ceiling"],
 }
+## 朝左/朝右專用動畫的名稱後綴(動作名稱後面接 _left / _right,見 _plan_animations)。
+const DIRECTIONS: Array[String] = ["left", "right"]
+
+
+## 動畫基本名稱去掉朝向後綴(walk_left → walk);沒有後綴原樣回傳。朝向版本沒有自己的播放速度、循環設定時沿用原動作的。
+static func plain_action(base_name: String) -> String:
+	for side: String in DIRECTIONS:
+		if base_name.ends_with("_" + side) and base_name.length() > side.length() + 1:
+			return base_name.left(base_name.length() - side.length() - 1)
+	return base_name
+
+
 ## 這些動作預設只播一次(不循環)。
 const ONE_SHOT: Array[String] = ["enter", "leave", "land"]
 
@@ -64,12 +76,22 @@ static var _RE_ONLY_NUMBER := RegEx.create_from_string("^\\d+$")
 
 ## 載入素材包。回傳 {ok, frames(SpriteFrames), meta{tag,name,scale,art_flipped,smooth,path}, report[String]};失敗時 ok=false、report 說明原因。
 static func load_pack(folder: String) -> Dictionary:
+	var result := _load_pack(folder)
+	_prefetched.clear()
+	return result
+
+
+static func _load_pack(folder: String) -> Dictionary:
 	var report: Array[String] = []
 	var root := folder.strip_edges().trim_suffix("/").trim_suffix("\\")
 	if root == "" or DirAccess.open(root) == null:
 		return _fail(TranslationServer.translate("找不到資料夾:%s") % folder)
 	_sheet_cache.clear()
 	var manifest := _read_manifest(root, report)
+	# 原圖被直接換成大小不同的新圖:裁切、軸心照新圖重新對位(只在記憶體裡,見 PackSourceSizes)
+	var realigned := PackSourceSizes.realign_manifest(root, manifest)
+	if not realigned.is_empty():
+		report.append(TranslationServer.translate("有 %d 張圖的大小跟上次存檔時不同,已自動重新對位(到精靈圖編輯器打開並存檔就會寫進檔案)。") % realigned.size())
 	var layout := _scan(root, manifest, report)
 	if layout.is_empty() or (layout["actions"] as Dictionary).is_empty():
 		return _fail("資料夾裡找不到可用的圖片(需要 <動作>_<幀>.png 之類的檔名,見 docs/素材包格式.md)")
@@ -90,14 +112,20 @@ static func load_pack(folder: String) -> Dictionary:
 		var entry: Dictionary = plan[animation_name]
 		for index: int in entry["frames"]:
 			base_paths[(actions[entry["source"]] as Array)[index]] = true
+	var blink_stages: Array = overlays.get("blink", [])
+	var speak_stages: Array = overlays.get("speak", [])
+	var wanted: Array = base_paths.keys()
+	for stage: Dictionary in blink_stages + speak_stages:
+		for source_name: String in stage:
+			if _plan_uses_source(plan, source_name):
+				wanted.append_array(stage[source_name])
+	_prefetch(wanted)
 	for path: String in base_paths:
 		var info := _load_info(path, total_pixels, report, nametag_align, oversized)
 		if not info.is_empty():
 			infos[path] = info
 	if infos.is_empty():
 		return _fail("圖片都讀不出來(檔案損毀或超過大小上限)")
-	var blink_stages: Array = overlays.get("blink", [])
-	var speak_stages: Array = overlays.get("speak", [])
 	var blink_infos: Dictionary = {}
 	for stage: Dictionary in blink_stages + speak_stages:
 		for source_name: String in stage:
@@ -168,7 +196,8 @@ static func load_pack(folder: String) -> Dictionary:
 		var source_paths: Array = actions[entry["source"]]
 		var animation := StringName(animation_name)
 		var base_name := animation_name.substr(0, animation_name.rfind("_"))
-		var loop_entry: Dictionary = loop_table.get(base_name, {})
+		var plain_name := plain_action(base_name)   # 朝向版本(walk_left)沒設定時沿用原動作(walk)的速度與循環
+		var loop_entry: Dictionary = loop_table.get(base_name, loop_table.get(plain_name, {}))
 		# repeat 模式(整段重複播 N 次再停):引擎的 SpriteFrames 只有「一直循環」或「播一次」兩種,沒有「播 N 次」,
 		# 所以直接把幀序重複串接成一段不循環的長動畫,播完 N 輪自然停在最後一幀(見 PackLoop 檔頭說明)。
 		var is_repeat := str(loop_entry.get("mode", "")) == "repeat"
@@ -187,8 +216,8 @@ static func load_pack(folder: String) -> Dictionary:
 		if frame_list.is_empty():
 			continue   # 宣告了這個動作但一幀都沒有(理論上 plan 不會產生這種項目,防呆用)。
 		frames.add_animation(animation)
-		frames.set_animation_speed(animation, _number(fps_by_action.get(base_name), fps))
-		frames.set_animation_loop(animation, bool(loop_flag) if loop_flag != null else not one_shot.has(base_name))
+		frames.set_animation_speed(animation, _number(fps_by_action.get(base_name, fps_by_action.get(plain_name)), fps))
+		frames.set_animation_loop(animation, bool(loop_flag) if loop_flag != null else not one_shot.has(plain_name))
 		var added := 0
 		for index: int in frame_list:
 			var path: String = source_paths[index]
@@ -281,6 +310,9 @@ static func load_pack(folder: String) -> Dictionary:
 	var overlay_spec := _read_json_file(root.path_join("overlays.json"))
 	if not overlay_spec.is_empty():
 		overlay_spec["space"] = str(overlay_spec.get("space", "pivot"))
+		var overlay_realigned: Dictionary = PackSourceSizes.realign_overlays(root, overlay_spec, manifest)
+		for part_name: String in overlay_realigned["skipped"]:
+			report.append(TranslationServer.translate("圖層「%s」只有部分圖片換成大小不同的新圖,沒辦法自動重新對位,請到精靈圖編輯器調整。") % part_name)
 	var height := body_size.y
 	var tag := _clean_tag(str(manifest.get("tag", "")), root.get_file())
 	var meta := {
@@ -579,6 +611,76 @@ static func parse_virtual(path: String) -> Dictionary:
 	return {"file": parts[0], "rect": Rect2i(int(numbers[0]), int(numbers[1]), int(numbers[2]), int(numbers[3])), "index": int(parts[2]), "fx": fx}
 
 
+# --- 平行預先解碼(2026-10-17 效能:130 張 512²~826² 的 PNG 一張張解碼+裁切要 1~2 秒,主執行緒整個卡住)---
+# load_pack 讀圖之前,把要用到的圖依「原圖檔案」分組,每個檔案一個工作交給 WorkerThreadPool 平行解碼、套圖片處理(fx);
+# 之後原本的流程照舊一張張跑,讀圖時先拿這裡準備好的。只放「讀得出來、沒超過上限、處理成功」的結果,
+# 其他情況(檔案太大、毀損、處理失敗)不放,原本的流程會照舊讀一次並記下錯誤訊息,所以報告與上限檢查都跟以前一樣。
+# 貼圖(ImageTexture)照舊在主執行緒建。
+
+## 原圖檔案路徑 → Image;"fx:<虛擬路徑>" → 圖片處理好的 Image。只在 load_pack 期間有內容。
+static var _prefetched: Dictionary = {}
+static var _prefetch_mutex := Mutex.new()
+## false = 不預先解碼,照舊一張張讀(測試比對兩種做法結果一樣用)。
+static var parallel_decode := true
+
+
+static func _prefetch(paths: Array) -> void:
+	if not parallel_decode:
+		return
+	var jobs: Dictionary = {}   # 原圖檔案 → {plain: 要不要整張圖本身, fx: [要套圖片處理的虛擬路徑]}
+	for path: String in paths:
+		var file := path
+		var fx_path := ""
+		if is_virtual(path):
+			var slice := parse_virtual(path)
+			if slice.is_empty():
+				continue
+			file = str(slice["file"])
+			if str(slice["fx"]) != "":
+				fx_path = path
+		var job: Dictionary = jobs.get(file, {"plain": false, "fx": []})
+		if fx_path == "":
+			job["plain"] = true
+		elif not (job["fx"] as Array).has(fx_path):
+			(job["fx"] as Array).append(fx_path)
+		jobs[file] = job
+	var files: Array = jobs.keys()
+	if files.size() < 2:
+		return
+	var task := WorkerThreadPool.add_group_task(func(i: int) -> void: _prefetch_file(files[i], jobs[files[i]]), files.size(), -1, true, "sprite pack decode")
+	WorkerThreadPool.wait_for_group_task_completion(task)
+
+
+## 在工作執行緒裡跑:解碼一個原圖檔案,做出這個檔案要用到的整張圖與每一種圖片處理的結果。
+static func _prefetch_file(file: String, job: Dictionary) -> void:
+	var decoded: Variant = _decode_raw(file)
+	if not decoded is Image:
+		return
+	var image: Image = decoded
+	if image.get_width() > MAX_SIDE or image.get_height() > MAX_SIDE:
+		return
+	var results := {}
+	if bool(job["plain"]):
+		results[file] = image
+	for path: String in job["fx"]:
+		var slice := parse_virtual(path)
+		var rect: Rect2i = slice["rect"]
+		var base := image
+		if rect.size != Vector2i.ZERO:
+			if not Rect2i(Vector2i.ZERO, image.get_size()).encloses(rect):
+				continue
+			base = image.get_region(rect)
+		var ops: Variant = PackImageFx.parse(str(slice["fx"]))
+		if ops == null:
+			continue
+		var processed := PackImageFx.apply(base, ops as Array)
+		if processed != null:
+			results["fx:" + path] = processed
+	_prefetch_mutex.lock()
+	_prefetched.merge(results)
+	_prefetch_mutex.unlock()
+
+
 ## 精靈圖的讀圖快取(完整圖只解碼一次;每個切片只是貼圖的一個區域)。load_pack 結束、編輯器關閉時清掉。
 static var _sheet_cache: Dictionary = {}
 
@@ -728,6 +830,27 @@ static func _plan_animations(actions: Dictionary, manifest: Dictionary, report: 
 			plan["%s_%d" % [system_action, index]] = {"source": source, "frames": picked}
 			consumed[source] = true
 			index += 1
+	# 朝左/朝右專用的動畫(2026-10-15):動作名稱後面接 _left / _right(例如 walk_left)就是「桌寵朝那一邊時改播這組圖、不鏡像」,
+	# 動畫名稱是 <系統動作>_left_<編號>。系統動作的來源是別名(例如 idle ← stand)時,stand_left 也算 idle 的朝左版本;
+	# 名稱本來就跟系統動作一樣(walk_left)的會在下面當自訂動作原名加進來,結果相同。桌寵怎麼挑見 Pet._directional。
+	for animation_name: String in plan.keys():
+		var split := animation_name.rfind("_")
+		var base := animation_name.substr(0, split)
+		var source: String = plan[animation_name]["source"]
+		if plain_action(base) != base:
+			continue
+		for side: String in DIRECTIONS:
+			var target := "%s_%s_%s" % [base, side, animation_name.substr(split + 1)]
+			if plan.has(target):
+				continue
+			var directional := str(lower_lookup.get(("%s_%s" % [base, side]).to_lower(), lower_lookup.get(("%s_%s" % [source, side]).to_lower(), "")))
+			if directional == "" or directional == source:
+				continue
+			var all_directional: Array = []
+			for i in (actions[directional] as Array).size():
+				all_directional.append(i)
+			plan[target] = {"source": directional, "frames": all_directional}
+			consumed[directional] = true
 	# 沒被系統動作用到的,原名保留當自訂動作(名稱只留英數與底線)
 	for action_name: String in actions:
 		if consumed.has(action_name):
@@ -806,12 +929,14 @@ static func _fx_info(path: String, slice: Dictionary, total_pixels: Array, repor
 	var cache_key := "fx:" + path
 	if _sheet_cache.has(cache_key):
 		return _sheet_cache[cache_key]
-	var image := _base_image_of(slice, report, oversized)
-	if image == null:
-		return {}
-	var processed := _process_fx(image, str(slice["fx"]), path, report)
+	var processed: Image = _prefetched.get(cache_key)   # 先平行處理好的(見 _prefetch)
 	if processed == null:
-		return {}
+		var image := _base_image_of(slice, report, oversized)
+		if image == null:
+			return {}
+		processed = _process_fx(image, str(slice["fx"]), path, report)
+		if processed == null:
+			return {}
 	total_pixels[0] += processed.get_width() * processed.get_height()
 	if total_pixels[0] > MAX_TOTAL_PIXELS:
 		report.append("素材包總像素超過上限,後面的圖已略過。")
@@ -852,14 +977,39 @@ static func _process_fx(image: Image, fx: String, path: String, report: Array[St
 
 
 static func _load_image(path: String, report: Array[String], oversized: Array[String] = []) -> Image:
+	var ready: Variant = _prefetched.get(path)
+	if ready is Image:
+		return ready
+	return _decode(path, report, oversized)
+
+
+static func _decode(path: String, report: Array[String], oversized: Array[String]) -> Image:
+	var decoded: Variant = _decode_raw(path)
+	if decoded is Image:
+		return decoded
+	match int(decoded):
+		DECODE_TOO_BIG:
+			report.append(TranslationServer.translate("檔案太大(> %d MB),已略過:%s") % [MAX_FILE_BYTES / 1_000_000, path.get_file()])
+			oversized.append(path.get_file())
+		DECODE_UNREADABLE:
+			report.append(TranslationServer.translate("讀不了檔案:%s") % path.get_file())
+		_:
+			report.append(TranslationServer.translate("圖片毀損或格式不對,已略過:%s") % path.get_file())
+	return null
+
+
+const DECODE_UNREADABLE := 0
+const DECODE_TOO_BIG := 1
+const DECODE_BROKEN := 2
+
+
+## 讀檔+解碼:成功回 Image,失敗回 DECODE_* 代碼。不碰任何共用狀態、不寫訊息,工作執行緒也可以呼叫(見 _prefetch)。
+static func _decode_raw(path: String) -> Variant:
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
-		report.append(TranslationServer.translate("讀不了檔案:%s") % path.get_file())
-		return null
+		return DECODE_UNREADABLE
 	if file.get_length() > MAX_FILE_BYTES:
-		report.append(TranslationServer.translate("檔案太大(> %d MB),已略過:%s") % [MAX_FILE_BYTES / 1_000_000, path.get_file()])
-		oversized.append(path.get_file())
-		return null
+		return DECODE_TOO_BIG
 	var bytes := file.get_buffer(file.get_length())
 	var image := Image.new()
 	var error := ERR_FILE_UNRECOGNIZED
@@ -871,8 +1021,7 @@ static func _load_image(path: String, report: Array[String], oversized: Array[St
 		"webp":
 			error = image.load_webp_from_buffer(bytes)
 	if error != OK or image.is_empty():
-		report.append(TranslationServer.translate("圖片毀損或格式不對,已略過:%s") % path.get_file())
-		return null
+		return DECODE_BROKEN
 	return image
 
 
@@ -1061,12 +1210,15 @@ static func identity_of(folder: String) -> Dictionary:
 
 
 ## 掃描素材包但不建 SpriteFrames:回傳 {ok, root, manifest(pack.json 原樣), actions{動作名 → [圖片路徑…]}, nametag_align, ceiling_actions[動作名], report}。
-static func inspect_pack(folder: String) -> Dictionary:
+## realign = 原圖換成大小不同的新圖時先重新對位(見 PackSourceSizes;精靈圖編輯器自己做,要知道有沒有換算過)。
+static func inspect_pack(folder: String, realign := true) -> Dictionary:
 	var report: Array[String] = []
 	var root := folder.strip_edges().trim_suffix("/").trim_suffix("\\")
 	if root == "" or DirAccess.open(root) == null:
 		return {"ok": false, "report": [TranslationServer.translate("找不到資料夾:%s") % folder]}
 	var manifest := _read_manifest(root, report)
+	if realign:
+		PackSourceSizes.realign_manifest(root, manifest)
 	var scanned := scan_actions(root, manifest)
 	if (scanned["actions"] as Dictionary).is_empty():
 		return {"ok": false, "report": ["資料夾裡找不到可用的圖片"] + (scanned["report"] as Array)}

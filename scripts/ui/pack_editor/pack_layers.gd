@@ -7,6 +7,24 @@ extends RefCounted
 
 const LAYERS: Array[String] = ["back", "front", "top", "above_light"]
 const BODY := -1
+## 圖層鎖定(2026-10-16 使用者要求,比照繪圖軟體):鎖上的圖層不能手動改,調軸心、同步到其他動作也不會帶動它。只有編輯器看,遊戲不理。
+const LOCK_KEY := "locked"
+
+
+static func is_locked(part: Variant) -> bool:
+	return part is Dictionary and (part as Dictionary).get(LOCK_KEY) is bool and bool((part as Dictionary)[LOCK_KEY])
+
+
+static func set_locked(part: Dictionary, on: bool) -> void:
+	if on:
+		part[LOCK_KEY] = true
+	else:
+		part.erase(LOCK_KEY)
+
+
+## 碰到鎖住的圖層時的提示(滑鼠停留提示、狀態列)。
+static func lock_hint() -> String:
+	return TranslationServer.translate("這個圖層已鎖定:先在圖層清單點右邊的 🔒 解除鎖定,才能修改。")
 
 
 static func layer_of(part: Dictionary) -> String:
@@ -101,4 +119,20 @@ static func set_frame_rule(part: Dictionary, action: String, frame: int, frame_c
 ## 沒有逐幀設定時,這個部件照平常的規則在這個動作會不會出現(「在這些動作顯示」有沒有列到)。
 static func shown_in_action(part: Dictionary, action: String) -> bool:
 	var actions: Variant = part.get("actions", ["*"])
-	return not actions is Array or (actions as Array).is_empty() or (actions as Array).has("*") or (actions as Array).has(action)
+	if not actions is Array or (actions as Array).is_empty() or (actions as Array).has("*") or (actions as Array).has(action):
+		return true
+	var plain := SpritePackLoader.plain_action(action)   # 朝左專用的 walk_left 照 walk 的清單,跟執行端一樣
+	return plain != action and (actions as Array).has(plain)
+
+
+## 遊戲裡這個部件在這個動作、這一幀會不會出現(不看積木、狀態鏡、右鍵選單的開關),規則跟 PetOverlays._part_active 一樣:
+## 逐幀設成顯示 → 出現(眨眼/說話差分還要動作有列到);設成不顯示 → 不出現;沒設定 → 「在這些動作顯示」有列到、而且種類不是「待呼叫」(visible: false)。
+## 朝左專用動畫沒有自己的逐幀設定時看原動作的。給預覽用(2026-10-16:預覽原本不看這些,圖層在每個動作都畫出來,使用者只好一幀一幀關)。
+static func shows_in_game(part: Dictionary, action: String, frame: int) -> bool:
+	var rule: Variant = frame_rule(part, action, frame)
+	var plain := SpritePackLoader.plain_action(action)
+	if rule == null and plain != action and not (part.get("frame_visible") is Dictionary and (part["frame_visible"] as Dictionary).has(action)):
+		rule = frame_rule(part, plain, frame)
+	if rule is bool:
+		return rule and (str(part.get("role", "part")) == "part" or shown_in_action(part, action))
+	return shown_in_action(part, action) and not (part.get("visible") is bool and not bool(part["visible"]))

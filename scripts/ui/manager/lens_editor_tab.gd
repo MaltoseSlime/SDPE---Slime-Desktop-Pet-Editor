@@ -47,6 +47,9 @@ var _behavior_checks: Dictionary = {}
 var _behavior_spins: Dictionary = {}
 var _behavior_baseline_labels: Dictionary = {}
 var _active_label: Label
+var _layer_rows: VBoxContainer
+var _layer_add: Button
+var _layer_note: Label
 var _toggle_button: Button
 var _report: TextEdit
 
@@ -200,6 +203,18 @@ func _build_form_side() -> void:
 		_form.add_child(baseline)
 
 	_form.add_child(HSeparator.new())
+	_form.add_child(ManagerUi.heading_with_info("啟用時暫時顯示圖層", "這個狀態鏡一啟用,就讓桌寵身上的圖層(精靈圖編輯器「圖層」頁的配件、眨眼、說話差分)出現一段時間:秒數到了收起;選「直到解除」就一直顯示到這個狀態鏡解除。不管選哪個,狀態鏡解除時都會收起。在精靈圖編輯器把圖層的種類設成「待呼叫」,就能做出平常看不到、只在這個狀態下出現的圖層(例如生氣時冒青筋)。積木「暫時顯示圖層」也能做到一樣的事。"))
+	_layer_rows = VBoxContainer.new()
+	_form.add_child(_layer_rows)
+	_layer_note = Label.new()
+	_layer_note.theme_type_variation = AppSettings.MUTED_LABEL
+	_layer_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_form.add_child(_layer_note)
+	_layer_add = ManagerUi.button("＋ 新增要顯示的圖層")
+	_layer_add.pressed.connect(_add_layer_show)
+	_form.add_child(_layer_add)
+
+	_form.add_child(HSeparator.new())
 	_form.add_child(ManagerUi.heading("測試"))
 	_active_label = Label.new()
 	_form.add_child(_active_label)
@@ -264,8 +279,96 @@ func _load_form(lens: PetStateLens) -> void:
 		_behavior_spins[key].value = float(lens.behavior_overrides.get(key, 1.0))
 		_behavior_spins[key].editable = behavior_enabled
 		(_behavior_baseline_labels[key] as Label).text = tr("一般狀態下的參考值:%s") % _behavior_baseline_text(key)
+	_rebuild_layer_rows(lens)
 	_update_active_ui()
 	_loading = false
+
+
+# --- 啟用時暫時顯示圖層(PetStateLens.layer_shows) ---
+
+## 這隻桌寵身上的圖層名稱(沒有圖層的角色回空清單)。
+func _pet_layers() -> Array[String]:
+	if _pet == null or _pet.overlays() == null:
+		return [] as Array[String]
+	return _pet.overlays().layer_names()
+
+
+func _rebuild_layer_rows(lens: PetStateLens) -> void:
+	for child in _layer_rows.get_children():
+		child.queue_free()
+	var layers := _pet_layers()
+	for index in lens.layer_shows.size():
+		var entry: Dictionary = lens.layer_shows[index]
+		var row := HBoxContainer.new()
+		var layer_option := OptionButton.new()
+		layer_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var names := layers.duplicate()
+		var current := str(entry.get("layer", ""))
+		if current != "" and not names.has(current):
+			names.append(current)   # 圖層改名或刪掉了:保留原本的名字(這隻桌寵沒有這個圖層就不會顯示)
+		for layer_name in names:
+			layer_option.add_item(layer_name if layers.has(layer_name) else tr("%s(找不到這個圖層)") % layer_name)
+			layer_option.set_item_metadata(layer_option.item_count - 1, layer_name)
+		layer_option.select(maxi(names.find(current), 0))
+		layer_option.item_selected.connect(func(i: int) -> void: _edit_layer_show(index, "layer", str(layer_option.get_item_metadata(i))))
+		row.add_child(layer_option)
+		var mode := OptionButton.new()
+		mode.add_item(tr("持續秒數"))
+		mode.add_item(tr("直到解除"))
+		var seconds := float(entry.get("seconds", 0.0))
+		mode.select(0 if seconds > 0.0 else 1)
+		row.add_child(mode)
+		var spin := ManagerUi.spin(0.5, 0.5, 86400.0)
+		spin.value = seconds if seconds > 0.0 else 3.0
+		spin.suffix = tr("秒")
+		spin.visible = seconds > 0.0
+		spin.custom_minimum_size.x = 90.0
+		spin.value_changed.connect(func(value: float) -> void: _edit_layer_show(index, "seconds", value))
+		mode.item_selected.connect(func(i: int) -> void:
+			spin.visible = i == 0
+			_edit_layer_show(index, "seconds", spin.value if i == 0 else 0.0))
+		row.add_child(spin)
+		var delete := ManagerUi.button("✕")
+		delete.tooltip_text = tr("不顯示這個圖層了")
+		delete.pressed.connect(func() -> void: _remove_layer_show(index))
+		row.add_child(delete)
+		_layer_rows.add_child(row)
+	_layer_add.disabled = layers.is_empty() or lens.layer_shows.size() >= PetStateLens.MAX_LAYER_SHOWS
+	_layer_note.text = tr("這隻桌寵的角色沒有圖層(在精靈圖編輯器的「圖層」頁新增)。") if layers.is_empty() else ""
+	_layer_note.visible = layers.is_empty()
+
+
+func _add_layer_show() -> void:
+	var lens := _selected()
+	var layers := _pet_layers()
+	if lens == null or layers.is_empty() or lens.layer_shows.size() >= PetStateLens.MAX_LAYER_SHOWS:
+		return
+	var shows := lens.layer_shows.duplicate(true)
+	shows.append({"layer": layers[0], "seconds": 3.0})
+	lens.layer_shows = shows
+	_rebuild_layer_rows(lens)
+	changed.emit()
+
+
+func _edit_layer_show(index: int, field: String, value: Variant) -> void:
+	var lens := _selected()
+	if _loading or lens == null or index >= lens.layer_shows.size():
+		return
+	var shows := lens.layer_shows.duplicate(true)
+	shows[index][field] = value
+	lens.layer_shows = shows
+	changed.emit()
+
+
+func _remove_layer_show(index: int) -> void:
+	var lens := _selected()
+	if lens == null or index >= lens.layer_shows.size():
+		return
+	var shows := lens.layer_shows.duplicate(true)
+	shows.remove_at(index)
+	lens.layer_shows = shows
+	_rebuild_layer_rows(lens)
+	changed.emit()
 
 
 ## 「一般狀態下」(沒有任何狀態鏡影響)的參考數值,給使用者抓倍率用;不是精確的機率,只是同一個量級的參考數字。

@@ -9,6 +9,8 @@ signal advanced(choice: int)
 ## 使用者把氣泡拖到新位置放開時發出(隨時都能拖,不綁定「對話集中」的模式),UiManager 記下這隻桌寵
 ## 之後的固定位置。
 signal position_pinned(target_pet: Node, position: Vector2)
+## 按了固定氣泡角落的 📌(解除固定,UiManager 接手)。
+signal unpin_requested(target_pet: Node)
 
 const TYPEWRITER_CPS := 30.0
 const BASE_FONT_SIZE := UiStyleKit.BASE_FONT_SIZE
@@ -76,6 +78,12 @@ var _previous_rect := Rect2()
 ## 固定拖曳:按下時的本地滑鼠座標(判斷有沒有超過拖曳門檻)、目前是不是正在拖。
 var _pin_press_local := Vector2.ZERO
 var _pin_dragging := false
+## 這次左鍵是按在氣泡上的。2026-10-16 使用者回報「氣泡沒跟著桌寵移動」:拖著別的東西(桌寵、道具…)經過氣泡時,
+## 沒有控制項接住滑鼠的移動事件會送給底下的氣泡,舊版沒檢查按下的地方,氣泡以為自己被拖、放開時就被固定住,
+## 之後這隻桌寵的氣泡都不跟隨了。現在只有在氣泡上按下的才算。
+var _pin_pressed := false
+## 固定中的氣泡角落顯示的 📌(點了解除固定)。
+var _pin_marker: Button
 const PIN_DRAG_THRESHOLD := 6.0
 
 
@@ -180,6 +188,17 @@ func setup(target_pet: Node, line: Dictionary, show_in_world: bool = true) -> vo
 	if not show_in_world:
 		_tag.modulate.a = 0.0
 		_tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	_pin_marker = Button.new()
+	_pin_marker.text = "📌"
+	_pin_marker.flat = true
+	_pin_marker.focus_mode = Control.FOCUS_NONE
+	_pin_marker.tooltip_text = tr("這隻桌寵的對話氣泡固定在這個位置(不跟著桌寵移動)。點一下解除固定,之後就會跟著桌寵。")
+	_pin_marker.add_theme_font_size_override("font_size", int(BASE_FONT_SIZE * factor * 0.8))
+	_pin_marker.top_level = true
+	_pin_marker.visible = false
+	_pin_marker.pressed.connect(func() -> void: unpin_requested.emit(pet))
+	add_child(_pin_marker)
 
 	if bool(line.get("typewriter", true)) and _label.get_total_character_count() > 0:
 		_label.visible_characters = 0
@@ -304,7 +323,11 @@ func _handle_pin_input(event: InputEvent) -> void:
 		if event.pressed:
 			_pin_press_local = event.position
 			_pin_dragging = false
+			_pin_pressed = true
 		else:
+			if not _pin_pressed:
+				return   # 在別的地方按下、在氣泡上放開:不算點擊也不算拖曳
+			_pin_pressed = false
 			if _pin_dragging:
 				_pin_dragging = false
 				position_pinned.emit(pet, global_position)
@@ -314,7 +337,13 @@ func _handle_pin_input(event: InputEvent) -> void:
 				_finish_typing()
 			elif not _has_options:
 				_close(-1)
-	elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+	elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) == 0 and _pin_pressed:
+		# 放開的事件沒送到這裡(在視窗外放開之類):拖過就當作拖完固定,沒拖過就當作沒事
+		_pin_pressed = false
+		if _pin_dragging:
+			_pin_dragging = false
+			position_pinned.emit(pet, global_position)
+	elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0 and _pin_pressed:
 		if not _pin_dragging and event.position.distance_to(_pin_press_local) < PIN_DRAG_THRESHOLD:
 			return
 		_pin_dragging = true
@@ -374,6 +403,8 @@ func get_cutout_polygons() -> Array:
 		# 所以標籤的矩形也要算進去(DesktopShell 會自動扣掉與氣泡重疊的部分)。
 		_rect_polygon(tag_rect.merge(Rect2(tag_rect.position + lead, tag_rect.size))),
 	]
+	if _pin_marker != null and _pin_marker.visible:
+		polygons.append(_rect_polygon(Rect2(_pin_marker.global_position, _pin_marker.size)))
 	if _tail != null and _tail.size != Vector2.ZERO:
 		var tail_rect := _tail.global_rect()
 		polygons.append(_rect_polygon(tail_rect.merge(Rect2(tail_rect.position + lead, tail_rect.size))))
@@ -402,9 +433,23 @@ func place_tail(body: Rect2) -> void:
 	_tail.place(global_rect(), target, flipped)
 
 
-## 由管理器排版後呼叫:把名字標籤貼在氣泡左上角邊框上(標籤跨在邊框線上)。
+## 由管理器排版後呼叫:把名字標籤貼在氣泡左上角邊框上(標籤跨在邊框線上)。固定中的氣泡右上角另外放 📌。
 func place_tag() -> void:
 	UiStyleKit.place_tag(_tag, self, _style.scale_factor())
+	if _pin_marker != null and _pin_marker.visible:
+		_pin_marker.reset_size()
+		_pin_marker.global_position = global_position + Vector2(size.x - _pin_marker.size.x * 0.75, -_pin_marker.size.y * 0.4)
+
+
+## 由管理器排版時呼叫:這隻桌寵的氣泡是不是固定位置(固定中才顯示 📌)。
+func set_pinned(on: bool) -> void:
+	if _pin_marker != null and _pin_marker.visible != (on and _show_in_world):
+		_pin_marker.visible = on and _show_in_world
+		_settle_left = SETTLE_QUERIES
+
+
+func is_pinned_marker_shown() -> bool:
+	return _pin_marker != null and _pin_marker.visible
 
 
 func is_closed() -> bool:

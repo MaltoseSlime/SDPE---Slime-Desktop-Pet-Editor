@@ -67,6 +67,9 @@ var _light_add: Button
 var _light_delete: Button
 ## 配件區(overlays.json,見 PetOverlays):清單與表單。_accs 是目前編輯中的部件清單(字典),改了就寫回模型(存檔時寫進 overlays.json)。
 const ACC_ROLES: Array[String] = ["part", "blink", "speak"]
+## 種類下拉的第 4 項「待呼叫」:存檔還是 role = part 加 "visible": false(PetOverlays 的 dormant),舊檔案、網頁都不用改。
+const ACC_KIND_STANDBY := 3
+const ACC_KIND_LABELS: Array[String] = ["配件", "眨眼", "說話", "待呼叫"]
 const ACC_LAYERS: Array[String] = ["front", "back", "top", "above_light"]
 const ACC_ORIGINS: Array[String] = ["center", "top_left", "bottom_center", "top_center"]
 var _accs: Array = []
@@ -81,11 +84,28 @@ var _acc_origin: OptionButton
 var _acc_x: SpinBox
 var _acc_y: SpinBox
 var _acc_actions: LineEdit
-var _acc_frame_unlock: CheckBox
-var _acc_frame_show: CheckBox
+## 逐幀顯示:「這一幀:↺ 照規則 / 👁 顯示 / 🚫 不顯示」三個互斥按鈕(2026-10-16 從兩個勾選框改成這樣,「不顯示」連積木叫出來也不顯示)。
+var _acc_frame_label: Label
+var _acc_frame_rule_buttons: Array[Button] = []
+var _acc_frame_clear: Button
+var _acc_flip_h: Button
+var _acc_flip_v: Button
+## 這個動作整個圖層左右鏡像(mirror_for,建立朝向版本時會自動打開)
+var _acc_mirror: Button
 var _acc_fps: SpinBox
 var _acc_loop: CheckBox
 var _acc_images: Label
+var _trim_shared: CheckBox
+var _layer_frames: LayerFramesPanel
+## 圖層頁「裁切與對齊點」區段(預設收起;選「自訂」對齊點時自動展開)。
+var _layer_crop_fold: FoldSection
+## 家具圖層的「誰在用時顯示」(只有編輯家具時出現,見 PetOverlays 檔頭的 used_by)。
+var _furn_user_box: VBoxContainer
+var _furn_user_mode: OptionButton
+var _furn_user_seat: OptionButton
+var _furn_user_pets: ItemList
+var _furn_user_tags: Array[String] = []
+const FURN_USER_MODES: Array[String] = ["always", "idle", "in_use", "pets", "not_pets"]
 var _acc_add: Button
 var _acc_delete: Button
 var _acc_add_image: Button
@@ -117,6 +137,12 @@ var _pack_label: Label
 var _status: Label
 var _info: Label
 var _play_timer: Timer
+## 預覽動畫時圖層也一起播(2026-10-16):多張圖依 fps 循環、眨眼隨機眨、說話差分當作一直在講話。
+var _layer_clock := 0.0
+var _blink_next := 1.0
+var _blink_left := 0.0
+var _blink_duration := 0.0
+const PREVIEW_BLINK_INTERVAL := Vector2(1.5, 3.5)   # 比遊戲裡短一點,預覽時比較快看到
 var _fx_buttons: Array[Button] = []
 var _rotate_spin: SpinBox
 var _crop_spins: Array[SpinBox] = []
@@ -136,11 +162,11 @@ var _loop_hold_row: Control
 var _loop_times: SpinBox
 var _loop_times_row: Control
 var _loop_note: Label
-var _layer_list: ItemList
+var _layer_list: LayerListView
+var _layer_delete: Button
 var _layer_up: Button
 var _layer_down: Button
 var _layer_eye: Button
-var _layer_game: CheckBox
 var _layer_note: Label
 var _layer_hidden: Dictionary = {}
 var _body_hidden := false
@@ -166,6 +192,9 @@ var _furn_anchor_x: SpinBox
 var _furn_anchor_y: SpinBox
 var _furn_anchor_action: LineEdit
 var _furn_anchor_facing: OptionButton
+var _furn_anchor_hide: CheckBox
+var _facing_panel: VBoxContainer
+var _facing_option: OptionButton
 var _furn_light_list: ItemList
 var _furn_light_add: Button
 var _furn_light_delete: Button
@@ -202,6 +231,12 @@ var _slot := ""
 var _extra_slots: Array[String] = []
 ## 「動作共用」那一排(只有選到系統動作槽時顯示)與它的下拉選單。
 var _action_source_row: Control
+var _direction_row: Control
+var _sync_row: Control
+var _sync_check: CheckBox
+var _sync_push: Button
+var _direction_option: OptionButton
+var _direction_mirror: Button
 var _action_source: OptionButton
 var _index := 0
 var _selected: Array[int] = []
@@ -328,6 +363,8 @@ func _build_left() -> Control:
 	_add_action_button.pressed.connect(_on_add_action_pressed)
 	left.add_child(_add_action_button)
 	left.add_child(_build_action_source_row())
+	left.add_child(_build_direction_row())
+	left.add_child(_build_sync_row())
 	left.add_child(ManagerUi.heading("幀(可複選)"))
 	left.add_child(_build_frame_buttons())
 	_frame_list = ItemList.new()
@@ -363,8 +400,176 @@ func _build_action_source_row() -> Control:
 	return row
 
 
+## 「朝向版本」(2026-10-15):同一個動作可以另外畫朝左/朝右專用的版本(動作名稱後面接 _left / _right),桌寵朝那一邊時改播它、不鏡像;
+## 沒畫的那一邊照舊把預設版本鏡像。切到還沒畫的版本會停在空槽,用「匯入圖片…」放圖,或按「複製並左右翻轉」從預設版本開始改。
+func _build_direction_row() -> Control:
+	var box := VBoxContainer.new()
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	var label := Label.new()
+	label.text = tr("朝向版本")
+	label.custom_minimum_size.x = ManagerUi.LABEL_WIDTH
+	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(label)
+	_direction_option = OptionButton.new()
+	_direction_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_direction_option.add_item(tr("預設(另一邊自動鏡像)"))
+	_direction_option.add_item(tr("朝左專用"))
+	_direction_option.add_item(tr("朝右專用"))
+	_direction_option.item_selected.connect(_on_direction_selected)
+	row.add_child(_direction_option)
+	row.add_child(ManagerUi.info_icon("想讓角色往左、往右時長得不一樣(不是單純左右翻轉),就為動作另外畫「朝左專用」或「朝右專用」的版本:桌寵面向那一邊時改播這組圖,而且不鏡像。沒畫的那一邊照舊用預設版本鏡像,所以通常只要補其中一邊。朝向版本是一個名字後面接 _left / _right 的動作(例如 walk_left),播放速度、循環方式沒另外設定時沿用預設版本的;配件與光源的位置沒另外設定時,沿用預設版本並左右翻過來。"))
+	box.add_child(row)
+	_direction_mirror = ManagerUi.button("複製預設版本並左右翻轉")
+	_direction_mirror.tooltip_text = tr("把預設版本的所有幀複製到這個朝向版本並左右翻轉(軸心、圖片偏移跟著翻;圖層與光源的位置也左右翻過來、圖層的圖跟著鏡像,逐幀顯示設定照抄),再拿來改成這一邊專屬的樣子。可以撤回。")
+	_direction_mirror.pressed.connect(_create_mirrored_direction)
+	box.add_child(_direction_mirror)
+	_direction_row = box
+	return box
+
+
+## 「同步到其他動作」(2026-10-15,見 PackFrameSync):打開之後,在這個動作裡的裁切、軸心、偏移、光源與圖層逐幀設定,
+## 會跟著帶到其他動作裡用同一張原圖的幀(那些幀自己改過的值不會被蓋掉,也不會反過來影響這個動作)。
+func _build_sync_row() -> Control:
+	var box := VBoxContainer.new()
+	var row := HBoxContainer.new()
+	_sync_check = CheckBox.new()
+	_sync_check.text = tr("同步到其他動作")
+	_sync_check.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_sync_check.toggled.connect(_on_sync_toggled)
+	row.add_child(_sync_check)
+	row.add_child(ManagerUi.info_icon("適合「先把圖匯入一個沒在用的動作,在那裡統一裁切、對軸,再複製貼到各個動作」的做法。打開後,之後在這個動作裡做的調整,會跟著帶到其他動作裡用同一張原圖的幀:圖片處理(裁切翻轉旋轉)、軸心、圖片偏移、每盞光源在那一幀的位置/半徑/亮度/顏色/熄燈,以及每個圖層在那一幀的錨點與逐幀顯示。\n・只帶「之後的改動」,而且只帶給還沒自己改過的幀:其他動作自己改過的值、自己加的光源與圖層設定都不會被蓋掉,也永遠不會反過來影響這個動作。\n・打開之前就有的差異,用「立刻全部同步一次」把其他動作直接改成跟這裡一樣。\n・同一張原圖 = 同一個圖檔(精靈圖則是同一格),不管有沒有裁切過。動作清單上有 🔗 的就是打開同步的動作。"))
+	box.add_child(row)
+	_sync_push = ManagerUi.button("立刻全部同步一次")
+	_sync_push.tooltip_text = tr("不管之前的狀態,把其他動作裡用同一張原圖的幀,直接改成跟這個動作一樣(只改真的不一樣的值)。可以撤回。")
+	_sync_push.pressed.connect(_push_sync)
+	box.add_child(_sync_push)
+	_sync_row = box
+	return box
+
+
+func _sync_sync_widgets() -> void:
+	if _sync_row == null:
+		return
+	var real := _model.has_pack() and _action != "" and _model.action_names().has(_action)
+	_sync_row.visible = real
+	if not real:
+		return
+	_updating = true
+	_sync_check.button_pressed = _model.is_sync_source(_action)
+	_updating = false
+	_sync_push.visible = _sync_check.button_pressed
+
+
+func _on_sync_toggled(on: bool) -> void:
+	if _updating or _action == "" or not _model.has_pack():
+		return
+	_model.checkpoint()
+	_model.set_sync_source(_action, on)
+	_sync_push.visible = on
+	_rebuild_action_list()
+	_select_current_row()
+	_status.text = tr("「%s」打開同步:之後在這裡的調整會帶到其他動作裡用同一張原圖的幀。") % _action if on else tr("「%s」關掉同步。") % _action
+	_refresh_frame_labels_only()
+
+
+func _push_sync() -> void:
+	if _action == "" or not _model.is_sync_source(_action):
+		return
+	_model.checkpoint()
+	var result := _model.push_sync(_action)
+	_after_sync(result)
+	_status.text = tr("已把「%s」的設定同步到其他動作(%d 幀;可以撤回)") % [_action, int(result["frames"])] if int(result["frames"]) > 0 else tr("其他動作裡用同一張原圖的幀本來就跟這裡一樣")
+	_refresh_frame_labels_only()
+
+
+## 同步改了光源/圖層的話,編輯器手上的複本要重讀,不然下一次修改會把同步的結果蓋回去。
+func _after_sync(result: Dictionary) -> void:
+	if bool(result["objects"]):
+		_refresh_lights()
+		_refresh_accessories()
+	if int(result["frames"]) > 0:
+		_refresh_frame_labels_only()
+
+
+func _sync_mark(action_name: String) -> String:
+	return " 🔗" if _model.is_sync_source(action_name) else ""
+
+
+func _direction_index(name: String) -> int:
+	if name.ends_with("_left") and SpritePackLoader.plain_action(name) != name:
+		return 1
+	if name.ends_with("_right") and SpritePackLoader.plain_action(name) != name:
+		return 2
+	return 0
+
+
+func _sync_direction_widgets() -> void:
+	if _direction_row == null:
+		return
+	var current := _slot if _slot != "" else _action
+	_direction_row.visible = _model.has_pack() and not _in_item_mode() and current != ""
+	if not _direction_row.visible:
+		return
+	var index := _direction_index(current)
+	_updating = true
+	_direction_option.select(index)
+	_updating = false
+	var plain := SpritePackLoader.plain_action(current)
+	_direction_mirror.visible = index != 0 and not _model.action_names().has(current)
+	_direction_mirror.disabled = _default_action_of(plain) == ""
+
+
+## 預設版本實際用的素材包動作(系統動作槽可能借別的名字的動作,例如 idle ← stand);沒有回空字串。
+func _default_action_of(plain: String) -> String:
+	var source := str(_model.slot_sources().get(plain, ""))
+	if source != "":
+		return source
+	return plain if _model.action_names().has(plain) else ""
+
+
+func _on_direction_selected(index: int) -> void:
+	if _updating or not _model.has_pack():
+		return
+	var plain := SpritePackLoader.plain_action(_slot if _slot != "" else _action)
+	var target: String = plain if index == 0 else "%s_%s" % [plain, SpritePackLoader.DIRECTIONS[index - 1]]
+	if index == 0:
+		var source := _default_action_of(plain)
+		_slot = plain
+		if source != "":
+			_select_action(source)
+		else:
+			_select_empty_slot(plain)
+		return
+	if _model.action_names().has(target):
+		_slot = target
+		_select_action(target)
+		return
+	if not _extra_slots.has(target):
+		_extra_slots.append(target)
+	_rebuild_action_list()
+	_select_empty_slot(target)
+	_select_current_row()
+	_status.text = tr("「%s」還沒有%s的版本:用「匯入圖片…」放圖,或按「複製預設版本並左右翻轉」從預設版本開始改。沒畫的話這一邊照舊用預設版本鏡像。") % [plain, tr("朝左專用") if index == 1 else tr("朝右專用")]
+
+
+func _create_mirrored_direction() -> void:
+	var target := _slot
+	var plain := SpritePackLoader.plain_action(target)
+	var error := _model.create_mirrored_copy(_default_action_of(plain), target)
+	if error != "":
+		_status.text = tr(error)
+		return
+	_slot = target
+	_reload_lists()
+	_select_action(target)
+	_after_edit(tr("已從預設版本複製並左右翻轉,建立「%s」") % target)
+
+
 ## 依 _slot 重新填「動作共用」下拉選單:只有系統動作槽(ALIASES 有的)才顯示。
 func _sync_action_source_widgets() -> void:
+	_sync_direction_widgets()
+	_sync_sync_widgets()
 	if _action_source_row == null:
 		return
 	var is_system := _model.has_pack() and not _in_item_mode() and SpritePackLoader.ALIASES.has(_slot)
@@ -460,25 +665,25 @@ func _build_animation_settings() -> Control:
 	return box
 
 
-## 幀清單上方的按鈕:複製 / 貼上 / 複製一份 / 刪除 / 前移 / 後移(快捷鍵見 tooltip)。
+## 幀清單上方的按鈕:複製 / 貼上 / 複製一份 / 刪除 / 前移 / 後移 / 更換圖片(2026-10-16 改成圖示按鈕,名稱與快捷鍵見 tooltip)。
 func _build_frame_buttons() -> Control:
-	var grid := GridContainer.new()
-	grid.columns = 3
+	var grid := HFlowContainer.new()
 	var specs := [
-		["複製", "Ctrl+C:複製選取的幀(連同各自的軸心與圖片偏移)", _copy_selected],
-		["貼上", "Ctrl+V:貼在選取的幀後面(沒選取就接在最後);可以先切到別的動作再貼", _paste],
-		["複製一份", "Ctrl+D:把選取的幀原地複製一份,接在後面", _duplicate_selected],
-		["刪除", "Delete:刪掉選取的幀(至少要留一幀)", _delete_selected],
-		["◀ 前移", "Alt+←:選取的幀往前移一格", _move_selected.bind(-1)],
-		["後移 ▶", "Alt+→:選取的幀往後移一格", _move_selected.bind(1)],
+		["📋", "複製(Ctrl+C):複製選取的幀(連同各自的軸心、圖片偏移,以及圖層與光源在這幾幀的設定)", _copy_selected],
+		["📥", "貼上(Ctrl+V):貼在選取的幀後面(沒選取就接在最後);可以先切到別的動作再貼", _paste],
+		["📑", "複製一份(Ctrl+D):把選取的幀原地複製一份,接在後面", _duplicate_selected],
+		["🗑", "刪除(Delete):刪掉選取的幀(至少要留一幀)", _delete_selected],
+		["◀", "前移(Alt+←):選取的幀往前移一格", _move_selected.bind(-1)],
+		["▶", "後移(Alt+→):選取的幀往後移一格", _move_selected.bind(1)],
+		["🔄", "更換圖片:把選取的幀換成別的圖檔(選幾張就依序換幾張),圖片處理(裁切翻轉旋轉)、軸心、圖片偏移都保留——用同一套模板做不同角色、或重畫某幾張時,不用重新裁切對軸。\n這個動作打開了「同步到其他動作」的話,其他動作裡用同一張原圖的幀也會一起換。", _ask_replace_frames],
 	]
 	for spec: Array in specs:
 		var button := ManagerUi.button(spec[0])
-		button.tooltip_text = spec[1]
+		button.tooltip_text = tr(spec[1])
 		button.pressed.connect(spec[2])
 		grid.add_child(button)
 		_frame_buttons.append(button)
-		if spec[0] == "貼上":
+		if spec[2] == _paste:
 			_paste_button = button
 	return grid
 
@@ -496,6 +701,7 @@ func _build_center() -> Control:
 	_canvas.light_edited.connect(_on_canvas_light_edited)
 	_canvas.light_selected.connect(_on_canvas_light_selected)
 	_canvas.accessory_edited.connect(_on_canvas_accessory_edited)
+	_canvas.locked_accessory_touched.connect(func(_index: int) -> void: _status.text = PackLayers.lock_hint())
 	_canvas.accessory_selected.connect(_on_canvas_accessory_selected)
 	_canvas.crop_changed.connect(_on_canvas_crop_changed)
 	_canvas.crop_confirm_requested.connect(_apply_crop)
@@ -541,7 +747,7 @@ func _build_right() -> Control:
 	_mode_option.add_item(tr("裁切圖片"))
 	_mode_option.add_item(tr("調整光源錨點"))
 	_mode_option.add_item(tr("調整配件位置"))
-	_mode_option.tooltip_text = tr("移動視角畫面:左鍵拖曳平移畫面,不會改到任何資料(預設;中鍵、右鍵拖曳也可以平移)。\n移動軸心:改「圖片上哪一點是腳底」,判定框與坐下都以它為準。\n移動圖片:軸心(腳底線、坐下判定、配件錨點)不動,只有圖片相對它平移。\n調整判定框:拖曳綠框的邊或角改大小,拖曳框裡面移動(整個素材包共用一個)。\n裁切圖片:在畫布上拖出要保留的範圍,再按「套用裁切」。\n調整光源錨點:拖曳畫布上的光源圓點(或用方向鍵)改位置,光的大小、亮度、顏色在右邊「光源」區。")
+	_mode_option.tooltip_text = tr("移動視角畫面:左鍵拖曳平移畫面,不會改到任何資料(預設;中鍵、右鍵拖曳也可以平移)。\n移動軸心:改「圖片上哪一點是腳底」,判定框與坐下都以它為準;圖層與光源會跟著圖片一起移動(位置看起來不變)。\n移動圖片:軸心(腳底線、坐下判定、配件錨點)不動,只有圖片相對它平移。\n調整判定框:拖曳綠框的邊或角改大小,拖曳框裡面移動(整個素材包共用一個)。\n裁切圖片:在畫布上拖出要保留的範圍,再按「套用裁切」。\n調整光源錨點:拖曳畫布上的光源圓點(或用方向鍵)改位置,光的大小、亮度、顏色在右邊「光源」區。")
 	_mode_option.item_selected.connect(_on_mode_selected)
 	right.add_child(ManagerUi.labeled("模式", _mode_option))
 	_scope_option = OptionButton.new()
@@ -567,6 +773,7 @@ func _build_right() -> Control:
 			return
 		_model.checkpoint()
 		_model.apply_to_action(_action, _index)
+		_after_pivot_edit()
 		_after_edit(tr("已套用到「%s」的所有幀") % _action))
 	right.add_child(apply_all)
 	var reset := ManagerUi.button("重設(自動軸心、偏移 0)")
@@ -575,6 +782,7 @@ func _build_right() -> Control:
 			return
 		_model.checkpoint()
 		_model.reset(_action, _index, _scope_option.selected == 1)
+		_after_pivot_edit()
 		_refresh_frame()
 		_after_edit("已重設"))
 	right.add_child(reset)
@@ -588,6 +796,17 @@ func _build_right() -> Control:
 	history_row.add_child(_undo_button)
 	history_row.add_child(_redo_button)
 	right.add_child(history_row)
+	# 圖片朝向(2026-10-15 使用者要求:預設朝向在精靈圖編輯器就設定好,不必每隻桌寵放出來後再用右鍵「鏡像翻轉」調)。
+	_facing_panel = VBoxContainer.new()
+	_facing_panel.add_child(HSeparator.new())
+	_facing_option = OptionButton.new()
+	_facing_option.add_item(tr("朝右"))
+	_facing_option.add_item(tr("朝左"))
+	_facing_option.item_selected.connect(_edit_facing)
+	var facing_row := ManagerUi.labeled("圖片裡角色面向", _facing_option)
+	facing_row.add_child(InfoIcon.new("整個素材包共用:圖片裡的角色原本是朝哪邊畫的。桌寵往左右走時靠它決定要不要鏡像,選錯的話桌寵會倒退走。存檔後,桌面上這個角色的桌寵會跟著轉過來(各自用右鍵「鏡像翻轉」調過的也一起換邊)。"))
+	_facing_panel.add_child(facing_row)
+	right.add_child(_facing_panel)
 	# 家具狀態動畫的說明+「開啟家具庫…」放在這裡(2026-09-23 改成這樣:原本自己開一個「家具設定」頁,
 	# 但那頁除了這塊什麼都沒有,不值得佔一個頁籤,擠在同一頁的「編輯」模式下拉旁邊反而好找)。
 	_furniture_panel = VBoxContainer.new()
@@ -638,11 +857,13 @@ func _build_right() -> Control:
 	_build_layers_section(_char_layer_panel)
 	_char_layer_panel.add_child(HSeparator.new())
 	_build_accessory_section(_char_layer_panel)
-	# 家具的坐/躺錨點也在這一頁(借「圖層」頁跟「調整配件位置」模式,理由同上)。
-	_furn_anchor_tab_panel = VBoxContainer.new()
-	_furn_anchor_tab_panel.visible = false
-	layer_tab.add_child(_furn_anchor_tab_panel)
+	# 家具的坐/躺位置:自己一個頁籤(2026-10-15 家具也有圖層之後,不再借「圖層」頁);跟圖層共用「調整配件位置」模式,
+	# 畫布上拖的是哪一種看目前停在哪個頁籤(見 _seat_editing)。
+	_furn_anchor_tab_panel = _new_tab("坐躺位置")
 	_build_furniture_anchor_section(_furn_anchor_tab_panel)
+	_right_tabs.tab_changed.connect(func(_tab: int) -> void:
+		if _furniture_id != "":
+			_push_canvas_accessories())
 	# 角色專用的頁籤(編輯道具時收起;編輯家具時留著,換成上面家具那半邊內容,見 _update_tab_visibility)
 	for tab_name: String in ["光源", "圖層"]:
 		_character_only.append(_tab_scrolls[tab_name])
@@ -687,6 +908,13 @@ func _build_right() -> Control:
 		_canvas.show_lights = on
 		_canvas.queue_redraw())
 	right.add_child(lights_check)
+	var layers_check := CheckBox.new()
+	layers_check.text = tr("顯示圖層")
+	layers_check.button_pressed = true
+	layers_check.toggled.connect(func(on: bool) -> void:
+		_canvas.show_layers = on
+		_canvas.queue_redraw())
+	right.add_child(layers_check)
 	var hitbox_check := CheckBox.new()
 	hitbox_check.text = tr("顯示判定框")
 	hitbox_check.button_pressed = true
@@ -726,16 +954,15 @@ func _update_tab_visibility() -> void:
 	for scroll: Control in _character_only:
 		_right_tabs.set_tab_hidden(_right_tabs.get_tab_idx_from_control(scroll), _prop_id != "")
 	_right_tabs.set_tab_hidden(_right_tabs.get_tab_idx_from_control(_tab_scrolls["道具狀態"]), _prop_id == "")
-	# 「圖層」頁編輯家具時借去放坐/躺錨點,跟角色本來的圖層功能(順序、顯示開關)沒關係,頁籤名稱換掉避免混淆
-	# (2026-09-23:使用者反應打開「圖層」頁看到的不是圖層功能,誤以為圖層功能不見了)。
-	var layer_idx := _right_tabs.get_tab_idx_from_control(_tab_scrolls["圖層"])
-	_right_tabs.set_tab_title(layer_idx, "坐躺位置" if _furniture_id != "" else "圖層")
+	_right_tabs.set_tab_hidden(_right_tabs.get_tab_idx_from_control(_tab_scrolls["坐躺位置"]), _furniture_id == "")
 	if _right_tabs.is_tab_hidden(_right_tabs.current_tab):
 		_right_tabs.current_tab = 0
 
 
 ## 依畫布的編輯模式跳到對應的頁籤(調整光源錨點 → 光源、調整配件位置 → 配件)。
 func _show_tab_for_mode(index: int) -> void:
+	if index == 6 and _seat_editing():
+		return   # 家具停在「坐躺位置」頁:拖的是坐躺位置,留在這頁
 	var wanted := {5: "光源", 6: "圖層"}.get(index, "") as String
 	if wanted != "" and _tab_scrolls.has(wanted):
 		_right_tabs.current_tab = _right_tabs.get_tab_idx_from_control(_tab_scrolls[wanted])
@@ -796,6 +1023,17 @@ func _build_fx_section(right: VBoxContainer) -> void:
 	crop_row.add_child(crop_apply)
 	crop_row.add_child(crop_clear)
 	right.add_child(crop_row)
+	var trim_row := HFlowContainer.new()
+	var trim := ManagerUi.button("自動裁掉透明邊")
+	trim.tooltip_text = tr("把選取的幀裁掉四周沒畫東西的透明部分。角色在畫面上的位置不會變:會先把目前的軸心固定下來,而且軸心那一點一定留在範圍裡(所以腳底下的空白通常會留著)。裁掉的部分不算進素材包的像素上限。可以撤回。")
+	trim.pressed.connect(_auto_trim_frames)
+	_trim_shared = CheckBox.new()
+	_trim_shared.text = tr("選取的幀用同一個範圍")
+	_trim_shared.button_pressed = true
+	_trim_shared.tooltip_text = tr("勾選(建議):把選取的幀疊在一起,找出所有幀合起來有畫東西的範圍,全部裁成一樣大——角色在動畫裡晃來晃去也不會被切到,幀的大小也一致、好對齊。\n取消:每一幀各自裁到自己有畫東西的範圍(省下最多像素,位置一樣不會變)。")
+	trim_row.add_child(trim)
+	trim_row.add_child(_trim_shared)
+	right.add_child(trim_row)
 	_fx_label = Label.new()
 	_fx_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_fx_label.theme_type_variation = AppSettings.WARN_LABEL
@@ -804,7 +1042,11 @@ func _build_fx_section(right: VBoxContainer) -> void:
 	fx_clear.tooltip_text = tr("拿掉選取的幀的所有裁切、翻轉、旋轉。這些幀手動設定過的軸心是相對處理後的圖,會一併回到自動軸心。")
 	fx_clear.pressed.connect(_clear_fx)
 	right.add_child(fx_clear)
-	_fx_buttons = [flip_h, flip_v, rotate_button, crop_apply, crop_clear, fx_clear]
+	var bake := ManagerUi.button("把圖片處理寫進檔案…")
+	bake.tooltip_text = tr("整個素材包裡有圖片處理(裁切翻轉旋轉)的幀,把處理後的樣子各存成一張新圖,幀改成直接用新圖。畫面上完全不變;精靈圖切出來的幀也會變成一張張的圖。好處是素材資料夾、匯出的 .pet 變小,載入也比較快(像素上限本來就只算裁切後的大小)。原圖不會被刪,之後用「清理未使用檔案」收掉。")
+	bake.pressed.connect(_confirm_bake)
+	right.add_child(bake)
+	_fx_buttons = [flip_h, flip_v, rotate_button, crop_apply, crop_clear, trim, fx_clear, bake]
 
 
 func _on_mode_selected(index: int) -> void:
@@ -867,7 +1109,8 @@ func _after_pack_loaded(message: String) -> void:
 	_extra_slots.clear()
 	_index = 0
 	_reload_lists()
-	_status.text = message
+	# 原圖被直接換成大小不同的新圖、剛自動重新對位過:提醒檢查後存檔(見 PackSourceSizes)
+	_status.text = _model.realign_notice if _model.realign_notice != "" else tr(message)
 	_refresh_all()
 
 
@@ -1161,6 +1404,20 @@ func _build_furniture_anchor_section(right: VBoxContainer) -> void:
 	var facing_row := ManagerUi.labeled("使用時面向", _furn_anchor_facing)
 	facing_row.add_child(InfoIcon.new("桌寵坐/躺到這個錨點時要面向哪邊。「兩者」是預設值,每次使用時隨機選一個方向(不是使用中途左右來回切換);選「左」或「右」會固定面向那一邊。"))
 	right.add_child(facing_row)
+	_furn_anchor_hide = CheckBox.new()
+	_furn_anchor_hide.text = tr("使用時隱藏桌寵")
+	_furn_anchor_hide.toggled.connect(func(on: bool) -> void:
+		if _updating or _furniture_def == null or _furn_anchor_index < 0 or _furn_anchor_index >= _furniture_def.anchors.size():
+			return
+		if on:
+			_furniture_def.anchors[_furn_anchor_index]["hide_pet"] = true
+		else:
+			(_furniture_def.anchors[_furn_anchor_index] as Dictionary).erase("hide_pet")
+		_save_furniture())
+	var hide_row := HBoxContainer.new()
+	hide_row.add_child(_furn_anchor_hide)
+	hide_row.add_child(InfoIcon.new("桌寵坐/躺定位到這個位置後整隻不畫,畫面上只剩家具(和家具的圖層)——例如鑽進被窩、躲進紙箱。搭配「圖層」頁的「誰在用時顯示」,就能換成那隻桌寵專屬的樣子。\n藏起來的桌寵照樣點得到、拖得走,拖走就結束使用、重新出現。"))
+	right.add_child(hide_row)
 
 
 ## 光源:跟角色的光源系統共用「光源」頁與「調整光源錨點」模式(畫布借用同一套多光源清單,不是真的加進角色的光源清單,
@@ -1263,6 +1520,15 @@ func _edit_furn_anchor_action() -> void:
 		return
 	_furniture_def.anchors[_furn_anchor_index]["action"] = _furn_anchor_action.text.strip_edges().left(FurnitureDef.MAX_NAME)
 	_save_furniture()
+
+
+## 「圖片裡角色面向」改了:寫進 pack.json 的 facing(可撤回)。
+func _edit_facing(index: int) -> void:
+	if _updating or not _model.has_pack():
+		return
+	_model.checkpoint()
+	_model.set_facing_left(index == 1)
+	_after_edit(tr("已設定圖片裡的角色朝左") if index == 1 else tr("已設定圖片裡的角色朝右"))
 
 
 ## 「使用時面向」下拉選單改了:存回這個錨點的 facing。
@@ -1448,6 +1714,8 @@ func _refresh_furniture_anchors() -> void:
 	_furn_anchor_action.editable = has_anchor
 	_furn_anchor_facing.select(FurnitureDef.ANCHOR_FACINGS.find(str(anchor.get("facing", "both"))))
 	_furn_anchor_facing.disabled = not has_anchor
+	_furn_anchor_hide.button_pressed = bool(anchor.get("hide_pet", false))
+	_furn_anchor_hide.disabled = not has_anchor
 	_updating = false
 	if _furn_no_anchor_warning != null:
 		_furn_no_anchor_warning.visible = _furniture_def != null and _furniture_def.anchors.is_empty()
@@ -1484,8 +1752,24 @@ func _furniture_accessory_previews() -> Array[Dictionary]:
 
 
 func _push_furniture_anchors_to_canvas() -> void:
-	if _canvas != null:
+	_push_canvas_accessories()
+
+
+## 編輯家具、而且停在「坐躺位置」頁:畫布的「調整配件位置」拖的是坐躺位置,不是圖層。
+func _seat_editing() -> bool:
+	return _furniture_id != "" and _right_tabs != null and _tab_scrolls.has("坐躺位置") and _right_tabs.current_tab == _right_tabs.get_tab_idx_from_control(_tab_scrolls["坐躺位置"])
+
+
+## 畫布上的「配件」:平常是圖層;家具停在「坐躺位置」頁時換成坐躺位置的標記。
+func _push_canvas_accessories() -> void:
+	if _canvas == null:
+		return
+	if _seat_editing():
 		_canvas.set_accessories(_furniture_accessory_previews(), _furn_anchor_index)
+		_canvas.set_backdrop(_accessory_preview())   # 圖層照樣畫出來對照,但不能選、不能拖
+	else:
+		_canvas.set_accessories(_accessory_preview(), _acc_index)
+		_canvas.set_backdrop([] as Array[Dictionary])
 
 
 ## 借畫布的「光源」畫法畫家具的每一盞燈:"enabled" 換成「現在(真實時間)是不是真的會亮」而不是原始資料的開關本身,
@@ -1633,9 +1917,15 @@ func _apply_prop_mode() -> void:
 	_prop_panel.visible = _prop_id != ""
 	_furniture_panel.visible = _furniture_id != ""
 	_char_light_panel.visible = not item_mode
-	_char_layer_panel.visible = not item_mode
+	_char_layer_panel.visible = _prop_id == ""   # 家具也有圖層(2026-10-15)
+	_furn_user_box.visible = _furniture_id != ""
+	_refresh_furn_user_widgets()
+	_facing_panel.visible = not item_mode
+	_updating = true
+	_facing_option.select(1 if _model.has_pack() and _model.facing_left() else 0)
+	_facing_option.disabled = not _model.has_pack()
+	_updating = false
 	_furn_light_tab_panel.visible = _furniture_id != ""
-	_furn_anchor_tab_panel.visible = _furniture_id != ""
 	_sync_action_source_widgets()
 	if _prop_id != "" and _prop_def != null:
 		_updating = true
@@ -1680,6 +1970,10 @@ func open_furniture(furniture_id: String) -> String:
 		return error
 	_furniture_id = furniture_id
 	_furniture_def = def
+	_model.furniture_def = def   # 幀的移動/複製/刪除/貼上時家具燈的逐幀設定跟著搬
+	_model.furniture_saver = func() -> void:
+		_save_furniture()
+		_refresh_furniture_lights()
 	_extra_slots.clear()
 	_action = ""
 	_slot = "normal"
@@ -1697,7 +1991,7 @@ func _rebuild_action_list() -> void:
 		for state: String in _item_states():
 			var count := _model.frame_count(state)
 			if count > 0:
-				_action_list.add_item("%s(%d)" % [_item_state_label(state), count])
+				_action_list.add_item("%s(%d)%s" % [_item_state_label(state), count, _sync_mark(state)])
 				_action_rows.append({"action": state, "slot": state})
 			else:
 				_action_list.add_item(tr("%s(空)") % _item_state_label(state))
@@ -1706,37 +2000,68 @@ func _rebuild_action_list() -> void:
 		return
 	var sources := _model.slot_sources()
 	var used: Dictionary = {}
-	for slot: String in SpritePackLoader.ALIASES:
-		var source := str(sources.get(slot, ""))
-		if source != "":
-			used[source] = true
-			var text := "%s(%d)" % [slot, _model.frame_count(source)] if source == slot else "%s ← %s(%d)" % [slot, source, _model.frame_count(source)]
-			_action_list.add_item(text)
-			_action_rows.append({"action": source, "slot": slot})
-		else:
-			_action_list.add_item(tr("%s(空)") % slot)
-			_action_list.set_item_custom_fg_color(_action_list.item_count - 1, ManagerUi.muted_color(_action_list))
-			_action_rows.append({"action": "", "slot": slot})
-	var others: Array[String] = []
-	for action_name in _model.action_names():
-		if not used.has(action_name):
-			others.append(action_name)
 	var still_empty: Array[String] = []
 	for extra in _extra_slots:
 		if not _model.action_names().has(extra):
 			still_empty.append(extra)
 	_extra_slots = still_empty
-	if not others.is_empty() or not _extra_slots.is_empty():
+	# 朝向版本(walk_left…)排在原動作底下(見 _add_direction_rows),不另外列在自訂動作裡。
+	var nested: Dictionary = {}
+	for slot: String in SpritePackLoader.ALIASES:
+		var source := str(sources.get(slot, ""))
+		if source != "":
+			used[source] = true
+			var text := "%s(%d)" % [slot, _model.frame_count(source)] if source == slot else "%s ← %s(%d)" % [slot, source, _model.frame_count(source)]
+			_action_list.add_item(text + _sync_mark(source))
+			_action_rows.append({"action": source, "slot": slot})
+		else:
+			_action_list.add_item(tr("%s(空)") % slot)
+			_action_list.set_item_custom_fg_color(_action_list.item_count - 1, ManagerUi.muted_color(_action_list))
+			_action_rows.append({"action": "", "slot": slot})
+		_add_direction_rows(slot, nested)
+	var others: Array[String] = []
+	for action_name in _model.action_names():
+		if not used.has(action_name) and not nested.has(action_name) and not _is_nested_direction(action_name):
+			others.append(action_name)
+	var extras: Array[String] = []
+	for extra in _extra_slots:
+		if not nested.has(extra) and not _is_nested_direction(extra):
+			extras.append(extra)
+	if not others.is_empty() or not extras.is_empty():
 		_action_list.add_item(tr("── 自訂動作 ──"))
 		_action_list.set_item_disabled(_action_list.item_count - 1, true)
 		_action_rows.append({"action": "", "slot": "", "header": true})
 		for action_name in others:
-			_action_list.add_item("%s(%d)" % [action_name, _model.frame_count(action_name)])
+			_action_list.add_item("%s(%d)%s" % [action_name, _model.frame_count(action_name), _sync_mark(action_name)])
 			_action_rows.append({"action": action_name, "slot": action_name})
-		for extra in _extra_slots:
+			_add_direction_rows(action_name, nested)
+		for extra in extras:
 			_action_list.add_item(tr("%s(空)") % extra)
 			_action_list.set_item_custom_fg_color(_action_list.item_count - 1, ManagerUi.muted_color(_action_list))
 			_action_rows.append({"action": "", "slot": extra})
+			_add_direction_rows(extra, nested)
+
+
+## 名稱是某個動作的朝向版本、而且原動作在清單裡(系統動作槽、素材包的動作或新增的空槽):會排在原動作底下。
+func _is_nested_direction(name: String) -> bool:
+	var plain := SpritePackLoader.plain_action(name)
+	return plain != name and (SpritePackLoader.ALIASES.has(plain) or _model.action_names().has(plain) or _extra_slots.has(plain))
+
+
+## 在原動作那一列底下加上它已經有的朝向版本(有幀的,或剛切過去、還空著的)。
+func _add_direction_rows(plain: String, nested: Dictionary) -> void:
+	for side: String in SpritePackLoader.DIRECTIONS:
+		var name := "%s_%s" % [plain, side]
+		var label := tr("朝左專用") if side == "left" else tr("朝右專用")
+		if _model.action_names().has(name):
+			_action_list.add_item("    ↳ %s(%d)%s" % [label, _model.frame_count(name), _sync_mark(name)])
+			_action_rows.append({"action": name, "slot": name})
+			nested[name] = true
+		elif _extra_slots.has(name):
+			_action_list.add_item(tr("    ↳ %s(空)") % label)
+			_action_list.set_item_custom_fg_color(_action_list.item_count - 1, ManagerUi.muted_color(_action_list))
+			_action_rows.append({"action": "", "slot": name})
+			nested[name] = true
 
 
 ## 選中清單裡對應「目前動作/槽」的那一列。
@@ -2146,15 +2471,26 @@ func _build_accessory_section(right: VBoxContainer) -> void:
 	_acc_name.text_changed.connect(func(text: String) -> void: _edit_accessory("name", text.strip_edges(), "acc_name"))
 	right.add_child(ManagerUi.labeled("名稱", _acc_name))
 	_acc_role = OptionButton.new()
-	for label in ["配件(一直顯示,可在右鍵選單開關)", "眨眼(隨機短暫出現)", "說話(說話時顯示)"]:
+	for label in ["配件(一直顯示,可在右鍵選單開關)", "眨眼(隨機短暫出現)", "說話(說話時顯示)", "待呼叫(積木、狀態鏡叫出來或指定的幀才顯示)"]:
 		_acc_role.add_item(label)
-	_acc_role.item_selected.connect(func(index: int) -> void: _edit_accessory("role", ACC_ROLES[index], "acc_role"))
+	_acc_role.tooltip_text = tr("待呼叫:平常不出現,只有積木「暫時顯示圖層」(家具是「家具圖層」積木)、狀態鏡的「啟用時暫時顯示圖層」要求時,或在「顯示時機」把某幾幀設成「👁 顯示」時才出現(例如特定狀態才出現的表情、睡覺時閉眼)。")
+	_acc_role.item_selected.connect(_edit_acc_kind)
 	right.add_child(ManagerUi.labeled("種類", _acc_role))
 	_acc_layer = OptionButton.new()
 	for label in ["本體上面", "本體後面", "最上層", "光源之上"]:
 		_acc_layer.add_item(label)
 	_acc_layer.item_selected.connect(func(index: int) -> void: _edit_accessory("layer", ACC_LAYERS[index], "acc_layer"))
 	right.add_child(ManagerUi.labeled("圖層", _acc_layer))
+	# 2026-10-15 圖層頁整理:常用的在前、可收合;做好就很少再動的裁切與對齊點放最底下、預設收起。
+	var place_fold := FoldSection.new("位置與大小", "錨點是相對腳底軸心的縮放前像素座標;上面「模式」選「調整配件位置」可以直接在畫布上拖曳。")
+	right.add_child(place_fold)
+	var show_fold := FoldSection.new("顯示時機", "這個圖層在哪些動作出現,以及個別幀要不要顯示。")
+	right.add_child(show_fold)
+	var image_fold := FoldSection.new("圖片與播放", "選取的圖層的每一張圖。多張圖會依「播放速度」循環(眨眼在眨眼時間內播完一輪)。縮圖可複選(Ctrl / Shift),前移、後移、複製一份、刪除、更換圖片都對選取的圖。")
+	right.add_child(image_fold)
+	_layer_crop_fold = FoldSection.new("裁切與對齊點", "・預覽:滾輪放大縮小,「移動視角畫面」模式左鍵拖曳平移(任何模式中鍵、右鍵拖曳也可以)。\n・裁切:預覽切到「拖曳畫裁切範圍」,拖出要保留的範圍,再按「套用到選取的圖」(選取的圖 = 上面「圖片與播放」的縮圖)。裁切只是少畫空白,圖層在畫面上的位置不會變。「自動裁掉透明邊」會把每張選取的圖各自裁到有畫東西的範圍。\n・對齊點:圖上放在錨點的那一點,預設是圖片中心;切到「點選對齊點」直接在預覽上點,或填數字(原圖的像素座標,整個圖層共用)。", false)
+	right.add_child(_layer_crop_fold)
+	right = place_fold.content
 	_acc_x = ManagerUi.spin(1.0, -PackLights.MAX_COORD, PackLights.MAX_COORD)
 	_acc_y = ManagerUi.spin(1.0, -PackLights.MAX_COORD, PackLights.MAX_COORD)
 	_acc_x.value_changed.connect(func(_v: float) -> void: _edit_anchor(Vector2(_acc_x.value, _acc_y.value)))
@@ -2175,28 +2511,59 @@ func _build_accessory_section(right: VBoxContainer) -> void:
 	right.add_child(_acc_scope_clear)
 	right.add_child(ManagerUi.labeled("錨點 X(右為正)", _acc_x))
 	right.add_child(ManagerUi.labeled("錨點 Y(下為正)", _acc_y))
-	_acc_origin = OptionButton.new()
-	for label in ["圖片中心", "左上角", "底邊中心", "上邊中心"]:
-		_acc_origin.add_item(label)
-	_acc_origin.item_selected.connect(func(index: int) -> void: _edit_accessory("origin", ACC_ORIGINS[index], "acc_origin"))
-	right.add_child(ManagerUi.labeled("圖上放在錨點的那一點", _acc_origin))
 	_acc_scale = ManagerUi.spin(0.05, 0.05, 8.0)
 	_acc_scale.value_changed.connect(func(value: float) -> void: _edit_accessory("scale", value, "acc_scale"))
 	right.add_child(ManagerUi.labeled("縮放倍率", _acc_scale))
+	var flip_row := HBoxContainer.new()
+	_acc_flip_h = ManagerUi.button("↔")
+	_acc_flip_h.tooltip_text = tr("水平翻轉這個圖層(左右對調,在原地翻,位置不變)。再按一次翻回來。")
+	_acc_flip_h.toggle_mode = true
+	_acc_flip_h.toggled.connect(func(on: bool) -> void: _edit_acc_flip("flip_h", on))
+	_acc_flip_v = ManagerUi.button("↕")
+	_acc_flip_v.tooltip_text = tr("垂直翻轉這個圖層(上下對調,在原地翻,位置不變)。再按一次翻回來。")
+	_acc_flip_v.toggle_mode = true
+	_acc_flip_v.toggled.connect(func(on: bool) -> void: _edit_acc_flip("flip_v", on))
+	_acc_mirror = ManagerUi.button("🪞")
+	_acc_mirror.tooltip_text = tr("只在目前這個動作把這個圖層左右鏡像(以錨點為中心翻,位置不動;跟 ↔ 各算各的)。「複製預設版本並左右翻轉」建立朝向版本時會自動打開;不想鏡像就再按一次關掉。")
+	_acc_mirror.toggle_mode = true
+	_acc_mirror.toggled.connect(_edit_acc_mirror)
+	flip_row.add_child(_acc_flip_h)
+	flip_row.add_child(_acc_flip_v)
+	flip_row.add_child(_acc_mirror)
+	right.add_child(ManagerUi.labeled("翻轉", flip_row))
+	right = show_fold.content
 	_acc_actions = ManagerUi.line_edit("* = 所有動作;或動作名稱用逗號分隔,例如 idle, walk")
 	_acc_actions.text_changed.connect(func(text: String) -> void: _edit_accessory("actions", _parse_actions(text), "acc_actions"))
 	right.add_child(ManagerUi.labeled("在這些動作顯示", _acc_actions))
 	# 逐幀顯示(2026-10-13):角色在動畫裡每一幀的角度可能不同,某幾幀要把這個圖層藏起來(或只在某幾幀露出來)。做法比照光源的「單獨調整此幀」。
-	_acc_frame_unlock = CheckBox.new()
-	_acc_frame_unlock.text = tr("單獨調整此幀的顯示")
-	_acc_frame_unlock.tooltip_text = tr("沒勾選的幀照平常的規則(上面「在這些動作顯示」)。勾選這裡才能單獨決定目前這一幀要不要顯示這個圖層,不影響其他幀;取消勾選會清掉這一幀的設定。眨眼、說話差分也能用:這一幀設成不顯示,播到這一幀就不會眨眼/動嘴。")
-	_acc_frame_unlock.toggled.connect(_on_acc_frame_unlock_toggled)
-	right.add_child(_acc_frame_unlock)
-	_acc_frame_show = CheckBox.new()
-	_acc_frame_show.text = tr("這一幀顯示這個圖層")
-	_acc_frame_show.tooltip_text = tr("只有勾選「單獨調整此幀的顯示」時才能改。取消 = 這一幀不顯示;勾選 = 這一幀顯示(一般配件連「在這些動作顯示」沒列到的動作也會顯示)。")
-	_acc_frame_show.toggled.connect(_on_acc_frame_show_toggled)
-	right.add_child(_acc_frame_show)
+	var rule_row := HFlowContainer.new()
+	_acc_frame_label = Label.new()
+	rule_row.add_child(_acc_frame_label)
+	var rule_group := ButtonGroup.new()
+	var rule_specs := [
+		["↺ 照規則", "這一幀沒有自己的設定,照平常的規則(上面「在這些動作顯示」與種類)。"],
+		["👁 顯示", "這一幀一定顯示這個圖層:一般配件、待呼叫連「在這些動作顯示」沒列到的動作也會顯示;眨眼、說話差分照樣只在眨眼/說話時出現。"],
+		["🚫 不顯示", "這一幀一定不顯示這個圖層:積木、狀態鏡叫出來也不會顯示;眨眼、說話差分播到這一幀就不會眨眼/動嘴。"],
+	]
+	_acc_frame_rule_buttons.clear()
+	for k in rule_specs.size():
+		var rule_button := ManagerUi.button(rule_specs[k][0])
+		rule_button.tooltip_text = tr(rule_specs[k][1]) + "\n" + tr("在幀清單用 Ctrl / Shift 選好幾幀,就會一次改選取的所有幀。")
+		rule_button.toggle_mode = true
+		rule_button.button_group = rule_group
+		rule_button.toggled.connect(func(on: bool) -> void:
+			if on:
+				_set_acc_frame_rule([null, true, false][k]))
+		rule_row.add_child(rule_button)
+		_acc_frame_rule_buttons.append(rule_button)
+	right.add_child(rule_row)
+	_acc_frame_clear = ManagerUi.button("清除這個圖層的逐幀顯示設定")
+	_acc_frame_clear.tooltip_text = tr("所有動作的每一幀都回到「↺ 照規則」(上面「在這些動作顯示」與種類)。只想在某些動作出現,用「在這些動作顯示」列出那些動作就好,不用一幀一幀關;可以復原。")
+	_acc_frame_clear.pressed.connect(_clear_layer_frame_rules)
+	right.add_child(_acc_frame_clear)
+	_build_furn_user_widgets(right)
+	right = image_fold.content
+	_build_layer_frames(right)
 	_acc_fps = ManagerUi.spin(0.5, 0.5, 60.0)
 	_acc_fps.value_changed.connect(func(value: float) -> void: _edit_accessory("fps", value, "acc_fps"))
 	right.add_child(ManagerUi.labeled("多張圖的播放速度(fps)", _acc_fps))
@@ -2212,14 +2579,94 @@ func _build_accessory_section(right: VBoxContainer) -> void:
 	_acc_add_image.pressed.connect(func() -> void:
 		FloatingWindow.native_file_dialog("選擇要加進這個配件的圖片", "", DisplayServer.FILE_DIALOG_MODE_OPEN_FILES, PackedStringArray([IMAGE_FILTER]),
 				func(paths: PackedStringArray) -> void: add_accessory_images(Array(paths)), get_window_id()))
+	_acc_add_image.visible = false   # 「加入圖片…」在上面的縮圖按鈕裡
 	image_row.add_child(_acc_add_image)
 	_acc_clear_images = ManagerUi.button("只留第一張")
 	_acc_clear_images.pressed.connect(func() -> void:
-		if _acc_index >= 0 and _acc_index < _accs.size() and (_accs[_acc_index]["images"] as Array).size() > 1:
+		if _acc_index >= 0 and _acc_index < _accs.size() and (_accs[_acc_index]["images"] as Array).size() > 1 and not _acc_locked():
+			var crops: Variant = _accs[_acc_index].get("crops")
+			if crops is Array and (crops as Array).size() > 1:
+				_accs[_acc_index]["crops"] = (crops as Array).slice(0, 1)
 			_edit_accessory("images", [(_accs[_acc_index]["images"] as Array)[0]], "acc_images")
 			_refresh_accessories())
 	image_row.add_child(_acc_clear_images)
 	right.add_child(image_row)
+	right = _layer_crop_fold.content
+	_acc_origin = OptionButton.new()
+	for label in ["圖片中心", "左上角", "底邊中心", "上邊中心", "自訂(在下面的預覽點選)"]:
+		_acc_origin.add_item(label)
+	_acc_origin.item_selected.connect(_on_acc_origin_selected)
+	right.add_child(ManagerUi.labeled("圖上放在錨點的那一點", _acc_origin))
+	right.add_child(_layer_frames.crop_box)
+
+
+## 家具圖層的「誰在用時顯示」(2026-10-15 使用者要求:依使用家具的桌寵是誰決定家具動畫的內容)。
+func _build_furn_user_widgets(right: VBoxContainer) -> void:
+	_furn_user_box = VBoxContainer.new()
+	_furn_user_box.visible = false
+	_furn_user_box.add_theme_constant_override("separation", 6)
+	right.add_child(_furn_user_box)
+	_furn_user_mode = OptionButton.new()
+	for label in ["不看有沒有人在用", "沒有桌寵在用時", "有桌寵在用時", "指定的桌寵在用時", "指定以外的桌寵在用時"]:
+		_furn_user_mode.add_item(label)
+	_furn_user_mode.item_selected.connect(func(index: int) -> void:
+		_edit_accessory("used_by", FURN_USER_MODES[index], "acc_used_by")
+		_refresh_furn_user_widgets())
+	var mode_row := ManagerUi.labeled("誰在用時顯示", _furn_user_mode)
+	mode_row.add_child(ManagerUi.info_icon("這個圖層要看「誰在用這件家具」才顯示嗎?「在用」= 桌寵已經走到定位坐好/躺好(走過去的路上不算)。\n例如同一張床,幫每隻桌寵各做一個被子圖層,設成「指定的桌寵在用時」並勾選那隻桌寵,誰躺上去就蓋誰的被子;再做一個「沒有桌寵在用時」的圖層當空床的樣子。\n上面「在這些動作顯示」照樣有效(動作 = 家具的狀態:normal / conditional / interacted)。"))
+	_furn_user_box.add_child(mode_row)
+	_furn_user_seat = OptionButton.new()
+	_furn_user_seat.item_selected.connect(func(index: int) -> void: _edit_accessory("used_seat", index - 1, "acc_used_seat"))
+	_furn_user_box.add_child(ManagerUi.labeled("看哪個位置", _furn_user_seat))
+	_furn_user_pets = ItemList.new()
+	_furn_user_pets.select_mode = ItemList.SELECT_MULTI
+	_furn_user_pets.custom_minimum_size.y = 96.0
+	_furn_user_pets.tooltip_text = tr("可複選(Ctrl / Shift)。清單是角色庫裡的角色加上目前桌面上的桌寵,用辨識代號比對,所以同一個角色放好幾隻都算。")
+	_furn_user_pets.multi_selected.connect(func(_index: int, _selected: bool) -> void:
+		var tags: Array = []
+		for row in _furn_user_pets.get_selected_items():
+			tags.append(_furn_user_tags[row])
+		_edit_accessory("used_by_tags", tags, "acc_used_by_tags"))
+	_furn_user_box.add_child(_furn_user_pets)
+
+
+func _refresh_furn_user_widgets() -> void:
+	if _furn_user_box == null or not _furn_user_box.visible:
+		return
+	var has_part := _acc_index >= 0 and _acc_index < _accs.size()
+	var part: Dictionary = _accs[_acc_index] if has_part else {}
+	_updating = true
+	var mode := maxi(FURN_USER_MODES.find(str(part.get("used_by", "always"))), 0)
+	_furn_user_mode.select(mode)
+	_furn_user_mode.disabled = not has_part
+	_furn_user_seat.clear()
+	_furn_user_seat.add_item(tr("任何位置"))
+	var seats: Array = _furniture_def.anchors if _furniture_def != null else []
+	for i in seats.size():
+		_furn_user_seat.add_item(tr("位置 %d(%s)") % [i + 1, tr("坐") if str((seats[i] as Dictionary).get("type", "sit")) == "sit" else tr("躺")])
+	var seat := int(part.get("used_seat", -1))
+	if seat >= seats.size():
+		_furn_user_seat.add_item(tr("位置 %d(已刪除)") % (seat + 1))
+		_furn_user_seat.select(_furn_user_seat.item_count - 1)
+	else:
+		_furn_user_seat.select(seat + 1)
+	_furn_user_seat.disabled = not has_part or mode == 0
+	var chosen: Array = part.get("used_by_tags", []) if part.get("used_by_tags") is Array else []
+	var known := PetReferences.known_pets(get_tree() if is_inside_tree() else null)
+	_furn_user_tags.clear()
+	_furn_user_pets.clear()
+	for tag: String in known:
+		_furn_user_tags.append(tag)
+		_furn_user_pets.add_item("%s(%s)" % [known[tag], tag])
+	for tag: Variant in chosen:
+		if not _furn_user_tags.has(str(tag)):
+			_furn_user_tags.append(str(tag))
+			_furn_user_pets.add_item(tr("%s(不在角色庫)") % str(tag))
+	for row in _furn_user_tags.size():
+		if chosen.has(_furn_user_tags[row]):
+			_furn_user_pets.select(row, false)
+	_furn_user_pets.visible = mode >= 3
+	_updating = false
 
 
 static func _parse_actions(text: String) -> Array:
@@ -2231,12 +2678,65 @@ static func _parse_actions(text: String) -> Array:
 	return actions if not actions.is_empty() else ["*"]
 
 
-func _acc_texture(relative: String) -> Texture2D:
-	var key := "%s|%s" % [_model.root, relative]
+## 圖層圖片(crop = 裁切範圍,見 PetOverlays.crop_rect;null = 整張原圖)。依素材包、檔名、裁切快取。
+func _acc_texture(relative: String, crop: Variant = null) -> Texture2D:
+	var rect: Variant = PetOverlays.crop_rect(crop)
+	var key := "%s|%s|%s" % [_model.root, relative, str(rect) if rect is Rect2i else ""]
 	if not _acc_textures.has(key):
 		var report: Array[String] = []
-		_acc_textures[key] = PetOverlays._load_texture(_model.root, relative, report)
+		_acc_textures[key] = PetOverlays.load_cropped(_model.root, relative, rect, report)
 	return _acc_textures[key]
+
+
+func _acc_image(relative: String) -> Image:
+	var report: Array[String] = []
+	return PetOverlays._load_image(_model.root, relative, report)
+
+
+## 圖層的圖片小窗(2026-10-15,見 LayerFramesPanel):放在圖層清單與「選取的圖層設定」之間,管理選取的圖層的每一張圖、裁切與對齊點。
+func _build_layer_frames(right: VBoxContainer) -> void:
+	_layer_frames = LayerFramesPanel.new()
+	_layer_frames.setup(_acc_texture, _acc_image)
+	_layer_frames.part_changed.connect(_on_layer_frames_changed)
+	_layer_frames.locked_touched.connect(func() -> void: _status.text = PackLayers.lock_hint())
+	_layer_frames.add_images_requested.connect(func() -> void:
+		FloatingWindow.native_file_dialog("選擇要加進這個配件的圖片", "", DisplayServer.FILE_DIALOG_MODE_OPEN_FILES, PackedStringArray([IMAGE_FILTER]),
+				func(paths: PackedStringArray) -> void: add_accessory_images(Array(paths)), get_window_id()))
+	_layer_frames.replace_images_requested.connect(func(indices: Array) -> void:
+		if indices.is_empty():
+			return
+		FloatingWindow.native_file_dialog("選擇新的圖片(選幾張就依序換掉幾張選取的圖)", "", DisplayServer.FILE_DIALOG_MODE_OPEN_FILES, PackedStringArray([IMAGE_FILTER]),
+				func(paths: PackedStringArray) -> void: _status.text = replace_accessory_images(indices, Array(paths)), get_window_id()))
+	right.add_child(_layer_frames)
+
+
+func _on_layer_frames_changed(part: Dictionary, message: String, checkpoint_key: String) -> void:
+	if _acc_index < 0 or _acc_index >= _accs.size() or _acc_locked():
+		return
+	_model.checkpoint(checkpoint_key)
+	_accs[_acc_index] = part
+	_model.set_accessories(_accs)
+	_refresh_accessories()
+	_after_edit(message)
+
+
+## 「圖上放在錨點的那一點」:前四項是預設點;「自訂」= 存成原圖像素座標 [x, y](從目前的點開始,再到圖片小窗點選或填數字)。
+func _on_acc_origin_selected(index: int) -> void:
+	if _updating or _acc_index < 0 or _acc_index >= _accs.size() or _acc_locked():
+		return
+	if index < ACC_ORIGINS.size():
+		_edit_accessory("origin", ACC_ORIGINS[index], "acc_origin")
+		_refresh_accessories()
+		return
+	var part: Dictionary = _accs[_acc_index]
+	var images: Array = part.get("images", [])
+	var texture: Texture2D = _acc_texture(str(images[0])) if not images.is_empty() else null
+	var point := PetOverlays._origin_pixels(part.get("origin", "center"), Vector2(texture.get_size()) if texture != null else Vector2.ZERO)
+	_edit_accessory("origin", [roundf(point.x), roundf(point.y)], "acc_origin")
+	_refresh_accessories()
+	_layer_frames.use_mode(LayerFramesPanel.LayerImagePreview.MODE_ORIGIN)
+	_layer_crop_fold.set_open(true)
+	_status.text = tr("在「裁切與對齊點」的預覽直接點圖上要放在錨點的那一點,或填「對齊點 X / Y」。")
 
 
 ## 從模型重新讀配件清單,更新清單、表單與畫布預覽(切換素材包、撤回重做後都會呼叫)。
@@ -2251,11 +2751,11 @@ func _refresh_accessories() -> void:
 	_updating = true
 	_acc_list.clear()
 	for part: Dictionary in _accs:
-		_acc_list.add_item("%s(%s)" % [part.get("name", "?"), [tr("配件"), tr("眨眼"), tr("說話")][maxi(ACC_ROLES.find(str(part.get("role", "part"))), 0)]])
+		_acc_list.add_item("%s(%s)" % [part.get("name", "?"), tr(ACC_KIND_LABELS[_acc_kind_index(part)])])
 	if _acc_index >= 0:
 		_acc_list.select(_acc_index)
 	var has_part := _acc_index >= 0 and _acc_index < _accs.size()
-	for control: Control in [_acc_name, _acc_role, _acc_layer, _acc_x, _acc_y, _acc_origin, _acc_scale, _acc_actions, _acc_fps, _acc_loop, _acc_add_image, _acc_clear_images, _acc_delete]:
+	for control: Control in [_acc_name, _acc_role, _acc_layer, _acc_x, _acc_y, _acc_origin, _acc_scale, _acc_flip_h, _acc_flip_v, _acc_actions, _acc_fps, _acc_loop, _acc_add_image, _acc_clear_images, _acc_delete]:
 		if control is Button or control is OptionButton or control is CheckBox:
 			control.set("disabled", not has_part)
 		elif control is LineEdit:
@@ -2267,11 +2767,13 @@ func _refresh_accessories() -> void:
 		var part: Dictionary = _accs[_acc_index]
 		var anchor: Variant = AccessoryAnchors.effective(part, _action, _index)
 		_acc_name.text = str(part.get("name", ""))
-		_acc_role.select(maxi(ACC_ROLES.find(str(part.get("role", "part"))), 0))
+		_acc_role.select(_acc_kind_index(part))
+		_acc_flip_h.set_pressed_no_signal(bool(part.get("flip_h", false)))
+		_acc_flip_v.set_pressed_no_signal(bool(part.get("flip_v", false)))
 		_acc_layer.select(maxi(ACC_LAYERS.find(str(part.get("layer", "front"))), 0))
 		_acc_x.value = (anchor as Vector2).x if anchor is Vector2 else 0.0
 		_acc_y.value = (anchor as Vector2).y if anchor is Vector2 else 0.0
-		_acc_origin.select(maxi(ACC_ORIGINS.find(str(part.get("origin", "center"))), 0))
+		_acc_origin.select(ACC_ORIGINS.size() if part.get("origin") is Array else maxi(ACC_ORIGINS.find(str(part.get("origin", "center"))), 0))
 		_acc_scale.value = float(part.get("scale", 1.0))
 		_acc_actions.text = ", ".join(PackedStringArray(part.get("actions", ["*"])))
 		_acc_fps.value = float(part.get("fps", PetOverlays.DEFAULT_FPS))
@@ -2280,6 +2782,8 @@ func _refresh_accessories() -> void:
 	else:
 		_acc_images.text = ""
 	_updating = false
+	if _layer_frames != null:
+		_layer_frames.set_part(_accs[_acc_index] if has_part else {})
 	_refresh_anchor_widgets()
 	_refresh_layers()
 
@@ -2287,18 +2791,23 @@ func _refresh_accessories() -> void:
 func _accessory_preview() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for part: Dictionary in _accs:
-		var images: Array = part.get("images", [])
-		var texture: Texture2D = _acc_texture(str(images[0])) if not images.is_empty() else null
+		var texture: Texture2D = _layer_preview_texture(part)
 		var anchor: Variant = AccessoryAnchors.effective(part, _action, _index)   # 目前這個動作、這一幀實際的位置
-		var origin := PetOverlays._origin_pixels(part.get("origin", "center"), Vector2(texture.get_size()) if texture != null else Vector2.ZERO)
+		# 畫布從錨點往左上退 origin 畫圖;裁切過的圖用 texture_offset 換算(位置跟沒裁切時一樣)
+		var origin := -PetOverlays.texture_offset(part.get("origin", "center"), texture) if texture != null else Vector2.ZERO
 		result.append({"x": (anchor as Vector2).x if anchor is Vector2 else 0.0, "y": (anchor as Vector2).y if anchor is Vector2 else 0.0,
 				"scale": float(part.get("scale", 1.0)), "origin": origin, "texture": texture, "name": str(part.get("name", "")), "role": str(part.get("role", "part")),
-				"layer": PackLayers.layer_of(part), "hidden": bool(_layer_hidden.get(str(part.get("name", "")), false)) or PackLayers.frame_rule(part, _action, _index) == false})
+				"layer": PackLayers.layer_of(part), "hidden": bool(_layer_hidden.get(str(part.get("name", "")), false)),
+				"flip_h": bool(part.get("flip_h", false)), "flip_v": bool(part.get("flip_v", false)),
+				"mirror": part.get("mirror_for") is Array and (part["mirror_for"] as Array).has(_action),
+				"locked": PackLayers.is_locked(part),
+				# 遊戲裡這一幀不會出現的:預覽不畫,只有選取中的畫成半透明(還是能調位置),見 PackFrameCanvas._acc_shown
+				"ghost": _action != "" and not PackLayers.shows_in_game(part, _action, _index)})
 	return result
 
 
 func _on_canvas_accessory_selected(index: int) -> void:
-	if _furniture_id != "":
+	if _seat_editing():
 		_furn_anchor_index = index
 		_refresh_furniture_anchors()
 		return
@@ -2308,7 +2817,7 @@ func _on_canvas_accessory_selected(index: int) -> void:
 
 
 func _on_canvas_accessory_edited(index: int, at: Vector2) -> void:
-	if _furniture_id != "":
+	if _seat_editing():
 		if _furniture_def == null or index < 0 or index >= _furniture_def.anchors.size():
 			return
 		_furniture_def.anchors[index]["x"] = at.x
@@ -2316,36 +2825,59 @@ func _on_canvas_accessory_edited(index: int, at: Vector2) -> void:
 		_save_furniture()
 		_refresh_furniture_anchors()
 		return
-	if index < 0 or index >= _accs.size():
+	if index < 0 or index >= _accs.size() or _acc_locked(index):
 		return
-	_write_anchor(index, at)
+	var promoted := _write_anchor(index, at)
 	_updating = true
 	_acc_x.value = at.x
 	_acc_y.value = at.y
 	_updating = false
 	_refresh_anchor_widgets()
-	_after_edit("")
+	_after_edit(promoted)
 
 
 ## 錨點寫進「位置套用範圍」選的那一層(整個配件 / 目前動作 / 目前這一幀)。
-func _write_anchor(index: int, at: Vector2) -> void:
+## 2026-10-16 使用者回報:按座標框的上下箭頭數字和預覽都不動、編輯器卻說有改動——這個動作已經有更細的位置
+## (例如「同步到其他動作」寫進的逐幀位置)蓋過選的那一層,寫了也看不到。現在遇到這種情況自動改寫進正在生效的那一層,
+## 範圍選單跟著切過去;回傳要顯示的提示(沒改就是空字串)。
+func _write_anchor(index: int, at: Vector2) -> String:
 	var scope := _acc_scope.selected if _acc_scope != null else AccessoryAnchors.SCOPE_DEFAULT
-	AccessoryAnchors.set_anchor(_accs[index], scope, _action, _index, _model.frame_count(_action) if _action != "" else 0, at)
+	var note := ""
+	if _action != "":
+		var source := AccessoryAnchors.source_of(_accs[index], _action)
+		if source > scope:
+			scope = source
+			if _acc_scope != null:
+				_acc_scope.select(scope)
+			note = tr("這個動作的位置被更細的設定蓋過,已改成寫進「%s」(位置套用範圍已切換)") % _acc_scope.get_item_text(scope) if _acc_scope != null else ""
+	var count := _model.frame_count(_action) if _action != "" else 0
+	if scope == AccessoryAnchors.SCOPE_FRAME:
+		# 2026-10-16:選了好幾幀時一起移,每一幀移一樣的距離(各幀原本不同的位置差保留下來)。
+		var delta := at - AccessoryAnchors.effective(_accs[index], _action, _index)
+		var frames := _selected_frames()
+		if not frames.has(_index):
+			frames.append(_index)
+		for frame in frames:
+			var target := at if frame == _index else AccessoryAnchors.effective(_accs[index], _action, frame) + delta
+			AccessoryAnchors.set_anchor(_accs[index], scope, _action, frame, count, target)
+	else:
+		AccessoryAnchors.set_anchor(_accs[index], scope, _action, _index, count, at)
 	_model.set_accessories(_accs)
+	return note
 
 
 ## 座標框改了(使用者輸入)。
 func _edit_anchor(at: Vector2) -> void:
-	if _updating or _acc_index < 0 or _acc_index >= _accs.size():
+	if _updating or _acc_index < 0 or _acc_index >= _accs.size() or _acc_locked():
 		return
 	_model.checkpoint("acc_anchor")
-	_write_anchor(_acc_index, at)
+	var promoted := _write_anchor(_acc_index, at)
 	_refresh_anchor_widgets()
-	_after_edit("")
+	_after_edit(promoted)
 
 
 func _clear_anchor_scope() -> void:
-	if _acc_index < 0 or _acc_index >= _accs.size() or _acc_scope == null:
+	if _acc_index < 0 or _acc_index >= _accs.size() or _acc_scope == null or _acc_locked():
 		return
 	_model.checkpoint()
 	AccessoryAnchors.clear_scope(_accs[_acc_index], _acc_scope.selected, _action, _index)
@@ -2360,6 +2892,8 @@ func _refresh_anchor_widgets() -> void:
 		return
 	var has_part := _acc_index >= 0 and _acc_index < _accs.size()
 	var has_action := _action != "" and _model.has_pack() and _model.frame_count(_action) > 0
+	_acc_mirror.disabled = not has_part or not has_action
+	_acc_mirror.set_pressed_no_signal(has_part and _accs[_acc_index].get("mirror_for") is Array and (_accs[_acc_index]["mirror_for"] as Array).has(_action))
 	_acc_scope.set_item_disabled(AccessoryAnchors.SCOPE_ACTION, not has_action)
 	_acc_scope.set_item_disabled(AccessoryAnchors.SCOPE_FRAME, not has_action)
 	if not has_action and _acc_scope.selected != AccessoryAnchors.SCOPE_DEFAULT:
@@ -2376,46 +2910,63 @@ func _refresh_anchor_widgets() -> void:
 	else:
 		_acc_scope_label.text = ""
 	_refresh_frame_visible_widgets()
-	if _canvas != null:
-		_canvas.set_accessories(_accessory_preview(), _acc_index)
+	_refresh_furn_user_widgets()
+	_push_canvas_accessories()
+	_apply_layer_lock_ui()
 
 
 ## 逐幀顯示的兩個勾選框跟著目前選的圖層、動作、幀走:沒有動作可選就都不能用;沒勾「單獨調整」時第二個框顯示平常的規則(不能改)。
 func _refresh_frame_visible_widgets() -> void:
-	if _acc_frame_unlock == null:
+	if _acc_frame_label == null:
 		return
 	var has_part := _acc_index >= 0 and _acc_index < _accs.size()
 	var has_action := _action != "" and _model.has_pack() and _model.frame_count(_action) > 0
 	var rule: Variant = PackLayers.frame_rule(_accs[_acc_index], _action, _index) if has_part and has_action else null
 	var was_updating := _updating
 	_updating = true
-	_acc_frame_unlock.disabled = not (has_part and has_action)
-	_acc_frame_unlock.button_pressed = rule is bool
-	_acc_frame_show.disabled = not rule is bool
-	_acc_frame_show.button_pressed = rule if rule is bool else (has_part and PackLayers.shown_in_action(_accs[_acc_index], _action))
+	var pressed := 0 if not rule is bool else (1 if rule else 2)
+	for k in _acc_frame_rule_buttons.size():
+		_acc_frame_rule_buttons[k].disabled = not (has_part and has_action)
+		_acc_frame_rule_buttons[k].set_pressed_no_signal(k == pressed)
+	var many := _frame_rule_targets().size() if has_action else 1
+	_acc_frame_label.text = tr("這一幀:") if many <= 1 else tr("選取的 %d 幀:") % many
+	if _acc_frame_clear != null:
+		_acc_frame_clear.disabled = not (has_part and (_accs[_acc_index] as Dictionary).has("frame_visible"))
 	_updating = was_updating
 
 
-## 「單獨調整此幀的顯示」:打開 = 把這一幀目前的樣子(照平常規則顯示或不顯示)寫成這一幀自己的設定;關掉 = 清掉這一幀的設定。
-func _on_acc_frame_unlock_toggled(on: bool) -> void:
-	if _updating or _acc_index < 0 or _acc_index >= _accs.size() or _action == "":
+## 「這一幀:↺ 照規則 / 👁 顯示 / 🚫 不顯示」:value = null(清掉這一幀的設定)/ true / false,寫進畫布這一幀加上幀清單選取的所有幀。
+func _set_acc_frame_rule(value: Variant) -> void:
+	if _updating or _acc_index < 0 or _acc_index >= _accs.size() or _action == "" or _acc_locked():
 		return
 	_model.checkpoint()
-	var part: Dictionary = _accs[_acc_index]
-	PackLayers.set_frame_rule(part, _action, _index, _model.frame_count(_action), PackLayers.shown_in_action(part, _action) if on else null)
+	for frame in _frame_rule_targets():
+		PackLayers.set_frame_rule(_accs[_acc_index], _action, frame, _model.frame_count(_action), value)
 	_model.set_accessories(_accs)
 	_refresh_anchor_widgets()
-	_after_edit("" if on else tr("已清除這一幀的顯示設定"))
+	_after_edit(tr("已清除選取的幀的顯示設定") if value == null else "")
 
 
-func _on_acc_frame_show_toggled(on: bool) -> void:
-	if _updating or _acc_index < 0 or _acc_index >= _accs.size() or _action == "" or not _acc_frame_unlock.button_pressed:
+## 逐幀顯示要改哪幾幀:畫布上這一幀加上幀清單裡選取的所有幀(2026-10-16:可以一次改好幾幀)。
+func _frame_rule_targets() -> Array[int]:
+	var frames := _selected_frames()
+	if not frames.has(_index):
+		frames.append(_index)
+	return frames
+
+
+## 「清除這個圖層的逐幀顯示設定」:所有動作的每一幀都回到平常的規則(「在這些動作顯示」與種類)。
+func _clear_layer_frame_rules() -> void:
+	if _acc_locked():
 		return
-	_model.checkpoint("acc_frame_visible")
-	PackLayers.set_frame_rule(_accs[_acc_index], _action, _index, _model.frame_count(_action), on)
+	if _acc_index < 0 or _acc_index >= _accs.size() or not (_accs[_acc_index] as Dictionary).has("frame_visible"):
+		_status.text = tr("這個圖層沒有逐幀顯示設定")
+		return
+	_model.checkpoint()
+	(_accs[_acc_index] as Dictionary).erase("frame_visible")
 	_model.set_accessories(_accs)
 	_refresh_anchor_widgets()
-	_after_edit("")
+	_after_edit(tr("已清除這個圖層所有動作的逐幀顯示設定(可以復原)"))
 
 
 ## 用選好的圖片新增一個配件(預設放在頭部上方),選中它。回傳錯誤文字,空字串 = 成功。給按鈕與測試用。
@@ -2449,6 +3000,8 @@ func add_accessory(paths: Array) -> String:
 func add_accessory_images(paths: Array) -> String:
 	if _acc_index < 0 or _acc_index >= _accs.size():
 		return "還沒有選配件"
+	if _acc_locked():
+		return PackLayers.lock_hint()
 	var relatives := _model.import_accessory_images(paths)
 	if relatives.is_empty():
 		return "無法匯入這些圖片"
@@ -2459,8 +3012,52 @@ func add_accessory_images(paths: Array) -> String:
 	return ""
 
 
-func delete_accessory() -> void:
+## 把選中配件的第 indices 張圖依序換成 paths(張數取兩邊少的那個),裁切、對齊點、錨點都不動。回傳狀態文字。給按鈕與測試用。
+func replace_accessory_images(indices: Array, paths: Array) -> String:
 	if _acc_index < 0 or _acc_index >= _accs.size():
+		return tr("還沒有選配件")
+	if _acc_locked():
+		return PackLayers.lock_hint()
+	var relatives := _model.import_accessory_images(paths)
+	if relatives.is_empty():
+		return tr("無法匯入這些圖片")
+	var images: Array = (_accs[_acc_index]["images"] as Array).duplicate()
+	var count := mini(indices.size(), relatives.size())
+	for k in count:
+		var at := int(indices[k])
+		if at >= 0 and at < images.size():
+			images[at] = relatives[k]
+	_edit_accessory("images", images, "acc_images")
+	_refresh_accessories()
+	return tr("已更換 %d 張圖(裁切、對齊點、錨點都保留;可以撤回)") % count
+
+
+## 複製選中的圖層(全部設定一起複製,名稱加上編號),放在它後面並選中。給按鈕與測試用。成功回空字串。
+func duplicate_accessory() -> String:
+	if _acc_index < 0 or _acc_index >= _accs.size():
+		return "還沒有選圖層"
+	if _accs.size() >= PetOverlays.MAX_PARTS:
+		return "配件太多了"
+	var copy: Dictionary = (_accs[_acc_index] as Dictionary).duplicate(true)
+	var base_name := str(copy.get("name", "layer"))
+	var unique := "%s_2" % base_name
+	var counter := 3
+	while _accs.any(func(p: Dictionary) -> bool: return p.get("name") == unique):
+		unique = "%s_%d" % [base_name, counter]
+		counter += 1
+	copy["name"] = unique
+	_model.checkpoint()
+	_accs.insert(_acc_index + 1, copy)
+	_model.set_accessories(_accs)
+	_acc_index += 1
+	_layer_body_focus = false
+	_refresh_accessories()
+	_after_edit(tr("已複製成「%s」(可以用小窗的「更換圖片…」換成別的圖,裁切與位置都沿用)") % unique)
+	return ""
+
+
+func delete_accessory() -> void:
+	if _acc_index < 0 or _acc_index >= _accs.size() or _acc_locked():
 		return
 	_model.checkpoint()
 	_accs.remove_at(_acc_index)
@@ -2472,54 +3069,121 @@ func delete_accessory() -> void:
 
 ## 表單改了目前這個配件的一個欄位:存撤回點(同一欄位連續改合併成一步)、寫回模型、更新畫布預覽。
 func _edit_accessory(field: String, value: Variant, checkpoint_key: String) -> void:
-	if _updating or _acc_index < 0 or _acc_index >= _accs.size():
+	if _updating or _acc_index < 0 or _acc_index >= _accs.size() or _acc_locked():
 		return
 	_model.checkpoint(checkpoint_key)
 	_accs[_acc_index][field] = value
 	_model.set_accessories(_accs)
 	if field == "name" or field == "role":
 		_updating = true
-		_acc_list.set_item_text(_acc_index, "%s(%s)" % [_accs[_acc_index].get("name", "?"), ["配件", "眨眼", "說話"][maxi(ACC_ROLES.find(str(_accs[_acc_index].get("role", "part"))), 0)]])
+		_acc_list.set_item_text(_acc_index, "%s(%s)" % [_accs[_acc_index].get("name", "?"), tr(ACC_KIND_LABELS[_acc_kind_index(_accs[_acc_index])])])
 		_updating = false
-	_canvas.set_accessories(_accessory_preview(), _acc_index)
+	_push_canvas_accessories()
 	_after_edit("")
+
+
+## 種類下拉在第幾項:平常不顯示(visible: false)的一律算「待呼叫」,其餘照 role。
+func _acc_kind_index(part: Dictionary) -> int:
+	if part.get("visible") is bool and not bool(part["visible"]):
+		return ACC_KIND_STANDBY
+	return maxi(ACC_ROLES.find(str(part.get("role", "part"))), 0)
+
+
+## 種類改了:「待呼叫」= role part + "visible": false;其他種類拿掉 visible(平常照規則顯示)。
+## 2026-10-16 使用者提議:原本是另外一個「平常顯示這個圖層」勾選框,併進種類比較好懂。
+func _edit_acc_kind(index: int) -> void:
+	if _updating or _acc_index < 0 or _acc_index >= _accs.size() or _acc_locked():
+		return
+	_model.checkpoint("acc_role")
+	var part: Dictionary = _accs[_acc_index]
+	if index == ACC_KIND_STANDBY:
+		part["role"] = "part"
+		part["visible"] = false
+	else:
+		part["role"] = ACC_ROLES[clampi(index, 0, ACC_ROLES.size() - 1)]
+		part.erase("visible")
+	_model.set_accessories(_accs)
+	_refresh_accessories()
+	_after_edit("")
+
+
+## 圖層水平/垂直翻轉(整個圖層、每張圖都翻,在原地翻;沒翻就不寫這個欄位)。
+func _edit_acc_flip(field: String, on: bool) -> void:
+	if _updating or _acc_index < 0 or _acc_index >= _accs.size() or _acc_locked():
+		return
+	_model.checkpoint()
+	if on:
+		_accs[_acc_index][field] = true
+	else:
+		(_accs[_acc_index] as Dictionary).erase(field)
+	_model.set_accessories(_accs)
+	_push_canvas_accessories()
+	_after_edit(tr("已翻轉圖層(可以撤回)"))
+
+
+## 這個圖層在目前動作整個左右鏡像(寫進 mirror_for;清單空了就拿掉欄位)。
+func _edit_acc_mirror(on: bool) -> void:
+	if _updating or _acc_index < 0 or _acc_index >= _accs.size() or _action == "" or _acc_locked():
+		return
+	var part: Dictionary = _accs[_acc_index]
+	var list: Array = (part["mirror_for"] as Array).duplicate() if part.get("mirror_for") is Array else []
+	if on == list.has(_action):
+		return
+	_model.checkpoint()
+	if on:
+		list.append(_action)
+	else:
+		list.erase(_action)
+	if list.is_empty():
+		part.erase("mirror_for")
+	else:
+		part["mirror_for"] = list
+	_model.set_accessories(_accs)
+	_push_canvas_accessories()
+	_after_edit(tr("已在「%s」鏡像這個圖層(可以撤回)") % _action if on else tr("已取消「%s」的圖層鏡像(可以撤回)") % _action)
 
 
 ## 圖層:本體(動作的幀)加上所有配件(部件)排成一疊,可以調上下順序、開關預覽顯示、暫時停用。適合只畫了會動的那一小塊(眨眼的眼睛、說話的嘴、尾巴等拆件),
 ## 把它們蓋在本體上調位置與順序。配件本身的圖片、錨點、縮放等仍在「配件」頁籤設定,這裡看的是整疊的順序。
 func _build_layers_section(right: VBoxContainer) -> void:
-	right.add_child(ManagerUi.heading_with_info("圖層", tr("清單由上到下 = 畫面由前到後:最上面的蓋在最上面,中間那一列「本體」是動作的幀,「本體後面」的圖層在它下面。用 ▲ ▼ 調順序(跨過本體就會在「本體上面 / 後面」之間切換);眼睛只影響這個編輯器的預覽(方便看被蓋住的東西),不會存檔;「遊戲中顯示」取消 = 這個圖層暫時停用(存檔後遊戲裡不會出現)。圖層就是配件(部件),最多 %d 個;眨眼、說話差分只畫有變動的那一小塊也用這裡管理。") % PetOverlays.MAX_PARTS))
-	_layer_list = ItemList.new()
+	right.add_child(ManagerUi.heading_with_info("圖層", tr("清單由上到下 = 畫面由前到後:最上面的蓋在最上面,中間那一列「本體」是動作的幀,「本體後面」的圖層在它下面。用 ▲ ▼ 調順序(跨過本體就會在「本體上面 / 後面」之間切換);眼睛只影響這個編輯器的預覽(方便看被蓋住的東西),不會存檔;種類選「待呼叫」= 這個圖層平常不出現,只有積木「暫時顯示圖層」或狀態鏡要求時,或是「顯示時機」設成「👁 顯示」的幀才顯示(例如特定狀態才出現的表情、睡覺時閉眼)。圖層就是配件(部件),最多 %d 個;眨眼、說話差分只畫有變動的那一小塊也用這裡管理。") % PetOverlays.MAX_PARTS))
+	_layer_list = LayerListView.new()
 	_layer_list.custom_minimum_size.y = 130.0
 	_layer_list.item_selected.connect(_on_layer_selected)
+	_layer_list.lock_toggled.connect(_toggle_layer_lock)
 	right.add_child(_layer_list)
+	# 2026-10-16 改成一排圖示按鈕(文字說明在滑鼠停留提示),版面省一點
 	var row := HFlowContainer.new()
-	_layer_up = ManagerUi.button("▲ 上移")
+	_layer_up = ManagerUi.button("▲")
+	_layer_up.tooltip_text = tr("上移:選取的圖層往前(上面)移一格。")
 	_layer_up.pressed.connect(func() -> void: _move_layer(1))
-	_layer_down = ManagerUi.button("▼ 下移")
+	_layer_down = ManagerUi.button("▼")
+	_layer_down.tooltip_text = tr("下移:選取的圖層往後(下面)移一格。")
 	_layer_down.pressed.connect(func() -> void: _move_layer(-1))
-	_layer_eye = ManagerUi.button("🚫 預覽隱藏")
+	_layer_eye = ManagerUi.button("👁")
 	_layer_eye.tooltip_text = tr("在這個編輯器的預覽裡隱藏 / 顯示選取的圖層(不存檔)。")
 	_layer_eye.pressed.connect(_toggle_layer_preview)
 	for control in [_layer_up, _layer_down, _layer_eye]:
 		row.add_child(control)
-	right.add_child(row)
-	var add_row := HBoxContainer.new()
-	var add := ManagerUi.button("＋ 新增圖層…")
-	add.tooltip_text = tr("選一張或多張圖片做成一個新圖層(配件),放在本體上面;再用畫布或「配件」頁籤調位置。")
+	var add_row := row
+	var add := ManagerUi.button("➕")
+	add.tooltip_text = tr("新增圖層:選一張或多張圖片做成一個新圖層(配件),放在本體上面;再用畫布或下面的設定調位置。")
 	add.pressed.connect(func() -> void:
 		FloatingWindow.native_file_dialog("選擇圖層圖片(可多選)", "", DisplayServer.FILE_DIALOG_MODE_OPEN_FILES, PackedStringArray([IMAGE_FILTER]),
 				func(paths: PackedStringArray) -> void: add_accessory(Array(paths)), get_window_id()))
 	add_row.add_child(add)
-	var delete := ManagerUi.button("刪除這個圖層")
-	delete.pressed.connect(delete_accessory)
-	add_row.add_child(delete)
-	right.add_child(add_row)
-	_layer_game = CheckBox.new()
-	_layer_game.text = tr("在遊戲裡顯示這個圖層(取消 = 暫時停用)")
-	_layer_game.button_pressed = true
-	_layer_game.toggled.connect(_edit_layer_game)
-	right.add_child(_layer_game)
+	var duplicate := ManagerUi.button("📑")
+	duplicate.tooltip_text = tr("複製這個圖層:把選取的圖層連同全部設定(圖片、裁切、對齊點、錨點、逐幀顯示…)複製一份。再用下面小窗的「更換圖片…」換圖,就不用重新裁切對位。")
+	duplicate.pressed.connect(func() -> void:
+		var error := duplicate_accessory()
+		if error != "":
+			_status.text = tr(error))
+	add_row.add_child(duplicate)
+	_layer_delete = ManagerUi.button("🗑")
+	_layer_delete.tooltip_text = tr("刪除這個圖層(可以撤回)。")
+	_layer_delete.pressed.connect(delete_accessory)
+	add_row.add_child(_layer_delete)
+	right.add_child(row)
 	_layer_note = Label.new()
 	_layer_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_layer_note.theme_type_variation = AppSettings.MUTED_LABEL
@@ -2534,8 +3198,10 @@ func _refresh_layers() -> void:
 	_updating = true
 	_layer_list.clear()
 	var selected_row := -1
+	var locks: Array = []
 	for row in _layer_rows.size():
 		var entry := _layer_rows[row]
+		locks.append(null if entry == PackLayers.BODY else PackLayers.is_locked(_accs[entry]))
 		if entry == PackLayers.BODY:
 			_layer_list.add_item("%s%s" % [("🚫 " if _body_hidden else "🧍 "), tr("本體(動作的幀)")])
 			if _layer_body_focus:
@@ -2546,7 +3212,7 @@ func _refresh_layers() -> void:
 		if bool(_layer_hidden.get(str(part.get("name", "")), false)):
 			marks += tr("[預覽隱藏]")
 		if part.get("visible") is bool and not bool(part["visible"]):
-			marks += tr("[遊戲停用]")
+			marks += tr("[待呼叫]")
 		var band := ""
 		match PackLayers.layer_of(part):
 			"top":
@@ -2560,20 +3226,58 @@ func _refresh_layers() -> void:
 		_layer_list.add_item("%s %s(%s)%s" % ["🖼", part.get("name", "?"), band, marks])
 		if not _layer_body_focus and entry == _acc_index:
 			selected_row = row
+	_layer_list.set_locks(locks)
 	if selected_row >= 0:
 		_layer_list.select(selected_row)
 	var has_part := not _layer_body_focus and _acc_index >= 0 and _acc_index < _accs.size()
 	_layer_up.disabled = not has_part or not bool(PackLayers.move(_accs, _acc_index, 1)["changed"])
 	_layer_down.disabled = not has_part or not bool(PackLayers.move(_accs, _acc_index, -1)["changed"])
 	_layer_eye.disabled = not has_part and not _layer_body_focus
+	_layer_delete.disabled = not has_part
 	var hidden_now := _body_hidden if _layer_body_focus else (has_part and bool(_layer_hidden.get(str(_accs[_acc_index].get("name", "")), false)))
-	_layer_eye.text = tr("👁 預覽顯示") if hidden_now else tr("🚫 預覽隱藏")
-	_layer_game.disabled = not has_part
-	_layer_game.button_pressed = not has_part or not (_accs[_acc_index].get("visible") is bool and not bool(_accs[_acc_index]["visible"]))
+	_layer_eye.text = "🙈" if hidden_now else "👁"
 	_layer_note.text = tr("本體是動作的幀(在「動作」「幀」清單選),不能移動或停用。") if _layer_body_focus else ""
 	_updating = false
 	_canvas.show_body = not _body_hidden
 	_canvas.queue_redraw()
+	_apply_layer_lock_ui()
+
+
+## 點圖層清單右邊的鎖頭:鎖上 / 解除鎖定(可以撤回)。
+func _toggle_layer_lock(row: int) -> void:
+	if row < 0 or row >= _layer_rows.size() or _layer_rows[row] == PackLayers.BODY:
+		return
+	var part: Dictionary = _accs[_layer_rows[row]]
+	var on := not PackLayers.is_locked(part)
+	_model.checkpoint()
+	PackLayers.set_locked(part, on)
+	_model.set_accessories(_accs)
+	_refresh_accessories()
+	_after_edit((tr("已鎖定圖層「%s」") if on else tr("已解除鎖定圖層「%s」")) % str(part.get("name", "?")))
+
+
+## 圖層鎖住了:手動修改的入口一律不改,狀態列提示先解除鎖定(畫面上的欄位也重整回原本的值)。index 省略 = 選取的圖層。
+func _acc_locked(index := -1) -> bool:
+	var at := _acc_index if index < 0 else index
+	if at < 0 or at >= _accs.size() or not PackLayers.is_locked(_accs[at]):
+		return false
+	_status.text = PackLayers.lock_hint()
+	_refresh_accessories.call_deferred()
+	return true
+
+
+## 選取的圖層鎖住時,改得到它的欄位與按鈕都停用,滑鼠停留提示加上「先解除鎖定」。
+func _apply_layer_lock_ui() -> void:
+	if _acc_name == null:
+		return
+	var locked := not _layer_body_focus and _acc_index >= 0 and _acc_index < _accs.size() and PackLayers.is_locked(_accs[_acc_index])
+	var controls: Array = [_acc_name, _acc_role, _acc_layer, _acc_x, _acc_y, _acc_scope_clear, _acc_scale, _acc_flip_h, _acc_flip_v, _acc_mirror,
+			_acc_actions, _acc_frame_clear, _acc_fps, _acc_loop, _acc_add_image, _acc_clear_images, _acc_delete, _acc_origin,
+			_layer_up, _layer_down, _layer_delete, _furn_user_mode, _furn_user_seat, _furn_user_pets]
+	controls.append_array(_acc_frame_rule_buttons)
+	for control: Variant in controls:
+		if control is Control:
+			LayerListView.mark_locked(control, locked)
 
 
 func _on_layer_selected(row: int) -> void:
@@ -2594,7 +3298,7 @@ func _on_layer_selected(row: int) -> void:
 
 ## 選取的圖層上移(direction = 1)或下移(-1)一格,寫回配件清單(可撤回)。
 func _move_layer(direction: int) -> void:
-	if _acc_index < 0 or _acc_index >= _accs.size() or _layer_body_focus:
+	if _acc_index < 0 or _acc_index >= _accs.size() or _layer_body_focus or _acc_locked():
 		return
 	var moved := PackLayers.move(_accs, _acc_index, direction)
 	if not bool(moved["changed"]):
@@ -2613,22 +3317,8 @@ func _toggle_layer_preview() -> void:
 	elif _acc_index >= 0 and _acc_index < _accs.size():
 		var key := str(_accs[_acc_index].get("name", ""))
 		_layer_hidden[key] = not bool(_layer_hidden.get(key, false))
-	_canvas.set_accessories(_accessory_preview(), _acc_index)
+	_push_canvas_accessories()
 	_refresh_layers()
-
-
-## 「在遊戲裡顯示」勾選:取消 = 這個配件寫 "visible": false(遊戲載入時略過),勾回來就拿掉這個欄位。
-func _edit_layer_game(on: bool) -> void:
-	if _updating or _acc_index < 0 or _acc_index >= _accs.size() or _layer_body_focus:
-		return
-	_model.checkpoint("acc_visible")
-	if on:
-		(_accs[_acc_index] as Dictionary).erase("visible")
-	else:
-		_accs[_acc_index]["visible"] = false
-	_model.set_accessories(_accs)
-	_refresh_layers()
-	_after_edit("")
 
 
 ## 持有錨點:桌寵手拿道具的位置(相對腳底線中心的縮放前像素,面向右時)。不勾 = 自動(判定框前側、胸口高度)。
@@ -3009,6 +3699,56 @@ func _apply_crop() -> void:
 	_set_crop_ui(Rect2i())
 
 
+## 自動裁掉選取的幀四周的透明邊(見 PackEditorModel.auto_trim)。
+func _auto_trim_frames() -> void:
+	if not _model.has_pack() or _action == "":
+		return
+	var picked := _selected_frames()
+	var result := _model.auto_trim(_action, picked, _trim_shared.button_pressed)
+	if str(result["error"]) != "":
+		_status.text = tr("沒有套用:%s") % tr(str(result["error"]))
+		return
+	if int(result["count"]) == 0:
+		_status.text = tr("選取的幀四周已經沒有可以裁掉的透明邊了")
+		return
+	_after_frames_changed(picked, tr("已自動裁掉透明邊(%d 幀,像素少了 %d%%;位置不變,可以撤回)") % [int(result["count"]), int(result["saved_percent"])])
+
+
+func _confirm_bake() -> void:
+	if not _model.has_pack():
+		return
+	var count := _model.fx_frame_count()
+	if count == 0:
+		_status.text = tr("沒有任何幀有圖片處理,不用寫進檔案")
+		return
+	var dialog := ConfirmationDialog.new()
+	dialog.title = tr("把圖片處理寫進檔案")
+	dialog.ok_button_text = "寫進檔案"
+	dialog.cancel_button_text = "取消"
+	dialog.theme = ManagerUi.make_theme()
+	dialog.dialog_text = tr("整個素材包有 %d 幀有圖片處理(裁切翻轉旋轉)。要把處理後的樣子各存成一張新圖、幀改用新圖嗎?\n\n・畫面上完全不變,可以撤回(撤回只改回設定,新存的圖會留著變成未使用檔案)。\n・原圖不會被刪:確定沒問題、存檔後,再用「清理未使用檔案」把用不到的原圖搬到備份。\n・之後想重新裁切,就是從新圖開始裁(裁掉的部分已經不在新圖裡了)。") % count
+	dialog.confirmed.connect(func() -> void: bake_fx())
+	dialog.confirmed.connect(dialog.queue_free)
+	dialog.canceled.connect(dialog.queue_free)
+	FloatingWindow.popup_child_dialog(self, get_window(), dialog)
+
+
+## 把圖片處理寫進檔案(見 PackEditorModel.bake_fx)。成功回空字串。給按鈕與測試用。
+func bake_fx() -> String:
+	_model.checkpoint()
+	var result := _model.bake_fx()
+	if str(result["error"]) != "":
+		_model.undo()
+		_reload_lists()
+		_refresh_all()
+		_status.text = tr("沒有寫進檔案:%s") % str(result["error"])
+		return str(result["error"])
+	_reload_lists()
+	_refresh_all()
+	_after_edit(tr("已把 %d 幀的圖片處理寫進 %d 張新圖(可以撤回)。存檔後可以用「清理未使用檔案」收掉用不到的原圖。") % [int(result["frames"]), int(result["files"])])
+	return ""
+
+
 func _clear_fx() -> void:
 	if not _model.has_pack() or _action == "":
 		return
@@ -3038,18 +3778,20 @@ func _on_canvas_edit_started(kind: String) -> void:
 func _on_canvas_pivot_edited(pivot: Vector2) -> void:
 	if _action == "":
 		return
-	_model.set_pivot(_action, _index, pivot, _whole_action())
+	_write_frame_setting("pivot", pivot)
+	pivot = _model.pivot(_action, _index)
 	_updating = true
 	_pivot_x.value = pivot.x
 	_pivot_y.value = pivot.y
 	_updating = false
+	_after_pivot_edit()
 	_after_edit("")
 
 
 func _on_canvas_offset_edited(offset: Vector2) -> void:
 	if _action == "":
 		return
-	_model.set_offset(_action, _index, offset, _whole_action())
+	_write_frame_setting("offset", offset)
 	_updating = true
 	_offset_x.value = offset.x
 	_offset_y.value = offset.y
@@ -3062,11 +3804,30 @@ func _on_spin_changed(is_pivot: bool) -> void:
 		return
 	_model.checkpoint("spin_pivot" if is_pivot else "spin_offset")
 	if is_pivot:
-		_model.set_pivot(_action, _index, Vector2(_pivot_x.value, _pivot_y.value), _whole_action())
+		_write_frame_setting("pivot", Vector2(_pivot_x.value, _pivot_y.value))
+		_after_pivot_edit()
 	else:
-		_model.set_offset(_action, _index, Vector2(_offset_x.value, _offset_y.value), _whole_action())
+		_write_frame_setting("offset", Vector2(_offset_x.value, _offset_y.value))
 	_refresh_frame()
 	_after_edit("")
+
+
+## 軸心/圖片偏移寫進套用範圍:整個動作,或「只有這一幀」時連幀清單多選的其他幀一起移同樣的量(各自保留原本的差距)。
+func _write_frame_setting(setting: String, value: Vector2) -> void:
+	var picked := _selected_frames()
+	if _whole_action() or picked.size() <= 1 or not picked.has(_index):
+		if setting == "pivot":
+			_model.set_pivot(_action, _index, value, _whole_action())
+		else:
+			_model.set_offset(_action, _index, value, _whole_action())
+		return
+	var current := _model.pivot(_action, _index) if setting == "pivot" else _model.offset(_action, _index)
+	_model.shift_frames(setting, _action, picked, value - current)
+
+
+## 軸心改了以後模型裡的圖層、光源位置已經跟著補過;編輯器手上的複本要重讀,畫布才會跟著動,下一次改圖層也不會把舊位置蓋回去。
+func _after_pivot_edit() -> void:
+	_refresh_lights()   # 連圖層一起重讀(_refresh_accessories)
 
 
 # --- 幀的複製 / 貼上 / 刪除 / 移動 ---
@@ -3127,6 +3888,31 @@ func _paste() -> void:
 		_slot = target if _action == "" else _slot
 		_after_frames_changed(created, tr("已貼上 %d 幀到「%s」") % [created.size(), target])
 		_extra_slots.erase(target)
+
+
+func _ask_replace_frames() -> void:
+	if _action == "":
+		return
+	var picked := _selected_frames()
+	FloatingWindow.native_file_dialog("選擇新的圖片(選幾張就依序換掉幾張選取的幀)", "", DisplayServer.FILE_DIALOG_MODE_OPEN_FILES, PackedStringArray([IMAGE_FILTER]),
+			func(paths: PackedStringArray) -> void: replace_frame_images(picked, Array(paths)), get_window_id())
+
+
+## 把目前動作選取的幀依序換成 paths 的圖(見 PackEditorModel.replace_frame_images)。成功回空字串。給按鈕與測試用。
+func replace_frame_images(indices: Array, paths: Array) -> String:
+	if _action == "" or paths.is_empty():
+		return "沒有選擇圖片"
+	_model.checkpoint()
+	var result := _model.replace_frame_images(_action, indices, paths)
+	if str(result["error"]) != "":
+		_model.undo()
+		_status.text = tr(str(result["error"]))
+		return str(result["error"])
+	var keep: Array[int] = []
+	for value: Variant in indices:
+		keep.append(int(value))
+	_after_frames_changed(keep, tr("已更換 %d 幀的圖(圖片處理、軸心、圖片偏移都保留;可以撤回)") % int(result["count"]))
+	return ""
 
 
 func _duplicate_selected() -> void:
@@ -3194,13 +3980,8 @@ func _refresh_loop_widgets() -> void:
 	_loop_times_row.visible = mode == 3
 	match mode:
 		1:
-			var intro: Array[String] = []
-			for i in int(_loop_end.value) + 1:
-				intro.append(str(i))
-			var loop_part: Array[String] = []
-			for i in range(int(_loop_start.value), int(_loop_end.value) + 1):
-				loop_part.append(str(i))
-			_loop_note.text = tr("播放順序:%s,之後 %s 一直循環。") % [" ".join(intro), " ".join(loop_part)]
+			# 只寫頭~尾:幀很多時逐幀列出會把視窗撐出畫面(2026-10-16 使用者回報)
+			_loop_note.text = tr("播放順序:0~%d,之後 %d~%d 一直循環。") % [int(_loop_end.value), int(_loop_start.value), int(_loop_end.value)]
 		2:
 			_loop_note.text = tr("播到第 %d 幀就停住,直到這個動作被切換。") % int(_loop_hold.value)
 		3:
@@ -3429,8 +4210,12 @@ func _update_history_buttons() -> void:
 
 
 func _after_edit(message: String) -> void:
+	var synced := _model.propagate_sync() if _model.has_pack() else {"frames": 0, "objects": false}
+	_after_sync(synced)
 	_refresh_frame_labels_only()
 	_status.text = message if message != "" else tr("有未存的變更")
+	if int(synced["frames"]) > 0:
+		_status.text += tr("(已同步到其他動作 %d 幀)") % int(synced["frames"])
 	if message != "":
 		_refresh_frame()
 
@@ -3466,10 +4251,65 @@ func _warn_about_limits_after_save() -> void:
 
 func _on_play_toggled(on: bool) -> void:
 	_play_button.text = tr("■ 停止預覽") if on else tr("▶ 預覽動畫")
+	_layer_clock = 0.0
+	_blink_next = 0.6
+	_blink_left = 0.0
 	if on:
 		_play_timer.start()
 	else:
 		_play_timer.stop()
+		_push_canvas_accessories()   # 停下來回到每個圖層的第一張圖
+
+
+func _layers_playing() -> bool:
+	return _play_button != null and _play_button.button_pressed
+
+
+## 預覽播放中:圖層動畫跟著時間走(本體只有一幀的動作,像 sleep,圖層照樣會動)。
+func _process(delta: float) -> void:
+	if not _layers_playing() or _accs.is_empty() or _canvas == null:
+		return
+	_layer_clock += delta
+	if _blink_left > 0.0:
+		_blink_left -= delta
+	else:
+		_blink_next -= delta
+		if _blink_next <= 0.0:
+			_blink_next = randf_range(PREVIEW_BLINK_INTERVAL.x, PREVIEW_BLINK_INTERVAL.y)
+			_blink_duration = 0.0
+			for part: Dictionary in _accs:
+				if str(part.get("role", "part")) == "blink":
+					_blink_duration = maxf(_blink_duration, float(part.get("duration", PetOverlays.DEFAULT_BLINK_SECONDS)))
+			_blink_left = _blink_duration
+	_push_canvas_accessories()
+
+
+## 預覽要畫這個圖層的哪一張圖:沒在播放就是第一張;播放中照遊戲的規則(動作對應的動畫段、fps、循環、眨眼時機)。
+## 眨眼沒在眨的時候回 null(只畫十字不畫圖)。
+func _layer_preview_texture(part: Dictionary) -> Texture2D:
+	var clip: Dictionary = part
+	if _layers_playing() and part.get("clips") is Dictionary and part.get("clip_for") is Dictionary:
+		var by_action: Dictionary = part["clip_for"]
+		var plain := SpritePackLoader.plain_action(_action)
+		var wanted: Variant = by_action.get(_action, by_action.get(plain, null if (part.get("images") is Array and not (part["images"] as Array).is_empty()) else by_action.get("*")))
+		if wanted != null and (part["clips"] as Dictionary).get(str(wanted)) is Dictionary:
+			clip = part["clips"][str(wanted)]
+	var images: Array = clip.get("images", []) if clip.get("images") is Array else []
+	if images.is_empty():
+		return null
+	var crops: Array = clip.get("crops", []) if clip.get("crops") is Array else []
+	var index := 0
+	if _layers_playing():
+		match str(part.get("role", "part")):
+			"blink":
+				if _blink_left <= 0.0:
+					return null
+				index = int(clampf(1.0 - _blink_left / maxf(_blink_duration, 0.001), 0.0, 0.999) * images.size())
+			_:
+				var fps := clampf(float(clip.get("fps", PetOverlays.DEFAULT_FPS)), 0.5, 60.0)
+				index = int(_layer_clock * fps)
+				index = index % images.size() if bool(clip.get("loop", true)) else mini(index, images.size() - 1)
+	return _acc_texture(str(images[index]), crops[index] if index < crops.size() else null)
 
 
 func _on_play_tick() -> void:

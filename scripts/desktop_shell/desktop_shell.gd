@@ -628,6 +628,9 @@ func open_pack_editor(folder := "") -> PackEditorWindow:
 func reload_pack_pets(folder: String) -> int:
 	var normalized := folder.replace("\\", "/").trim_suffix("/")
 	var updated := 0
+	# 存的是家具的貼圖:場上那件家具換上新圖與圖層(2026-10-15 起家具也有圖層,存檔後要看得到)
+	if furniture_manager != null:
+		furniture_manager.reload_sprites(normalized)
 	var pack: Dictionary = {}
 	# 存的是某個角色的一套外觀(見 PetAppearances):只有正穿著這套的桌寵要換圖;存的是角色本身(預設外觀):正穿著別套外觀的不動。
 	var appearance_owner := PetAppearances.owner_of(normalized)
@@ -688,6 +691,7 @@ func open_furniture_editor(furniture_id: String) -> PackEditorWindow:
 	var window := PackEditorWindow.new()
 	add_child(window)
 	window.furniture_settings_requested.connect(_open_furniture_library)
+	window.saved.connect(reload_pack_pets)
 	window.setup()
 	var error := window.open_furniture(furniture_id)
 	if error != "":

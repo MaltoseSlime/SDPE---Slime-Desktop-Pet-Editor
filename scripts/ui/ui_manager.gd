@@ -208,6 +208,7 @@ func _show_bubble(pet: Node, line: Dictionary, ticket: RefCounted) -> void:
 	# 先清理自己的登記、再通知直譯器:直譯器醒來後可能立刻開下一句,那時舊氣泡必須已經登出。
 	bubble.advanced.connect(_on_bubble_advanced.bind(pet, bubble))
 	bubble.position_pinned.connect(_on_bubble_position_pinned)
+	bubble.unpin_requested.connect(_on_bubble_unpin)
 	if ticket != null:
 		# Callable 只記得物件、不持有參考:憑證若只有呼叫者短暫拿著(例如提問氣泡的憑證),會在函式結束時被釋放、連線跟著失效,所以掛在氣泡身上。
 		bubble.set_meta(&"ticket", ticket)
@@ -236,6 +237,13 @@ func set_passthrough_fade(alpha: float) -> void:
 func _on_bubble_position_pinned(pet: Node, position: Vector2) -> void:
 	_pinned_positions[pet] = position
 	pet.bubble_pinned = true
+
+
+## 固定中的氣泡角落的 📌:解除固定(之後照常跟著桌寵)。
+func _on_bubble_unpin(pet: Node) -> void:
+	if _pinned_positions.has(pet):
+		_on_bubble_pin_toggle(pet)
+	_layout()
 
 
 ## 右鍵選單「固定氣泡位置」(明確的固定/解除固定,不是只能靠拖曳——2026-09-30 使用者回饋:希望有明確的方式)。
@@ -551,12 +559,15 @@ func _layout() -> void:
 			if _pinned_positions.has(pet):
 				control.reset_size()
 				control.global_position = _pinned_positions[pet]
+				control.set_pinned(true)
 				control.place_tag()
 				if control.has_method("place_tail"):
 					control.place_tail(pet.get_body_rect())
 				placed.append(control.global_rect())
 				continue
 		# 名字標籤有一半跨在介面上緣之外,可用的螢幕範圍上緣要扣掉這一段,標籤才不會被螢幕頂端裁掉。
+		if control is DialogueBubble:
+			control.set_pinned(false)
 		var overhang: float = control.tag_overhang()
 		# 對話框可以畫在行動區框架外,但一定要留在「桌寵所在的那一個螢幕」裡(多螢幕時不會跨到兩個螢幕之間或螢幕外)。
 		# 2026-10-04 全局設定「對話氣泡不超出行動區」開著時,這個夾住範圍改用行動區的框架取代整個螢幕
