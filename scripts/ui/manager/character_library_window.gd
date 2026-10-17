@@ -18,6 +18,7 @@ var _count_label: Label
 var _status: Label
 var _folders: Array[String] = []
 var _summaries: Dictionary = {}
+var _dup_names: Dictionary = {}   # 角色庫裡撞名的名字:卡片名字下面附小字代號
 var _build_serial := 0
 var _ready_once := false
 ## 勾選要一起放上桌面的角色(資料夾路徑 → true),重新整理後還記得。
@@ -133,6 +134,14 @@ func refresh() -> void:
 	for stale: String in _checked.keys():
 		if not _folders.has(stale):
 			_checked.erase(stale)
+	var names := {}
+	for folder in _folders:
+		var character_name := str(_summaries[folder]["name"])
+		names[character_name] = int(names.get(character_name, 0)) + 1
+	_dup_names = {}
+	for character_name: String in names:
+		if int(names[character_name]) > 1:
+			_dup_names[character_name] = true
 	var cards: Array[Dictionary] = []
 	for summary in shown:
 		cards.append(_add_card(summary))
@@ -188,6 +197,13 @@ func _add_card(summary: Dictionary) -> Dictionary:
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.custom_minimum_size.x = CARD_WIDTH - 16.0
 	box.add_child(name_label)
+	if _dup_names.has(str(summary["name"])):
+		# 2026-10-18:有別的角色同名時,名字下面附小字代號
+		var note := ManagerUi.tag_note(tag)
+		note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		note.clip_text = true
+		note.custom_minimum_size.x = CARD_WIDTH - 16.0
+		box.add_child(note)
 	var state := Label.new()
 	state.theme_type_variation = AppSettings.MUTED_LABEL
 	ManagerUi.fixed_font_size(state, 12)
@@ -221,11 +237,12 @@ func _add_card(summary: Dictionary) -> Dictionary:
 	buttons.add_child(settings)
 	var more := MenuButton.new()
 	more.text = "⋯"
-	more.tooltip_text = tr("外觀(整套換圖)、改名、複製、匯出 .pet、刪除(刪除是搬到備份資料夾)")
+	more.tooltip_text = tr("外觀(整套換圖)、改名、複製、變更辨識代號、匯出 .pet、刪除(刪除是搬到備份資料夾)")
 	var popup := more.get_popup()
 	popup.add_item(tr("外觀(整套換圖)…"), 4)
 	popup.add_item(tr("重新命名…"), 0)
 	popup.add_item(tr("複製成新角色…"), 1)
+	popup.add_item(tr("變更辨識代號…"), 5)
 	popup.add_item(tr("匯出 .pet…"), 3)
 	popup.add_separator()
 	popup.add_item(tr("刪除(搬到備份)…"), 2)
@@ -302,6 +319,32 @@ func _on_card_menu(id: int, folder: String, character_name: String) -> void:
 			ask_export(folder, character_name)
 		4:
 			open_appearances(folder, character_name)
+		5:
+			ask_change_tag(folder, character_name)
+
+
+## 2026-10-18 使用者要求:變更辨識代號(其他角色的好惡、台詞、好感度、積木裡指到牠的地方一起改,見 TagRename)。
+func ask_change_tag(folder: String, character_name: String) -> void:
+	var reason := TagRename.blocked_reason(folder, get_tree())
+	if reason != "":
+		_status.text = tr("不能變更代號:%s。") % tr(reason)
+		return
+	var old := SpriteLibrary.tag_of(folder)
+	ManagerUi.ask_name(self, "變更辨識代號", tr("「%s」目前的辨識代號是「%s」。\n其他角色是用代號認得牠的:改了以後,大家對牠的好惡、遇見牠的台詞、好感度和積木裡指到牠的地方會一起改過去。\n新的辨識代號:") % [character_name, old], old, "變更",
+			func(text: String) -> String: return TagRename.problem(folder, text, get_tree()),
+			func(chosen: String) -> void: change_tag(folder, chosen))
+
+
+## 變更辨識代號。回傳錯誤文字(空字串 = 成功)。
+func change_tag(folder: String, new_tag: String) -> String:
+	var result := TagRename.apply(folder, new_tag, get_tree())
+	if not bool(result["ok"]):
+		_status.text = tr("變更代號失敗:%s") % tr(str(result["error"]))
+		return str(result["error"])
+	_summaries.erase(folder)
+	refresh()
+	_status.text = tr("辨識代號改成「%s」了(另外更新了 %d 個檔案、%d 隻桌面上的桌寵)。") % [new_tag.strip_edges(), int(result["files"]), int(result["pets"])]
+	return ""
 
 
 # --- 外觀(整套行走圖的差分,見 PetAppearances) ---
@@ -319,7 +362,7 @@ func open_appearances(folder: String, character_name: String) -> AcceptDialog:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 6)
 	var hint := Label.new()
-	hint.text = tr("一套外觀 = 一整套獨立的圖(例如萬聖節造型),跟原本的圖分開放、分開計算像素上限,不會頂掉原本的圖。每套有自己的判定框、光源、配件與持有錨點;沒畫的動作會用那套外觀自己的待機(idle),所以至少要有 idle。切換:桌寵右鍵選單「切換外觀」,或積木「切換外觀」。")
+	hint.text = tr("一套外觀 = 一整套獨立的圖(例如萬聖節造型),跟原本的圖分開放、分開計算像素上限,不會頂掉原本的圖。每套有自己的光源、配件與持有錨點;縮放與判定框預設跟桌寵管理的設定走,按 📐 改成這套自己設定;沒畫的動作會用那套外觀自己的待機(idle),所以至少要有 idle。切換:桌寵右鍵選單「切換外觀」,或積木「切換外觀」。")
 	hint.theme_type_variation = AppSettings.MUTED_LABEL
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.custom_minimum_size.x = 460.0
@@ -375,6 +418,14 @@ func _fill_appearances() -> void:
 		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(name_label)
 		var id := str(entry["id"])
+		var own_size := ManagerUi.button("📐")
+		own_size.toggle_mode = true
+		own_size.button_pressed = bool(entry.get("independent", false))
+		own_size.tooltip_text = tr("尺寸與判定框獨立設定(按下 = 開)。\n關(預設):跟桌寵管理的「角色縮放倍率」與「判定框」走,和預設外觀一樣大。\n開:用這套外觀自己的縮放(精靈圖編輯器裡設的)與判定框(穿著這套時在桌寵管理設,各套分開記)。")
+		own_size.toggled.connect(func(on: bool) -> void:
+			if set_appearance_independent(folder, id, on) != "":
+				own_size.set_pressed_no_signal(not on))
+		row.add_child(own_size)
 		var edit := ManagerUi.button("編輯圖")
 		edit.pressed.connect(func() -> void: edit_requested.emit(str(entry["folder"])))
 		var rename := ManagerUi.button("改名")
@@ -391,6 +442,19 @@ func _fill_appearances() -> void:
 		_appearance_list.add_child(row)
 
 
+## 關掉外觀清單視窗(沒開就什麼都不做)。
+func _close_appearances() -> void:
+	if not is_instance_valid(_appearance_list):
+		return
+	var node: Node = _appearance_list
+	while node != null and not node is AcceptDialog:
+		node = node.get_parent()
+	if node != null:
+		node.hide()
+		node.queue_free()
+	_appearance_list = null
+
+
 func _ask_new_appearance(folder: String, copy_default: bool) -> void:
 	ManagerUi.ask_name(self, "新增外觀", "幫這套外觀取個名字(例如「萬聖節」;積木與右鍵選單用這個名字切換):", "", "新增",
 			func(text: String) -> String: return PetAppearances.name_problem(folder, text),
@@ -404,9 +468,29 @@ func create_appearance(folder: String, appearance_name: String, copy_default := 
 		_status.text = tr("新增外觀失敗:%s") % tr(str(created["error"]))
 		return str(created["error"])
 	_refresh_appearance_users(folder, "")
-	_fill_appearances()
+	_close_appearances()   # 接著開精靈圖編輯器,清單視窗留著會壓在後面殘留、排版不完整(2026-10-17 使用者回報),直接收掉
 	edit_requested.emit(str(created["folder"]))
 	_status.text = tr("已新增外觀「%s」,接著在精靈圖編輯器換上這套外觀的圖。") % appearance_name.strip_edges()
+	return ""
+
+
+## 外觀清單的 📐:這套外觀的尺寸與判定框要不要獨立設定(見 PetAppearances.set_independent)。
+## 精靈圖編輯器正開著這套時拒絕(編輯器存檔會用它手上的 pack.json 蓋回去);正穿著這套的桌寵當場換算。回傳錯誤文字(空字串 = 成功)。
+func set_appearance_independent(folder: String, id: String, on: bool) -> String:
+	var target := PetAppearances.folder_of(folder, id)
+	for window: Node in get_tree().get_nodes_in_group("floating_windows"):
+		if window is PackEditorWindow and (window as PackEditorWindow)._model.has_pack() and (window as PackEditorWindow)._model.root.replace("\\", "/").trim_suffix("/") == target:
+			_status.text = tr("不能切換:%s。") % tr("精靈圖編輯器正開著它,請先關掉編輯器(或切到別的角色)")
+			return "editor"
+	var error := PetAppearances.set_independent(folder, id, on)
+	if error != "":
+		_status.text = tr("切換失敗:%s") % tr(error)
+		return error
+	var normalized := folder.replace("\\", "/").trim_suffix("/")
+	for pet: Node in get_tree().get_nodes_in_group("pets"):
+		if pet.pack_folder() == normalized and pet.appearance_id == id:
+			pet.set_appearance_independent(on)
+	_status.text = tr("外觀「%s」的尺寸與判定框改成獨立設定。") % PetAppearances.name_of(folder, id) if on else tr("外觀「%s」的尺寸與判定框改成跟著桌寵管理的設定。") % PetAppearances.name_of(folder, id)
 	return ""
 
 

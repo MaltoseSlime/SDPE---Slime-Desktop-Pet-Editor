@@ -266,6 +266,7 @@ static func load_sprite(def: PropDef) -> SpriteFrames:
 	var frames: SpriteFrames = loaded["frames"]
 	if not frames.has_animation(&"default_0"):
 		return null
+	frames.set_meta("smooth", bool((loaded["meta"] as Dictionary).get("smooth", false)))   # 取樣方式(見 SharpPixel.apply_to)
 	for animation: StringName in frames.get_animation_names():
 		frames.set_animation_loop(animation, str(animation) == "default_0")
 	_sprite_cache[folder] = {"stamp": stamp, "frames": frames}

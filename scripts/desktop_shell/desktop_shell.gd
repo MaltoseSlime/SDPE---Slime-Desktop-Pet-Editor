@@ -111,7 +111,7 @@ func _ready() -> void:
 		if not (migration['moved'] as Array).is_empty() or not (migration['errors'] as Array).is_empty() or not (migration['conflicts'] as Array).is_empty():
 			print('[角色資料夾] 搬家:', migration)
 	_shell_state.pet_ejected.connect(_on_pet_ejected)
-	_shell_state.pet_registered.connect(func(pet: Node) -> void: pet.manage_requested.connect(_open_manager))
+	_shell_state.pet_registered.connect(func(pet: Node) -> void: pet.manage_requested.connect(func() -> void: _open_manager(pet)))
 	_create_tray()
 	_create_platform_system()
 	# 懸浮球/家具「顯示在桌寵與對話氣泡之上」共用這一層更高的 CanvasLayer(11)——UiManager 的對話氣泡/
@@ -986,13 +986,16 @@ func _load_app_settings() -> void:
 
 
 ## 開啟(或叫到前景)管理視窗:數值與狀態鏡的編輯介面。同時只會有一個。
-func _open_manager() -> void:
-	if is_instance_valid(_manager_window):
+## pet = 從哪隻桌寵的右鍵選單開的:直接切到那隻(2026-10-17 使用者要求);系統匣、懸浮球開的不指定。
+func _open_manager(pet: Node = null) -> void:
+	if not is_instance_valid(_manager_window):
+		_manager_window = ManagerWindow.new()
+		add_child(_manager_window)
+		_manager_window.setup()
+	else:
 		_manager_window.bring_to_front()
-		return
-	_manager_window = ManagerWindow.new()
-	add_child(_manager_window)
-	_manager_window.setup()
+	if pet != null and is_instance_valid(pet):
+		_manager_window.select_pet(pet)
 
 
 ## 開啟(或叫到前景)全局設定視窗(音效、介面語系、效能、編輯器外觀)。同時只會有一個。
@@ -1499,6 +1502,9 @@ func _on_node_added(node: Node) -> void:
 	# 裝飾層(DecorOverlay)的視窗是全螢幕穿透的,不算「蓋在桌寵上面的視窗」,否則整個螢幕都被扣掉
 	if node is Window and node != get_window() and not node.has_meta("click_through"):
 		node.add_to_group("pet_occluders")
+	# 2026-10-17 使用者要求:文字欄位的右鍵選單改成中文(Godot 內建的只有英文,見 ManagerUi.watch_text_menu)
+	if node is LineEdit or node is TextEdit:
+		ManagerUi.watch_text_menu(node as Control)
 
 
 ## 目前開著(顯示中)的子視窗(浮動視窗、確認視窗、選單…)範圍,換算成主視窗座標的矩形多邊形;含系統標題列與邊框。

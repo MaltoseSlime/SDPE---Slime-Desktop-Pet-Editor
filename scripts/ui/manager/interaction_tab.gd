@@ -30,6 +30,11 @@ var _prop_persist_option: OptionButton
 var _prop_list: VBoxContainer
 var _pref_list: VBoxContainer
 var _pet_pref_list: VBoxContainer
+var _pet_pref_popup: PopupPanel
+var _dup_names: Dictionary = {}   # 撞名的角色名稱(見 PetReferences.duplicate_names):清單列在名字後面附小字代號
+## 長名單翻頁(2026-10-17,見 ListPager):新增一列後跳到最後一頁讓剛加的那列看得到。
+var _char_pager: ListPager
+var _prop_pager: ListPager
 const GAME_DISPLAY_NAMES := {"dice": "拚骰", "rps": "猜拳", "ball": "玩球", "ttt": "井字棋", "blockade": "步步為營", "mastermind": "珠璣妙算"}
 const GAME_AI_KEYS: Array[String] = ["ttt", "blockade", "mastermind"]
 var _game_kind_order: Array[String] = ["dice", "rps", "ball", "ttt", "blockade", "mastermind"]
@@ -43,6 +48,7 @@ var _ignore_furniture_check: CheckBox
 var _no_follow_target_check: CheckBox
 var _no_follow_source_check: CheckBox
 var _no_topic_mention_check: CheckBox
+var _hide_from_ignored_check: CheckBox
 var _silent_check: CheckBox
 var _reaction_list: VBoxContainer
 var _reaction_window: ReactionDialogueWindow
@@ -212,7 +218,8 @@ func _build_character_card(host: VBoxContainer) -> void:
 	add.pressed.connect(_on_add_character_pressed)
 	box.add_child(add)
 	_char_list = VBoxContainer.new()
-	box.add_child(_char_list)
+	_char_pager = ListPager.wrap(_char_list)
+	box.add_child(_char_pager)
 
 
 ## 基本反應對話:列出這隻角色目前用的「反應」性格裡,基於預設反應情境(玩球、被邀請、休息等)已經有的對話內容。
@@ -389,13 +396,14 @@ func _build_prop_card(host: VBoxContainer) -> void:
 	add.pressed.connect(_on_add_prop_pressed)
 	box.add_child(add)
 	_prop_list = VBoxContainer.new()
-	box.add_child(_prop_list)
+	_prop_pager = ListPager.wrap(_prop_list)
+	box.add_child(_prop_pager)
 
 
 func _build_pref_card(host: VBoxContainer) -> void:
 	var box := _section(host, "對道具的好惡", "每個道具選「喜歡」、「不喜歡」或「不與此道具交互」(完全無視:不撿、不被摩擦、不成為候選、不被吸引)。喜歡的道具掉在場上,桌寵會自己走過去撿,撿到心情變好;不喜歡的不會自己撿(拖著遞給它還是會收)。道具資料找不到(被刪掉或搬走)的會變成灰色,可以按「重新連結」改指向現有的另一個道具。")
 	_pref_list = VBoxContainer.new()
-	box.add_child(_pref_list)
+	box.add_child(ListPager.wrap(_pref_list))
 
 
 ## 對其他角色的好惡(2026-10-04 使用者要求,簡化成單一欄位省空間;2026-10-05 卡片用詞從「桌寵」改成
@@ -404,9 +412,22 @@ func _build_pref_card(host: VBoxContainer) -> void:
 ## 喜歡/不喜歡,預設「普通」= 跟沒有這個功能時行為一樣)。「全部角色」那一列是沒被個別指定的其他角色套用
 ## 的預設等級;個別指定某個角色會蓋過「全部角色」那一列。
 func _build_pet_pref_card(host: VBoxContainer) -> void:
-	var box := _section(host, "對其他角色的好惡", "設定對某個角色、或對全部角色的好惡程度,預設「普通」= 跟沒有這個功能時一樣,沒有額外的好惡表現。目前會影響:主動跟隨的候選與機率(討厭的完全不會主動跟著走,喜歡的機率提高、也更容易被選中);閒置時自己發起對戰要不要挑這隻邀請(討厭的機率降低但不是完全不邀,喜歡的機率提高;「跟場上所有桌寵」這種廣播式邀請不受影響);被邀請對戰時答不答應的機率(喜歡的更容易答應,討厭的更容易拒絕,一樣包括廣播式邀請被邀請的那一端)。目前只能在這裡手動調整,不會自動隨時間漲跌;之後計畫補一顆積木讓你自己設計好惡隨什麼條件變化。")
+	var box := _section(host, "對其他角色的好惡", "設定對某個角色、或對全部角色的好惡程度,預設「普通」= 跟沒有這個功能時一樣,沒有額外的好惡表現。目前會影響:主動跟隨的候選與機率(討厭的完全不會主動跟著走,喜歡的機率提高、也更容易被選中);閒置時自己發起對戰要不要挑這隻邀請(討厭的機率降低但不是完全不邀,喜歡的機率提高;「跟場上所有桌寵」這種廣播式邀請不受影響);被邀請對戰時答不答應的機率(喜歡的更容易答應,討厭的更容易拒絕,一樣包括廣播式邀請被邀請的那一端)。目前只能在這裡手動調整,不會自動隨時間漲跌;之後計畫補一顆積木讓你自己設計好惡隨什麼條件變化。按 📝 打開迷你設定窗:勾 ⭐ 設成「最喜歡」(可以設好幾隻):最常跟著牠、一起休息、一起用家具、找牠對戰,輸了也不扣好感,跟得像黏人性格一樣緊;內向的桌寵也歡迎牠常來邀、貼在旁邊。勾 🚫 設成「不交互」:完全不跟牠互動(不跟隨、不對戰、不一起玩球、不坐旁邊),也不會提到牠;要讓牠也不來找這隻,打開下面的「也避免被不交互的對象偵測」。「全部角色」那列也能勾 🚫(⭐ 的對象例外)。")
+	# 2026-10-17:「也避免被不交互的對象偵測」——新角色只要設自己這邊(例如「全部角色」🚫),不用回頭改其他角色。
+	_hide_from_ignored_check = CheckBox.new()
+	_hide_from_ignored_check.text = tr("也避免被不交互的對象偵測(被這隻設了 🚫 的角色也看不到牠:不會跟隨、邀請、提及或靠近牠,碰到也沒反應)")
+	_hide_from_ignored_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_hide_from_ignored_check.custom_minimum_size.x = CARD_WIDTH
+	_hide_from_ignored_check.toggled.connect(func(pressed: bool) -> void:
+		if _loading or _pet == null:
+			return
+		var rules := _rules()
+		rules["hide_from_ignored"] = pressed
+		_apply(rules)
+		_pet.separate_from_apart())
+	box.add_child(_hide_from_ignored_check)
 	_pet_pref_list = VBoxContainer.new()
-	box.add_child(_pet_pref_list)
+	box.add_child(ListPager.wrap(_pet_pref_list))
 
 
 ## 「遊戲與對戰」卡片:井字棋/步步為營/珠璣妙算各自的 AI 強度,拚骰/猜拳/玩球/井字棋/步步為營/珠璣妙算
@@ -500,6 +521,8 @@ func _reload() -> void:
 	var rules: Dictionary = _pet.interaction_rules
 	_ignore_props_check.button_pressed = bool(rules.get("ignore_props", false))
 	_no_topic_mention_check.button_pressed = bool(rules.get("no_topic_mention", false))
+	if _hide_from_ignored_check != null:
+		_hide_from_ignored_check.button_pressed = bool(rules.get("hide_from_ignored", false))
 	_silent_check.button_pressed = bool(rules.get("silent", false))
 	if _topic_generic_check != null:
 		_topic_generic_check.button_pressed = _pet.topic_use_generic
@@ -741,6 +764,7 @@ func _on_add_character_pressed() -> void:
 		message.emit(error)
 		return
 	_char_line.text = ""
+	_char_pager.show_last()
 
 
 func _on_add_prop_pressed() -> void:
@@ -752,6 +776,7 @@ func _on_add_prop_pressed() -> void:
 		message.emit(error)
 		return
 	_prop_line.text = ""
+	_prop_pager.show_last()
 
 
 func _rebuild_lists() -> void:
@@ -763,6 +788,7 @@ func _rebuild_lists() -> void:
 		child.queue_free()
 	var rules: Dictionary = _pet.interaction_rules
 	_known_pets = PetReferences.known_pets(get_tree())
+	_dup_names = PetReferences.duplicate_names(_known_pets)
 	var hidden_characters := 0
 	for entry: Dictionary in rules["characters"]:
 		var tag := str(entry["tag"])
@@ -775,6 +801,19 @@ func _rebuild_lists() -> void:
 			if missing:
 				_char_list.add_child(_missing_row(tr("遇見 %s(找不到這隻桌寵):「%s」") % [entry["name"], entry["lines"][i]],
 						func(anchor: Control) -> void: _open_pet_relink_menu(anchor, "characters", tag), func() -> void: remove_character_line(tag, index)))
+			elif _dup_names.has(str(_known_pets[tag])):
+				# 撞名:名字後面附小字代號,台詞接在後面
+				var row := _row(tr("「%s」") % entry["lines"][i], func() -> void: remove_character_line(tag, index))
+				var line_label := row.get_child(0) as Label
+				line_label.custom_minimum_size.x = maxf(line_label.custom_minimum_size.x - 140.0, 120.0)
+				var who := Label.new()
+				who.text = tr("遇見 %s") % _known_pets[tag]
+				row.add_child(who)
+				row.move_child(who, 0)
+				var note := ManagerUi.tag_note(tag)
+				row.add_child(note)
+				row.move_child(note, 1)
+				_char_list.add_child(row)
 			else:
 				_char_list.add_child(_row(tr("遇見 %s:「%s」") % [entry["name"], entry["lines"][i]], func() -> void: remove_character_line(tag, index)))
 	_add_missing_footer(_char_list, hidden_characters, missing_character_count(rules))
@@ -828,6 +867,7 @@ func _add_missing_footer(list: VBoxContainer, hidden: int, total: int) -> void:
 		_show_missing = not _show_missing
 		_rebuild_lists())
 	row.add_child(toggle)
+	row.set_meta("pager_pinned", true)   # 翻頁時每頁都顯示(見 ListPager)
 	list.add_child(row)
 
 
@@ -873,7 +913,7 @@ func _open_pet_relink_menu(anchor: Control, section: String, old_tag: String) ->
 	for character: Dictionary in _characters:
 		if not taken.has(character["tag"]):
 			candidates.append(character)
-			menu.add_item(str(character["name"]))
+			menu.add_item(PetReferences.plain_label(str(character["name"]), str(character["name"]), str(character["tag"]), _dup_names))
 	if candidates.is_empty():
 		menu.add_item(tr("(沒有可以指向的桌寵)"))
 		menu.set_item_disabled(0, true)
@@ -1000,7 +1040,20 @@ func _add_pet_pref_row(target: String, display_name: String, rules: Dictionary) 
 	label.text = display_name
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	label.clip_text = true
-	row.add_child(label)
+	if target != InteractionRules.ALL_PETS_TARGET and _dup_names.has(display_name):
+		# 撞名:名字後面附小字代號
+		var name_box := HBoxContainer.new()
+		name_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_box.add_theme_constant_override("separation", 2)
+		label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		name_box.add_child(label)
+		var note := ManagerUi.tag_note(target)
+		note.clip_text = true
+		note.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_box.add_child(note)
+		row.add_child(name_box)
+	else:
+		row.add_child(label)
 	# 2026-10-06:桌寵對這隻桌寵的好感度(參數,不影響好惡等級)。預設列(全部角色)沒有單一對象,不顯示。
 	if target != InteractionRules.ALL_PETS_TARGET and _pet != null:
 		var favor := Label.new()
@@ -1014,18 +1067,93 @@ func _add_pet_pref_row(target: String, display_name: String, rules: Dictionary) 
 	option.select(InteractionRules.PET_PREF_LEVELS.find(InteractionRules.direct_pet_pref_level(rules, target)))
 	option.item_selected.connect(func(index: int) -> void: set_pet_pref(target, display_name, InteractionRules.PET_PREF_LEVELS[index]))
 	row.add_child(option)
-	# 2026-10-06:「不提及此桌寵」(自己的話題文本不會提到它;好惡等級不受影響)。預設列沒有單一對象,不顯示。
-	if target != InteractionRules.ALL_PETS_TARGET and _pet != null:
-		# 只顯示 🔇 圖示,說明寫在 hover 裡(折行)。
-		var no_mention := ManagerUi.button("🔇")
-		no_mention.toggle_mode = true
-		no_mention.button_pressed = _pet.no_mention_of(target)
-		no_mention.tooltip_text = InfoIcon.wrap_text(tr("不提及此桌寵:其他桌寵閒聊時,話題文本不會提到這隻(只對在場的桌寵生效)。好惡等級不受影響。"), InfoIcon.TIP_WIDTH)
-		no_mention.toggled.connect(func(pressed: bool) -> void:
-			_pet.set_pet_no_mention(target, pressed)
-			changed.emit())
-		row.add_child(no_mention)
+	# 2026-10-17 使用者要求:🔇 / ⭐ / 🚫 三顆按鈕擠佔版面,收進一顆 📝(跟話題文本的條件按鈕同一個圖示),點開是迷你設定窗。
+	# 按鈕後面接著顯示目前開著的項目(例如 📝⭐),不用點開也看得到。
+	if _pet != null:
+		var settings := ManagerUi.button(_pet_pref_badge(target, rules))
+		settings.tooltip_text = InfoIcon.wrap_text(_pet_pref_summary(target, rules), InfoIcon.TIP_WIDTH)
+		settings.pressed.connect(func() -> void: _open_pet_pref_settings(settings, target, display_name))
+		row.add_child(settings)
 	_pet_pref_list.add_child(row)
+
+
+## 這一列開著的旗標(順序 🔇 ⭐ 🚫;實際不交互時 🔇 一定算開著,不另外顯示)。
+func _pet_pref_flags(target: String, rules: Dictionary) -> Array[String]:
+	var flags: Array[String] = []
+	var all_row := target == InteractionRules.ALL_PETS_TARGET
+	if not all_row and _pet.no_mention_of(target) and not InteractionRules.effective_no_interact(rules, target):
+		flags.append("🔇")
+	if not all_row and InteractionRules.is_favorite(rules, target):
+		flags.append("⭐")
+	if InteractionRules.is_no_interact(rules, target):
+		flags.append("🚫")
+	return flags
+
+
+func _pet_pref_badge(target: String, rules: Dictionary) -> String:
+	return "📝" + "".join(_pet_pref_flags(target, rules))
+
+
+func _pet_pref_summary(target: String, rules: Dictionary) -> String:
+	var names := {"🔇": tr("不提及"), "⭐": tr("最喜歡"), "🚫": tr("不交互")}
+	var on: Array[String] = []
+	for flag: String in _pet_pref_flags(target, rules):
+		on.append("%s %s" % [flag, names[flag]])
+	if target != InteractionRules.ALL_PETS_TARGET and InteractionRules.effective_no_interact(rules, target) and not InteractionRules.is_no_interact(rules, target):
+		on.append(tr("🚫 不交互(來自「全部角色」)"))
+	var state := tr("目前:%s") % "、".join(on) if not on.is_empty() else tr("目前:沒有開任何項目")
+	return tr("其他設定(不提及 / 最喜歡 / 不交互),點一下打開。") + "
+" + state
+
+
+## 好惡列的迷你設定窗:三個勾選項(「全部角色」那列只有 🚫)。改了就生效,名單整串重畫(⭐ 和 🚫 互斥、🔇 會被 🚫 鎖住)。
+func _open_pet_pref_settings(anchor: Control, target: String, display_name: String) -> void:
+	if is_instance_valid(_pet_pref_popup):
+		_pet_pref_popup.queue_free()
+	var popup := PopupPanel.new()
+	_pet_pref_popup = popup
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	popup.add_child(box)
+	var title := Label.new()
+	title.text = display_name
+	box.add_child(title)
+	var all_row := target == InteractionRules.ALL_PETS_TARGET
+	var checks := {}
+	var specs: Array = []
+	if not all_row:
+		specs.append(["no_mention", tr("🔇 不提及"), tr("不提及此桌寵:其他桌寵閒聊時,話題文本不會提到這隻(只對在場的桌寵生效)。好惡等級不受影響。")])
+		specs.append(["favorite", tr("⭐ 最喜歡"), tr("最喜歡:最常跟著牠走、一起休息、一起用家具、找牠對戰(輸了也不扣好感),跟得像黏人性格一樣緊;內向的桌寵被牠頻繁邀請、貼在旁邊也不會不舒服。可以設好幾隻,好惡等級不受影響。")])
+	specs.append(["no_interact", tr("🚫 不交互"), tr("對全部角色不交互:除了勾了 ⭐ 的,跟誰都不互動、也不提及。要讓別的角色也看不到這隻,打開上面的「也避免被不交互的對象偵測」。") if all_row
+			else tr("不交互:不跟這隻互動——不跟隨牠、不找牠對戰或一起玩球、不特地坐牠旁邊、碰到也沒反應,牠來邀請一律拒絕;話題文本也不會提到牠。積木裡明確指定牠的指令照做。跟 ⭐ 不能同時開。")])
+	var sync := func() -> void:
+		var rules: Dictionary = _pet.interaction_rules
+		var blocked := InteractionRules.effective_no_interact(rules, target)
+		if checks.has("no_mention"):
+			(checks["no_mention"] as CheckBox).set_pressed_no_signal(_pet.no_mention_of(target))
+			(checks["no_mention"] as CheckBox).disabled = blocked
+		if checks.has("favorite"):
+			(checks["favorite"] as CheckBox).set_pressed_no_signal(InteractionRules.is_favorite(rules, target))
+		(checks["no_interact"] as CheckBox).set_pressed_no_signal(InteractionRules.is_no_interact(rules, target))
+	for spec: Array in specs:
+		var key := str(spec[0])
+		var check := CheckBox.new()
+		check.text = str(spec[1])
+		check.tooltip_text = InfoIcon.wrap_text(str(spec[2]), InfoIcon.TIP_WIDTH)
+		check.toggled.connect(func(pressed: bool) -> void:
+			match key:
+				"no_mention": _pet.set_pet_no_mention(target, pressed)
+				"favorite": _pet.set_pet_favorite(target, pressed)
+				"no_interact": _pet.set_pet_no_interact(target, pressed)
+			changed.emit()
+			sync.call()
+			_rebuild_lists())
+		box.add_child(check)
+		checks[key] = check
+	sync.call()
+	popup.popup_hide.connect(popup.queue_free)
+	add_child(popup)
+	popup.popup(Rect2i(Vector2i(anchor.get_screen_position()) + Vector2i(0, int(anchor.size.y)), Vector2i(220, 0)))
 
 
 func _rebuild_pet_prefs(rules: Dictionary) -> void:

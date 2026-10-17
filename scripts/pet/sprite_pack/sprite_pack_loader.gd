@@ -325,6 +325,8 @@ static func _load_pack(folder: String) -> Dictionary:
 		"cell": cell,
 		"overlays": overlay_spec,
 		"kind": "still" if str(manifest.get("kind", "active")).to_lower() == "still" else "active",
+		# 外觀才有意義:true = 這套外觀用自己的縮放與判定框;沒寫 = 跟桌寵管理的設定走(見 PetAppearances.set_independent)
+		"independent_size": manifest.get("independent_size", false) == true,
 	}
 	_sheet_cache.clear()
 	report.insert(0, TranslationServer.translate("讀到 %d 個動作(系統動作 + 自訂動作)、畫布 %d×%d、眨眼 %s。") % [_count_actions(frames), cell.x, cell.y, "有(逐幀對應)" if not blink_stages.is_empty() else "沒有"])

@@ -16,7 +16,7 @@ extends RefCounted
 ## 標籤是固定清單(TAGS_CATALOG,不能自訂),一件家具可以掛好幾個標籤。
 
 const MAX_NAME := 40
-const SCALE_RANGE := Vector2(0.3, 3.0)
+const SCALE_RANGE := Vector2(0.1, 6.0)   # 2026-10-18 跟桌寵同一個範圍(原本 0.3~3)
 ## 錨點座標(相對家具原點的偏移)夾在這個範圍內,避免存進毀損的極端值。
 const ANCHOR_RANGE := 4000.0
 ## "lay"(不是 "lie")故意跟桌寵素材包既有的系統動作同名(見 pet.gd chat_context()/_start_animation 已經有的
@@ -92,6 +92,8 @@ var thumbnail := ""
 var condition: Dictionary = FurnitureCondition.clean({})
 ## 放上桌面時的縮放倍率。
 var scale_multiplier := 1.0
+## 像素清晰縮放(見 SharpPixel,跟桌寵的同名設定一樣):像素風家具縮放成非整數倍時每顆像素一樣大。
+var sharp_pixels := true
 ## 這個家具是從哪個內建模板做的(只是標記,不影響行為)。
 var template := ""
 ## 可坐/可躺的位置:每筆 {type:"sit"/"lie", x, y, action, facing}(相對家具原點的偏移,未縮放,實際位置會再乘上
@@ -343,7 +345,7 @@ func has_light() -> bool:
 func to_dict() -> Dictionary:
 	return {
 		"name": display_name, "thumbnail": thumbnail, "condition": condition.duplicate(true),
-		"scale": scale_multiplier, "template": template, "anchors": anchors.duplicate(true),
+		"scale": scale_multiplier, "sharp_pixels": sharp_pixels, "template": template, "anchors": anchors.duplicate(true),
 		"lights": lights.duplicate(true), "above_light": above_light, "tags": tags.duplicate(),
 		"containerItems": container_items.duplicate(true), "render_above_ui": render_above_ui,
 		"auraEffects": aura_effects.duplicate(true),
@@ -509,6 +511,7 @@ static func from_dict(data: Variant, folder_id: String) -> FurnitureDef:
 	def.condition = FurnitureCondition.clean(data.get("condition"))
 	var scale_value: Variant = data.get("scale", 1.0)
 	def.scale_multiplier = clampf(float(scale_value), SCALE_RANGE.x, SCALE_RANGE.y) if (scale_value is float or scale_value is int) else 1.0
+	def.sharp_pixels = bool(data.get("sharp_pixels", true)) if data.get("sharp_pixels", true) is bool else true
 	def.template = clean_name(str(data.get("template", "")))
 	def.anchors = _clean_anchors(data.get("anchors"))
 	# "lights"(新格式)優先;沒有就退回舊格式的單一 "light" 字典(clean_lights 會處理相容轉換)。

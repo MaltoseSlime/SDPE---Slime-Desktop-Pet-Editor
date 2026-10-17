@@ -32,7 +32,9 @@ static func summarize(folder: String) -> Dictionary:
 	var inspected := SpritePackLoader.inspect_pack(folder)
 	var base_name := folder.replace("\\", "/").trim_suffix("/").get_file()
 	if not bool(inspected["ok"]):
-		return {"ok": false, "folder": folder, "name": base_name, "actions": 0, "frames": 0, "action": "", "frame_path": "", "error": str((inspected["report"] as Array)[0])}
+		# 讀不出素材(例如剛新建、還沒畫圖)也照 pack.json 的名字顯示,不然同名的新角色會顯示成資料夾名(名字_2)
+		var named := str(SpriteLibrary._read_manifest(folder).get("name", "")).strip_edges()
+		return {"ok": false, "folder": folder, "name": named if named != "" else base_name, "actions": 0, "frames": 0, "action": "", "frame_path": "", "error": str((inspected["report"] as Array)[0])}
 	var actions: Dictionary = inspected["actions"]
 	var frames := 0
 	for action_name: String in actions:

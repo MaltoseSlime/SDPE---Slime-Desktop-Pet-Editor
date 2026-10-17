@@ -69,6 +69,7 @@ func setup(new_def: FurnitureDef, frames: SpriteFrames) -> void:
 	_sprite.centered = false
 	_sprite.z_index = LIGHT_Z + 1 if def.above_light else 0
 	add_child(_sprite)
+	_update_sampling()
 	_light = FurnitureLight.new()
 	_light.z_index = LIGHT_Z
 	add_child(_light)
@@ -85,11 +86,26 @@ func set_frames(frames: SpriteFrames) -> void:
 		return
 	var playing := _sprite.animation
 	_sprite.sprite_frames = frames
+	_update_sampling()
 	if frames.has_animation(playing):
 		_sprite.animation = playing
 	_sprite.play()
 	attach_overlays()
 	evaluate()
+
+
+## 取樣方式跟桌寵一樣(見 SharpPixel.apply_to):大張圖平滑、像素風最近點,非整數倍縮放時套清晰像素。
+func _update_sampling() -> void:
+	if _sprite == null or def == null:
+		return
+	SharpPixel.apply_to(_sprite, SharpPixel.frames_smooth(_sprite.sprite_frames), def.sharp_pixels, def.scale_multiplier)
+	if _overlays != null:
+		_overlays.texture_filter = _sprite.texture_filter
+		_overlays.material = _sprite.material
+
+
+func uses_sharp_pixels() -> bool:
+	return _sprite != null and _sprite.material != null
 
 
 ## (重新)讀 sprite/overlays.json 掛上圖層;沒有檔案或沒有可用的圖層就不掛。回傳讀取報告。
@@ -111,6 +127,7 @@ func attach_overlays() -> Array[String]:
 	PackSourceSizes.realign_overlays(folder, parsed, SpritePackLoader.read_manifest(folder))
 	_overlays = PetOverlays.new()
 	_overlays.texture_filter = _sprite.texture_filter
+	_overlays.material = _sprite.material   # 圖層的 Sprite2D 用 use_parent_material 跟著
 	add_child(_overlays)
 	report = _overlays.setup(self, parsed, folder, Vector2.ZERO, Vector2.ZERO)
 	if _overlays.part_count() == 0:
@@ -242,8 +259,10 @@ func apply_def(new_def: FurnitureDef) -> void:
 	# 不然換成新定義之後,_aura_state 裡記的效果索引會對不上新的 aura_effects,還原會還錯甚至還原失敗。
 	_restore_all_aura()
 	def = new_def
+	scale = Vector2.ONE * def.scale_multiplier   # 家具庫改了縮放倍率,場上的立刻跟著變
 	if _sprite != null:
 		_sprite.z_index = LIGHT_Z + 1 if def.above_light else 0
+		_update_sampling()
 	_place_overlays()
 	if _light != null:
 		_light.queue_redraw()

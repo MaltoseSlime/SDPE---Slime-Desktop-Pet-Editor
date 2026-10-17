@@ -36,6 +36,8 @@ const DEFAULT_PRESET := "notebook"
 ## 文字變體名稱(見 build_theme):次要文字(說明、狀態列、數量)、警告文字(問題、提醒)。Label 設 theme_type_variation 就會跟著配色。
 const MUTED_LABEL := &"MutedLabel"
 const WARN_LABEL := &"WarnLabel"
+## 名字後面附註的小字(撞名時的辨識代號,見 ManagerUi.tag_note):比一般字小、用次要文字色。
+const TAG_NOTE_LABEL := &"TagNoteLabel"
 
 
 ## 目前配色的文字色加上透明度:卡片底色、邊框這類「淡淡的一層」用它,不要寫死白色(淺色配色下白色的淡層看不見)。
@@ -692,6 +694,9 @@ static func build_theme() -> Theme:
 	theme.set_color("font_color", MUTED_LABEL, muted)
 	theme.set_type_variation(WARN_LABEL, "Label")
 	theme.set_color("font_color", WARN_LABEL, warning_color(bg))
+	theme.set_type_variation(TAG_NOTE_LABEL, "Label")
+	theme.set_color("font_color", TAG_NOTE_LABEL, muted)
+	theme.set_font_size("font_size", TAG_NOTE_LABEL, maxi(9, roundi(theme.default_font_size * 0.78)))
 	_style_scrollbars(theme, Color(text, 1.0))
 	return theme
 

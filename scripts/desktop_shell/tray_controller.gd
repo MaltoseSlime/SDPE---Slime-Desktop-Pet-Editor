@@ -182,7 +182,7 @@ func _rebuild_menu() -> void:
 		submenu.id_pressed.connect(_on_pet_menu_pressed.bind(pet))
 		_menu.add_child(submenu)
 		_submenus.append(submenu)
-		_menu.add_submenu_node_item(pet.get_label(), submenu)
+		_menu.add_submenu_node_item(PetReferences.pet_editor_label(pet, PetReferences.duplicate_names(PetReferences.known_pets(get_tree()))), submenu)
 	if not _pets.is_empty():
 		_menu.add_separator()
 	# 會開出獨立視窗的功能放在同一區。

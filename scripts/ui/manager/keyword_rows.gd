@@ -6,6 +6,7 @@ extends VBoxContainer
 signal changed
 
 var _list: VBoxContainer
+var _pager: ListPager   # 長名單翻頁(2026-10-17)
 var _add_word: LineEdit
 var _add_tag: OptionButton
 var _rows: Array[Dictionary] = []   # 每列:{"row": HBoxContainer, "word": LineEdit, "tag": OptionButton}
@@ -17,7 +18,8 @@ func _init() -> void:
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_list = VBoxContainer.new()
 	_list.add_theme_constant_override("separation", 4)
-	add_child(_list)
+	_pager = ListPager.wrap(_list)
+	add_child(_pager)
 	var add_row := HBoxContainer.new()
 	add_child(add_row)
 	_add_word = LineEdit.new()
@@ -124,6 +126,7 @@ func _on_add_pressed() -> void:
 		return
 	_append_row(word, PetText.KEYWORD_TAGS[_add_tag.selected])
 	_add_word.text = ""
+	_pager.show_last()
 	_emit_changed()
 
 

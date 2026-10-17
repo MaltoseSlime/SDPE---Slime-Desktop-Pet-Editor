@@ -13,6 +13,8 @@ extends RefCounted
 ##     門檻依性格:衝動 2、內向/黏人 4、其餘 3;平靜/友善/活潑「輸了也不氣餒」,不因連輸扣好感。
 ##     連輸只看同一對象的 1v1(途中改去跟別人打不會中斷);全體遊戲不計入。冷卻 20 分鐘。
 ## 特效規模:密度(intensity)依增減量縮在 0.25~0.6、持續時間 2 秒,都比桌寵平時的特效小,不會蓋過日常動畫。
+## 好惡等級一律用 Pet.bond_level():「最喜歡」的對象(2026-10-17)算 4 級(比超級喜歡多加,增加量照超級喜歡),
+## 對戰輸了、連輸、被牠頻繁邀請都不扣好感。
 
 ## 好惡等級 -3~3 → 增加量(普通 0 也會增加,小幅;討厭的對象只剩一點點)。
 const GAIN_BY_LEVEL := {-3: 0.5, -2: 0.5, -1: 1.0, 0: 1.0, 1: 2.0, 2: 4.0, 3: 7.0}
@@ -60,7 +62,7 @@ static func bond(self_pet: Node, other: Node, delta: float, level: int, reason: 
 
 ## 依 self 對 other 的好惡增減(喜歡/普通 → 增加,討厭 → 減少)。用於共用家具、一起休息這類對等的情境。
 static func _by_level(me: Node, other: Node, reason: String) -> void:
-	var level: int = me.pet_affinity(other)
+	var level: int = me.bond_level(other)
 	if level < 0:
 		bond(me, other, -loss_amount(me, level), level, reason)
 	else:
@@ -74,7 +76,7 @@ static func mutual_bond(a: Node, b: Node, reason: String) -> void:
 		var other: Node = pair[1]
 		if not is_instance_valid(me) or not is_instance_valid(other):
 			continue
-		if me.pet_affinity(other) == 0 and randf() >= NEUTRAL_SHARE_CHANCE:
+		if me.bond_level(other) == 0 and randf() >= NEUTRAL_SHARE_CHANCE:
 			continue
 		_by_level(me, other, reason)
 
@@ -93,7 +95,7 @@ static func follow_started(follower: Node, leader: Node) -> void:
 	for other: Node in follower.get_tree().get_nodes_in_group("pets"):
 		if other == follower or not is_instance_valid(other):
 			continue
-		var dislike: int = other.pet_affinity(follower)
+		var dislike: int = other.bond_level(follower)
 		if dislike < 0:
 			bond(other, follower, -loss_amount(other, dislike), dislike, "followed")
 
@@ -112,7 +114,7 @@ static func duel(a: Node, b: Node, result_a: String) -> void:
 		var my_result: String = triple[2]
 		if not is_instance_valid(me) or not is_instance_valid(other):
 			continue
-		var level: int = me.pet_affinity(other)
+		var level: int = me.bond_level(other)
 		if level < 0:
 			# 討厭的對手:只有輸了才減少,贏/平不加
 			if my_result == "lose":
@@ -141,8 +143,8 @@ static func _record_duel(me: Node, other: Node, my_result: String) -> void:
 		if history[i] != "L":
 			break
 		trailing += 1
-	if trailing >= threshold:
-		var level: int = me.pet_affinity(other)
+	if trailing >= threshold and not me.is_favorite(other):
+		var level: int = me.bond_level(other)
 		bond(me, other, -loss_amount(me, level), level, "streak", STREAK_COOLDOWN)
 
 
@@ -150,7 +152,9 @@ static func _record_duel(me: Node, other: Node, my_result: String) -> void:
 ## 減少量照好惡與性格算(討厭的人扣得多、喜歡的人扣得少),冷卻 20 分鐘。
 const PESTER_COOLDOWN := 1200.0
 static func pestered(invitee: Node, inviter: Node) -> void:
-	var level: int = invitee.pet_affinity(inviter)
+	if invitee.is_favorite(inviter):
+		return   # 最喜歡的對象再常來邀也不嫌煩(PetVitality.note_invited 本來就不算牠,這裡再保險一次)
+	var level: int = invitee.bond_level(inviter)
 	bond(invitee, inviter, -loss_amount(invitee, level), level, "pestered", PESTER_COOLDOWN)
 
 
@@ -177,6 +181,7 @@ static func user_bond(pet: Node, reason: String, amount_value: float, cooldown: 
 		return false
 	ValueGateway.modify_value(pet, "好感度", amount_value, "local")
 	pet.start_favor_cooldown("user", reason, cooldown)
+	play_favor_setting(pet, amount_value, [] as Array[String])
 	return true
 
 
@@ -184,6 +189,25 @@ static func user_bond(pet: Node, reason: String, amount_value: float, cooldown: 
 static func user_group(pets: Array) -> void:
 	for pet: Node in pets:
 		user_bond(pet, "group", USER_TINY, USER_GROUP_COOLDOWN)
+
+
+## 好感度增減的表現,照桌寵管理「角色特效 → 好感度增加/減少時」的設定(PetEffects.favor_setting):
+## 有選圖層就暫時顯示;特效選「預設」就從 default_pool 隨機挑(空的 = 不播,對使用者的好感是這樣)、「不播」就不播。
+static func play_favor_setting(pet: Node, delta: float, default_pool: Array[String]) -> void:
+	if pet.effects == null or delta == 0.0:
+		return
+	var setting: Dictionary = pet.effects.favor_setting("gain" if delta > 0.0 else "loss")
+	if str(setting["layer"]) != "":
+		pet.show_layer_temporarily(str(setting["layer"]), float(setting["seconds"]))
+	var effect_name := str(setting["effect"])
+	if effect_name == PetEffects.FAVOR_NO_EFFECT:
+		return
+	if effect_name == "":
+		if default_pool.is_empty():
+			return
+		effect_name = default_pool.pick_random()
+	var intensity := clampf(absf(delta) / 7.0, 0.25, 0.6)
+	pet.effects.play(effect_name, FEEDBACK_SECONDS, intensity)
 
 
 static func _play_feedback(pet: Node, delta: float, level: int, reason: String) -> void:
@@ -199,9 +223,7 @@ static func _play_feedback(pet: Node, delta: float, level: int, reason: String) 
 		# 青筋/惱怒:限超級討厭,或討厭/超級討厭時輸給對手
 		if level <= -3 or (reason == "lost" and level <= -2):
 			pool.append_array(["vein", "flame"])
-	var effect_name: String = pool.pick_random()
-	var intensity := clampf(absf(delta) / 7.0, 0.25, 0.6)
-	pet.effects.play(effect_name, FEEDBACK_SECONDS, intensity)
+	play_favor_setting(pet, delta, pool)
 
 
 ## ── 對象關係的清除(2026-10-06):記憶重置的勾選項與測試者面板共用 ──────────────────────

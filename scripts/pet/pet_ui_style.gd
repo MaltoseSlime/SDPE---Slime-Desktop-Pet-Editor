@@ -14,8 +14,9 @@ const SCALE_STEPS: Array[int] = [25, 50, 75, 100, 125, 150, 175, 200]
 ## 介面縮放百分比,必須是 SCALE_STEPS 其中一檔(不是的話取最接近的)。
 @export var ui_scale := 100
 @export var default_font := "黑體"
-## 字級(只影響文字大小,不像 ui_scale 連框體、邊框、間距一起放大);必須是 SCALE_STEPS 其中一檔。
-@export var font_scale := 100
+## 字級(只影響文字大小,不像 ui_scale 連框體、邊框、間距一起放大),百分比(100 = 字級 16)。
+## 以前只能是 SCALE_STEPS 其中一檔;2026-10-17 起桌寵管理改成直接填字級數字(見 font_size/set_font_size),可以是兩檔之間的值。
+@export var font_scale := 100.0
 ## 有選項的對話最多等使用者這麼久(秒);逾時視為沒有選擇。
 @export var option_wait_seconds := 60.0
 ## 思考泡泡(對話積木的 BUBBLE = thought):和對話框長得像、配色獨立設定,預設是比較淡的淺色雲朵感。
@@ -26,6 +27,9 @@ const SCALE_STEPS: Array[int] = [25, 50, 75, 100, 125, 150, 175, 200]
 
 
 const MAX_BORDER_WIDTH := 8
+## 桌寵管理「字級」數字的範圍(= 舊的 25%~200%)。
+const MIN_FONT_SIZE := 4
+const MAX_FONT_SIZE := 32
 const MAX_CORNER_RADIUS := 32
 const MIN_OPTION_WAIT := 5.0
 const MAX_OPTION_WAIT := 600.0
@@ -45,7 +49,21 @@ func scale_factor() -> float:
 
 ## 字級倍率(1.0 = 100%),只給文字大小用。
 func font_scale_factor() -> float:
-	return nearest_scale_step(font_scale) / 100.0
+	return clamp_font_scale(font_scale) / 100.0
+
+
+## 字級數字(縮放前、沒有字體校正;100% = UiStyleKit.BASE_FONT_SIZE)。
+func font_size() -> int:
+	return roundi(clamp_font_scale(font_scale) * UiStyleKit.BASE_FONT_SIZE / 100.0)
+
+
+func set_font_size(size: int) -> void:
+	font_scale = clampi(size, MIN_FONT_SIZE, MAX_FONT_SIZE) * 100.0 / UiStyleKit.BASE_FONT_SIZE
+
+
+## 字級百分比夾在合法範圍(25%~200%,不必是 SCALE_STEPS 其中一檔)。
+static func clamp_font_scale(value: float) -> float:
+	return clampf(value, float(SCALE_STEPS[0]), float(SCALE_STEPS[-1]))
 
 
 ## 文字實際大小要乘的總倍率:介面縮放 × 字級 × 這個字體自己的視覺大小校正(見 UiFonts.size_correction,

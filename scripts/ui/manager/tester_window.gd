@@ -383,9 +383,10 @@ func _populate_pets() -> void:
 	var previous := _pet
 	_pets.clear()
 	_pet_option.clear()
+	var duplicates := PetReferences.duplicate_names(PetReferences.known_pets(get_tree()))
 	for pet in get_tree().get_nodes_in_group("pets"):
 		_pets.append(pet)
-		_pet_option.add_item(pet.get_label())
+		_pet_option.add_item(PetReferences.pet_editor_label(pet, duplicates))
 	if _pets.is_empty():
 		_pet = null
 		_status_label.text = tr("場上目前沒有桌寵。")
@@ -529,7 +530,7 @@ func _refresh_favor_targets() -> void:
 		if other == _pet or not is_instance_valid(other) or other.is_queued_for_deletion():
 			continue
 		var index := _favor_target_option.item_count
-		_favor_target_option.add_item(str(other.get_label()))
+		_favor_target_option.add_item(PetReferences.pet_editor_label(other, PetReferences.duplicate_names(PetReferences.known_pets(get_tree()))))
 		_favor_target_option.set_item_metadata(index, str(other.recognition_tag))
 	if _favor_target_option.item_count > 0:
 		_favor_target_option.select(0)

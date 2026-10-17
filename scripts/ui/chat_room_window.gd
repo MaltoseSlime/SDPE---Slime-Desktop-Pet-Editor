@@ -593,7 +593,7 @@ func _append_timestamp(container: VBoxContainer, pet: Node, hour: int, minute: i
 	label.text = text
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.add_theme_font_override("font", font)
-	label.add_theme_font_size_override("font_size", TIMESTAMP_FONT_SIZE)
+	label.add_theme_font_size_override("font_size", roundi(TIMESTAMP_FONT_SIZE * (UiFonts.size_correction(str(style.default_font)) if style != null else 1.0)))   # Silver 這類偏小的字體私底下放大
 	label.add_theme_color_override("font_color", TIMESTAMP_COLOR)
 	container.add_child(label)
 	return label
@@ -728,6 +728,8 @@ func _make_sms_bubble(pet: Node, text: String, color: Color, is_thought: bool, s
 	# 使用者要求:簡訊式氣泡本來跟著字級一起縮放,不想要這樣),改讀「聊天室設定」卡片自己的
 	# sms_bubble_scale,不呼叫 style.text_scale_factor()。
 	var factor: float = float(_sms_bubble_scale_of(pet)) / 100.0
+	# 文字另外乘字體的視覺大小校正(Silver 會放大;2026-10-17 使用者回報聊天室裡 Silver 沒放大),框體、圓角、內距不乘。
+	var font_k := UiFonts.size_correction(str(style.default_font)) if style != null else 1.0
 	var direction := _sms_direction_of(pet)
 
 	var outer := VBoxContainer.new()
@@ -741,7 +743,7 @@ func _make_sms_bubble(pet: Node, text: String, color: Color, is_thought: bool, s
 		name_label.text = pet.get_label()
 		name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		name_label.add_theme_font_override("font", font)
-		name_label.add_theme_font_size_override("font_size", int((UiStyleKit.BASE_FONT_SIZE - 3) * factor))
+		name_label.add_theme_font_size_override("font_size", int((UiStyleKit.BASE_FONT_SIZE - 3) * factor * font_k))
 		name_label.add_theme_color_override("font_color", color)
 		if color.get_luminance() < DARK_LUMINANCE_THRESHOLD:
 			name_label.add_theme_color_override("font_outline_color", Color.WHITE)
@@ -780,9 +782,10 @@ func _make_sms_bubble(pet: Node, text: String, color: Color, is_thought: bool, s
 	label.selection_enabled = false
 	label.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
 	label.mouse_filter = Control.MOUSE_FILTER_PASS
-	var font_size := int(UiStyleKit.BASE_FONT_SIZE * factor)
+	var font_size := int(UiStyleKit.BASE_FONT_SIZE * factor * font_k)
 	label.add_theme_font_override("normal_font", font)
 	label.add_theme_font_size_override("normal_font_size", font_size)
+	label.add_theme_constant_override("line_separation", UiFonts.line_spacing(str(style.default_font) if style != null else "", font_size))
 	if is_thought:
 		# 底色不是實心填滿了(只有外框線),黑/白對比那套規則沒有意義——直接用外框色本身當字色,
 		# 太暗的話照 _make_line_label 同一套規則加白色外框線撐出對比(背景是聊天室的深色底)。

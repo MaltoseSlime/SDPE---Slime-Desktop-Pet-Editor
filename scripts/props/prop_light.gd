@@ -34,7 +34,7 @@ func _lit() -> bool:
 ## 光源錨點(道具本地座標;原點是腳底線中心)。
 func anchor() -> Vector2:
 	var light: Dictionary = _item.def.light
-	return Vector2(float(light["x"]) * PropItem.SIZE, float(light["y"]) * PropItem.SIZE)
+	return Vector2(float(light["x"]) * _item.size, float(light["y"]) * _item.size)
 
 
 func _process(delta: float) -> void:

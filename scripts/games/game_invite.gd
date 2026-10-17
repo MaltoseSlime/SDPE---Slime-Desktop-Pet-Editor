@@ -28,8 +28,14 @@ const DECLINED_LINES: Array[String] = ["(被拒絕了……)", "嘖,好吧。", 
 ## 依好惡加權抽一個邀請對象(2026-10-04 使用者要求「要不要主動邀請對方」受好惡影響):討厭的機率被壓低、
 ## 喜歡的機率提高,但不是硬性排除(跟跟隨不一樣,跟隨那邊討厭的直接整個排除掉)。每一級好惡 ±30% 權重,
 ## 夾在 0.1~3.0 之間,普通(0 級)權重 1.0 跟完全沒有這個功能時一樣。
+## 最喜歡的對象(2026-10-17)直接給權重上限的兩倍,最常被找來對戰。
 static func _affinity_weight(inviter: Node, candidate: Node) -> float:
+	if inviter.is_favorite(candidate):
+		return FAVORITE_INVITE_WEIGHT
 	return clampf(1.0 + float(inviter.pet_affinity(candidate)) * 0.3, 0.1, 3.0)
+
+
+const FAVORITE_INVITE_WEIGHT := 6.0
 
 
 static func _weighted_pick(inviter: Node, candidates: Array) -> Node:
@@ -51,7 +57,7 @@ static func _weighted_pick(inviter: Node, candidates: Array) -> Node:
 ## 賽制由邀請者自己決定(Pet.pick_invite_best_of,不看右鍵選單的「賽制」);設了「一律拒絕對戰邀請」的桌寵不會被自動挑來邀請(反正必被拒)。
 static func start_random(inviter: Node) -> bool:
 	var candidates: Array = inviter.get_tree().get_nodes_in_group("pets").filter(
-		func(p: Node) -> bool: return p != inviter and not p.is_queued_for_deletion() and not p.entering and not p.game_always_refuse and not p.invisible and not p.is_sleeping())
+		func(p: Node) -> bool: return p != inviter and not p.is_queued_for_deletion() and not p.entering and not p.game_always_refuse and not p.invisible and not p.is_sleeping() and not inviter.apart_from(p))
 	if candidates.is_empty():
 		return false
 	var kinds: Array[String] = []
@@ -133,7 +139,7 @@ static func invite(inviter: Node, invitee: Node, kind: String, best_of := 0, wai
 	await _wait(inviter, 1.8)
 	if _cancelled(inviter, invitee, generations):
 		return {}
-	if invitee.vitality != null and _invite_counts(invitee) and invitee.vitality.note_invited():
+	if invitee.vitality != null and _invite_counts(invitee) and invitee.vitality.note_invited(inviter):
 		PetFavor.pestered(invitee, inviter)
 	var refusal: Dictionary = invitee.game_refusal(kind, inviter)
 	if randf() < float(refusal["chance"]):
@@ -185,7 +191,7 @@ static func invite_all_dice(inviter: Node, best_of := 0) -> Dictionary:
 	if not is_instance_valid(inviter) or inviter.is_in_game():
 		return {}
 	var others: Array = inviter.get_tree().get_nodes_in_group("pets").filter(
-		func(p: Node) -> bool: return p != inviter and not p.is_queued_for_deletion() and not p.entering and not p.invisible and not p.is_sleeping())
+		func(p: Node) -> bool: return p != inviter and not p.is_queued_for_deletion() and not p.entering and not p.invisible and not p.is_sleeping() and not inviter.apart_from(p))
 	if others.is_empty():
 		GameChat.say(inviter, inviter.speak_tr("場上沒有別的桌寵可以一起玩……"), 2.5)
 		return {}
@@ -206,7 +212,7 @@ static func invite_all_dice(inviter: Node, best_of := 0) -> Dictionary:
 	for other: Node in others:
 		if not is_instance_valid(other):
 			continue
-		if other.vitality != null and _invite_counts(other) and other.vitality.note_invited():
+		if other.vitality != null and _invite_counts(other) and other.vitality.note_invited(inviter):
 			PetFavor.pestered(other, inviter)
 		var refusal: Dictionary = other.game_refusal("dice", inviter)
 		if randf() < float(refusal["chance"]):

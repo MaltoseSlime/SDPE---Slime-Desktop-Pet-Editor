@@ -54,6 +54,8 @@ const SEAT_GAP := 14.0
 ## 喜歡的對象可以貼得更近(2026-10-13 使用者要求:容許入座的判定更放鬆):跟牠之間不留空隙,好惡每高一級
 ## 還容許判定框多疊「兩隻半寬相加」的這個比例(有點喜歡 15%、喜歡 30%、超級喜歡 45%)。只看自己喜不喜歡對方。
 const LIKED_OVERLAP_PER_LEVEL := 0.15
+## 最喜歡的對象旁邊的座位加分(超級喜歡是 3 × 70 = 210;內向的對最喜歡的對象也不打折)。
+const FAVORITE_SEAT_BONUS := 400.0
 const SAME_LEVEL_Y := 60.0
 ## 空曠處的取樣間距(像素):每個站得上去的平面(地面、平臺頂)每隔這麼遠試一個位置。
 ## 2026-10-11 使用者實機回報「同一層遠一點明明有空位卻不去坐、也不往上往下找」:原本整層只取 7 個固定點、而且只看自己這一層,
@@ -380,12 +382,12 @@ func _settle_favor() -> void:
 	for other: Node in _pet.get_tree().get_nodes_in_group("pets"):
 		if other == _pet or not is_instance_valid(other) or other.is_queued_for_deletion() or other.entering:
 			continue
-		if not beside(other):
+		if not beside(other) or _pet.apart_from(other):
 			continue
-		var mine: int = _pet.pet_affinity(other)
+		var mine: int = _pet.bond_level(other)
 		if mine > 0:
 			PetFavor.bond(_pet, other, PetFavor.gain_amount(_pet, mine), mine, "relax_seat", FAVOR_COOLDOWN)
-		var theirs: int = other.pet_affinity(_pet)
+		var theirs: int = other.bond_level(_pet)
 		if theirs < 0:
 			PetFavor.bond(other, _pet, -PetFavor.loss_amount(other, theirs), theirs, "relax_crowded", FAVOR_COOLDOWN)
 
@@ -414,7 +416,7 @@ static func _occupies(other: Node) -> bool:
 ## 自己喜歡的對象不留空隙、還可以疊一點(見 LIKED_OVERLAP_PER_LEVEL)。
 func _reach(other: Node, gap: float) -> float:
 	var widths := _half_width(_pet) + _half_width(other)
-	var level: int = _pet.pet_affinity(other)
+	var level: int = _pet.bond_level(other)
 	if level > 0:
 		return maxf(widths * (1.0 - LIKED_OVERLAP_PER_LEVEL * float(mini(level, 3))) + minf(gap, 0.0), 4.0)
 	return maxf(widths + gap, 4.0)
@@ -460,7 +462,7 @@ func _pick_seat(include_here: bool, allow_crowded: bool) -> Dictionary:
 	for other: Node in _pet.get_tree().get_nodes_in_group("pets"):
 		if other == _pet or not is_instance_valid(other) or other.is_queued_for_deletion() or other.entering or other.dragging or not other.is_on_floor():
 			continue
-		if not _occupies(other):
+		if not _occupies(other) or _pet.apart_from(other):   # 不交互的對象(2026-10-17)不會特地去坐牠旁邊
 			continue
 		var spacing := _reach(other, SEAT_GAP) + ARRIVE_SLACK
 		for side: float in [-1.0, 1.0]:
@@ -497,6 +499,7 @@ static func _to_local(parent: Node, global_point: Vector2) -> Vector2:
 
 ## 座位分數(越高越想坐)。性格特性優先:內向的最看重「離最近的桌寵多遠」,喜歡的對象只算少量加分;
 ## 其他性格依社交意願喜歡坐在別人旁邊,喜歡的對象旁邊大加分。討厭的對象旁邊一律扣分。少走一點路、家具、原地各有小加分。
+## 最喜歡的對象(2026-10-17)是例外:誰都最想坐到牠旁邊(FAVORITE_SEAT_BONUS),內向的也不把牠算進「離別人多遠」。
 func _score(seat: Dictionary) -> float:
 	var pos: Vector2 = seat["pos"]
 	var introvert := is_introvert()
@@ -508,12 +511,15 @@ func _score(seat: Dictionary) -> float:
 		if other == _pet or not is_instance_valid(other) or other.is_queued_for_deletion() or not _occupies(other):
 			continue
 		var distance: float = other.position.distance_to(pos)
-		nearest = minf(nearest, distance)
-		if distance >= NEAR_RADIUS:
+		var level: int = _pet.bond_level(other)
+		if level != Pet.FAVORITE_LEVEL:
+			nearest = minf(nearest, distance)
+		if distance >= NEAR_RADIUS or _pet.apart_from(other):   # 不交互的對象:不加分也不扣分,當作沒看到
 			continue
 		var closeness := 1.0 - distance / NEAR_RADIUS
-		var level: int = _pet.pet_affinity(other)
-		if level > 0:
+		if level == Pet.FAVORITE_LEVEL:
+			score += FAVORITE_SEAT_BONUS * closeness
+		elif level > 0:
 			score += float(level) * 70.0 * closeness * (0.4 if introvert else 1.0)
 		elif level < 0:
 			score += float(level) * 90.0 * closeness

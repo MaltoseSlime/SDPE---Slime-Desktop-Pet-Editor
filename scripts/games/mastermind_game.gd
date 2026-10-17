@@ -263,7 +263,7 @@ static func play_user(pet: Node) -> Dictionary:
 	GameChat.enter([pet], "mastermind")
 	var result: Dictionary = await _run(["USER", pet], pet.mastermind_code_length)
 	GameChat.leave([pet])
-	if not result.is_empty():   # 跟使用者的 1v1 打完一場(取消的不算)
+	if not result.is_empty() and is_instance_valid(pet):   # 跟使用者的 1v1 打完一場(取消的不算;桌寵中途被收掉就不算)
 		PetFavor.user_bond(pet, "duel", PetFavor.USER_SMALL, PetFavor.USER_DUEL_COOLDOWN)
 	return result
 
@@ -304,7 +304,7 @@ static func play_all(host: Node, ask_user := true) -> Dictionary:
 	if not is_instance_valid(host) or host.is_in_game():
 		return {}
 	var others: Array = host.get_tree().get_nodes_in_group("pets").filter(
-			func(p: Node) -> bool: return p != host and is_instance_valid(p) and not p.is_queued_for_deletion() and not p.entering and not p.is_in_game())
+			func(p: Node) -> bool: return p != host and is_instance_valid(p) and not p.is_queued_for_deletion() and not p.entering and not p.is_in_game() and not host.apart_from(p))
 	var pets: Array = [host]
 	var generation: int = host.action_generation
 	if not others.is_empty():
@@ -320,7 +320,7 @@ static func play_all(host: Node, ask_user := true) -> Dictionary:
 			if not is_instance_valid(other) or other.is_in_game():
 				continue
 			if other.vitality != null:
-				other.vitality.note_invited()
+				other.vitality.note_invited(host)
 			var refusal: Dictionary = other.game_refusal("mastermind", host)
 			if randf() < float(refusal["chance"]):
 				GameChat.chain_say(other, other.speak_tr(str((GameInvite.REFUSE_LINES[str(refusal["reason"])] as Array).pick_random())), 2.2)

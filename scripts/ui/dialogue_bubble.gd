@@ -164,6 +164,12 @@ func setup(target_pet: Node, line: Dictionary, show_in_world: bool = true) -> vo
 	_label.add_theme_font_size_override("italics_font_size", int(BASE_FONT_SIZE * text_factor))
 	_label.add_theme_font_size_override("bold_italics_font_size", int(BASE_FONT_SIZE * text_factor))
 	_label.add_theme_color_override("default_color", colors["text"])
+	# 行高校正把每一行的上緣也往內收(Silver 是負的,見 UiFonts.get_ui_font):行與行之間收緊沒問題,
+	# 但第一行的字會往上凸出文字框,被氣泡上緣的名字標籤蓋到(2026-10-17 使用者回報)。文字框上方補回收掉的那段。
+	if font is FontVariation and (font as FontVariation).spacing_top < 0:
+		var top_room := StyleBoxEmpty.new()
+		top_room.content_margin_top = -(font as FontVariation).spacing_top
+		_label.add_theme_stylebox_override("normal", top_room)
 	column.add_child(_label)
 	_set_content(str(line.get("text", "")))
 

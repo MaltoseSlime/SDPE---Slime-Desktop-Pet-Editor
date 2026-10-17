@@ -10,13 +10,13 @@ extends Node
 ##  - 只有地面模式的桌寵會自己休息/睡覺(飛行、漂浮、固定、靜止只計精力);被使用者拖曳、點擊、有對話進行時不會硬睡,睡到一半被打斷就醒。
 ## 情緒:用既有的狀態鏡表現——「生氣」(負面)與「開心」(正面)兩個名稱固定,性格會附上這兩個狀態鏡;沒有這個狀態鏡就沒有效果。
 ##  - 被摸:開心的機率 = 0.3 × joy_proneness + max(touch_affinity, 0) × 0.5;不喜歡被摸(touch_affinity < 0)反而可能生氣 = −touch_affinity × 0.6。
-##  - 被拖曳:生氣的機率 = 0.3 × anger_proneness。遊戲輸:0.5 × anger_proneness 生氣;遊戲贏:0.5 × joy_proneness 開心。
+##  - 被拖曳:生氣的機率 = 0.3 × anger_proneness(只在 mood_swing = 0 的舊行為)。遊戲輸:0.5 × anger_proneness 生氣;遊戲贏:0.5 × joy_proneness 開心。
 ## 還有 sociability(社交意願,0~1,0.5 = 中性):越高越愛主動邀人對戰、越不會拒絕別人的邀請(見 Pet.game_refusal / _tick_auto_game)。
 ## 休息分三個階段,由淺到深:站住不動(STANDING)→ 坐下(RESTING)→ 睡著(SLEEPING),越深恢復精力的效率越好(倍率見 STAGE_RECOVERY)。
 ##  - 開始休息時依累的程度選階段:剛過疲憊門檻(還差不到 MILD_MARGIN)先站著、疲憊坐下、累到極限直接睡。
 ##  - 每一段休息結束(rest_duration / sleep_duration)時擲一次骰決定下一步:繼續同一階段的機率 = REST_STAY_BASE × REST_STAY_DECAY^(已休息的段數 − 1),一段比一段低,
 ##    連續休息滿 MAX_REST_ROUNDS 段一定醒來;沒有繼續的話,剩下的機率分給「進入更深一階」「回到淺一階」「醒來」(權重見 DEEPER_WEIGHT / SHALLOWER_WEIGHT / WAKE_WEIGHT,做不到的方向權重不算);精力補滿了也直接醒來。
-## 心情(mood,0~100,預設 50 附近):被摸、贏遊戲上升,被拖曳、輸遊戲下降,平時慢慢飄回「基準」;會不會進入「開心/生氣」狀態鏡由心情與門檻決定:
+## 心情(mood,0~100,預設 50 附近):被摸、贏遊戲上升,輸遊戲下降(被拖曳不影響心情,2026-10-17),平時慢慢飄回「基準」;會不會進入「開心/生氣」狀態鏡由心情與門檻決定:
 ##  - 心情 ≥ mood_happy_threshold(預設 65):每 2 秒有機會進入開心,越高越容易;心情 ≤ mood_angry_threshold(預設 35):同理進入生氣;掉回門檻附近(差 5 點)就結束。機率上限 = mood_swing × 0.5,mood_swing = 0 表示心情不會影響狀態(維持舊的「被摸/被拖曳當下擲骰」行為)。
 ##  - **好感度**(名稱固定「好感度」的數值,沒有就當中性 0.5)決定升降幅度與基準:好感度高 → 上升幅度大、下降慢(下降 ×0.3)、基準比中性高(最高 60);好感度低 → 上升幅度小(最小只加 0.2)、下降快(×1.5)、基準低(最低 40)、也慢慢才回得來。
 ## 精力與心情都不存檔:每次啟動都是精力飽滿、心情在基準。
@@ -112,6 +112,8 @@ var run_any_mood := false
 var clingy_mood_rule := false
 var introvert_mood_rule := false
 var wake_mood_penalty := 0.0
+## 被拖曳時對使用者的好感度增加(友善、活潑、黏人;見 on_dragged)。
+var drag_affinity := false
 ## 沒事自己坐下休息一下的意願(每秒機率,0 = 不會):不像疲憊觸發的休息,不疲憊時也會,只坐下(不會自己躺著睡著),
 ## 跟疲憊觸發的休息共用同一套休息鏈與冷卻,判定見 _idle_sit_process()。
 var idle_sit_chance := 0.0
@@ -544,9 +546,21 @@ func on_petted() -> void:
 		make_positive()
 
 
+## 2026-10-17 使用者回報「連續拖幾次,不該緊張的性格也會緊張」:以前每次拖曳都重擲一次緊張傾向,連拖幾次機率就疊上去;
+## 現在一串連續拖曳(上一次拖曳後 DRAG_STREAK_MSEC 內又被拖)只擲一次,緊張傾向 = 「被拖這一串」會緊張的機率。
+## 同一天使用者釐清:被拖曳本來就不該扣心情(以前每次 −5,連拖幾次心情掉到門檻以下,又從負面狀態鏡裡隨機挑到緊張);
+## 友善、活潑、黏人的被拖曳反而對使用者的好感度增加(drag_affinity,跟摸摸同量、同冷卻)。
+const DRAG_STREAK_MSEC := 60000
+var _last_drag_msec := -DRAG_STREAK_MSEC
+
+
 func on_dragged() -> void:
-	change_mood(_scaled(-5.0))
-	if randf() < clampf(nervous_proneness, 0.0, 1.0):
+	if drag_affinity:
+		PetFavor.user_bond(_pet, "drag", PetFavor.USER_MINIMAL, PetFavor.USER_PET_COOLDOWN)
+	var now := Time.get_ticks_msec()
+	var new_streak := now - _last_drag_msec >= DRAG_STREAK_MSEC
+	_last_drag_msec = now
+	if new_streak and randf() < clampf(nervous_proneness, 0.0, 1.0):
 		make_nervous()
 	if mood_swing > 0.0:
 		return
@@ -704,16 +718,37 @@ func pick_mood_lens(high: bool, prefer_sad := false) -> String:
 	if not chosen_pool.is_empty():
 		return chosen_pool.pick_random()
 	var pool: Array[String] = []
+	var weights: Array[float] = []
 	for lens: PetStateLens in _pet.state_lenses:
 		if lens.has_nature("正面" if high else "負面") and lens.is_mood_callable() and lens.lens_name != TIRED_LENS:
-			pool.append(lens.lens_name)
+			var weight := mood_pick_weight(lens)
+			if weight > 0.0:
+				pool.append(lens.lens_name)
+				weights.append(weight)
 	if pool.is_empty():
 		return ""
 	if not high and prefer_sad and pool.has(SAD_LENS):
 		return SAD_LENS
 	if high and pool.has(HAPPY_LENS) and pool.has(RELAXED_LENS) and pool.size() == 2:
 		return RELAXED_LENS if randf() < (relax_share if relax_share > 0.0 else 0.5) else HAPPY_LENS
-	return pool.pick_random()
+	var total := 0.0
+	for weight in weights:
+		total += weight
+	var roll := randf() * total
+	for i in pool.size():
+		roll -= weights[i]
+		if roll < 0.0:
+			return pool[i]
+	return pool[pool.size() - 1]
+
+
+## 心情低時隨機挑狀態鏡的權重(2026-10-17):內建「緊張」沿用名稱預設(沒有手動勾「可以被心情門檻叫出來」)時,
+## 權重看性格的緊張傾向(傾向 0.5 以上跟生氣、悲傷一樣常見,0 = 心情再差也不會因此緊張);其他一律 1。
+## 以前三個負面狀態平均挑,不容易緊張的性格心情一差也有三分之一機率緊張。
+func mood_pick_weight(lens: PetStateLens) -> float:
+	if lens.lens_name == NERVOUS_LENS and lens.mood_callable < 0:
+		return clampf(nervous_proneness * 2.0, 0.0, 1.0)
+	return 1.0
 
 
 func _enter_mood_lens(high: bool, prefer_sad: bool) -> bool:
@@ -793,7 +828,10 @@ func _trait_process(delta: float) -> void:
 
 ## 被別隻桌寵邀請(對戰、玩球):內向的太常被邀請(10 分鐘內 3 次)會扣心情。
 ## 記下一次被邀請。回傳這次是否觸發了「內向:被連續邀請」(心情 -3)——呼叫端可以再據此扣邀請者的好感(見 PetFavor.pestered)。
-func note_invited() -> bool:
+## inviter 是「最喜歡」的對象(2026-10-17)就完全不算:內向的也歡迎牠常來找(不扣心情、也不算進「兩小時沒被邀請」的獨處時間)。
+func note_invited(inviter: Node = null) -> bool:
+	if inviter != null and _pet.is_favorite(inviter):
+		return false
 	var now := Time.get_ticks_msec()
 	_last_invited_msec = now
 	_invited_times.append(now)

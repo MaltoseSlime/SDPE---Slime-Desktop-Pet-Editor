@@ -35,6 +35,7 @@ var _time_end_minute: SpinBox
 var _action_row: Control
 var _action_edit: LineEdit
 var _scale_spin: SpinBox
+var _sharp_check: CheckBox
 var _tags_list: ItemList
 var _sprite_label: Label
 var _delete_button: Button
@@ -334,6 +335,16 @@ func _build_form_column() -> Control:
 	_scale_spin = ManagerUi.spin(0.05, FurnitureDef.SCALE_RANGE.x, FurnitureDef.SCALE_RANGE.y)
 	_scale_spin.value_changed.connect(func(_v: float) -> void: _edit_scale())
 	form.add_child(ManagerUi.labeled("縮放倍率", _scale_spin))
+	# 2026-10-18 使用者要求:跟桌寵一樣的像素清晰縮放開關。
+	_sharp_check = CheckBox.new()
+	_sharp_check.text = tr("像素清晰縮放(像素風的圖放大成 1.5 倍這種非整數倍時,每顆像素一樣大、邊緣不糊)")
+	_sharp_check.tooltip_text = tr("跟桌寵管理的同名設定一樣。取消 = 照原本的最近點取樣,非整數倍時像素會有的寬有的窄。整數倍本來就均勻,開不開都一樣;大張的圖(平滑取樣)不受影響。")
+	_sharp_check.toggled.connect(func(on: bool) -> void:
+		if _updating or _current == null:
+			return
+		_current.sharp_pixels = on
+		_mark_dirty(_current.id))
+	form.add_child(_sharp_check)
 	form = _new_card("觸發方式", "「一直啟用」= 只有 normal 這個狀態,平時就是它。「指定時間段」「有桌寵正在做某個動作」「有桌寵正在使用這件家具」「所有座位都被佔滿」= 平時播 normal,條件成立時切到 conditional(例如檯燈的燈亮起來、迪斯可燈開始轉、有人坐著時指示燈亮、滿座時亮起慶祝燈效)。這批的條件種類還不多,之後會照積木能用的條件慢慢補。")
 	_condition_option = OptionButton.new()
 	for kind: String in FurnitureCondition.TYPES:
@@ -447,6 +458,7 @@ func _select(def: FurnitureDef, focus_list: bool) -> void:
 	_time_end_minute.value = int(def.condition.get("end", 0)) % 60
 	_action_edit.text = str(def.condition.get("action", "dance"))
 	_scale_spin.value = def.scale_multiplier
+	_sharp_check.button_pressed = def.sharp_pixels
 	_tags_list.deselect_all()
 	for tag in def.tags:
 		var index := FurnitureDef.TAGS_CATALOG.find(tag)

@@ -46,6 +46,15 @@ extends RefCounted
 ##    接受/拒絕的機率(Pet.game_refusal() 多了 inviter 參數,依對邀請者的好惡微調拒絕機率,廣播式邀請
 ##    的被邀請者端一樣受影響,只是①的「主動挑誰」不受影響)。**還沒接的**(需要先確定「判定框」概念、
 ##    或自主移動目標選擇系統才能接,見待辦備忘):判定框接觸時的心情增減、自主移動靠近/遠離喜歡/討厭的對象。
+##    「最喜歡」(favorite,2026-10-17 使用者要求):pet_prefs 每一列可以再勾一個旗標,跟好惡等級分開存、可以勾好幾隻
+##    (ALL_PETS_TARGET 那列不能勾)。最喜歡的對象是最常跟隨、一起休息、一起用家具、找來對戰的對象,對戰輸了也不扣好感;
+##    內向的桌寵對最喜歡的對象例外(被牠頻繁邀請、貼在旁邊都不會不舒服)。行為細節見 Pet.is_favorite() 的呼叫點。
+##    「不交互」(no_interact,2026-10-17 使用者要求):字面意義上不跟那隻互動、也不提及(等於自動加上不提及)。
+## 自動挑對象時排除(Pet.apart_from:跟隨、碰觸反應、邀請對戰與全體對戰、一起玩球、坐旁邊);
+##    被設了不交互的對象邀請一律拒絕。跟「最喜歡」互斥。積木裡明確填了代號的指令照做(使用者自己指定的)。
+##    「全部角色」那列也能勾(對沒勾 ⭐ 的所有角色都不交互)。預設只是自己單方面不理對方;交互行為的
+##    hide_from_ignored(「也避免被不交互的對象偵測」)打開後,被自己不交互的對象也當作看不到自己
+##    (不跟隨、不邀請、不提及、不靠近、碰到沒反應),新角色只要設自己這邊,不用回頭改其他角色。
 ## 詳細編輯(條件、選項、連續動作…)要到網頁端積木編輯器;這裡只提供最常用、最簡單的部分。所有欄位讀進來都會驗證與夾範圍。
 
 const MAX_TEXT := 120
@@ -162,11 +171,13 @@ static func clean(raw: Variant) -> Dictionary:
 			var level_raw: Variant = entry.get("level")
 			var level := int(level_raw) if (level_raw is int or level_raw is float) else 0
 			var no_mention := bool(entry.get("no_mention", false))
-			if target == "" or not PET_PREF_LEVELS.has(level) or (level == 0 and not no_mention) or seen_targets.has(target):
+			var no_interact := bool(entry.get("no_interact", false))
+			var favorite := bool(entry.get("favorite", false)) and target != ALL_PETS_TARGET and not no_interact
+			if target == "" or not PET_PREF_LEVELS.has(level) or (level == 0 and not no_mention and not favorite and not no_interact) or seen_targets.has(target):
 				continue
 			seen_targets[target] = true
-			result["pet_prefs"].append({"target": target, "name": _text(entry.get("name", target)), "level": level, "no_mention": no_mention})
-	for key in ["ignore_props", "ignore_furniture", "no_follow_target", "no_follow_source", "show_bubble_in_chatroom", "no_topic_mention", "silent"]:
+			result["pet_prefs"].append({"target": target, "name": _text(entry.get("name", target)), "level": level, "no_mention": no_mention, "favorite": favorite, "no_interact": no_interact})
+	for key in ["ignore_props", "ignore_furniture", "no_follow_target", "no_follow_source", "show_bubble_in_chatroom", "no_topic_mention", "silent", "hide_from_ignored"]:
 		var value_raw: Variant = raw.get(key, false)
 		result[key] = value_raw if value_raw is bool else false
 	var direction := str(raw.get("sms_direction", "left"))
@@ -195,6 +206,35 @@ static func direct_pet_pref_level(rules: Dictionary, target: String) -> int:
 		if str(entry.get("target", "")) == target:
 			return int(entry.get("level", 0))
 	return 0
+
+
+## 這隻桌寵(tag)是不是「最喜歡」的對象(ALL_PETS_TARGET 不算)。
+static func is_favorite(rules: Dictionary, target: String) -> bool:
+	if target == "" or target == ALL_PETS_TARGET:
+		return false
+	for entry: Dictionary in rules.get("pet_prefs", []):
+		if str(entry.get("target", "")) == target:
+			return bool(entry.get("favorite", false))
+	return false
+
+
+## 這一列自己有沒有勾「不交互」(只看剛好指定這個 tag 的項目,UI 顯示用;target 可以是 ALL_PETS_TARGET)。
+static func is_no_interact(rules: Dictionary, target: String) -> bool:
+	if target == "":
+		return false
+	for entry: Dictionary in rules.get("pet_prefs", []):
+		if str(entry.get("target", "")) == target:
+			return bool(entry.get("no_interact", false))
+	return false
+
+
+## 實際上對這隻(tag)不交互嗎:自己那列勾了就是;沒勾的話「全部角色」那列勾了也算,但最喜歡的對象例外。
+static func effective_no_interact(rules: Dictionary, target: String) -> bool:
+	if target == "" or target == ALL_PETS_TARGET:
+		return false
+	if is_no_interact(rules, target):
+		return true
+	return is_no_interact(rules, ALL_PETS_TARGET) and not is_favorite(rules, target)
 
 
 ## 對這隻特定桌寵(tag)的「有效」好惡等級:優先找指定這個 tag 的項目,找不到就退回 ALL_PETS_TARGET

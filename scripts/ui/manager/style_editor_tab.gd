@@ -37,7 +37,7 @@ var _border_spin: SpinBox
 var _radius_spin: SpinBox
 var _scale_option: OptionButton
 var _font_option: OptionButton
-var _font_scale_option: OptionButton
+var _font_size_spin: SpinBox
 var _dialogue_locale_option: OptionButton
 var _wait_spin: SpinBox
 var _chat_check: CheckBox
@@ -76,6 +76,8 @@ var _fx_trail_spin: SpinBox
 var _effects_check: CheckBox
 var _effects_auto_check: CheckBox
 var _link_options: Dictionary = {}
+## 好感度增減時的表現(PetEffects.favor_feedback):kind → {effect: OptionButton, layer: OptionButton, seconds: SpinBox}。
+var _favor_widgets: Dictionary = {}
 var _trail_option: OptionButton
 var _sleep_z_check: CheckBox
 var _status_energy_check: CheckBox
@@ -158,12 +160,11 @@ func _ready() -> void:
 	_font_option.item_selected.connect(_on_field_changed)
 	form.add_child(ManagerUi.labeled("預設對話字體", _font_option))
 	form.add_child(ManagerUi.hint_row("說明", "黑體(源樣黑體)、圓體(粉圓體)、像素體 Silver,標楷體用系統字型(沒有則退回預設字型);自訂上傳字型之後由素材匯入流程加入。"))
-	_font_scale_option = OptionButton.new()
-	for step in PetUiStyle.SCALE_STEPS:
-		_font_scale_option.add_item("%d%%" % step)
-	_font_scale_option.item_selected.connect(_on_field_changed)
-	form.add_child(ManagerUi.labeled("字級", _font_scale_option))
-	form.add_child(ManagerUi.hint_row("說明", "只放大/縮小文字本身,不像「介面縮放率」連框體、間距一起變大;像素體 Silver 看起來比其他字體小是已知現象,已經私底下補了視覺大小,不用為了 Silver 特別調高這裡。"))
+	# 2026-10-17 使用者要求字級用數字(跟編輯器外觀的字級一樣)而不是百分比;存檔照舊是百分比(PetUiStyle.font_scale)。
+	_font_size_spin = ManagerUi.spin(1.0, PetUiStyle.MIN_FONT_SIZE, PetUiStyle.MAX_FONT_SIZE)
+	_font_size_spin.value_changed.connect(_on_field_changed)
+	form.add_child(ManagerUi.labeled("字級", _font_size_spin))
+	form.add_child(ManagerUi.hint_row("說明", "預設 16。只放大/縮小文字本身,不像「介面縮放率」連框體、間距一起變大;像素體 Silver 看起來比其他字體小是已知現象,已經私底下補了視覺大小,不用為了 Silver 特別調高這裡。"))
 	_dialogue_locale_option = OptionButton.new()
 	_dialogue_locale_option.add_item(tr("預設(原始語言)"))
 	_dialogue_locale_option.set_item_metadata(0, "")
@@ -397,6 +398,29 @@ func _ready() -> void:
 		form.add_child(ManagerUi.labeled(str(PetEffects.LINK_LABELS[kind]), link_option))
 
 	form.add_child(HSeparator.new())
+	form.add_child(ManagerUi.heading_with_info("好感度增減時", "這隻桌寵對其他桌寵、或對你的好感度增加/減少時(一起玩、一起休息、對戰、被摸摸…)播的特效與暫時顯示的圖層。特效選「預設」= 原本的做法:對桌寵的好感隨機挑小愛心、閃光這類(減少時是憂愁、心煩意亂),對你的好感不播;圖層要先在精靈圖編輯器的「圖層」頁新增。上面「啟用角色特效」關掉時特效不播,圖層照常顯示。"))
+	for kind: String in PetEffects.FAVOR_KINDS:
+		var effect_option := OptionButton.new()
+		effect_option.add_item(tr("預設"))
+		effect_option.add_item(tr("(不播)"))
+		for effect_label in PetEffects.CATALOG:
+			effect_option.add_item(effect_label)
+		effect_option.item_selected.connect(_on_field_changed)
+		form.add_child(ManagerUi.labeled(str(PetEffects.FAVOR_KIND_LABELS[kind]), effect_option))
+		var favor_layer_row := HBoxContainer.new()
+		var layer_option := OptionButton.new()
+		layer_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		layer_option.item_selected.connect(_on_field_changed)
+		favor_layer_row.add_child(layer_option)
+		var seconds_spin := ManagerUi.spin(0.5, PetEffects.FAVOR_LAYER_SECONDS.x, PetEffects.FAVOR_LAYER_SECONDS.y)
+		seconds_spin.suffix = tr("秒")
+		seconds_spin.custom_minimum_size.x = 90.0
+		seconds_spin.value_changed.connect(_on_field_changed)
+		favor_layer_row.add_child(seconds_spin)
+		form.add_child(ManagerUi.labeled(str(PetEffects.FAVOR_LAYER_LABELS[kind]), favor_layer_row))
+		_favor_widgets[kind] = {"effect": effect_option, "layer": layer_option, "seconds": seconds_spin}
+
+	form.add_child(HSeparator.new())
 	form.add_child(ManagerUi.heading("特效外觀(顏色、大小、密度)"))
 	_fx_option = OptionButton.new()
 	for effect_label in PetEffects.CATALOG:
@@ -462,8 +486,43 @@ func _ready() -> void:
 
 
 func set_pet(pet: Node) -> void:
+	if _pet != null and is_instance_valid(_pet) and _pet.has_signal("appearance_changed") and _pet.appearance_changed.is_connected(_on_pet_appearance_changed):
+		_pet.appearance_changed.disconnect(_on_pet_appearance_changed)
 	_pet = pet
+	# 判定框欄位是「目前穿的那套外觀」的:視窗開著時換外觀,欄位要跟著換,不然接著改會寫到另一套去。
+	if _pet != null and _pet.has_signal("appearance_changed"):
+		_pet.appearance_changed.connect(_on_pet_appearance_changed)
 	_load_form()
+
+
+func _on_pet_appearance_changed(_id: String) -> void:
+	var was_loading := _loading
+	_loading = true
+	_fill_hitbox()
+	_fill_favor_widgets()   # 換外觀,圖層清單也跟著換
+	_loading = was_loading
+
+
+## 判定框欄位填入目前這套外觀手動設的值(每套外觀分開記,見 Pet.manual_hitbox)。
+func _fill_hitbox() -> void:
+	var manual: Array = _pet.manual_hitbox()
+	_hitbox_spins[0].value = (manual[0] as Vector2).x
+	_hitbox_spins[1].value = (manual[0] as Vector2).y
+	_hitbox_spins[2].value = (manual[1] as Vector2).x
+	_hitbox_spins[3].value = (manual[1] as Vector2).y
+	_hitbox_auto_label.text = _hitbox_status()
+
+
+func _hitbox_status() -> String:
+	var text := tr("目前生效:%d × %d(偏移 %d, %d)") % [_pet.effective_hitbox_size().x, _pet.effective_hitbox_size().y, _pet.effective_hitbox_offset().x, _pet.effective_hitbox_offset().y]
+	if str(_pet.appearance_id) == "":
+		return text
+	var look := PetAppearances.name_of(_pet.pack_folder(), _pet.appearance_id)
+	if _pet.appearance_independent:
+		text += "\n" + tr("正在設定外觀「%s」自己的判定框(這套外觀的尺寸與判定框是獨立設定,預設外觀的不受影響)") % look
+	else:
+		text += "\n" + tr("外觀「%s」跟著這裡的縮放與判定框走(要分開設定:角色庫 → 外觀清單打開這套的「獨立設定」)") % look
+	return text
 
 
 func _load_form() -> void:
@@ -479,7 +538,7 @@ func _load_form() -> void:
 	_radius_spin.value = style.corner_radius
 	_scale_option.select(PetUiStyle.SCALE_STEPS.find(PetUiStyle.nearest_scale_step(style.ui_scale)))
 	_font_option.select(maxi(UiFonts.FONT_NAMES.find(style.default_font), 0))
-	_font_scale_option.select(PetUiStyle.SCALE_STEPS.find(PetUiStyle.nearest_scale_step(style.font_scale)))
+	_font_size_spin.value = style.font_size()
 	for i in _dialogue_locale_option.item_count:
 		if str(_dialogue_locale_option.get_item_metadata(i)) == _pet.dialogue_locale:
 			_dialogue_locale_option.select(i)
@@ -512,6 +571,7 @@ func _load_form() -> void:
 			if PetEffects.resolve(PetEffects.CATALOG[i]) == linked_name:
 				catalog_index = i
 		loaded_option.select(catalog_index + 1)
+	_fill_favor_widgets()
 	_effects_check.button_pressed = _pet.effects.enabled
 	_effects_auto_check.button_pressed = _pet.effects.auto_enabled
 	_trail_option.select(maxi(PetEffects.TRAIL_MODES.find(_pet.effects.trail_mode), 0))
@@ -528,11 +588,7 @@ func _load_form() -> void:
 	_breath_check.button_pressed = _pet.breathing_enabled
 	_sharp_check.button_pressed = _pet.sharp_pixels_enabled
 	_sharp_check.disabled = not _pet.uses_pixel_sampling()
-	_hitbox_spins[0].value = _pet.hitbox_size.x
-	_hitbox_spins[1].value = _pet.hitbox_size.y
-	_hitbox_spins[2].value = _pet.hitbox_offset.x
-	_hitbox_spins[3].value = _pet.hitbox_offset.y
-	_hitbox_auto_label.text = tr("目前生效:%d × %d(偏移 %d, %d)") % [_pet.effective_hitbox_size().x, _pet.effective_hitbox_size().y, _pet.effective_hitbox_offset().x, _pet.effective_hitbox_offset().y]
+	_fill_hitbox()
 	_voice_pitch_spin.value = _pet.voice_pitch
 	_voice_volume_spin.value = roundf(_pet.voice_volume * 100.0)
 	_update_voice_label()
@@ -545,6 +601,36 @@ const CARD_WIDTH := 430.0
 
 
 ## 新增一張功能板塊卡片(樣式見 ManagerUi.card:可收合的標題 + 內容區),回傳內容區(往裡面加控制項)。
+## 好感度增減時的表現:特效下拉(預設 / 不播 / 各特效)、圖層下拉(不顯示 / 這隻桌寵的圖層;存的圖層找不到也保留原名)、秒數。
+func _fill_favor_widgets() -> void:
+	var layers: Array[String] = _pet.overlays().layer_names() if _pet.overlays() != null else ([] as Array[String])
+	for kind: String in PetEffects.FAVOR_KINDS:
+		var widgets: Dictionary = _favor_widgets[kind]
+		var setting: Dictionary = _pet.effects.favor_setting(kind)
+		var effect_index := 0
+		if str(setting["effect"]) == PetEffects.FAVOR_NO_EFFECT:
+			effect_index = 1
+		else:
+			for i in PetEffects.CATALOG.size():
+				if str(setting["effect"]) != "" and PetEffects.resolve(PetEffects.CATALOG[i]) == str(setting["effect"]):
+					effect_index = i + 2
+		(widgets["effect"] as OptionButton).select(effect_index)
+		var layer_option: OptionButton = widgets["layer"]
+		layer_option.clear()
+		layer_option.add_item(tr("(不顯示圖層)"))
+		layer_option.set_item_metadata(0, "")
+		var current := str(setting["layer"])
+		var names := layers.duplicate()
+		if current != "" and not names.has(current):
+			names.append(current)
+		for layer_name in names:
+			layer_option.add_item(layer_name if layers.has(layer_name) else tr("%s(找不到這個圖層)") % layer_name)
+			layer_option.set_item_metadata(layer_option.item_count - 1, layer_name)
+		layer_option.select(names.find(current) + 1 if current != "" else 0)
+		(widgets["seconds"] as SpinBox).value = float(setting["seconds"])
+		(widgets["seconds"] as SpinBox).editable = current != ""
+
+
 func _new_card(title_text: String) -> VBoxContainer:
 	var built := ManagerUi.card(title_text, [], CARD_WIDTH)
 	cards[title_text] = built["card"]
@@ -653,7 +739,7 @@ func _on_field_changed(_value: Variant = null) -> void:
 	style.corner_radius = int(_radius_spin.value)
 	style.ui_scale = PetUiStyle.SCALE_STEPS[maxi(_scale_option.selected, 0)]
 	style.default_font = UiFonts.FONT_NAMES[maxi(_font_option.selected, 0)]
-	style.font_scale = PetUiStyle.SCALE_STEPS[maxi(_font_scale_option.selected, 0)]
+	style.set_font_size(int(_font_size_spin.value))
 	_pet.dialogue_locale = str(_dialogue_locale_option.get_item_metadata(maxi(_dialogue_locale_option.selected, 0)))
 	style.option_wait_seconds = _wait_spin.value
 	var chatroom_rules: Dictionary = (_pet.interaction_rules as Dictionary).duplicate(true)
@@ -691,16 +777,21 @@ func _on_field_changed(_value: Variant = null) -> void:
 		_pet.set_breathing(_breath_check.button_pressed)
 	if _pet.sharp_pixels_enabled != _sharp_check.button_pressed:
 		_pet.set_sharp_pixels(_sharp_check.button_pressed)
-	var box_width := _hitbox_spins[0].value
-	var box_height := _hitbox_spins[1].value
-	_pet.hitbox_size = Vector2(box_width, box_height) if box_width > 0.0 and box_height > 0.0 else Vector2.ZERO
-	_pet.hitbox_offset = Vector2(_hitbox_spins[2].value, _hitbox_spins[3].value)
-	_hitbox_auto_label.text = tr("目前生效:%d × %d(偏移 %d, %d)") % [_pet.effective_hitbox_size().x, _pet.effective_hitbox_size().y, _pet.effective_hitbox_offset().x, _pet.effective_hitbox_offset().y]
+	_pet.set_manual_hitbox(Vector2(_hitbox_spins[0].value, _hitbox_spins[1].value), Vector2(_hitbox_spins[2].value, _hitbox_spins[3].value))
+	_hitbox_auto_label.text = _hitbox_status()
 	_pet.auto_dance_follow_enabled = _dance_follow_check.button_pressed
 	_pet.auto_unmute_enabled = _unmute_check.button_pressed
 	for kind: String in PetEffects.LINK_KEYS:
 		var chosen: OptionButton = _link_options[kind]
 		_pet.effects.set_interaction_link(kind, "" if chosen.selected <= 0 else PetEffects.resolve(PetEffects.CATALOG[chosen.selected - 1]))
+	for kind: String in PetEffects.FAVOR_KINDS:
+		var widgets: Dictionary = _favor_widgets[kind]
+		var effect_index: int = (widgets["effect"] as OptionButton).selected
+		var effect_name := "" if effect_index <= 0 else (PetEffects.FAVOR_NO_EFFECT if effect_index == 1 else PetEffects.resolve(PetEffects.CATALOG[effect_index - 2]))
+		var layer_option: OptionButton = widgets["layer"]
+		var layer_name := str(layer_option.get_item_metadata(layer_option.selected)) if layer_option.selected >= 0 else ""
+		_pet.effects.set_favor_setting(kind, effect_name, layer_name, (widgets["seconds"] as SpinBox).value)
+		(widgets["seconds"] as SpinBox).editable = layer_name != ""
 	_pet.effects.enabled = _effects_check.button_pressed
 	_pet.effects.auto_enabled = _effects_auto_check.button_pressed
 	_pet.effects.set_trail_mode(PetEffects.TRAIL_MODES[maxi(_trail_option.selected, 0)])

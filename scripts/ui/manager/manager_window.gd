@@ -28,6 +28,7 @@ var _apply_guard: ConfirmationDialog
 
 func setup() -> void:
 	setup_floating(tr("桌寵管理"), Vector2i(1000, 700), Vector2i(860, 520))
+	_watch_text_fields()
 	_build()
 	_populate_pets()
 	_take_snapshots()
@@ -37,11 +38,35 @@ func setup() -> void:
 ## 見 Pet.ghost_edit),不掃 "pets" 群組、不給切換桌寵的下拉選單(只有一隻可選沒有意義,乾脆藏起來)。
 func setup_for_single_pet(pet: Node, title: String) -> void:
 	setup_floating(title, Vector2i(1000, 700), Vector2i(860, 520))
+	_watch_text_fields()
 	_build()
 	_pet_option.visible = false
 	_pets = [pet]
 	_on_pet_selected(0)
 	_take_snapshots()
+
+
+## 2026-10-17 使用者要求:桌寵管理裡(含從這裡開的子視窗)的文字欄位,右鍵選單多一項「語法字典…」,插入會插到按右鍵的那一格。
+## 數字欄位(SpinBox 裡的 LineEdit)與語法字典自己的搜尋框不加。
+func _watch_text_fields() -> void:
+	var on_added := func(node: Node) -> void:
+		if (node is LineEdit or node is TextEdit) and is_ancestor_of(node):
+			_add_syntax_menu_later.call_deferred(node)
+	get_tree().node_added.connect(on_added)
+	tree_exiting.connect(func() -> void:
+		if get_tree().node_added.is_connected(on_added):
+			get_tree().node_added.disconnect(on_added))
+
+
+func _add_syntax_menu_later(node: Node) -> void:
+	if not is_instance_valid(node) or not node.is_inside_tree() or node.get_parent() is SpinBox:
+		return
+	var parent := node.get_parent()
+	while parent != null and parent != self:
+		if parent is SyntaxDictionaryWindow:
+			return
+		parent = parent.get_parent()
+	ManagerUi.add_syntax_menu(node as Control)
 
 
 func _build() -> void:
@@ -185,14 +210,34 @@ func _build_floating_bar() -> void:
 func _populate_pets() -> void:
 	_pets.clear()
 	_pet_option.clear()
+	var duplicates := PetReferences.duplicate_names(PetReferences.known_pets(get_tree()))
 	for pet in get_tree().get_nodes_in_group("pets"):
 		_pets.append(pet)
-		_pet_option.add_item(pet.get_label())
+		_pet_option.add_item(PetReferences.pet_editor_label(pet, duplicates))
 	if _pets.is_empty():
 		_show_message("場上目前沒有桌寵。")
 		return
 	_pet_option.select(0)
 	_on_pet_selected(0)
+
+
+## 切到指定的桌寵(從它的右鍵選單開的,見 DesktopShell._open_manager);名單裡沒有它(例如視窗開著之後才放出來的)就重新掃一次。
+## 回傳有沒有切到。各分頁改動是即時生效的,換桌寵不會弄丟還沒儲存的變更(跟手動切下拉選單一樣)。
+func select_pet(pet: Node) -> bool:
+	if not _pet_option.visible:
+		return false   # 角色庫的單隻模式只有這一隻
+	var index := _pets.find(pet)
+	if index < 0 and pet.is_in_group("pets"):
+		_pets.append(pet)
+		_pet_option.add_item(PetReferences.pet_editor_label(pet, PetReferences.duplicate_names(PetReferences.known_pets(get_tree()))))
+		_snapshots[pet] = PetProfile.snapshot_pet(pet)
+		index = _pets.size() - 1
+	if index < 0:
+		return false
+	if _pet_option.selected != index:
+		_pet_option.select(index)
+		_on_pet_selected(index)
+	return true
 
 
 func _on_pet_selected(index: int) -> void:

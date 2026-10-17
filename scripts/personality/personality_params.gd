@@ -55,6 +55,7 @@ const SPECS := {
 	"clingy_mood_rule": {"kind": "bool", "default": false, "label": "黏人的心情規則(超過兩小時沒有任何互動扣一次心情,平時互動多加一點)"},
 	"introvert_mood_rule": {"kind": "bool", "default": false, "label": "內向的心情規則(超過兩小時沒被邀請加一次心情,太常被邀請扣心情)"},
 	"wake_mood_penalty": {"kind": "float", "min": 0.0, "max": 20.0, "default": 0.0, "label": "睡著時被使用者叫醒扣多少心情(懶惰)"},
+	"drag_affinity": {"kind": "bool", "default": false, "label": "被拖曳時對使用者的好感度增加(友善、活潑、黏人;跟摸摸一樣最少量、冷卻 20 分鐘)"},
 	"idle_sit_chance": {"kind": "float", "min": 0.0, "max": 1.0, "default": 0.0, "label": "沒事自己坐下休息一下的意願(不疲憊時也會,每秒機率,0 = 不會;要有沒在忙、姿態允許)"},
 	# --- 對桌寵的好感增減(見 PetFavor):倍率乘在好惡等級算出來的量上,跟使用者好感度/好惡等級本身無關 ---
 	"favor_gain_mult": {"kind": "float", "min": 0.5, "max": 2.0, "default": 1.0, "label": "好感度追加倍率(對其他桌寵的好感增加時,乘在量上)"},
@@ -213,6 +214,8 @@ static func get_value(pet: Node, key: String) -> Variant:
 			return pet.vitality.introvert_mood_rule
 		"wake_mood_penalty":
 			return pet.vitality.wake_mood_penalty
+		"drag_affinity":
+			return pet.vitality.drag_affinity
 		"idle_sit_chance":
 			return pet.vitality.idle_sit_chance
 		"favor_gain_mult":
@@ -323,6 +326,8 @@ static func set_value(pet: Node, key: String, value: Variant) -> void:
 			pet.vitality.introvert_mood_rule = value
 		"wake_mood_penalty":
 			pet.vitality.wake_mood_penalty = value
+		"drag_affinity":
+			pet.vitality.drag_affinity = value
 		"idle_sit_chance":
 			pet.vitality.idle_sit_chance = value
 		"favor_gain_mult":

@@ -322,6 +322,51 @@ func apply_links(data: Variant) -> void:
 			set_interaction_link(str(kind), str(data[kind]))
 
 
+## 好感度增減時的表現(2026-10-17 使用者要求,桌寵管理「角色特效」卡片):kind = "gain"(增加)/ "loss"(減少),
+## 各自 {effect: 特效代號("" = 預設,"none" = 不播), layer: 暫時顯示的圖層名稱("" = 不顯示), seconds: 圖層顯示秒數}。
+## 「預設」= 原本的做法:對桌寵的好感隨機挑幾種(見 PetFavor._play_feedback),對使用者的好感不播。
+## 對桌寵、對使用者的好感增減都套用;特效總開關(enabled)關掉時只播圖層。見 PetFavor.play_favor_setting。
+const FAVOR_KINDS: Array[String] = ["gain", "loss"]
+const FAVOR_KIND_LABELS := {"gain": "好感度增加時的特效", "loss": "好感度減少時的特效"}
+const FAVOR_LAYER_LABELS := {"gain": "好感度增加時的圖層", "loss": "好感度減少時的圖層"}
+const FAVOR_NO_EFFECT := "none"
+const FAVOR_LAYER_SECONDS := Vector2(0.5, 600.0)
+var favor_feedback := {}
+
+
+func favor_setting(kind: String) -> Dictionary:
+	var entry: Dictionary = favor_feedback.get(kind, {})
+	return {"effect": str(entry.get("effect", "")), "layer": str(entry.get("layer", "")), "seconds": float(entry.get("seconds", 2.0))}
+
+
+func set_favor_setting(kind: String, effect_name: String, layer_name: String, seconds: float) -> void:
+	if not FAVOR_KINDS.has(kind):
+		return
+	var effect := FAVOR_NO_EFFECT if effect_name == FAVOR_NO_EFFECT else resolve(effect_name)
+	var layer := layer_name.strip_edges().left(40)
+	var secs := clampf(seconds, FAVOR_LAYER_SECONDS.x, FAVOR_LAYER_SECONDS.y)
+	if effect == "" and layer == "":
+		favor_feedback.erase(kind)
+	else:
+		favor_feedback[kind] = {"effect": effect, "layer": layer, "seconds": secs}
+
+
+## 存檔用:只含有設定的。
+func favor_to_dict() -> Dictionary:
+	return favor_feedback.duplicate(true)
+
+
+func apply_favor(data: Variant) -> void:
+	favor_feedback = {}
+	if not data is Dictionary:
+		return
+	for kind: String in FAVOR_KINDS:
+		var entry: Variant = (data as Dictionary).get(kind)
+		if entry is Dictionary:
+			var seconds: Variant = (entry as Dictionary).get("seconds", 2.0)
+			set_favor_setting(kind, str((entry as Dictionary).get("effect", "")), str((entry as Dictionary).get("layer", "")), float(seconds) if (seconds is float or seconds is int) else 2.0)
+
+
 ## 存檔用:只含和預設不同的特效。
 func styles_to_dict() -> Dictionary:
 	return styles.duplicate(true)

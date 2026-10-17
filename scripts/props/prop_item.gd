@@ -1,7 +1,7 @@
 class_name PropItem
 extends CharacterBody2D
 ## 丟在桌面上的一個小道具(丟入拾取模式):套用和角色相同的重力與平臺碰撞(可以落在動態平臺上),用獨立的「道具碰撞層」不和角色本體、視窗邊界牆互相干擾。
-## 原點在底邊中心(腳底)。有圖就畫圖(縮成最長邊 SIZE),沒有圖就用程式畫替代圖示(色塊 + 名稱第一個字)。
+## 原點在底邊中心(腳底)。有圖就畫圖(縮成最長邊 SIZE × 縮放倍率),沒有圖就用程式畫替代圖示(色塊 + 名稱第一個字)。
 ## 是「Cutout」群組成員:提供自己的形狀給穿透多邊形,才看得到。
 
 const Layers := preload("res://scripts/common/physics_layers.gd")
@@ -58,28 +58,45 @@ var user_touch_msec := -100000
 var _drag_offset := Vector2.ZERO
 var _drag_velocity := Vector2.ZERO
 var _last_drag_position := Vector2.ZERO
+## 2026-10-18 這件道具實際的大小:SIZE × 道具的縮放倍率(PropDef.scale_multiplier),球的半徑跟著。
+var size := SIZE
+var ball_radius := BALL_RADIUS
+## 簡單版貼圖(一張圖)畫在自己的 Sprite2D 上,取樣方式與清晰像素材質只套在圖上(見 _update_sampling),不影響替代圖示與拖曳光圈。
+var _image: Sprite2D
 
 
 func setup(prop_def: PropDef, prop_texture: Texture2D) -> void:
 	def = prop_def
 	texture = prop_texture
+	size = SIZE * def.scale_multiplier
+	ball_radius = size * 0.45
 	collision_layer = Layers.PROP
 	collision_mask = Layers.PLATFORM | Layers.BOUNDARY_WALL
 	var shape_node := CollisionShape2D.new()
 	if def.shape == "ball":
 		var circle := CircleShape2D.new()
-		circle.radius = BALL_RADIUS
+		circle.radius = ball_radius
 		shape_node.shape = circle
-		shape_node.position = Vector2(0.0, -BALL_RADIUS)
+		shape_node.position = Vector2(0.0, -ball_radius)
 	else:
 		var shape := RectangleShape2D.new()
-		shape.size = Vector2(SIZE * 0.8, SIZE * 0.8)
+		shape.size = Vector2(size * 0.8, size * 0.8)
 		shape_node.shape = shape
-		shape_node.position = Vector2(0.0, -SIZE * 0.4)
+		shape_node.position = Vector2(0.0, -size * 0.4)
 	add_child(shape_node)
 	add_to_group("Cutout")
 	add_to_group("props")
 	z_index = 5
+	if texture != null:
+		_image = Sprite2D.new()
+		_image.texture = texture
+		var texture_size := texture.get_size()
+		var diameter := ball_radius * 2.0 if def.shape == "ball" else size
+		var factor := diameter / maxf(maxf(texture_size.x, texture_size.y), 1.0)
+		_image.scale = Vector2.ONE * factor
+		_image.position = Vector2(0.0, -ball_radius) if def.shape == "ball" else Vector2(0.0, -texture_size.y * factor * 0.5)
+		add_child(_image)
+		SharpPixel.apply_to(_image, SharpPixel.texture_smooth(texture), def.sharp_pixels, factor)
 	if def.has_light():
 		var glow := PropLight.new()
 		add_child(glow)
@@ -109,6 +126,10 @@ func _physics_process(delta: float) -> void:
 		rest_time += delta
 	if def != null and def.timeout_seconds > 0.0 and rest_time > def.timeout_seconds - WARN_SECONDS:
 		queue_redraw()
+		if _image != null:
+			_image.self_modulate.a = 0.55 + 0.45 * absf(sin((rest_time - (def.timeout_seconds - WARN_SECONDS)) * PI * 1.2))
+	elif _image != null:
+		_image.self_modulate.a = 1.0
 
 
 ## 圓球的一步:重力、彈跳(撞到地面往上彈、撞牆反彈)、滾動摩擦與轉動。
@@ -126,9 +147,11 @@ func _ball_step(delta: float) -> void:
 	if landed:
 		velocity.x = move_toward(velocity.x, 0.0, BALL_ROLL_FRICTION * delta)
 	if absf(velocity.x) > 1.0 or not landed:
-		_roll = fposmod(_roll + velocity.x * delta / BALL_RADIUS, TAU)
+		_roll = fposmod(_roll + velocity.x * delta / ball_radius, TAU)
 		if _sprite != null:
 			_sprite.rotation = _roll
+		if _image != null:
+			_image.rotation = _roll
 		queue_redraw()
 
 
@@ -149,7 +172,7 @@ func being_played() -> bool:
 	return Time.get_ticks_msec() < play_until_msec
 
 
-## 裝上進階貼圖(SpriteFrames,需要 default_0);比例縮到最長邊 SIZE,軸心(腳底)對齊道具原點。
+## 裝上進階貼圖(SpriteFrames,需要 default_0);比例縮到最長邊 size,軸心(腳底)對齊道具原點。
 func set_sprite_frames(frames: SpriteFrames) -> void:
 	if frames == null or not frames.has_animation(&"default_0"):
 		return
@@ -159,9 +182,13 @@ func set_sprite_frames(frames: SpriteFrames) -> void:
 	var body: Variant = frames.get_meta("body_size") if frames.has_meta("body_size") else cell
 	var body_size: Vector2 = body if body is Vector2 and body != Vector2.ZERO else cell
 	var below := float(frames.get_meta("ground_below")) if frames.has_meta("ground_below") else 0.0
-	var factor := SIZE / maxf(maxf(body_size.x, body_size.y), 1.0)
+	var factor := size / maxf(maxf(body_size.x, body_size.y), 1.0)
 	_sprite.scale = Vector2.ONE * factor
-	_sprite.position = Vector2(0.0, -SIZE * 0.5) if def.shape == "ball" else Vector2(0.0, (-cell.y * 0.5 + below) * factor)   # 球以中心為軸轉動
+	SharpPixel.apply_to(_sprite, SharpPixel.frames_smooth(frames), def.sharp_pixels, factor)
+	if _image != null:
+		_image.queue_free()   # 進階貼圖取代簡單版的一張圖
+		_image = null
+	_sprite.position = Vector2(0.0, -size * 0.5) if def.shape == "ball" else Vector2(0.0, (-cell.y * 0.5 + below) * factor)   # 球以中心為軸轉動
 	_sprite.animation_finished.connect(_on_sprite_finished)
 	add_child(_sprite)
 	_enter_sprite_state("default")
@@ -331,7 +358,7 @@ func begin_drag(mouse: Vector2) -> void:
 
 ## 跟著滑鼠(夾在 bounds 裡),並記下速度,放開時當作丟出去的初速。
 func drag_step(mouse: Vector2, delta: float, bounds: Rect2) -> void:
-	var target := Vector2(clampf(mouse.x + _drag_offset.x, bounds.position.x, bounds.end.x), clampf(mouse.y + _drag_offset.y, bounds.position.y + SIZE, bounds.end.y))
+	var target := Vector2(clampf(mouse.x + _drag_offset.x, bounds.position.x, bounds.end.x), clampf(mouse.y + _drag_offset.y, bounds.position.y + size, bounds.end.y))
 	_drag_velocity = _drag_velocity.lerp((target - _last_drag_position) / maxf(delta, 0.001), 0.35)
 	_last_drag_position = target
 	global_position = target
@@ -347,7 +374,7 @@ func end_drag() -> void:
 
 ## 全域座標的碰觸範圍(拾取判定用)。
 func touch_rect() -> Rect2:
-	return Rect2(global_position - Vector2(SIZE * 0.5, SIZE), Vector2(SIZE, SIZE))
+	return Rect2(global_position - Vector2(size * 0.5, size), Vector2(size, size))
 
 
 func get_cutout_polygons() -> Array:
@@ -364,22 +391,16 @@ func _draw() -> void:
 	if def.timeout_seconds > 0.0 and rest_time > def.timeout_seconds - WARN_SECONDS:
 		alpha = 0.55 + 0.45 * absf(sin((rest_time - (def.timeout_seconds - WARN_SECONDS)) * PI * 1.2))
 	if dragging:
-		draw_arc(Vector2(0.0, -SIZE * 0.5), SIZE * 0.75, 0.0, TAU, 32, Color(1, 1, 1, 0.6), 2.0, true)
-	if _sprite != null:
-		return
+		draw_arc(Vector2(0.0, -size * 0.5), size * 0.75, 0.0, TAU, 32, Color(1, 1, 1, 0.6), 2.0, true)
+	if _sprite != null or _image != null:
+		return   # 圖畫在自己的節點上(_sprite / _image)
 	if def.shape == "ball":
 		_draw_ball(alpha)
-		return
-	if texture != null:
-		var texture_size := texture.get_size()
-		var factor := SIZE / maxf(maxf(texture_size.x, texture_size.y), 1.0)
-		var draw_size := texture_size * factor
-		draw_texture_rect(texture, Rect2(Vector2(-draw_size.x * 0.5, -draw_size.y), draw_size), false, Color(1, 1, 1, alpha))
 		return
 	# 沒有圖:程式畫的替代圖示。
 	var hue := float(absi(def.display_name.hash()) % 360) / 360.0
 	var fill := Color.from_hsv(hue, 0.45, 0.95, alpha)
-	var box := Rect2(Vector2(-SIZE * 0.5, -SIZE), Vector2(SIZE, SIZE))
+	var box := Rect2(Vector2(-size * 0.5, -size), Vector2(size, size))
 	var style := StyleBoxFlat.new()
 	style.bg_color = fill
 	style.set_corner_radius_all(10)
@@ -389,20 +410,15 @@ func _draw() -> void:
 	var font := UiFonts.get_font("黑體")
 	var letter := def.display_name.left(1)
 	var text_size := font.get_string_size(letter, HORIZONTAL_ALIGNMENT_LEFT, -1, 24)
-	draw_string(font, Vector2(-text_size.x * 0.5, -SIZE * 0.5 + text_size.y * 0.3), letter, HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(0.1, 0.1, 0.12, alpha))
+	draw_string(font, Vector2(-text_size.x * 0.5, -size * 0.5 + text_size.y * 0.3), letter, HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(0.1, 0.1, 0.12, alpha))
 
-## 圓球的畫法:有圖就以球心為軸轉動那張圖;沒有圖是色球加一個轉動時看得出來的深色斑點與名稱第一個字。
+## 沒有圖的圓球:色球加一個轉動時看得出來的深色斑點(有圖的話圖畫在 _image 上,以球心為軸轉動)。
 func _draw_ball(alpha: float) -> void:
-	var center := Vector2(0.0, -BALL_RADIUS)
+	var center := Vector2(0.0, -ball_radius)
 	draw_set_transform(center, _roll)
-	if texture != null:
-		var texture_size := texture.get_size()
-		var factor := BALL_RADIUS * 2.0 / maxf(maxf(texture_size.x, texture_size.y), 1.0)
-		draw_texture_rect(texture, Rect2(-texture_size * factor * 0.5, texture_size * factor), false, Color(1, 1, 1, alpha))
-	else:
-		var hue := float(absi(def.display_name.hash()) % 360) / 360.0
-		draw_circle(Vector2.ZERO, BALL_RADIUS, Color.from_hsv(hue, 0.5, 0.95, alpha))
-		draw_circle(Vector2(BALL_RADIUS * 0.45, -BALL_RADIUS * 0.3), BALL_RADIUS * 0.28, Color(0, 0, 0, 0.25 * alpha))
-		draw_arc(Vector2.ZERO, BALL_RADIUS, 0.0, TAU, 28, Color(0, 0, 0, 0.35 * alpha), 2.0, true)
+	var hue := float(absi(def.display_name.hash()) % 360) / 360.0
+	draw_circle(Vector2.ZERO, ball_radius, Color.from_hsv(hue, 0.5, 0.95, alpha))
+	draw_circle(Vector2(ball_radius * 0.45, -ball_radius * 0.3), ball_radius * 0.28, Color(0, 0, 0, 0.25 * alpha))
+	draw_arc(Vector2.ZERO, ball_radius, 0.0, TAU, 28, Color(0, 0, 0, 0.35 * alpha), 2.0, true)
 	draw_set_transform(Vector2.ZERO, 0.0)
 

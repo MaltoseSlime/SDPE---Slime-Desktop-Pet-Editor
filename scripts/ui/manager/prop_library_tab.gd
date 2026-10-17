@@ -18,6 +18,8 @@ var _name_edit: LineEdit
 var _thumb_label: Label
 var _desktop_label: Label
 var _toss_check: CheckBox
+var _prop_scale_spin: SpinBox
+var _prop_sharp_check: CheckBox
 var _rub_check: CheckBox
 var _reaction_option: OptionButton
 var _timeout_spin: SpinBox
@@ -145,6 +147,14 @@ func _build_form_column() -> Control:
 			edit_sprite_requested.emit(_current.id))
 	sprite_row.add_child(edit_sprite)
 	form.add_child(ManagerUi.labeled("進階貼圖", sprite_row))
+	# 2026-10-18 使用者要求:跟桌寵一樣的縮放倍率與像素清晰縮放(1 倍 = 最長邊 PropItem.SIZE 像素;改了之後新放上桌面的才會變)。
+	_prop_scale_spin = ManagerUi.spin(0.05, PropDef.SCALE_RANGE.x, PropDef.SCALE_RANGE.y)
+	_prop_scale_spin.tooltip_text = tr("1 倍 = 最長邊 %d 像素。改了之後,新放上桌面的道具才會用新的大小;桌寵拿在手上時也跟著放大縮小。") % int(PropItem.SIZE)
+	_prop_scale_spin.value_changed.connect(func(value: float) -> void: _edit(func() -> void: _current.scale_multiplier = clampf(value, PropDef.SCALE_RANGE.x, PropDef.SCALE_RANGE.y)))
+	form.add_child(ManagerUi.labeled("縮放倍率", _prop_scale_spin))
+	_prop_sharp_check = _check("像素清晰縮放(像素風的圖放大成 1.5 倍這種非整數倍時,每顆像素一樣大、邊緣不糊)", func(on: bool) -> void: _edit(func() -> void: _current.sharp_pixels = on))
+	_prop_sharp_check.tooltip_text = tr("跟桌寵管理的同名設定一樣。取消 = 照原本的最近點取樣,非整數倍時像素會有的寬有的窄。整數倍本來就均勻,開不開都一樣;大張的圖(平滑取樣)不受影響。")
+	form.add_child(_prop_sharp_check)
 
 	form = _new_card("互動模式", "拾取:丟到桌面後,桌寵碰到就會拿走(只有一隻會拿到)。摩擦:直接拖到桌寵身上來回摩擦(例如毛巾擦一擦)。兩個可以同時勾選;都不勾就只是收藏,不參與互動。")
 	var mode_box := form
@@ -446,6 +456,8 @@ func _show_prop(def: PropDef) -> void:
 		_hold_check.button_pressed = def.holdable
 		_hold_place_option.select(maxi(PropDef.HOLD_PLACES.find(def.hold_place), 0))
 		_shape_option.select(maxi(PropDef.SHAPES.find(def.shape), 0))
+		_prop_scale_spin.value = def.scale_multiplier
+		_prop_sharp_check.button_pressed = def.sharp_pixels
 		_negative_check.button_pressed = def.disable_negative
 		_show_light(def)
 		_positive_check.button_pressed = def.disable_positive

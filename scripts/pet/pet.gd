@@ -870,6 +870,8 @@ func game_refusal(kind: String = "", inviter: Node = null) -> Dictionary:
 		return {"chance": 1.0, "reason": "sleep"}
 	if invisible:
 		return {"chance": 1.0, "reason": "declined"}   # 隱形期間自動拒絕(跟「一律拒絕」同一套回應)
+	if ignores(inviter):
+		return {"chance": 1.0, "reason": "declined"}   # 對邀請者設了「不交互」(2026-10-17):一律拒絕,蓋過「一律接受」
 	if kind != "" and bool(game_force_decline.get(kind, false)):
 		return {"chance": 1.0, "reason": "declined"}
 	if kind != "" and bool(game_force_accept.get(kind, false)):
@@ -893,7 +895,7 @@ func game_refusal(kind: String = "", inviter: Node = null) -> Dictionary:
 		reason = "mood"
 	chance -= lens_add("game_accept")   # 開心、悠哉:更樂意接受邀請
 	if inviter != null:
-		chance -= float(pet_affinity(inviter)) * 0.12   # 對邀請者的好惡:喜歡降低拒絕機率、討厭提高
+		chance -= float(bond_level(inviter)) * 0.12   # 對邀請者的好惡:喜歡降低拒絕機率、討厭提高(最喜歡的對象算 4 級)
 	return {"chance": clampf(chance, 0.0, 0.95), "reason": reason}
 
 
@@ -903,7 +905,7 @@ func roll_dice_now() -> void:
 
 ## 跟其他桌寵拚骰(others = 對手,空 = 場上所有其他桌寵)。best_of 0 = 用自己右鍵選單的「賽制」。可以 await 等整場打完。
 func start_dice_contest(others: Array, best_of := 0) -> void:
-	var opponents: Array = others if not others.is_empty() else get_tree().get_nodes_in_group("pets").filter(func(p: Node) -> bool: return p != self and not p.is_queued_for_deletion())
+	var opponents: Array = others if not others.is_empty() else get_tree().get_nodes_in_group("pets").filter(func(p: Node) -> bool: return p != self and not p.is_queued_for_deletion() and not apart_from(p))
 	await DiceGame.contest(self, [self] + opponents, dice_sides, 1, dice_mod, "reroll", "contest", best_of if BEST_OF_CHOICES.has(best_of) else game_best_of)
 
 
@@ -1952,6 +1954,10 @@ var appearance_id := ""
 ## 目前外觀相對預設外觀的縮放比(外觀素材包自己的 scale ÷ 預設外觀的 scale):params.scale_multiplier 已經乘上它,
 ## 角色設定檔存的是除回去的「預設外觀下的倍率」(見 PetProfile),換外觀不會把倍率越存越歪。
 var appearance_scale_ratio := 1.0
+## 目前這套外觀的尺寸與判定框是不是獨立設定(外觀清單視窗的開關,存在那套外觀的 pack.json,見 PetAppearances.set_independent)。
+## 關(預設)= 跟桌寵管理的倍率與判定框走,appearance_scale_ratio 固定 1;開 = 用外觀素材包自己的縮放換算、判定框各套分開記。
+var appearance_independent := false
+var _appearance_pack_scale := 0.0
 ## 預設外觀素材包自己的縮放與朝向(生成時記下,見 DesktopShell._spawn_sample_pet);0 = 不是素材包桌寵。
 var base_pack_scale := 0.0
 var base_pack_flipped := false
@@ -2038,7 +2044,9 @@ func adopt_appearance(saved: Dictionary, meta: Dictionary) -> void:
 	_appearance_name = PetAppearances.name_of(pack_folder(), appearance_id).to_lower()
 	base_pack_scale = float(saved["base_scale"])
 	base_pack_flipped = bool(saved["base_flipped"])
-	appearance_scale_ratio = clampf(float(meta["scale"]) / base_pack_scale, 0.01, 100.0)
+	appearance_independent = bool(meta.get("independent_size", false))
+	_appearance_pack_scale = float(meta["scale"])
+	appearance_scale_ratio = _look_scale_ratio()
 	_appearance_flip = bool(meta["art_flipped"]) != base_pack_flipped
 	set_body_scale(base_pack_scale * appearance_scale_ratio)
 	set_art_flipped(base_pack_flipped)
@@ -2055,13 +2063,32 @@ func _sync_pack_facing(pack_flipped: bool) -> void:
 		PetProfile.save_pet(self)
 
 
+## 目前外觀相對預設外觀的縮放比:只有「尺寸獨立設定」的外觀才照外觀素材包自己的縮放換算,其他(含預設外觀)都是 1。
+func _look_scale_ratio() -> float:
+	if appearance_id == "" or not appearance_independent or base_pack_scale <= 0.0 or _appearance_pack_scale <= 0.0:
+		return 1.0
+	return clampf(_appearance_pack_scale / base_pack_scale, 0.01, 100.0)
+
+
+## 外觀清單視窗切了「尺寸與判定框獨立設定」:正穿著那套的桌寵當場換算倍率(預設外觀下的倍率不變)。
+func set_appearance_independent(on: bool) -> void:
+	if appearance_id == "" or appearance_independent == on:
+		return
+	var base_scale := params.scale_multiplier / maxf(appearance_scale_ratio, 0.0001)
+	appearance_independent = on
+	appearance_scale_ratio = _look_scale_ratio()
+	set_body_scale(base_scale * appearance_scale_ratio)
+
+
 ## 把一份載入好的素材包當成「目前外觀」套上(切換外觀、精靈圖編輯器存檔後重新載入都走這裡)。
 func apply_appearance_pack(pack: Dictionary) -> void:
 	if not bool(pack.get("ok", false)):
 		return
 	var meta: Dictionary = pack["meta"]
 	var base_scale := params.scale_multiplier / maxf(appearance_scale_ratio, 0.0001)
-	appearance_scale_ratio = clampf(float(meta["scale"]) / base_pack_scale, 0.01, 100.0) if appearance_id != "" and base_pack_scale > 0.0 else 1.0
+	appearance_independent = appearance_id != "" and bool(meta.get("independent_size", false))
+	_appearance_pack_scale = float(meta["scale"])
+	appearance_scale_ratio = _look_scale_ratio()
 	_appearance_flip = appearance_id != "" and bool(meta["art_flipped"]) != base_pack_flipped
 	# 換圖期間動畫名稱可能對不上:先收掉偶發動作,換完再依「現在正在做的事」重新起動畫(佔用時間照舊,不重算)。
 	_incidental_base = &""
@@ -2677,7 +2704,7 @@ func _refresh_held_visual() -> void:
 		return
 	var def := PropLibrary.find_by_name(held_prop)
 	_held_def = def
-	_held_size = clampf(effective_hitbox_size().y * 0.32, 18.0, 60.0)
+	_held_size = clampf(effective_hitbox_size().y * 0.32, 18.0, 60.0) * (def.scale_multiplier if def != null else 1.0)   # 道具的縮放倍率拿在手上也算
 	_held_visual = PetHeldProp.new()
 	_visual_root.add_child(_held_visual)
 	_held_visual.setup(held_prop, PropLibrary.texture_of(def) if def != null else null, _held_size)
@@ -3111,7 +3138,7 @@ const FURNITURE_FALLBACK_SECONDS := 15.0
 ## 依性格偶爾自己決定跟著場上另一隻桌寵走:已經在跟(不管誰叫的)、跟著滑鼠、睡著、忙著、心情差時不會抽。
 ## 挑離自己最近、跟了不會形成循環的桌寵;跟隨秒數在 pet_follow_duration 範圍內隨機,但不會超過 FOLLOW_MAX_SECONDS。
 func _tick_auto_pet_follow(delta: float) -> void:
-	if not auto_pet_follow_enabled or pet_follow_chance <= 0.0 or is_following() or _seek_left > 0.0:
+	if not auto_pet_follow_enabled or (pet_follow_chance <= 0.0 and not has_any_favorite()) or is_following() or _seek_left > 0.0:
 		return
 	if _auto_pet_follow_left < 0.0:
 		_auto_pet_follow_left = randf_range(AUTO_PET_FOLLOW_CHECK.x, AUTO_PET_FOLLOW_CHECK.y)
@@ -3127,11 +3154,37 @@ func _tick_auto_pet_follow(delta: float) -> void:
 		return
 	# 2026-10-04 使用者要求:對喜歡的對象提高主動跟隨機率(討厭的已經在 _nearest_followable_pet() 排除掉,
 	# 不會走到這裡)。
-	var chance := pet_follow_chance * (1.0 + float(pet_affinity(candidate)) * FOLLOW_AFFINITY_CHANCE_BONUS)
+	# 2026-10-17:最喜歡的對象(見 is_favorite)不管性格,都至少跟黏人的一樣黏——機率、跟多久、跟多近(_follow_spacing)。
+	var favorite := is_favorite(candidate)
+	var chance := pet_follow_chance * (1.0 + float(mini(bond_level(candidate), 3)) * FOLLOW_AFFINITY_CHANCE_BONUS)
+	if favorite:
+		chance = maxf(chance, FAVORITE_FOLLOW_CHANCE)
 	if randf() >= clampf(chance, 0.0, 1.0):
 		return
 	if start_follow(candidate.recognition_tag):
-		_follow_duration_cap = minf(randf_range(minf(pet_follow_duration.x, pet_follow_duration.y), maxf(pet_follow_duration.x, pet_follow_duration.y)), FOLLOW_MAX_SECONDS)
+		var duration := pet_follow_duration
+		if favorite:
+			duration = Vector2(maxf(minf(duration.x, duration.y), FAVORITE_FOLLOW_DURATION.x), maxf(maxf(duration.x, duration.y), FAVORITE_FOLLOW_DURATION.y))
+		_follow_duration_cap = minf(randf_range(minf(duration.x, duration.y), maxf(duration.x, duration.y)), FOLLOW_MAX_SECONDS)
+
+
+## 最喜歡的對象:主動跟隨的機率、時間與距離至少比照內建「黏人」性格(pet_follow_chance 0.45、180~480 秒、follow_distance 45)。
+const FAVORITE_FOLLOW_CHANCE := 0.45
+const FAVORITE_FOLLOW_DURATION := Vector2(180.0, 480.0)
+const FAVORITE_FOLLOW_DISTANCE := 45.0
+
+
+## 自己有沒有勾任何「最喜歡」的對象。
+func has_any_favorite() -> bool:
+	for entry: Variant in interaction_rules.get("pet_prefs", []):
+		if entry is Dictionary and bool((entry as Dictionary).get("favorite", false)):
+			return true
+	return false
+
+
+## 跟著 target 走時保持的距離:最喜歡的對象跟得跟黏人的一樣近。
+func _follow_spacing(target: Node) -> float:
+	return minf(follow_distance, FAVORITE_FOLLOW_DISTANCE) if is_favorite(target) else follow_distance
 
 
 ## 場上可以跟隨的桌寵裡,「距離 − 好惡加成」評分最低的那隻(排除自己、正在入場/被收起的、設了「不會被其他
@@ -3142,12 +3195,14 @@ func _nearest_followable_pet() -> Node:
 	var best_score := INF
 	for other: Node in get_tree().get_nodes_in_group("pets"):
 		if other == self or not is_instance_valid(other) or other.is_queued_for_deletion() or other.entering \
-				or bool(other.interaction_rules.get("no_follow_target", false)):
+				or bool(other.interaction_rules.get("no_follow_target", false)) or apart_from(other):
 			continue
-		var affinity := pet_affinity(other)
+		var affinity := bond_level(other)
 		if affinity < 0:
 			continue
-		var score := global_position.distance_to(other.global_position) - float(affinity) * FOLLOW_AFFINITY_DISTANCE_BONUS
+		var score := global_position.distance_to(other.global_position) - float(mini(affinity, 3)) * FOLLOW_AFFINITY_DISTANCE_BONUS
+		if affinity == FAVORITE_LEVEL:
+			score -= 1000000.0   # 最喜歡的對象(2026-10-17)場上有就一定先挑牠,好幾隻挑最近的
 		if score < best_score:
 			best_score = score
 			best = other
@@ -3181,7 +3236,7 @@ func _tick_pet_affinity_contact(delta: float) -> void:
 		if other == self or not is_instance_valid(other) or other.is_queued_for_deletion() or other.entering:
 			continue
 		var tag: String = other.recognition_tag
-		var level := pet_affinity(other)
+		var level := 0 if apart_from(other) else mini(bond_level(other), 3)
 		if level == 0:
 			_pet_contact_touching[tag] = false
 			continue
@@ -3296,13 +3351,14 @@ func _can_land_with_leader() -> bool:
 
 
 ## 跟隨對象開始休息/睡覺:依社交意願決定要不要也跟著休息(維持跟隨關係,對方醒了再一起走),不然就離開跟隨。
+## 跟最喜歡的對象(2026-10-17)一定一起休息,不擲社交意願。
 func _react_to_leader_resting() -> void:
+	var leader := _find_pet_by_tag(_follow_tag)
 	if vitality == null or is_resting_now() or is_busy_for_game() or not is_ground_mode() \
-			or randf() >= clampf(sociability, 0.0, 1.0) or not vitality.force_rest():
+			or (not is_favorite(leader) and randf() >= clampf(sociability, 0.0, 1.0)) or not vitality.force_rest():
 		stop_follow()
 		return
 	# 跟隨中一起休息:雙方依各自對對方的好惡增減好感(見 PetFavor.mutual_bond)。
-	var leader := _find_pet_by_tag(_follow_tag)
 	if leader != null:
 		PetFavor.mutual_bond(self, leader, "rest")
 
@@ -3319,7 +3375,7 @@ func _react_to_leader_furniture(target: Node) -> void:
 ## 都會照常發對話);不管結果如何都結束這次跟隨(加入的話要自己去追球,不能再原地跟著對方走)。
 func _react_to_leader_ball_play(target: Node) -> void:
 	if ball_play != null and is_instance_valid(target.ball_play.ball):
-		ball_play.receive_invite(target.ball_play.ball)
+		ball_play.receive_invite(target.ball_play.ball, target)
 	stop_follow()
 
 
@@ -3652,26 +3708,36 @@ func pet_affinity(other: Node) -> int:
 ## 背後呼叫的同一個函式(不是兩套邏輯)。display_name 空字串時,若 target 不是 ALL_PETS_TARGET,
 ## 會嘗試從場上同 tag 的桌寵取名字;都取不到就直接用 target 本身當顯示名稱。
 func set_pet_affinity(target: String, level: int, display_name: String = "") -> void:
+	level = clampi(level, InteractionRules.PET_PREF_LEVELS[0], InteractionRules.PET_PREF_LEVELS[-1])
+	_update_pet_pref(target, {"level": level}, display_name)
+
+
+## pet_prefs 裡對 target 的那一列改掉 changes 裡的欄位(level / no_mention / favorite / no_interact),其他欄位照舊;
+## 全都回到預設(普通、沒勾)就移除整列。display_name 空字串時沿用舊名稱,再沒有就從場上同 tag 的桌寵取。
+func _update_pet_pref(target: String, changes: Dictionary, display_name := "") -> void:
 	if target == "":
 		return
 	var rules: Dictionary = interaction_rules.duplicate(true)
 	var list: Array = rules.get("pet_prefs", [])
-	var no_mention := false
+	var entry := {"level": 0, "no_mention": false, "favorite": false, "no_interact": false}
 	var old_name := ""
 	for i in range(list.size() - 1, -1, -1):
 		if str((list[i] as Dictionary).get("target", "")) == target:
-			no_mention = bool((list[i] as Dictionary).get("no_mention", false))
-			old_name = str((list[i] as Dictionary).get("name", ""))
+			var old := list[i] as Dictionary
+			entry = {"level": int(old.get("level", 0)), "no_mention": bool(old.get("no_mention", false)), "favorite": bool(old.get("favorite", false)), "no_interact": bool(old.get("no_interact", false))}
+			old_name = str(old.get("name", ""))
 			list.remove_at(i)
-	level = clampi(level, InteractionRules.PET_PREF_LEVELS[0], InteractionRules.PET_PREF_LEVELS[-1])
-	if level != 0 or no_mention:
+	entry.merge(changes, true)
+	if int(entry["level"]) != 0 or bool(entry["no_mention"]) or bool(entry["favorite"]) or bool(entry["no_interact"]):
 		var name := display_name if display_name != "" else old_name
 		if name == "" and target != InteractionRules.ALL_PETS_TARGET:
 			var other := _find_pet_by_tag(target, false)
 			name = other.get_label() if other != null else target
 		elif name == "":
 			name = target
-		list.append({"target": target, "name": name, "level": level, "no_mention": no_mention})
+		entry["target"] = target
+		entry["name"] = name
+		list.append(entry)
 	rules["pet_prefs"] = list
 	set_interaction_rules(rules)
 
@@ -3680,24 +3746,77 @@ func set_pet_affinity(target: String, level: int, display_name: String = "") -> 
 func set_pet_no_mention(target: String, flag: bool) -> void:
 	if target == "" or target == InteractionRules.ALL_PETS_TARGET:
 		return
-	var rules: Dictionary = interaction_rules.duplicate(true)
-	var list: Array = rules.get("pet_prefs", [])
-	var level := 0
-	var name := target
-	for i in range(list.size() - 1, -1, -1):
-		var entry := list[i] as Dictionary
-		if str(entry.get("target", "")) == target:
-			level = int(entry.get("level", 0))
-			name = str(entry.get("name", target))
-			list.remove_at(i)
-	if level != 0 or flag:
-		list.append({"target": target, "name": name, "level": level, "no_mention": flag})
-	rules["pet_prefs"] = list
-	set_interaction_rules(rules)
+	_update_pet_pref(target, {"no_mention": flag})
 
 
-## 這隻桌寵是否把「不提及」設在某對象上。
+## 「最喜歡」(2026-10-17,見 InteractionRules 第 9 點):可以勾好幾隻;好惡等級不受影響。
+func set_pet_favorite(target: String, flag: bool) -> void:
+	if target == "" or target == InteractionRules.ALL_PETS_TARGET:
+		return
+	_update_pet_pref(target, {"favorite": flag, "no_interact": false} if flag else {"favorite": false})
+
+
+## 「不交互」(2026-10-17,見 InteractionRules 第 9 點):自己不主動跟牠互動,也不提及牠;跟「最喜歡」互斥(勾一個就取消另一個)。
+## target 可以是 ALL_PETS_TARGET(對沒勾 ⭐ 的所有角色)。
+func set_pet_no_interact(target: String, flag: bool) -> void:
+	if target == "":
+		return
+	if target == InteractionRules.ALL_PETS_TARGET:
+		_update_pet_pref(target, {"no_interact": flag})
+	else:
+		_update_pet_pref(target, {"no_interact": flag, "favorite": false} if flag else {"no_interact": false})
+	separate_from_apart()
+
+
+## 正在跟著「不交互」的對象、或被這種對象跟著的,當下就分開(改了不交互設定後呼叫)。
+func separate_from_apart() -> void:
+	if not is_inside_tree():
+		return
+	if is_following():
+		var leader := _find_pet_by_tag(_follow_tag)
+		if leader != null and apart_from(leader):
+			stop_follow()
+	for other: Node in get_tree().get_nodes_in_group("pets"):
+		if other != self and is_instance_valid(other) and other.is_following() and other._follow_tag == recognition_tag and other.apart_from(self):
+			other.stop_follow()
+
+
+## 自己是不是對 other 不交互(含「全部角色」那列,見 InteractionRules.effective_no_interact)。
+func ignores(other: Node) -> bool:
+	if other == null or not is_instance_valid(other) or other == self:
+		return false
+	return InteractionRules.effective_no_interact(interaction_rules, str(other.recognition_tag))
+
+
+## other 把自己藏起來了嗎:牠對自己不交互、而且開了「也避免被不交互的對象偵測」(hide_from_ignored)。
+func hidden_by(other: Node) -> bool:
+	return other != null and is_instance_valid(other) and other != self and other.has_method("ignores") \
+			and bool(other.interaction_rules.get("hide_from_ignored", false)) and other.ignores(self)
+
+
+## 自動挑對象(跟隨、邀請對戰、一起玩球、坐旁邊、碰觸反應)時要不要排除 other:自己不理牠,或牠把自己藏起來了。
+func apart_from(other: Node) -> bool:
+	return ignores(other) or hidden_by(other)
+
+
+## other 是不是自己「最喜歡」的對象。
+func is_favorite(other: Node) -> bool:
+	if other == null or not is_instance_valid(other) or other == self:
+		return false
+	return InteractionRules.is_favorite(interaction_rules, str(other.recognition_tag))
+
+
+## 行為上看的好惡等級:最喜歡的對象一律當成比「超級喜歡」再高一級(FAVORITE_LEVEL),不管手動設的等級是多少;
+## 其他照 pet_affinity。跟隨、坐位、邀請對戰、好感增減都用這個;積木條件「好惡等級是…」照舊看 pet_affinity。
+const FAVORITE_LEVEL := 4
+func bond_level(other: Node) -> int:
+	return FAVORITE_LEVEL if is_favorite(other) else pet_affinity(other)
+
+
+## 這隻桌寵是否把「不提及」設在某對象上(不交互的對象也算不提及,含「全部角色」那列)。
 func no_mention_of(target: String) -> bool:
+	if InteractionRules.effective_no_interact(interaction_rules, target):
+		return true
 	for entry: Variant in interaction_rules.get("pet_prefs", []):
 		if entry is Dictionary and str((entry as Dictionary).get("target", "")) == target:
 			return bool((entry as Dictionary).get("no_mention", false))
@@ -3914,7 +4033,8 @@ func _movement_goal() -> Variant:
 	var flying_now := move_mode == MoveMode.FLYING and not is_ground_mode()
 	if flying_now and fly_behavior != FlyBehavior.ALWAYS and (_follow_land_with_leader or is_resting_now()):
 		return null
-	var goal: Vector2 = target.position + Vector2(side * follow_distance * (1 + slot), 0.0)
+	var spacing := _follow_spacing(target)
+	var goal: Vector2 = target.position + Vector2(side * spacing * (1 + slot), 0.0)
 	# 兼具模式走在地上的階段算地面(is_ground_mode()):目標點不能抬高,不然目標永遠在頭上 60 像素,
 	# 地面跟隨會判定「目標在高處」一直起跳、落下(2026-10-11 使用者回報:飛行模式跟隨很容易卡在 fall)。
 	var walking := is_ground_mode()
@@ -3928,7 +4048,7 @@ func _movement_goal() -> Variant:
 		goal = Vector2(target.position.x, target.position.y)
 		_follow_arrived = false
 		return goal
-	var arrive_radius := follow_distance * (1 + slot)
+	var arrive_radius := spacing * (1 + slot)
 	var gap := position.distance_to(target.position)
 	if _follow_arrived:
 		if gap > arrive_radius * FOLLOW_LEAVE_RATIO:
@@ -4227,6 +4347,10 @@ func begin_interact(duration: float) -> void:
 ## 動畫切換時再保留前一個的範圍一小段時間,避免視窗形狀慢一影格造成的一閃而過的裁切。
 var hitbox_size := Vector2.ZERO
 var hitbox_offset := Vector2.ZERO
+## 開了「尺寸與判定框獨立設定」的外觀在桌寵管理手動設的判定框:外觀代號 → [寬, 高, 偏移 X, 偏移 Y]。上面兩個是桌寵管理那一組,
+## 預設外觀與沒開獨立設定的外觀共用。2026-10-17 使用者回報:穿著別套外觀時判定框、縮放沒照桌寵管理的設定(以前外觀一律用自己的),
+## 改成預設跟桌寵管理走,外觀清單視窗勾了獨立設定才用自己的。
+var appearance_hitboxes: Dictionary = {}
 const VISUAL_HOLD_MSEC := 300
 var _visual_bounds_cache: Dictionary = {}
 var _visual_recent_rect := Rect2()
@@ -4301,13 +4425,42 @@ func set_invisible(value: bool) -> void:
 	_visual_root.visible = not (value or _furniture_hidden)
 
 
-## 目前生效的判定框大小(縮放前像素):使用者設定 > 素材包設定 > 待機幀本體大小。
+## 目前穿的這套外觀在桌寵管理手動設的判定框:[大小, 偏移](縮放前像素);大小是零向量 = 自動。
+## 外觀沒開「尺寸與判定框獨立設定」時跟預設外觀共用同一組(桌寵管理的設定)。
+func manual_hitbox() -> Array:
+	if not _own_hitbox():
+		return [hitbox_size, hitbox_offset]
+	var entry: Variant = appearance_hitboxes.get(appearance_id)
+	if entry is Array and entry.size() >= 4:
+		return [Vector2(float(entry[0]), float(entry[1])), Vector2(float(entry[2]), float(entry[3]))]
+	return [Vector2.ZERO, Vector2.ZERO]
+
+
+## 目前這套外觀的判定框是不是自己記一份(穿著尺寸獨立設定的外觀)。
+func _own_hitbox() -> bool:
+	return appearance_id != "" and appearance_independent
+
+
+## 設定目前這套外觀的手動判定框(寬或高 ≤ 0 = 自動);獨立設定的外觀只改它自己的,其他都改桌寵管理那一組(預設外觀與跟著走的外觀共用)。
+func set_manual_hitbox(box_size: Vector2, box_offset: Vector2) -> void:
+	var size := box_size if box_size.x > 0.0 and box_size.y > 0.0 else Vector2.ZERO
+	if not _own_hitbox():
+		hitbox_size = size
+		hitbox_offset = box_offset
+	elif size == Vector2.ZERO and box_offset == Vector2.ZERO:
+		appearance_hitboxes.erase(appearance_id)
+	else:
+		appearance_hitboxes[appearance_id] = [size.x, size.y, box_offset.x, box_offset.y]
+
+
+## 目前生效的判定框大小(縮放前像素):使用者設定(這套外觀的) > 素材包設定 > 待機幀本體大小。
 func effective_hitbox_size() -> Vector2:
 	if invisible:
 		return Vector2.ONE
-	# 角色設定檔裡手動設的判定框是替預設外觀量的;換上別套外觀時用那套外觀素材包自己的(pack.json 的 hitbox,沒設就自動)。
-	if hitbox_size != Vector2.ZERO and appearance_id == "":
-		return hitbox_size
+	# 桌寵管理手動設的判定框(獨立設定的外觀各記各的,見 manual_hitbox);沒設就用目前這套素材包自己的(pack.json 的 hitbox,沒設就自動)。
+	var manual := manual_hitbox()
+	if manual[0] != Vector2.ZERO:
+		return manual[0]
 	var pack_size: Variant = _sprite.sprite_frames.get_meta("hitbox_size", Vector2.ZERO) if _sprite != null and _sprite.sprite_frames != null else Vector2.ZERO
 	if pack_size is Vector2 and pack_size != Vector2.ZERO:
 		return pack_size
@@ -4315,8 +4468,9 @@ func effective_hitbox_size() -> Vector2:
 
 
 func effective_hitbox_offset() -> Vector2:
-	if (hitbox_size != Vector2.ZERO or hitbox_offset != Vector2.ZERO) and appearance_id == "":
-		return hitbox_offset
+	var manual := manual_hitbox()
+	if manual[0] != Vector2.ZERO or manual[1] != Vector2.ZERO:
+		return manual[1]
 	var pack_offset: Variant = _sprite.sprite_frames.get_meta("hitbox_offset", Vector2.ZERO) if _sprite != null and _sprite.sprite_frames != null else Vector2.ZERO
 	return pack_offset if pack_offset is Vector2 else Vector2.ZERO
 

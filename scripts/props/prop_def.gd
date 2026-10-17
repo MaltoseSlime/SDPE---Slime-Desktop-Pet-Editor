@@ -22,6 +22,8 @@ const SHAPES: Array[String] = ["box", "ball"]
 const HOLD_PLACES: Array[String] = ["hand", "head"]
 const MIN_SHAKES := 2
 const MAX_SHAKES := 8
+## 2026-10-18:放上桌面的縮放倍率(跟桌寵同一個範圍),倍率 1 = 最長邊 PropItem.SIZE。
+const SCALE_RANGE := Vector2(0.1, 6.0)
 
 ## 資料夾名稱(由顯示名稱轉成檔案安全的字串),同一個物品欄裡不重複。
 var id := ""
@@ -65,6 +67,9 @@ var drag_count := 1
 var effect_after := ""
 ## 這個道具是從哪個內建模板做的(只是標記,不影響行為)。
 var template := ""
+## 縮放倍率(見 SCALE_RANGE)與像素清晰縮放開關(見 SharpPixel,跟桌寵的同名設定一樣)。
+var scale_multiplier := 1.0
+var sharp_pixels := true
 ## 道具 / 家具專屬光源(燈具、蠟燭…,企劃書第八章):{enabled, x, y, radius, energy, color}。x 是圖片寬度的比例(−0.5 ~ 0.5,0 = 正中間),y 是從腳底往上的圖片高度比例(−1 ~ 0,−1 = 頂端),
 ## radius 是光暈半徑(像素)、energy 強度 0.1~2。沒開就不發光。畫法見 PropLight。
 var light: Dictionary = default_light()
@@ -145,6 +150,7 @@ func to_dict() -> Dictionary:
 		"valueBindings": value_bindings.duplicate(true), "lensBindings": lens_bindings.duplicate(true),
 		"disableNegative": disable_negative, "disablePositive": disable_positive, "restoreEnergy": restore_energy, "attractWhileDragging": attract_while_dragging, "holdable": holdable,
 		"timeoutSeconds": timeout_seconds, "consumeOnRub": consume_on_rub, "template": template, "light": light.duplicate(),
+		"scale": scale_multiplier, "sharpPixels": sharp_pixels,
 		"useAnim": use_anim, "useShakes": use_shakes, "effect": effect, "effectAfter": effect_after,
 		"states": {"used": {"mode": used_mode, "count": used_count}, "drag": {"mode": drag_mode, "count": drag_count}},
 	}
@@ -179,6 +185,9 @@ static func from_dict(data: Variant, folder_id: String) -> PropDef:
 	def.timeout_seconds = clampf(float(timeout), 0.0, MAX_TIMEOUT) if (timeout is float or timeout is int) else DEFAULT_TIMEOUT
 	def.consume_on_rub = _flag(data.get("consumeOnRub", false), false)
 	def.template = clean_name(str(data.get("template", "")))
+	var scale_value: Variant = data.get("scale", 1.0)
+	def.scale_multiplier = clampf(float(scale_value), SCALE_RANGE.x, SCALE_RANGE.y) if (scale_value is float or scale_value is int) else 1.0
+	def.sharp_pixels = _flag(data.get("sharpPixels", true), true)
 	def.light = clean_light(data.get("light"))
 	var anim := str(data.get("useAnim", "fade"))
 	def.use_anim = anim if USE_ANIMS.has(anim) else "fade"

@@ -212,21 +212,105 @@ static func syntax_row(host: Node, short_text: String, tip: String, can_insert :
 	return row
 
 
-## 開語法字典視窗(host 底下已經有就叫到前景)。
-static func open_syntax_dictionary(host: Node, can_insert := true) -> SyntaxDictionaryWindow:
+const SYNTAX_MENU_ID := 7100
+## Godot 內建文字欄位右鍵選單的項目(LineEdit / TextEdit 的 MENU_* 編號相同)換成中文;英文介面時再經翻譯表變回英文。
+const TEXT_MENU_NAMES := {
+	0: "剪下", 1: "複製", 2: "貼上", 3: "清除", 4: "全選", 5: "復原", 6: "重做",
+	7: "文字書寫方向", 8: "跟隨版面方向", 9: "自動偵測方向", 10: "由左至右", 11: "由右至左",
+	12: "顯示控制字元", 13: "插入控制字元",
+	14: "由左至右標記(LRM)", 15: "由右至左標記(RLM)", 16: "由左至右嵌入開始(LRE)", 17: "由右至左嵌入開始(RLE)",
+	18: "由左至右覆寫開始(LRO)", 19: "由右至左覆寫開始(RLO)", 20: "結束方向格式(PDF)", 21: "阿拉伯字母標記(ALM)",
+	22: "由左至右隔離(LRI)", 23: "由右至左隔離(RLI)", 24: "第一強方向隔離(FSI)", 25: "結束方向隔離(PDI)",
+	26: "零寬連接符(ZWJ)", 27: "零寬不連接符(ZWNJ)", 28: "單字連接符(WJ)", 29: "軟連字號(SHY)",
+}
+
+
+## 文字欄位(LineEdit / TextEdit)的右鍵選單:項目換成中文(DesktopShell 對所有文字欄位都會呼叫)。
+## 選單本身是一個子視窗,第一次按右鍵(或選單鍵)時才建、才改(gui_input 訊號比欄位自己處理右鍵早),
+## 不然一個分頁幾百格會一口氣開幾百個視窗。
+static func watch_text_menu(edit: Control) -> void:
+	if edit.has_meta("text_menu_watch") or not (edit is LineEdit or edit is TextEdit):
+		return
+	edit.set_meta("text_menu_watch", true)
+	edit.gui_input.connect(func(event: InputEvent) -> void:
+		var mouse := event as InputEventMouseButton
+		var key := event as InputEventKey
+		if (mouse != null and mouse.pressed and mouse.button_index == MOUSE_BUTTON_RIGHT) or (key != null and key.pressed and key.keycode == KEY_MENU):
+			_prepare_text_menu(edit))
+
+
+## 桌寵管理的文字欄位另外加一項「語法字典…」:開的字典「插入」會插到這一格的游標處。
+static func add_syntax_menu(edit: Control) -> void:
+	if edit.has_meta("syntax_menu") or not (edit is LineEdit or edit is TextEdit):
+		return
+	edit.set_meta("syntax_menu", true)
+	watch_text_menu(edit)
+
+
+static func _prepare_text_menu(edit: Control) -> void:
+	if edit.has_meta("text_menu_ready"):
+		return
+	edit.set_meta("text_menu_ready", true)
+	var menu: PopupMenu = edit.get_menu()
+	_translate_text_menu(menu)
+	if edit.has_meta("syntax_menu"):
+		_install_syntax_menu_item(edit, menu)
+
+
+static func _translate_text_menu(menu: PopupMenu) -> void:
+	for i in menu.item_count:
+		var id := menu.get_item_id(i)
+		if TEXT_MENU_NAMES.has(id) and not menu.is_item_separator(i):
+			menu.set_item_text(i, TranslationServer.translate(str(TEXT_MENU_NAMES[id])))
+		var sub := menu.get_item_submenu_node(i)
+		if sub != null:
+			_translate_text_menu(sub)
+
+
+static func _install_syntax_menu_item(edit: Control, menu: PopupMenu) -> void:
+	menu.add_separator()
+	menu.add_item(TranslationServer.translate("語法字典…"), SYNTAX_MENU_ID)
+	menu.id_pressed.connect(func(id: int) -> void:
+		if id == SYNTAX_MENU_ID and is_instance_valid(edit) and edit.is_inside_tree():
+			open_syntax_dictionary(edit.get_window(), true, edit))
+
+
+## 名字後面的小字附註「(代號)」(撞名時區分用,比一般字小、顏色淡,見 AppSettings.TAG_NOTE_LABEL)。
+static func tag_note(tag: String) -> Label:
+	var note := Label.new()
+	note.text = "(%s)" % tag
+	note.theme_type_variation = AppSettings.TAG_NOTE_LABEL
+	note.tooltip_text = TranslationServer.translate("辨識代號:%s(有別的角色同名,用代號區分)") % tag
+	note.mouse_filter = Control.MOUSE_FILTER_PASS
+	return note
+
+
+## 開語法字典視窗(host 底下已經有就叫到前景)。target 給了的話「插入」固定插到那個文字框(從文字框右鍵選單開的)。
+static func open_syntax_dictionary(host: Node, can_insert := true, target: Control = null) -> SyntaxDictionaryWindow:
 	if host.has_meta("syntax_dictionary_window"):
 		var existing: Variant = host.get_meta("syntax_dictionary_window")
 		# is_instance_valid() 要先檢查,見下面事件管理視窗那段的詳細說明。
 		if is_instance_valid(existing) and existing is SyntaxDictionaryWindow:
-			(existing as SyntaxDictionaryWindow).bring_to_front()
-			return existing
+			var dictionary := existing as SyntaxDictionaryWindow
+			if target != null:
+				dictionary.set_meta("insert_target", target)
+				dictionary.set_can_insert(true)
+			elif dictionary.has_meta("insert_target"):
+				dictionary.remove_meta("insert_target")   # 改從「語法字典」按鈕開:回到插進最後點過的文字框
+			dictionary.bring_to_front()
+			return dictionary
 	var window := SyntaxDictionaryWindow.new()
 	host.add_child(window)
-	window.setup(can_insert)
+	window.setup(can_insert or target != null)
+	if target != null:
+		window.set_meta("insert_target", target)
 	host.set_meta("syntax_dictionary_window", window)
 	window.insert_requested.connect(func(syntax: String) -> void:
 		var owner_window := host.get_window()
 		var focused: Control = owner_window.gui_get_focus_owner() if owner_window != null else null
+		var bound: Variant = window.get_meta("insert_target", null)
+		if is_instance_valid(bound) and (bound as Node).is_inside_tree():
+			focused = bound
 		if focused is TextEdit:
 			(focused as TextEdit).insert_text_at_caret(syntax)
 		elif focused is LineEdit:

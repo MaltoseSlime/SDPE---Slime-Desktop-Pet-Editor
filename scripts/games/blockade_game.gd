@@ -366,7 +366,7 @@ static func play_user(pet: Node, best_of := 1) -> Dictionary:
 	GameChat.enter([pet], "blockade")
 	var result: Dictionary = await _play_user(pet, best_of)
 	GameChat.leave([pet])
-	if not result.is_empty():   # 跟使用者的 1v1 打完一場(取消的不算)
+	if not result.is_empty() and is_instance_valid(pet):   # 跟使用者的 1v1 打完一場(取消的不算;桌寵中途被收掉就不算)
 		PetFavor.user_bond(pet, "duel", PetFavor.USER_SMALL, PetFavor.USER_DUEL_COOLDOWN)
 	return result
 

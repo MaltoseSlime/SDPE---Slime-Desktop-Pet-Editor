@@ -664,6 +664,7 @@
         300.0
       ],
       "ball_play_chance": 0.15,
+      "drag_affinity": true,
       "exhausted_threshold": 8.0,
       "fatigue_rate": 2.0,
       "game_ask_chance": 0.6,

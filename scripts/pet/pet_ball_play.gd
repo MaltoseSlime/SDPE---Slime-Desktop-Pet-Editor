@@ -146,7 +146,7 @@ func invite(item: PropItem) -> bool:
 ## 別隻桌寵邀請一起玩(只發生在桌寵與桌寵之間):有興趣就加入(說「加入」),否則婉拒(說「不參與」)。回傳有沒有加入。
 ## 「遊戲與對戰」設定卡片的「一律接受/一律拒絕」(game_force_accept/game_force_decline,鍵 "ball")優先於
 ## 下面原本依 ball_play_chance 算的機率,跟 Pet.game_refusal() 的 kind 覆寫同一套道理。
-func receive_invite(item: PropItem) -> bool:
+func receive_invite(item: PropItem, inviter: Node = null) -> bool:
 	if state != "" or _pet.is_sleeping() or _pet.entering or not _wants(item):
 		return false
 	if bool(_pet.game_force_decline.get("ball", false)):
@@ -154,7 +154,7 @@ func receive_invite(item: PropItem) -> bool:
 		_decline_protect_left = DECLINE_PROTECT
 		return false
 	if _pet.vitality != null:
-		_pet.vitality.note_invited()
+		_pet.vitality.note_invited(inviter)
 	if bool(_pet.game_force_accept.get("ball", false)) or (interested() and randf() < 0.35 + minf(_pet.ball_play_chance * 3.0, 0.6)):
 		_begin(item)
 		_say(&"ball_join", true)
@@ -173,7 +173,7 @@ func _invite_others(item: PropItem) -> void:
 		return
 	var others: Array = []
 	for other: Node in get_tree().get_nodes_in_group("pets"):
-		if other != _pet and not other.is_queued_for_deletion() and other.ball_play != null and other.ball_play.invitable() and not other.is_sleeping():
+		if other != _pet and not other.is_queued_for_deletion() and other.ball_play != null and other.ball_play.invitable() and not other.is_sleeping() and not _pet.apart_from(other):
 			others.append(other)
 	if others.is_empty():
 		return
@@ -186,7 +186,7 @@ func _invite_others(item: PropItem) -> void:
 		_say(&"ball_invite", true)
 		get_tree().create_timer(1.5).timeout.connect(func() -> void:
 			for other: Node in others:
-				if is_instance_valid(other) and is_instance_valid(item) and other.ball_play != null and other.ball_play.receive_invite(item):
+				if is_instance_valid(other) and is_instance_valid(item) and other.ball_play != null and other.ball_play.receive_invite(item, _pet):
 					break))
 
 
@@ -298,7 +298,7 @@ func _maybe_watch() -> void:
 	if _watch_left > 0.0 or _pet.is_sleeping() or _pet.entering or _pet.dragging or randf() > 0.25:
 		return
 	for other: Node in get_tree().get_nodes_in_group("pets"):
-		if other != _pet and other.ball_play != null and other.ball_play.active() and _say(&"ball_watch"):
+		if other != _pet and other.ball_play != null and other.ball_play.active() and not _pet.apart_from(other) and _say(&"ball_watch"):
 			_watch_left = WATCH_COOLDOWN
 			return
 
@@ -355,7 +355,7 @@ func _tick_balance(delta: float) -> void:
 ## 跟其他正在玩同一顆球的桌寵互相增加一點好感(見 PetFavor.ball_together)。
 func _reward_pets_playing_together() -> void:
 	for other: Node in _pet.get_tree().get_nodes_in_group("pets"):
-		if other != _pet and other.ball_play != null and other.ball_play.active() and other.ball_play.ball == ball:
+		if other != _pet and other.ball_play != null and other.ball_play.active() and other.ball_play.ball == ball and not _pet.apart_from(other):
 			PetFavor.ball_together(_pet, other)
 
 

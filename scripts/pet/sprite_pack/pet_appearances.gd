@@ -3,7 +3,7 @@ extends RefCounted
 ## 外觀(整套行走圖的差分,2026-10-11 使用者回饋:想替桌寵畫一整套萬聖節外觀,不頂掉原本的圖、也不用克隆另一隻):
 ## 每套外觀是角色資料夾底下的一份獨立素材包 <角色資料夾>/appearances/<外觀資料夾>/(自己的圖、pack.json、overlays.json),
 ## 桌寵同時只載入一套,所以像素上限(SpritePackLoader.MAX_TOTAL_PIXELS)各算各的,不會吃掉原本那套的額度。
-## 判定框、光源、配件、持有錨點、縮放都是各套自己的設定;外觀沒有的動作退回那套外觀自己的 idle,所以一套外觀至少要有 idle。
+## 光源、配件、持有錨點是各套自己的設定;縮放與判定框預設跟桌寵管理走,開了「獨立設定」(set_independent)才用各套自己的;外觀沒有的動作退回那套外觀自己的 idle,所以一套外觀至少要有 idle。
 ## 外觀的辨識代號 = 外觀資料夾名(建立後不變,存檔記的是它);顯示名稱 = 那份 pack.json 的 name,積木兩種寫法都認。
 ## 舊版本看不懂 appearances/:掃描素材包時這個資料夾裡沒有直接放圖、也沒有數字子資料夾,會被略過;.pet 匯出匯入照一般素材包檔案帶著走。
 
@@ -48,9 +48,28 @@ static func list(pack_folder: String) -> Array[Dictionary]:
 		if result.size() >= MAX_APPEARANCES:
 			break
 		var folder := root.path_join(id)
-		var display := str(SpriteLibrary._read_manifest(folder).get("name", "")).strip_edges()
-		result.append({"id": id, "name": display if display != "" else id, "folder": folder})
+		var manifest := SpriteLibrary._read_manifest(folder)
+		var display := str(manifest.get("name", "")).strip_edges()
+		result.append({"id": id, "name": display if display != "" else id, "folder": folder, "independent": manifest.get(INDEPENDENT_KEY, false) == true})
 	return result
+
+
+## 尺寸與判定框要不要獨立設定(2026-10-17 使用者要求):預設(關)= 跟桌寵管理的「角色縮放倍率」「判定框」走,
+## 跟預設外觀一樣大;開 = 用這套外觀自己的縮放(精靈圖編輯器裡設的,相對預設外觀換算)與判定框(穿著它時在桌寵管理設,各套分開記)。
+## 存在那套外觀的 pack.json。回傳錯誤文字,空字串 = 成功。
+const INDEPENDENT_KEY := "independent_size"
+
+
+static func set_independent(pack_folder: String, id: String, on: bool) -> String:
+	var folder := folder_of(pack_folder, id)
+	if id == "" or not DirAccess.dir_exists_absolute(folder):
+		return "找不到這套外觀"
+	var manifest := SpriteLibrary._read_manifest(folder)
+	if on:
+		manifest[INDEPENDENT_KEY] = true
+	else:
+		manifest.erase(INDEPENDENT_KEY)
+	return "" if SpriteLibrary._write_manifest(folder, manifest) else "無法寫入 pack.json"
 
 
 ## 積木/選單寫的外觀名稱 → 外觀代號。"" = 預設外觀;找不到回 null。先比代號,再比顯示名稱(不分大小寫)。

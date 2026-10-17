@@ -21,6 +21,14 @@ func setup(can_insert := true) -> void:
 	_refresh()
 
 
+## 本來只能複製的字典,之後又從文字框右鍵選單叫出來時改成可以插入(重排一次清單)。
+func set_can_insert(flag: bool) -> void:
+	if _can_insert == flag:
+		return
+	_can_insert = flag
+	_refresh()
+
+
 func _build() -> void:
 	var background := PanelContainer.new()
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

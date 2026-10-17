@@ -32,6 +32,30 @@ static func known_pets(tree: SceneTree) -> Dictionary:
 	return known
 
 
+## 2026-10-18 使用者要求:撞名(不同辨識代號、同一個顯示名稱)的名字 {名稱: true}。編輯器清單用來決定要不要在名字後面附上代號;
+## 桌寵說話、聊天室、遊戲裡的名字照舊只用顯示名稱。known 是 known_pets() 的結果。
+static func duplicate_names(known: Dictionary) -> Dictionary:
+	var count := {}
+	for tag: String in known:
+		var name := str(known[tag])
+		count[name] = int(count.get(name, 0)) + 1
+	var result := {}
+	for name: String in count:
+		if int(count[name]) > 1:
+			result[name] = true
+	return result
+
+
+## 一行純文字的地方(下拉選單、系統匣選單,不能分字級):撞名時在 label 後面接「(代號)」。
+static func plain_label(label: String, name: String, tag: String, duplicates: Dictionary) -> String:
+	return "%s(%s)" % [label, tag] if tag != "" and duplicates.has(name) else label
+
+
+## 桌面上這隻桌寵在編輯器清單裡的名字(get_label() + 撞名時的代號)。
+static func pet_editor_label(pet: Node, duplicates: Dictionary) -> String:
+	return plain_label(pet.get_label(), str(pet.display_name), str(pet.recognition_tag), duplicates)
+
+
 ## 物品欄裡現有道具的顯示名稱:{名稱: true}。
 static func known_props() -> Dictionary:
 	var known := {}

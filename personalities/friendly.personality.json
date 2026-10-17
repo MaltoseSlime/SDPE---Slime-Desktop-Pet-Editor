@@ -691,6 +691,7 @@
         420.0
       ],
       "ball_play_chance": 0.08,
+      "drag_affinity": true,
       "exhausted_threshold": 10.0,
       "fatigue_rate": 2.5,
       "follow_distance": 70.0,

@@ -139,8 +139,8 @@ static func snapshot_pet(pet: Node) -> Dictionary:
 		"layerOffsets": _layer_offsets_of(pet),
 		"mute": {"auto_unmute": pet.auto_unmute_enabled},
 		"status": {"energy": pet.status_show_energy, "mood": pet.status_show_mood},
-		"effects": {"sleep_z": pet.sleep_z.enabled, "all": pet.effects.enabled, "auto": pet.effects.auto_enabled, "styles": pet.effects.styles_to_dict(), "links": pet.effects.links_to_dict(), "trail": pet.effects.trail_mode},
-		"body": {"scale": pet.params.scale_multiplier / pet.appearance_scale_ratio, "art_flipped": pet.art_flipped, "pack_flipped": pet.base_pack_flipped, "drag_fixed": pet.drag_when_fixed, "climb": pet.climb_enabled, "breath": pet.breathing_enabled, "sharp_pixels": pet.sharp_pixels_enabled, "land_for_props": pet.land_for_props, "fly_behavior": pet.FLY_BEHAVIOR_NAMES[pet.fly_behavior], "no_fatigue": pet.fatigue_disabled, "bottom": pet.bottom_anchored, "hitbox": [pet.hitbox_size.x, pet.hitbox_size.y, pet.hitbox_offset.x, pet.hitbox_offset.y]},
+		"effects": {"sleep_z": pet.sleep_z.enabled, "all": pet.effects.enabled, "auto": pet.effects.auto_enabled, "styles": pet.effects.styles_to_dict(), "links": pet.effects.links_to_dict(), "trail": pet.effects.trail_mode, "favor": pet.effects.favor_to_dict()},
+		"body": {"scale": pet.params.scale_multiplier / pet.appearance_scale_ratio, "art_flipped": pet.art_flipped, "pack_flipped": pet.base_pack_flipped, "drag_fixed": pet.drag_when_fixed, "climb": pet.climb_enabled, "breath": pet.breathing_enabled, "sharp_pixels": pet.sharp_pixels_enabled, "land_for_props": pet.land_for_props, "fly_behavior": pet.FLY_BEHAVIOR_NAMES[pet.fly_behavior], "no_fatigue": pet.fatigue_disabled, "bottom": pet.bottom_anchored, "hitbox": [pet.hitbox_size.x, pet.hitbox_size.y, pet.hitbox_offset.x, pet.hitbox_offset.y], "appearance_hitboxes": pet.appearance_hitboxes.duplicate(true)},
 		"voice": PetVoice.to_dict(pet),
 		"dice": {"sides": pet.dice_sides, "mod": pet.dice_mod, "dc": pet.dice_dc_percent, "best_of": pet.game_best_of, "auto_invite": pet.auto_game_enabled, "always_refuse": pet.game_always_refuse},
 		"game_prefs": {
@@ -251,6 +251,18 @@ static func _apply_pet_data(pet: Node, data: Dictionary) -> void:
 			var size := Vector2(clampf(_number(hitbox[0], 0.0), 0.0, 4096.0), clampf(_number(hitbox[1], 0.0), 0.0, 4096.0))
 			pet.hitbox_size = size if size.x > 0.0 and size.y > 0.0 else Vector2.ZERO
 			pet.hitbox_offset = Vector2(clampf(_number(hitbox[2], 0.0), -4096.0, 4096.0), clampf(_number(hitbox[3], 0.0), -4096.0, 4096.0))
+		var looks: Variant = body.get("appearance_hitboxes")
+		if looks is Dictionary:
+			# 別套外觀各自的判定框(外觀代號 → [寬, 高, 偏移 X, 偏移 Y]),同樣夾範圍;壞的項目略過。
+			var clean := {}
+			for look_id: Variant in looks:
+				var box: Variant = looks[look_id]
+				if look_id is String and box is Array and box.size() >= 4:
+					var size := Vector2(clampf(_number(box[0], 0.0), 0.0, 4096.0), clampf(_number(box[1], 0.0), 0.0, 4096.0))
+					if size.x <= 0.0 or size.y <= 0.0:
+						size = Vector2.ZERO
+					clean[look_id] = [size.x, size.y, clampf(_number(box[2], 0.0), -4096.0, 4096.0), clampf(_number(box[3], 0.0), -4096.0, 4096.0)]
+			pet.appearance_hitboxes = clean
 	if data.get("keywords") is Array:
 		pet.keywords = PetText.sanitize_keywords(data["keywords"])
 	pet.set_interaction_rules(data.get("interaction"))
@@ -272,6 +284,7 @@ static func _apply_pet_data(pet: Node, data: Dictionary) -> void:
 		if effects.has("styles"):
 			pet.effects.apply_styles(effects["styles"])
 		pet.effects.apply_links(effects.get("links"))
+		pet.effects.apply_favor(effects.get("favor"))
 		pet.effects.set_trail_mode(str(effects.get("trail", "off")))
 	var status: Variant = data.get("status")
 	if status is Dictionary:
@@ -455,7 +468,7 @@ static func apply_style(style: PetUiStyle, data: Variant) -> void:
 	style.border_width = clampi(int(_number(data.get("border_width"), style.border_width)), 0, PetUiStyle.MAX_BORDER_WIDTH)
 	style.corner_radius = clampi(int(_number(data.get("corner_radius"), style.corner_radius)), 0, PetUiStyle.MAX_CORNER_RADIUS)
 	style.ui_scale = PetUiStyle.nearest_scale_step(int(_number(data.get("ui_scale"), style.ui_scale)))
-	style.font_scale = PetUiStyle.nearest_scale_step(int(_number(data.get("font_scale"), style.font_scale)))
+	style.font_scale = PetUiStyle.clamp_font_scale(_number(data.get("font_scale"), style.font_scale))   # 字級可以是兩檔之間的值(桌寵管理填數字)
 	var font_name := UiFonts.canonical(str(data.get("default_font", style.default_font)))
 	if UiFonts.FONT_NAMES.has(font_name):
 		style.default_font = font_name

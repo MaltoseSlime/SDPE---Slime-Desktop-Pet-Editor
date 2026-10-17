@@ -54,6 +54,23 @@ static func material() -> ShaderMaterial:
 	return _material
 
 
+## 道具、家具共用(2026-10-18 使用者要求跟桌寵一樣):smooth = 大張圖(平滑取樣,同 Pet.set_smooth_scaling 的判斷);
+## 像素風用最近點,顯示倍率不是整數倍、而且開關開著時套清晰像素材質。
+static func apply_to(node: CanvasItem, smooth: bool, enabled: bool, display_scale: float) -> void:
+	node.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR if smooth else CanvasItem.TEXTURE_FILTER_NEAREST
+	node.material = material() if enabled and not smooth and wanted(display_scale) else null
+
+
+## 素材包讀進來的 SpriteFrames 是不是大張圖(平滑取樣):PropLibrary / FurnitureLibrary.load_sprite 記在 meta "smooth"。
+static func frames_smooth(frames: SpriteFrames) -> bool:
+	return frames != null and bool(frames.get_meta("smooth", false))
+
+
+## 單張貼圖(道具的簡單版貼圖):跟素材包同一個預設判斷,高度超過 200 像素算大張圖。
+static func texture_smooth(texture: Texture2D) -> bool:
+	return texture != null and texture.get_height() > 200
+
+
 ## 這個顯示倍率需不需要清晰像素取樣:整數倍(誤差 1% 內)用最近點就好。
 static func wanted(display_scale: float) -> bool:
 	var s := absf(display_scale)

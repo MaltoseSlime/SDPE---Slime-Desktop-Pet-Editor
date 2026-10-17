@@ -1439,7 +1439,7 @@ func _exec_game_invite(block: Dictionary, token: int) -> String:
 	var tag := str(fields.get("WITH", "")).strip_edges()
 	var target: Node = null
 	if tag == "":
-		var others: Array = get_tree().get_nodes_in_group("pets").filter(func(p: Node) -> bool: return p != _pet and not p.is_queued_for_deletion() and not p.entering)
+		var others: Array = get_tree().get_nodes_in_group("pets").filter(func(p: Node) -> bool: return p != _pet and not p.is_queued_for_deletion() and not p.entering and not _pet.apart_from(p))
 		if not others.is_empty():
 			target = others.pick_random()
 	else:
@@ -2914,7 +2914,7 @@ func _flip_target(tag: String) -> Node2D:
 		return _duet_partner
 	var nearest: Node2D = null
 	for other: Node2D in get_tree().get_nodes_in_group("pets"):
-		if other != _pet and (nearest == null or absf(other.global_position.x - _pet.global_position.x) < absf(nearest.global_position.x - _pet.global_position.x)):
+		if other != _pet and not _pet.apart_from(other) and (nearest == null or absf(other.global_position.x - _pet.global_position.x) < absf(nearest.global_position.x - _pet.global_position.x)):
 			nearest = other
 	return nearest
 
@@ -3072,7 +3072,7 @@ func _name_candidates(levels: Array) -> Array[Dictionary]:
 		var level := int(pref.get("level", 0))
 		if target == "" or target == InteractionRules.ALL_PETS_TARGET or level == 0 or not levels.has(level):
 			continue
-		if bool(pref.get("no_mention", false)):
+		if _pet.no_mention_of(target):
 			continue
 		var present: Node = _present_pet(target)
 		if present != null and _mention_blocked(present):
@@ -3081,9 +3081,9 @@ func _name_candidates(levels: Array) -> Array[Dictionary]:
 	return result
 
 
-## 對方是否設了「不被其他桌寵的話題文本提及」(只有在場時才查得到它的設定)。
+## 對方是否設了「不被其他桌寵的話題文本提及」,或把自己藏起來了(對自己不交互 + 也避免被偵測);只有在場時才查得到它的設定。
 func _mention_blocked(other: Node) -> bool:
-	return bool(other.interaction_rules.get("no_topic_mention", false))
+	return bool(other.interaction_rules.get("no_topic_mention", false)) or _pet.hidden_by(other)
 
 
 ## 名稱引用的種類:"pref"(通用)或簡寫 "liked" / "disliked" / "neutral",不是名稱引用回傳 ""。語法:{pref:3}、{pref:1,2,3}、{liked}(= pref:1,2,3)、{disliked}(= pref:-1,-2,-3)、{neutral}(= pref:0)。
@@ -3131,7 +3131,7 @@ func _present_pet(tag: String) -> Node:
 func _normal_pet() -> Node:
 	var candidates: Array[Node] = []
 	for other: Node in get_tree().get_nodes_in_group("pets"):
-		if other != _pet and is_instance_valid(other) and not other.is_queued_for_deletion() and _pet.pet_affinity(other) == 0:
+		if other != _pet and is_instance_valid(other) and not other.is_queued_for_deletion() and _pet.pet_affinity(other) == 0 and not _pet.apart_from(other):
 			candidates.append(other)
 	return candidates.pick_random() if not candidates.is_empty() else null
 

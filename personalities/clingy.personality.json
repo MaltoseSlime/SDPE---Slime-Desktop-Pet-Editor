@@ -673,6 +673,7 @@
       ],
       "ball_play_chance": 0.1,
       "clingy_mood_rule": true,
+      "drag_affinity": true,
       "exhausted_threshold": 10.0,
       "fatigue_rate": 3.0,
       "follow_distance": 45.0,

@@ -7,6 +7,7 @@ extends VBoxContainer
 signal changed
 
 var _list: VBoxContainer
+var _pager: ListPager
 var _add_text: TextEdit
 var _add_condition_button: Button
 var _add_condition := ""
@@ -21,7 +22,9 @@ func _init() -> void:
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_list = VBoxContainer.new()
 	_list.add_theme_constant_override("separation", 6)
-	add_child(_list)
+	# 2026-10-17 使用者要求:句子太多,話題文本 / 通用話題池視窗也分頁(頭尾翻頁鍵,見 ListPager)。
+	_pager = ListPager.wrap(_list)
+	add_child(_pager)
 	var add_row := HBoxContainer.new()
 	add_child(add_row)
 	_add_condition_button = _condition_button()
@@ -129,6 +132,7 @@ func _on_add_pressed() -> void:
 	if text == "":
 		return
 	_append_row(_add_condition, text)
+	_pager.show_last()
 	_add_text.text = ""
 	_add_condition = ""
 	_add_condition_button.tooltip_text = tr("目前條件:無")
