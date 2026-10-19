@@ -24,6 +24,12 @@ const SCALE_STEPS: Array[int] = [25, 50, 75, 100, 125, 150, 175, 200]
 @export var thought_border := Color("9AA6D0")
 @export var thought_text := Color("30344A")
 @export var thought_option := Color("7C8BC9")
+## 思考泡泡自己的邊框粗細與圓角(2026-10-18 使用者要求跟對話泡泡分開設定)。舊存檔沒有這兩欄時,
+## 讀檔沿用對話泡泡的粗細、圓角至少 16(= 以前的樣子,見 PetProfile.apply_style)。
+@export var thought_border_width := 2
+@export var thought_corner_radius := 16
+## 對話/思考泡泡(桌面上的,不是聊天室)的最大寬度(縮放前像素):文字超過就換行;一行就說完的短句,泡泡只到最後一個字(2026-10-19 使用者要求)。
+@export var bubble_width := 220
 
 
 const MAX_BORDER_WIDTH := 8
@@ -31,6 +37,8 @@ const MAX_BORDER_WIDTH := 8
 const MIN_FONT_SIZE := 4
 const MAX_FONT_SIZE := 32
 const MAX_CORNER_RADIUS := 32
+const MIN_BUBBLE_WIDTH := 100
+const MAX_BUBBLE_WIDTH := 600
 const MIN_OPTION_WAIT := 5.0
 const MAX_OPTION_WAIT := 600.0
 
@@ -40,6 +48,16 @@ func palette(thought: bool) -> Dictionary:
 	if thought:
 		return {"background": thought_background, "border": thought_border, "text": thought_text, "option": thought_option}
 	return {"background": background, "border": border, "text": text, "option": option}
+
+
+## 泡泡種類對應的邊框粗細(縮放前)。
+func frame_border_width(thought: bool) -> int:
+	return thought_border_width if thought else border_width
+
+
+## 泡泡種類對應的圓角(縮放前)。
+func frame_corner_radius(thought: bool) -> int:
+	return thought_corner_radius if thought else corner_radius
 
 
 ## 縮放倍率(1.0 = 100%)。
@@ -98,3 +116,17 @@ func reset_to_defaults() -> void:
 	thought_border = fresh.thought_border
 	thought_text = fresh.thought_text
 	thought_option = fresh.thought_option
+	thought_border_width = fresh.thought_border_width
+	thought_corner_radius = fresh.thought_corner_radius
+	bubble_width = fresh.bubble_width
+
+
+## 「外框與縮放」卡片的格式(邊框粗細、圓角、氣泡最大寬度、介面縮放率;對話/思考泡泡各一組)從 source 複製過來。
+## 桌寵管理「將格式同步給其他場上桌寵」用;狀態面板顯示哪些條由 Pet 自己的欄位記,見 StyleEditorTab._sync_frame_to_others。
+func copy_frame_from(source: PetUiStyle) -> void:
+	border_width = source.border_width
+	corner_radius = source.corner_radius
+	thought_border_width = source.thought_border_width
+	thought_corner_radius = source.thought_corner_radius
+	bubble_width = source.bubble_width
+	ui_scale = source.ui_scale

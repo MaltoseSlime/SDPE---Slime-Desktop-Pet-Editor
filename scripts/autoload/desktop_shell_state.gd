@@ -96,6 +96,8 @@ var _shutdown_holds := 0
 ## 自動閒聊的錯開(多隻桌寵同時在場時):兩次自動閒聊之間至少要隔這麼久,而且任何一隻正在說話時別的桌寵不會自動開口。
 ## 手動「說點什麼」與積木觸發的對話不受這個限制。
 const AUTO_CHAT_MIN_GAP_SECONDS := 15.0
+## 放鬆模式時改用這個(2026-10-19 使用者:放鬆模式下閒聊太頻繁)。
+const AUTO_CHAT_RELAX_GAP_SECONDS := 45.0
 ## 同角色多個複製品狀態不同時,預設讓「最早」或「最晚」生成的那隻當本體("earliest" / "latest",Shell 存讀 settings.cfg)。
 var canonical_policy := "earliest"
 var _pet_serial := 0
@@ -122,7 +124,7 @@ func _ready() -> void:
 ## 現在輪到桌寵自動開口嗎?(沒人正在說話,且距離上一次自動閒聊「開口」與上一個對話「結束」都已經夠久)
 func can_auto_chat() -> bool:
 	var now := Time.get_ticks_msec()
-	var gap := int(AUTO_CHAT_MIN_GAP_SECONDS * 1000.0)
+	var gap := int((AUTO_CHAT_RELAX_GAP_SECONDS if relax_mode else AUTO_CHAT_MIN_GAP_SECONDS) * 1000.0)
 	return _dialogues_open == 0 and now - _last_auto_chat_msec >= gap and now - _last_dialogue_end_msec >= gap
 
 

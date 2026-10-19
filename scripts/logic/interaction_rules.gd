@@ -173,10 +173,14 @@ static func clean(raw: Variant) -> Dictionary:
 			var no_mention := bool(entry.get("no_mention", false))
 			var no_interact := bool(entry.get("no_interact", false))
 			var favorite := bool(entry.get("favorite", false)) and target != ALL_PETS_TARGET and not no_interact
-			if target == "" or not PET_PREF_LEVELS.has(level) or (level == 0 and not no_mention and not favorite and not no_interact) or seen_targets.has(target):
+			var nickname := clean_nickname(str(entry.get("nickname", ""))) if target != ALL_PETS_TARGET else ""
+			if target == "" or not PET_PREF_LEVELS.has(level) or (level == 0 and not no_mention and not favorite and not no_interact and nickname == "") or seen_targets.has(target):
 				continue
 			seen_targets[target] = true
-			result["pet_prefs"].append({"target": target, "name": _text(entry.get("name", target)), "level": level, "no_mention": no_mention, "favorite": favorite, "no_interact": no_interact})
+			var cleaned := {"target": target, "name": _text(entry.get("name", target)), "level": level, "no_mention": no_mention, "favorite": favorite, "no_interact": no_interact}
+			if nickname != "":
+				cleaned["nickname"] = nickname
+			result["pet_prefs"].append(cleaned)
 	for key in ["ignore_props", "ignore_furniture", "no_follow_target", "no_follow_source", "show_bubble_in_chatroom", "no_topic_mention", "silent", "hide_from_ignored"]:
 		var value_raw: Variant = raw.get(key, false)
 		result[key] = value_raw if value_raw is bool else false
@@ -206,6 +210,34 @@ static func direct_pet_pref_level(rules: Dictionary, target: String) -> int:
 		if str(entry.get("target", "")) == target:
 			return int(entry.get("level", 0))
 	return 0
+
+
+## 對其他角色的暱稱(2026-10-18 使用者要求,好惡列的 📝 迷你設定窗):跟使用者稱呼同一套寫法——逗號分隔可以填好幾個,
+## 稱呼牠時每次隨機挑一個(見 Pet.call_name_for);沒填就直接叫名字。存成清理過、用「,」接起來的字串。
+const MAX_PET_NICKNAMES := 8
+
+
+static func clean_nickname(raw: String) -> String:
+	var parts: Array[String] = []
+	for part: String in raw.replace("，", ",").split(","):
+		# 方括號、大括號拿掉:暱稱會直接塞進內建台詞(BBCode 氣泡),不能變成標籤或插值標記
+		var cleaned := PetText.sanitize(part.replace("[", "").replace("]", "").replace("{", "").replace("}", "").strip_edges(), PetText.DEFAULT_MAX_LENGTH)
+		if cleaned != "" and not parts.has(cleaned) and parts.size() < MAX_PET_NICKNAMES:
+			parts.append(cleaned)
+	return ",".join(parts)
+
+
+## 對 target 設的暱稱清單(沒設回空陣列)。
+static func pet_nicknames(rules: Dictionary, target: String) -> Array[String]:
+	var result: Array[String] = []
+	if target == "" or target == ALL_PETS_TARGET:
+		return result
+	for entry: Dictionary in rules.get("pet_prefs", []):
+		if str(entry.get("target", "")) == target:
+			for part: String in str(entry.get("nickname", "")).split(",", false):
+				result.append(part)
+			break
+	return result
 
 
 ## 這隻桌寵(tag)是不是「最喜歡」的對象(ALL_PETS_TARGET 不算)。

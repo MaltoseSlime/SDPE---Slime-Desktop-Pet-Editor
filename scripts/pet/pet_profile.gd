@@ -144,7 +144,7 @@ static func snapshot_pet(pet: Node) -> Dictionary:
 		"voice": PetVoice.to_dict(pet),
 		"dice": {"sides": pet.dice_sides, "mod": pet.dice_mod, "dc": pet.dice_dc_percent, "best_of": pet.game_best_of, "auto_invite": pet.auto_game_enabled, "always_refuse": pet.game_always_refuse},
 		"game_prefs": {
-			"ai_level": {"ttt": pet.ttt_ai_level, "blockade": pet.blockade_ai_level, "mastermind": pet.mastermind_ai_level},
+			"ai_level": {"ttt": pet.ttt_ai_level, "blockade": pet.blockade_ai_level, "mastermind": pet.mastermind_ai_level, "connect4": pet.connect4_ai_level},
 			"mastermind_code_length": pet.mastermind_code_length,
 			"auto_invite": pet.game_auto_invite.duplicate(),
 			"force_accept": pet.game_force_accept.duplicate(),
@@ -324,6 +324,7 @@ static func _apply_pet_data(pet: Node, data: Dictionary) -> void:
 		var ai_level: Variant = game_prefs.get("ai_level")
 		if ai_level is Dictionary:
 			pet.ttt_ai_level = GameAiLevel.clamp_level(int(_number(ai_level.get("ttt"), pet.ttt_ai_level)))
+			pet.connect4_ai_level = GameAiLevel.clamp_level(int(_number(ai_level.get("connect4"), pet.connect4_ai_level)))
 			pet.blockade_ai_level = GameAiLevel.clamp_level(int(_number(ai_level.get("blockade"), pet.blockade_ai_level)))
 			pet.mastermind_ai_level = GameAiLevel.clamp_level(int(_number(ai_level.get("mastermind"), pet.mastermind_ai_level)))
 		var code_length := int(_number(game_prefs.get("mastermind_code_length"), pet.mastermind_code_length))
@@ -450,6 +451,7 @@ static func style_to_dict(style: PetUiStyle) -> Dictionary:
 		"option_wait_seconds": style.option_wait_seconds,
 		"thought_background": color_to_hex(style.thought_background), "thought_border": color_to_hex(style.thought_border),
 		"thought_text": color_to_hex(style.thought_text), "thought_option": color_to_hex(style.thought_option),
+		"thought_border_width": style.thought_border_width, "thought_corner_radius": style.thought_corner_radius, "bubble_width": style.bubble_width,
 	}
 
 
@@ -467,7 +469,13 @@ static func apply_style(style: PetUiStyle, data: Variant) -> void:
 	style.thought_option = _color(data.get("thought_option"), style.thought_option)
 	style.border_width = clampi(int(_number(data.get("border_width"), style.border_width)), 0, PetUiStyle.MAX_BORDER_WIDTH)
 	style.corner_radius = clampi(int(_number(data.get("corner_radius"), style.corner_radius)), 0, PetUiStyle.MAX_CORNER_RADIUS)
+	# 思考泡泡的粗細/圓角 2026-10-18 才分開:舊存檔沒有這兩欄,照以前的樣子(粗細跟對話泡泡、圓角至少 16)。
+	var old_thought_width := style.border_width if data.has("border_width") else style.thought_border_width
+	var old_thought_radius := maxi(style.corner_radius, UiStyleKit.THOUGHT_MIN_RADIUS) if data.has("corner_radius") else style.thought_corner_radius
+	style.thought_border_width = clampi(int(_number(data.get("thought_border_width"), old_thought_width)), 0, PetUiStyle.MAX_BORDER_WIDTH)
+	style.thought_corner_radius = clampi(int(_number(data.get("thought_corner_radius"), old_thought_radius)), 0, PetUiStyle.MAX_CORNER_RADIUS)
 	style.ui_scale = PetUiStyle.nearest_scale_step(int(_number(data.get("ui_scale"), style.ui_scale)))
+	style.bubble_width = clampi(int(_number(data.get("bubble_width"), style.bubble_width)), PetUiStyle.MIN_BUBBLE_WIDTH, PetUiStyle.MAX_BUBBLE_WIDTH)
 	style.font_scale = PetUiStyle.clamp_font_scale(_number(data.get("font_scale"), style.font_scale))   # 字級可以是兩檔之間的值(桌寵管理填數字)
 	var font_name := UiFonts.canonical(str(data.get("default_font", style.default_font)))
 	if UiFonts.FONT_NAMES.has(font_name):

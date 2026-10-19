@@ -6,18 +6,18 @@ extends RefCounted
 const BASE_FONT_SIZE := 16
 
 
-## 思考泡泡的圓角至少這麼大(圓潤一點,像想事情的雲朵)。
+## 思考泡泡圓角的預設值(圓潤一點,像想事情的雲朵);2026-10-18 起思考泡泡的粗細/圓角可以自己設,這只用在舊存檔的轉換。
 const THOUGHT_MIN_RADIUS := 16
 
 
-## thought = true:思考泡泡,用 PetUiStyle 的 thought_* 配色,圓角至少 THOUGHT_MIN_RADIUS。
+## thought = true:思考泡泡,用 PetUiStyle 的 thought_* 配色與思考泡泡自己的粗細/圓角。
 static func panel_style(style: PetUiStyle, factor: float, thought := false) -> StyleBoxFlat:
 	var colors := style.palette(thought)
 	var box := StyleBoxFlat.new()
 	box.bg_color = colors["background"]
 	box.border_color = colors["border"]
-	box.set_border_width_all(maxi(int(style.border_width * factor), 1))
-	box.set_corner_radius_all(int((maxi(style.corner_radius, THOUGHT_MIN_RADIUS) if thought else style.corner_radius) * factor))
+	box.set_border_width_all(maxi(int(style.frame_border_width(thought) * factor), 1))
+	box.set_corner_radius_all(int(style.frame_corner_radius(thought) * factor))
 	box.set_content_margin_all(10.0 * factor)
 	# 名字標籤跨在上邊框上,上方多留一點空間讓標籤不蓋到第一行字。
 	box.content_margin_top = 16.0 * factor
@@ -66,7 +66,7 @@ static func option_button(text: String, font: Font, style: PetUiStyle, factor: f
 	for state in ["normal", "hover", "pressed"]:
 		var box := StyleBoxFlat.new()
 		box.bg_color = option_color.lightened(0.2) if state != "normal" else option_color
-		box.set_corner_radius_all(int(style.corner_radius * factor * 0.6))
+		box.set_corner_radius_all(int(style.frame_corner_radius(thought) * factor * 0.6))
 		box.set_content_margin_all(6.0 * factor)
 		button.add_theme_stylebox_override(state, box)
 	return button

@@ -29,9 +29,18 @@ var wall_mode_kind := "move"   # "move" / "vwall" / "hwall"
 var walls_left_hint := 0
 var show_surrender := false
 var status_text := ""
+## 棋子配色(見 GamePieceColors):[第一方, 第二方];空的 = 系統配色(強調色 / 文字色)。
+var piece_colors: Array = []
 
 ## BoardPlacement 記位置用的鍵(一種面板一個)。
 const PLACEMENT_KIND := "blockade"
+## 全局設定的棋盤大小(AppSettings.board_scale):整塊面板用節點縮放放大縮小;版面在「縮放前」的座標裡排,
+## 進出的座標(滑鼠、螢幕/行動區範圍、穿透形狀、擋滑鼠的判斷)在這裡換算。
+var _k := 1.0
+## 字和放字的那幾列的倍數(AppSettings.board_text_scale):棋盤縮小時字維持原本大小。
+var _t := 1.0
+## 標題列的字要放得下時面板至少要多寬(只會變寬,不會在對局中縮回去,免得面板忽寬忽窄)。
+var _min_width := 0.0
 
 var _area: Node
 var _fraction: Variant = null
@@ -47,6 +56,9 @@ var _font_k := 1.0
 
 func setup(area: Node) -> void:
 	_area = area
+	_k = AppSettings.board_scale(PLACEMENT_KIND)
+	_t = AppSettings.board_text_scale(_k)
+	scale = Vector2(_k, _k)
 	add_to_group("Cutout")
 	add_to_group("screen_clamped_boards")
 	add_to_group("pointer_blockers")
@@ -56,6 +68,11 @@ func setup(area: Node) -> void:
 
 
 func _area_rect() -> Rect2:
+	var raw := _raw_area_rect()
+	return Rect2(raw.position / _k, raw.size / _k)
+
+
+func _raw_area_rect() -> Rect2:
 	if _area != null and "boundary_rect" in _area:
 		var rect: Rect2 = _area.boundary_rect
 		return Rect2(_area.to_global(rect.position), rect.size)
@@ -63,8 +80,13 @@ func _area_rect() -> Rect2:
 
 
 func _screen_rect() -> Rect2:
+	var raw := _raw_screen_rect()
+	return Rect2(raw.position / _k, raw.size / _k)
+
+
+func _raw_screen_rect() -> Rect2:
 	if DisplayServer.get_name() == "headless" or not is_inside_tree():
-		return _area_rect()
+		return _raw_area_rect()
 	var origin := Vector2(get_window().position)
 	var usable := DisplayServer.screen_get_usable_rect(DisplayServer.window_get_current_screen())
 	return Rect2(Vector2(usable.position) - origin, Vector2(usable.size))
@@ -82,7 +104,8 @@ func _grid_size() -> float:
 
 func panel_size() -> Vector2:
 	var grid := _grid_size()
-	return Vector2(PAD * 2.0 + grid, HEADER + (MODE_ROW if show_surrender else 0.0) + PAD * 2.0 + grid + (SURRENDER_HEIGHT if show_surrender else 0.0))
+	_min_width = maxf(_min_width, AppSettings.board_header_width(status_text, 13, _t))
+	return Vector2(maxf(PAD * 2.0 + grid, _min_width), (HEADER + (MODE_ROW if show_surrender else 0.0)) * _t + PAD * 2.0 + grid + (SURRENDER_HEIGHT * _t if show_surrender else 0.0))
 
 
 func _layout() -> void:
@@ -100,33 +123,33 @@ func _layout() -> void:
 	var panel := Rect2(pos, size)
 	_rects.clear()
 	_rects["panel"] = panel
-	_rects["header"] = Rect2(panel.position, Vector2(size.x - 28.0, HEADER))
-	_rects["close"] = Rect2(panel.end.x - 26.0, panel.position.y + 4.0, 22.0, 22.0)
-	var grid_top := panel.position.y + HEADER + (MODE_ROW if show_surrender else 0.0) + PAD
+	_rects["header"] = Rect2(panel.position, Vector2(size.x - 28.0 * _t, HEADER * _t))
+	_rects["close"] = Rect2(panel.end.x - 26.0 * _t, panel.position.y + 4.0 * _t, 22.0 * _t, 22.0 * _t)
+	var grid_top := panel.position.y + (HEADER + (MODE_ROW if show_surrender else 0.0)) * _t + PAD
 	if show_surrender:
-		var btn_w := 40.0
-		var btn_y := panel.position.y + HEADER + 2.0
+		var btn_w := 40.0 * _t
+		var btn_y := panel.position.y + (HEADER + 2.0) * _t
 		var btn_x := panel.position.x + PAD
-		_rects["mode_vwall"] = Rect2(btn_x, btn_y, btn_w, 24.0)
-		_rects["mode_move"] = Rect2(btn_x + btn_w + 6.0, btn_y, btn_w, 24.0)
-		_rects["mode_hwall"] = Rect2(btn_x + (btn_w + 6.0) * 2.0, btn_y, btn_w, 24.0)
-	_rects["grid_origin"] = Rect2(Vector2(panel.position.x + PAD, grid_top), Vector2.ZERO)
+		_rects["mode_vwall"] = Rect2(btn_x, btn_y, btn_w, 24.0 * _t)
+		_rects["mode_move"] = Rect2(btn_x + btn_w + 6.0 * _t, btn_y, btn_w, 24.0 * _t)
+		_rects["mode_hwall"] = Rect2(btn_x + (btn_w + 6.0 * _t) * 2.0, btn_y, btn_w, 24.0 * _t)
+	_rects["grid_origin"] = Rect2(Vector2(panel.position.x + (size.x - _grid_size()) * 0.5, grid_top), Vector2.ZERO)   # 面板被標題撐寬時格子置中
 	if show_surrender:
-		_rects["surrender"] = Rect2(panel.position.x + PAD, panel.end.y - SURRENDER_HEIGHT + 4.0, size.x - PAD * 2.0, SURRENDER_HEIGHT - 6.0)
+		_rects["surrender"] = Rect2(panel.position.x + PAD, panel.end.y - (SURRENDER_HEIGHT - 4.0) * _t, size.x - PAD * 2.0, (SURRENDER_HEIGHT - 6.0) * _t)
 	_last_area_cache = area
 	queue_redraw()
 
 
 ## 滑鼠在面板範圍內(或正拖著標題列)時,後面的桌寵不該收到按壓/右鍵/摸摸,見 pet_interaction.gd 的 pointer_blocked()。
 func blocks_pointer(point: Vector2) -> bool:
-	return _dragging_header or (_rects.has("panel") and (_rects["panel"] as Rect2).has_point(point))
+	return _dragging_header or (_rects.has("panel") and (_rects["panel"] as Rect2).has_point(point / _k))
 
 
 func get_cutout_polygons() -> Array:
 	if not _rects.has("panel"):
 		return []
 	var rect: Rect2 = _rects["panel"]
-	return [DialogueBubble._rect_polygon(rect.grow(80.0 if _dragging_header else 4.0))]
+	return [DialogueBubble._rect_polygon(Rect2(rect.position * _k, rect.size * _k).grow(80.0 if _dragging_header else 4.0))]
 
 
 func _process(delta: float) -> void:
@@ -149,7 +172,7 @@ func refresh() -> void:
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouse:
-		_mouse = get_viewport().get_canvas_transform().affine_inverse() * event.position
+		_mouse = get_viewport().get_canvas_transform().affine_inverse() * event.position / _k
 	if event is InputEventMouseMotion:
 		_on_motion()
 		if interactive and wall_mode_kind != "move":
@@ -271,12 +294,14 @@ func _draw() -> void:
 	draw_rect(local_panel, Color(bg, 0.95), true)
 	draw_rect(local_panel, Color(accent, 0.7), false, 2.0)
 	var header: Rect2 = _rects["header"]
-	draw_string(font, Vector2(header.position.x - global_position.x + 6.0, header.position.y - global_position.y + 19.0), status_text, HORIZONTAL_ALIGNMENT_LEFT, header.size.x, roundi(13 * _font_k), Color(text_color, 0.95))
+	draw_string(font, Vector2(header.position.x - global_position.x + 6.0 * _t, header.position.y - global_position.y + 19.0 * _t), status_text, HORIZONTAL_ALIGNMENT_LEFT, header.size.x, roundi(13 * _font_k * _t), Color(text_color, 0.95))
 	var close: Rect2 = _rects["close"]
-	draw_string(font, Vector2(close.position.x - global_position.x + 4.0, close.position.y - global_position.y + 16.0), "×", HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(16 * _font_k), Color(muted, 0.9))
+	draw_string(font, Vector2(close.position.x - global_position.x + 4.0 * _t, close.position.y - global_position.y + 16.0 * _t), "×", HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(16 * _font_k * _t), Color(muted, 0.9))
 	if show_surrender:
 		_draw_mode_buttons(font, text_color, accent, muted)
 	var outline := Color.BLACK if bg.get_luminance() > 0.5 else Color.WHITE
+	var color_a: Color = piece_colors[0] if piece_colors.size() == 2 else accent
+	var color_b: Color = piece_colors[1] if piece_colors.size() == 2 else text_color
 	var origin: Vector2 = (_rects["grid_origin"] as Rect2).position - global_position
 	var pos: Dictionary = state.get("pos", {})
 	var walls: Dictionary = state.get("walls", {})
@@ -288,15 +313,15 @@ func _draw() -> void:
 			var c := local_cell.get_center()
 			if pos.get("A", Vector2i(-1, -1)) == cell_pos:
 				draw_circle(c, 11.0, Color(outline, 0.55))
-				draw_circle(c, 9.0, accent)
+				draw_circle(c, 9.0, color_a)
 			elif pos.get("B", Vector2i(-1, -1)) == cell_pos:
 				draw_circle(c, 11.0, Color(outline, 0.55))
-				draw_circle(c, 9.0, text_color)
+				draw_circle(c, 9.0, color_b)
 	var wall_owners: Dictionary = state.get("wall_owners", {})
 	for slot: Vector2i in walls:
 		var orientation: String = str(walls[slot])
 		var owner: String = str(wall_owners.get(slot, "A"))
-		var wall_color: Color = accent if owner == "A" else text_color   # 敵我雙方的牆顏色不同,各自跟自己棋子同色
+		var wall_color: Color = color_a if owner == "A" else color_b   # 敵我雙方的牆顏色不同,各自跟自己棋子同色
 		var rect := _h_wall_rect(origin, slot) if orientation == "H" else _v_wall_rect(origin, slot)
 		# 外框線(跟井字棋的圈叉同一個做法):先在牆的外面畫一圈對比色的輪廓,再疊上敵我顏色的牆面,
 		# 不管哪種配色,牆跟底色都分得清楚。
@@ -308,7 +333,7 @@ func _draw() -> void:
 		draw_rect(preview_rect, Color(1.0, 0.85, 0.2, 0.55), true)   # 預覽色跟上面兩種實際牆色(accent/text_color)都不一樣
 	if show_surrender and _rects.has("surrender"):
 		var surrender: Rect2 = _rects["surrender"]
-		draw_string(font, Vector2(surrender.position.x - global_position.x, surrender.position.y - global_position.y + 15.0), tr("投降"), HORIZONTAL_ALIGNMENT_CENTER, surrender.size.x, roundi(14 * _font_k), Color(1.0, 0.55, 0.55, 0.9))
+		draw_string(font, Vector2(surrender.position.x - global_position.x, surrender.position.y - global_position.y + 15.0 * _t), tr("投降"), HORIZONTAL_ALIGNMENT_CENTER, surrender.size.x, roundi(14 * _font_k * _t), Color(1.0, 0.55, 0.55, 0.9))
 
 
 func _draw_mode_buttons(font: Font, text_color: Color, accent: Color, muted: Color) -> void:
@@ -325,13 +350,13 @@ func _draw_mode_buttons(font: Font, text_color: Color, accent: Color, muted: Col
 		var disabled := kind != "move" and walls_left_hint <= 0
 		draw_rect(local_rect, Color(accent, 0.45) if active else Color(text_color, 0.06), true)
 		draw_rect(local_rect, Color(muted, 0.5), false, 1.0)
-		draw_string(font, local_rect.position + Vector2(local_rect.size.x * 0.5 - 6.0, 17.0), glyph, HORIZONTAL_ALIGNMENT_CENTER, local_rect.size.x, roundi(14 * _font_k), Color(text_color, 0.4 if disabled else 0.95))
+		draw_string(font, local_rect.position + Vector2(local_rect.size.x * 0.5 - 6.0 * _t, 17.0 * _t), glyph, HORIZONTAL_ALIGNMENT_CENTER, local_rect.size.x, roundi(14 * _font_k * _t), Color(text_color, 0.4 if disabled else 0.95))
 	var caption := tr("移動棋子")
 	match wall_mode_kind:
 		"vwall":
 			caption = tr("放置直牆(剩 %d 面)") % walls_left_hint
 		"hwall":
 			caption = tr("放置橫牆(剩 %d 面)") % walls_left_hint
-	var caption_y: float = (_rects["mode_move"] as Rect2).end.y - global_position.y + 14.0
+	var caption_y: float = (_rects["mode_move"] as Rect2).end.y - global_position.y + 14.0 * _t
 	var caption_x: float = (_rects["mode_vwall"] as Rect2).position.x - global_position.x
-	draw_string(font, Vector2(caption_x, caption_y), caption, HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(12 * _font_k), Color(text_color, 0.85))
+	draw_string(font, Vector2(caption_x, caption_y), caption, HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(12 * _font_k * _t), Color(text_color, 0.85))

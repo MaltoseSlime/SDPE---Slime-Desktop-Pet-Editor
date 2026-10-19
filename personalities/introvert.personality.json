@@ -58,13 +58,13 @@
       "安靜的時候最舒服了。": "Quiet moments are the most comfortable.",
       "我在旁邊看就很好了。": "I'm fine just watching from the side.",
       "我沒事……只是心跳有點快。": "I'm fine... my heart's just beating a little fast.",
-      "有{user}你在的話,我比較不緊張。": "I feel less nervous when you're around, {user}.",
       "沒關係的,我只是需要一點安靜。": "It's okay, I just need a bit of quiet.",
       "被、被摸頭了……": "M-my head got patted...",
       "謝謝你問我,不過我先不了。": "Thanks for asking, but I'll pass for now.",
       "這樣……可以嗎?": "Like this... is that okay?",
       "這樣安靜地待著,剛剛好。": "Sitting quietly like this is just right.",
-      "那個……我試試看。": "Um... I'll try."
+      "那個……我試試看。": "Um... I'll try.",
+      "有{user}在的話,我比較不緊張。": "I feel less nervous when you're around, {user}."
     },
     "zh-TW": {
       "(低頭)沒關係……": "(低頭)沒關係……",
@@ -122,13 +122,13 @@
       "安靜的時候最舒服了。": "安靜的時候最舒服了。",
       "我在旁邊看就很好了。": "我在旁邊看就很好了。",
       "我沒事……只是心跳有點快。": "我沒事……只是心跳有點快。",
-      "有{user}你在的話,我比較不緊張。": "有{user}你在的話,我比較不緊張。",
       "沒關係的,我只是需要一點安靜。": "沒關係的,我只是需要一點安靜。",
       "被、被摸頭了……": "被、被摸頭了……",
       "謝謝你問我,不過我先不了。": "謝謝你問我,不過我先不了。",
       "這樣……可以嗎?": "這樣……可以嗎?",
       "這樣安靜地待著,剛剛好。": "這樣安靜地待著,剛剛好。",
-      "那個……我試試看。": "那個……我試試看。"
+      "那個……我試試看。": "那個……我試試看。",
+      "有{user}在的話,我比較不緊張。": "有{user}在的話,我比較不緊張。"
     }
   },
   "fileType": "slime_pet_personality",
@@ -154,7 +154,7 @@
                 "CLICK_WAIT": true,
                 "FONT": "__default__",
                 "SPEAKER": "",
-                "TEXT": "……你可以教我一個新的詞嗎?",
+                "TEXT": "……{you}可以教我一個新的詞嗎?",
                 "TYPEWRITER": true,
                 "WAIT": true
               },
@@ -178,7 +178,7 @@
                             "FRESH": true,
                             "KEY": "learned",
                             "MAXLEN": 16.0,
-                            "PROMPT": "……你想教我什麼?"
+                            "PROMPT": "……{you}想教我什麼?"
                           },
                           "id": "introvert_teach_ask",
                           "next": {
@@ -293,7 +293,7 @@
                 "CLICK_WAIT": true,
                 "FONT": "__default__",
                 "SPEAKER": "",
-                "TEXT": "……我想多了解你一點。你最近對什麼有興趣?",
+                "TEXT": "……我想多了解{you}一點。你最近對什麼有興趣?",
                 "TYPEWRITER": true,
                 "WAIT": true
               },
@@ -317,7 +317,7 @@
                             "FRESH": true,
                             "KEY": "interest",
                             "MAXLEN": 16.0,
-                            "PROMPT": "……你有興趣的是?"
+                            "PROMPT": "……{you}有興趣的是?"
                           },
                           "id": "introvert_know_ask",
                           "next": {
@@ -369,7 +369,7 @@
                                       "BIND_ACTION": "",
                                       "FONT": "__default__",
                                       "SPEAKER": "",
-                                      "TEXT": "……好,等你想說的時候。",
+                                      "TEXT": "……好,等{you}想說的時候。",
                                       "TYPEWRITER": true,
                                       "WAIT": true
                                     },
@@ -442,7 +442,7 @@
         "tag": "chat"
       },
       {
-        "say": "有{user}你在的話,我比較不緊張。",
+        "say": "有{user}在的話,我比較不緊張。",
         "tag": "chat"
       },
       {

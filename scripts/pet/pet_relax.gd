@@ -32,7 +32,10 @@ enum State { NONE, SETTLE, SEEK, SEEK_FURNITURE, WANDER }
 const SIT_CHANCE_PCT := 3.0          # 自己坐下的意願(性格 idle_sit_chance,每秒機率)+300%
 const SIT_CHANCE_UNIT := 0.02        # 機率類的 1 個單位 = 1 個百分點的兩倍(每秒 2%);加成後每秒 8%,平均十幾秒內坐下
 const SIT_DURATION_PCT := 1.5        # 每一段坐著的時間(性格 rest_duration)+150%
-## 閒聊與互相邀請對戰的間隔不另外拉長(2026-10-11 使用者:自動閒聊開著就照常;不想聊就關自動閒聊)。坐著休息時也照常開口/對戰,見 Pet.relax_seated()。
+## 自動閒聊:2026-10-19 使用者改主意(原本 10-11 說照常):自動閒聊開著時倒數變慢 CHAT_INTERVAL_PCT(間隔 +100%,
+## 見 Pet._tick_auto_chat),多隻之間的最短間隔也拉長(DesktopShellState.AUTO_CHAT_RELAX_GAP_SECONDS)。
+## 互相邀請對戰的間隔不另外拉長;坐著休息時也照常開口/對戰,見 Pet.relax_seated()。
+const CHAT_INTERVAL_PCT := 1.0
 const SEEK_SPEED_PCT := -0.4         # 找座位時的移動速度 −40%
 const PARTICLE_PCT := -0.5           # 特效粒子密度 −50%
 ## 坐著的一段結束時:起身換位置的機率(再乘 0.5 + 社交意願)、繼續坐著以外改成睡著的機率(懶惰/累了 ×LAZY_SLEEP_MULT)。

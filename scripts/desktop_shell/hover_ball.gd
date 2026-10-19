@@ -30,6 +30,7 @@ const MENU_ITEMS: Array[Array] = [
 	["manager", "桌寵管理…"],
 	["objects", "交互物件管理…"],
 	["hide_outside_furniture", "隱藏行動區外的家具"],
+	["toggle_frame", "隱藏行動區邊框"],
 	["settings", "全局設定…"],
 	["tester", "測試者面板…"],
 	["clear_props", "清掃桌面道具"],
@@ -46,6 +47,12 @@ var _inventory_open := false
 var hide_outside_furniture := false:
 	set(value):
 		hide_outside_furniture = value
+		queue_redraw()
+## 「隱藏行動區邊框」目前開著沒有(同上,只給選單畫勾勾;真正的狀態在 ActionArea.frame_visible,跟系統匣同一個開關,
+## 2026-10-19 使用者要求懸浮球也放一份)。
+var frame_hidden := false:
+	set(value):
+		frame_hidden = value
 		queue_redraw()
 ## 新手教學指著懸浮球時(見 TutorialGuide):非空就讓選單一直展開,並把這個項目("inventory"、"clear_props"…,MENU_ITEMS 的代號)框起來。
 var tutorial_focus := "":
@@ -388,7 +395,7 @@ func _run_action(action: String) -> void:
 	if action == "inventory":
 		set_inventory_open(not _inventory_open)
 		return
-	if action == "hide_outside_furniture":
+	if action == "hide_outside_furniture" or action == "toggle_frame":
 		action_requested.emit(action)   # 開關型:選單留著,勾勾當場變給使用者看
 		return
 	_expanded = false
@@ -433,6 +440,8 @@ func _draw() -> void:
 				label = ("✔ " if _inventory_open else "") + label
 			elif str(entry[0]) == "hide_outside_furniture":
 				label = ("✔ " if hide_outside_furniture else "") + label
+			elif str(entry[0]) == "toggle_frame":
+				label = ("✔ " if frame_hidden else "") + label
 			draw_string(font, local_row.position + Vector2(12.0, MENU_ROW * 0.68), label, HORIZONTAL_ALIGNMENT_LEFT, MENU_WIDTH - 16.0, roundi(15 * _font_k), text_color)
 	if _inventory_open and _rects.has("panel"):
 		var panel: Rect2 = _rects["panel"]

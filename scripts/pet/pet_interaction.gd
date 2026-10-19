@@ -31,6 +31,10 @@ const PET_REVERSALS := 8
 const PET_WINDOW := 2.0
 const PET_MIN_STROKE := 14.0
 const PET_COOLDOWN := 1.2
+## 重疊的桌寵輪流摸(2026-10-19 使用者回報:坐得很近時後面那隻的判定框被前面那隻蓋住,怎麼摸都摸到前面那隻):
+## 一隻剛被摸到(petted)後這麼多秒內算「摸過了」,滑鼠下還有沒摸過的就改摸那隻;換過去之後只要滑鼠還在牠身上就一直摸牠
+## (見 petting_target_at),不會每次滑鼠移動都重新挑、兩隻來回搶而摸不成。
+const PET_HANDOFF_SECONDS := 3.0
 const THROW_MAX_SPEED := 1400.0
 
 ## 專屬行為計數器(點擊、摸摸、拖曳、跟隨次數)。
@@ -54,6 +58,9 @@ var _reversals: Array[float] = []
 var _last_direction := 0.0
 var _stroke := 0.0
 var _pet_cooldown_until := 0.0
+var _last_petted_at := -100.0
+## 目前在摸的那隻(重疊時輪流摸用,見 petting_target_at)。
+static var _petting_owner: WeakRef = null
 
 
 func setup(pet: CharacterBody2D) -> void:
@@ -103,6 +110,41 @@ static func topmost_pet_at(tree: SceneTree, point: Vector2, pixel_precise := fal
 		if pet.z_index > best.z_index or (pet.z_index == best.z_index and pet.get_index() > best.get_index()):
 			best = pet
 	return best
+
+
+## 摸摸(滑鼠在身上來回晃)要算給哪一隻:平常跟 topmost_pet_at 一樣是畫在最前面的;但正在摸的那隻(_petting_owner)
+## 還在滑鼠下、而且還沒剛被摸完就一直是牠;牠剛被摸完(PET_HANDOFF_SECONDS 內)就換滑鼠下還沒被摸過的另一隻(挑最前面的),
+## 大家都摸過了就維持原本那隻。
+static func petting_target_at(tree: SceneTree, point: Vector2) -> Node:
+	var front := topmost_pet_at(tree, point)
+	if front == null:
+		_petting_owner = null
+		return null
+	if front.dragging:
+		return front
+	var hits: Array = []
+	for pet: Node in tree.get_nodes_in_group("pets") + tree.get_nodes_in_group(SYSTEM_GUIDE_GROUP):
+		if not pet.is_queued_for_deletion() and pet.hit_test(point) and pet.get("interaction") != null:
+			hits.append(pet)
+	var owner: Node = _petting_owner.get_ref() if _petting_owner != null else null
+	if owner != null and hits.has(owner) and not owner.interaction.petted_recently():
+		return owner
+	var fresh: Array = hits.filter(func(pet: Node) -> bool: return not pet.interaction.petted_recently())
+	var pick: Node = front
+	if not fresh.is_empty() and not fresh.has(front):
+		pick = fresh[0]
+		for pet: Node in fresh:
+			if pet.z_index > pick.z_index or (pet.z_index == pick.z_index and pet.get_index() > pick.get_index()):
+				pick = pet
+	elif owner != null and hits.has(owner) and fresh.is_empty():
+		pick = owner   # 大家都剛摸過:不換人
+	_petting_owner = weakref(pick)
+	return pick
+
+
+## 剛被摸到(見 PET_HANDOFF_SECONDS)。
+func petted_recently() -> bool:
+	return _now() - _last_petted_at < PET_HANDOFF_SECONDS
 
 
 func _input(event: InputEvent) -> void:
@@ -188,7 +230,7 @@ func _on_motion(event: InputEventMouseMotion) -> void:
 		_last_direction = 0.0
 		_stroke = 0.0
 		return
-	if not _pressing and topmost_pet_at(get_tree(), _mouse) == _pet:
+	if not _pressing and petting_target_at(get_tree(), _mouse) == _pet:
 		_track_petting(event.relative.x)
 
 
@@ -233,6 +275,7 @@ func _track_petting(relative_x: float) -> void:
 	if _reversals.size() >= PET_REVERSALS and now >= _pet_cooldown_until:
 		_reversals.clear()
 		_pet_cooldown_until = now + PET_COOLDOWN
+		_last_petted_at = now
 		pet_count += 1
 		_register_event()
 		petted.emit()

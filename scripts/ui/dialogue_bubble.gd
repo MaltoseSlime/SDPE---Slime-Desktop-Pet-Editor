@@ -14,7 +14,8 @@ signal unpin_requested(target_pet: Node)
 
 const TYPEWRITER_CPS := 30.0
 const BASE_FONT_SIZE := UiStyleKit.BASE_FONT_SIZE
-const BASE_WIDTH := 260.0
+## 沒有桌寵外觀設定時的氣泡最大寬度(縮放前像素);實際用 PetUiStyle.bubble_width,見 _fit_width。
+const BASE_WIDTH := 220.0
 const CUTOUT_MARGIN := 6.0
 ## 版面剛變動(剛出現、選項顯示、換行重排)後的頭幾次穿透形狀查詢多留這麼大一圈,等版面穩定。
 const SETTLE_GROW := 48.0
@@ -26,6 +27,27 @@ static var STYLE_TAG_REGEX := RegEx.create_from_string("\\[(/?)(b|i|u|s|color|fo
 ## 斜體用的傾斜變換(RichTextLabel 的 [i] 用 italics_font;系統字型沒有斜體字重,所以用變形模擬)。
 const ITALIC_SKEW := 0.2
 const BOLD_EMBOLDEN := 0.7
+## 富文字標籤的四種字型(一般/粗體/斜體/粗斜體)與字級:系統字型不一定有對應字重,用 FontVariation 加粗與傾斜,
+## [b][i] 才看得出效果。對話氣泡、桌寵管理的氣泡預覽、聊天室都用這一套(2026-10-18 使用者回報預覽的粗斜體沒顯示)。
+static func apply_rich_fonts(label: RichTextLabel, font: Font, font_size: int) -> void:
+	var bold_font := FontVariation.new()
+	bold_font.base_font = font
+	bold_font.variation_embolden = BOLD_EMBOLDEN
+	var italic_font := FontVariation.new()
+	italic_font.base_font = font
+	italic_font.variation_transform = Transform2D(Vector2(1.0, 0.0), Vector2(ITALIC_SKEW, 1.0), Vector2.ZERO)
+	var bold_italic_font := FontVariation.new()
+	bold_italic_font.base_font = font
+	bold_italic_font.variation_embolden = BOLD_EMBOLDEN
+	bold_italic_font.variation_transform = italic_font.variation_transform
+	label.add_theme_font_override("normal_font", font)
+	label.add_theme_font_override("bold_font", bold_font)
+	label.add_theme_font_override("italics_font", italic_font)
+	label.add_theme_font_override("bold_italics_font", bold_italic_font)
+	for key in ["normal_font_size", "bold_font_size", "italics_font_size", "bold_italics_font_size"]:
+		label.add_theme_font_size_override(key, font_size)
+
+
 ## 「等點擊」的句子(line["wait_click"],例如桌寵主動問使用者稱呼這類重要對話)放著不管這麼久就自動關掉,避免氣泡永遠掛在桌面上。
 const IDLE_DISMISS_SECONDS := 30.0
 ## 沒有選項、也沒設自動秒數、也不是「等點擊」的一般句子:打完字後依字數自動收起(不必等人點;點一下仍可提早跳下一句)。
@@ -122,7 +144,7 @@ func setup(target_pet: Node, line: Dictionary, show_in_world: bool = true) -> vo
 		# 尾巴的圓要不透明,不然半透明的泡泡底色會讓圓和框線疊出雜色。
 		var tail_fill: Color = colors["background"]
 		tail_fill.a = maxf(tail_fill.a, 0.9)
-		_tail.setup(tail_fill, colors["border"], float(maxi(_style.border_width, 1)), factor)
+		_tail.setup(tail_fill, colors["border"], float(maxi(_style.thought_border_width, 1)), factor)
 		# ThoughtTail.setup() 把自己設成 top_level(位置要跟著桌寵頭頂走,不跟氣泡本體的座標系):top_level
 		# 節點不會繼承父節點的 modulate(渲染時直接接到畫布根層級,跟一般子節點的顏色疊加路徑不同),所以氣泡
 		# 本體在 show_in_world=false 時設的 modulate.a=0 對它沒有作用,要另外明著把它藏起來
@@ -141,28 +163,9 @@ func setup(target_pet: Node, line: Dictionary, show_in_world: bool = true) -> vo
 	_label.fit_content = true
 	_label.scroll_active = false
 	_label.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
-	_label.custom_minimum_size.x = BASE_WIDTH * factor
+	_label.custom_minimum_size.x = _max_width()
 	_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# 粗體/斜體:系統字型不一定有對應字重,這裡用 FontVariation 加粗與傾斜,[b][i] 才看得出效果。
-	var bold_font := FontVariation.new()
-	bold_font.base_font = font
-	bold_font.variation_embolden = BOLD_EMBOLDEN
-	var italic_font := FontVariation.new()
-	italic_font.base_font = font
-	italic_font.variation_transform = Transform2D(Vector2(1.0, 0.0), Vector2(ITALIC_SKEW, 1.0), Vector2.ZERO)
-	var bold_italic_font := FontVariation.new()
-	bold_italic_font.base_font = font
-	bold_italic_font.variation_embolden = BOLD_EMBOLDEN
-	bold_italic_font.variation_transform = italic_font.variation_transform
-	_label.add_theme_font_override("normal_font", font)
-	_label.add_theme_font_override("bold_font", bold_font)
-	_label.add_theme_font_override("italics_font", italic_font)
-	_label.add_theme_font_override("bold_italics_font", bold_italic_font)
-	var text_factor := _style.text_scale_factor()
-	_label.add_theme_font_size_override("normal_font_size", int(BASE_FONT_SIZE * text_factor))
-	_label.add_theme_font_size_override("bold_font_size", int(BASE_FONT_SIZE * text_factor))
-	_label.add_theme_font_size_override("italics_font_size", int(BASE_FONT_SIZE * text_factor))
-	_label.add_theme_font_size_override("bold_italics_font_size", int(BASE_FONT_SIZE * text_factor))
+	apply_rich_fonts(_label, font, int(BASE_FONT_SIZE * _style.text_scale_factor()))
 	_label.add_theme_color_override("default_color", colors["text"])
 	# 行高校正把每一行的上緣也往內收(Silver 是負的,見 UiFonts.get_ui_font):行與行之間收緊沒問題,
 	# 但第一行的字會往上凸出文字框,被氣泡上緣的名字標籤蓋到(2026-10-17 使用者回報)。文字框上方補回收掉的那段。
@@ -190,6 +193,7 @@ func setup(target_pet: Node, line: Dictionary, show_in_world: bool = true) -> vo
 
 	_tag = UiStyleKit.name_tag(pet.get_label(), font, _style, factor, is_thought)
 	add_child(_tag)
+	_fit_width()   # 名字標籤比短句還寬時,泡泡至少要放得下名字
 	_tag.top_level = true
 	if not show_in_world:
 		_tag.modulate.a = 0.0
@@ -224,6 +228,7 @@ func _set_content(raw: String) -> void:
 	var matches := ICON_REGEX.search_all(raw)
 	if matches.is_empty():
 		_label.text = raw
+		_fit_width()
 		return
 	_label.clear()
 	var icon_height := int(UiStyleKit.BASE_FONT_SIZE * _style.text_scale_factor())
@@ -240,6 +245,31 @@ func _set_content(raw: String) -> void:
 			var width := int(roundf(float(texture.get_width()) * height / maxf(texture.get_height(), 1.0)))
 			_label.add_image(texture, width, height)
 	_append_segment(raw.substr(cursor), open_tags)
+	_fit_width()
+
+
+## 氣泡最大寬度(PetUiStyle.bubble_width × 介面縮放率)。
+func _max_width() -> float:
+	var width := float(_style.bubble_width) if _style != null else BASE_WIDTH
+	return width * (_style.scale_factor() if _style != null else 1.0)
+
+
+## 文字框寬度(2026-10-19 使用者要求):一行就說完的短句只到最後一個字,比最大寬度長才在最大寬度處換行。
+## 量法:暫時關掉自動換行,量出不換行時最寬那一行(圖示、粗體、字級標籤都算進去);有選項時撐滿(選項按鈕要寬度),
+## 也不比名字標籤窄。
+func _fit_width() -> void:
+	var limit := _max_width()
+	var width := limit
+	if not _has_options:
+		_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+		width = minf(float(_label.get_content_width()) + 2.0, limit)
+		_label.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+	if _tag != null:
+		var frame := get_theme_stylebox("panel")
+		var padding := frame.get_margin(SIDE_LEFT) + frame.get_margin(SIDE_RIGHT) if frame != null else 0.0
+		width = maxf(width, _tag.get_combined_minimum_size().x - padding)
+	_label.custom_minimum_size.x = width
+	reset_size()
 
 
 ## 開著的標籤字串(如 "color=#ff0000")的標籤名稱部分。

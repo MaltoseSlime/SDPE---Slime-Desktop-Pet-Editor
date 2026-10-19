@@ -41,6 +41,7 @@ func setup_for_single_pet(pet: Node, title: String) -> void:
 	_watch_text_fields()
 	_build()
 	_pet_option.visible = false
+	_style_tab.hide_sync()
 	_pets = [pet]
 	_on_pet_selected(0)
 	_take_snapshots()
@@ -120,6 +121,7 @@ func _build() -> void:
 	_memory_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	memory_scroll.add_child(_memory_tab)
 	tabs.add_child(memory_scroll)
+	_style_tab.will_change_pets.connect(_track_pets)
 	for tab in [_value_tab, _lens_tab, _personality_tab, _style_tab, _interaction_tab, _memory_tab]:
 		tab.changed.connect(_mark_dirty)
 		tab.message.connect(_show_message)
@@ -226,18 +228,24 @@ func _populate_pets() -> void:
 func select_pet(pet: Node) -> bool:
 	if not _pet_option.visible:
 		return false   # 角色庫的單隻模式只有這一隻
+	_track_pets([pet])
 	var index := _pets.find(pet)
-	if index < 0 and pet.is_in_group("pets"):
-		_pets.append(pet)
-		_pet_option.add_item(PetReferences.pet_editor_label(pet, PetReferences.duplicate_names(PetReferences.known_pets(get_tree()))))
-		_snapshots[pet] = PetProfile.snapshot_pet(pet)
-		index = _pets.size() - 1
 	if index < 0:
 		return false
 	if _pet_option.selected != index:
 		_pet_option.select(index)
 		_on_pet_selected(index)
 	return true
+
+
+## 名單裡還沒有的場上桌寵(視窗開著之後才放出來的)補進名單、先記快照:之後的改動「儲存」會一起存、「不儲存離開」還原得回來。
+func _track_pets(pets: Array) -> void:
+	for pet: Node in pets:
+		if _pets.has(pet) or not pet.is_in_group("pets"):
+			continue
+		_pets.append(pet)
+		_pet_option.add_item(PetReferences.pet_editor_label(pet, PetReferences.duplicate_names(PetReferences.known_pets(get_tree()))))
+		_snapshots[pet] = PetProfile.snapshot_pet(pet)
 
 
 func _on_pet_selected(index: int) -> void:

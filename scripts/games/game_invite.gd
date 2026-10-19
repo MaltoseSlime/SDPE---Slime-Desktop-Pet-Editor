@@ -11,8 +11,9 @@ const INVITE_LINES := {
 	"ttt": ["要不要來下一盤井字棋?", "來玩井字棋好不好?", "無聊耶……陪我玩井字棋嘛?"],
 	"blockade": ["要不要來下一盤步步為營?", "來玩步步為營好不好?", "無聊耶……陪我玩步步為營嘛?"],
 	"mastermind": ["要不要來猜猜珠璣妙算?", "來猜暗碼好不好?我出一組顏色給你猜!"],
+	"connect4": ["要不要來下一盤四連環?", "來玩四連環好不好?看誰先連成四個!", "無聊耶……陪我玩四連環嘛?"],
 }
-const GAME_NAMES := {"rps": "猜拳", "dice": "拚骰", "ttt": "井字棋", "blockade": "步步為營", "mastermind": "珠璣妙算"}
+const GAME_NAMES := {"rps": "猜拳", "dice": "拚骰", "ttt": "井字棋", "blockade": "步步為營", "mastermind": "珠璣妙算", "connect4": "四連環"}
 const GROUP_LINES: Array[String] = ["要不要一起拚骰子,比誰的點數大?", "要不要一起擲骰子比一場?"]
 const ACCEPT_LINES: Array[String] = ["好啊,來吧!", "嘿嘿,奉陪!", "來就來,誰怕誰!"]
 const REFUSE_LINES := {
@@ -69,6 +70,8 @@ static func start_random(inviter: Node) -> bool:
 		kinds.append("ttt")
 	if not BlockadeGame.has_active_board() and inviter.game_auto_invite_enabled("blockade"):
 		kinds.append("blockade")
+	if not Connect4Game.has_active_board() and inviter.game_auto_invite_enabled("connect4"):
+		kinds.append("connect4")
 	if kinds.is_empty():   # 「遊戲與對戰」設定卡片把全部種類的自動邀請都關了。
 		return false
 	invite(inviter, _weighted_pick(inviter, candidates), kinds.pick_random(), inviter.pick_invite_best_of())
@@ -117,12 +120,14 @@ static func invite(inviter: Node, invitee: Node, kind: String, best_of := 0, wai
 		return {"accepted": false, "reason": "in_game"}
 	# 隱形中的桌寵收不到邀請:邀請方說一句找不到對方(不計入被邀請次數、不扣好感)。
 	if invitee.invisible:
-		GameChat.say(inviter, TranslationServer.translate("雖然想邀請%s,但找不到對方……") % str(invitee.get_label()), 2.4)
+		GameChat.say(inviter, TranslationServer.translate("雖然想邀請%s,但找不到對方……") % inviter.call_name(invitee), 2.4)
 		return {"accepted": false, "reason": "invisible"}
 	# 井字棋/步步為營全場同時只能有一塊棋盤(使用者要求):已經有的話,新的邀請(自動或手動指定)一律擋下。
 	if kind == "ttt" and TttGame.has_active_board():
 		return {"accepted": false, "reason": "board_busy"}
 	if kind == "blockade" and BlockadeGame.has_active_board():
+		return {"accepted": false, "reason": "board_busy"}
+	if kind == "connect4" and Connect4Game.has_active_board():
 		return {"accepted": false, "reason": "board_busy"}
 	var generations := {inviter: inviter.action_generation, invitee: invitee.action_generation}
 	if not inviter.BEST_OF_CHOICES.has(best_of):
@@ -132,7 +137,7 @@ static func invite(inviter: Node, invitee: Node, kind: String, best_of := 0, wai
 	inviter.set_counterpart("opponent", invitee)
 	invitee.set_counterpart("inviter", inviter)
 	invitee.set_counterpart("opponent", inviter)
-	var invite_line := custom_line if custom_line != "" else "%s,%s" % [invitee.get_label(), inviter.speak_tr(str((INVITE_LINES[kind] as Array).pick_random()))]
+	var invite_line := custom_line if custom_line != "" else "%s,%s" % [inviter.call_name(invitee), inviter.speak_tr(str((INVITE_LINES[kind] as Array).pick_random()))]
 	if best_of > 1:
 		invite_line += "(%s)" % inviter.BEST_OF_NAMES[best_of]
 	GameChat.say(inviter, invite_line, 2.4)
@@ -158,7 +163,7 @@ static func invite(inviter: Node, invitee: Node, kind: String, best_of := 0, wai
 	if await _invitee_event(invitee, inviter, kind, "accept"):
 		await _wait(inviter, 0.5)
 	else:
-		GameChat.say(invitee, _maybe_named(invitee.speak_tr(str(ACCEPT_LINES.pick_random())), str(inviter.display_name)), 1.6)
+		GameChat.say(invitee, _maybe_named(invitee.speak_tr(str(ACCEPT_LINES.pick_random())), invitee.call_name_for(str(inviter.recognition_tag), str(inviter.display_name))), 1.6)
 		await _wait(inviter, 1.3)
 	if _cancelled(inviter, invitee, generations):
 		return {}
@@ -169,6 +174,8 @@ static func invite(inviter: Node, invitee: Node, kind: String, best_of := 0, wai
 			await inviter.start_ttt_with(invitee, best_of)
 		elif kind == "blockade":
 			await inviter.start_blockade_with(invitee, best_of)
+		elif kind == "connect4":
+			await inviter.start_connect4_with(invitee, best_of)
 		elif kind == "mastermind":
 			await inviter.start_mastermind_with(invitee)
 		else:
@@ -179,6 +186,8 @@ static func invite(inviter: Node, invitee: Node, kind: String, best_of := 0, wai
 		inviter.start_ttt_with(invitee, best_of)
 	elif kind == "blockade":
 		inviter.start_blockade_with(invitee, best_of)
+	elif kind == "connect4":
+		inviter.start_connect4_with(invitee, best_of)
 	elif kind == "mastermind":
 		inviter.start_mastermind_with(invitee)
 	else:
@@ -202,7 +211,7 @@ static func invite_all_dice(inviter: Node, best_of := 0) -> Dictionary:
 	var generation: int = inviter.action_generation
 	var names: Array[String] = []
 	for other: Node in others:
-		names.append(str(other.get_label()))
+		names.append(inviter.call_name(other))
 	var address: String = "、".join(names) if names.size() <= 3 else TranslationServer.translate("大家")
 	GameChat.say(inviter, "%s,%s" % [address, inviter.speak_tr(str(GROUP_LINES.pick_random()))], 2.6)
 	await _wait(inviter, 1.9)

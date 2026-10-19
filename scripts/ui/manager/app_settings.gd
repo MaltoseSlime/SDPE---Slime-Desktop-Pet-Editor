@@ -36,7 +36,7 @@ const DEFAULT_PRESET := "notebook"
 ## 文字變體名稱(見 build_theme):次要文字(說明、狀態列、數量)、警告文字(問題、提醒)。Label 設 theme_type_variation 就會跟著配色。
 const MUTED_LABEL := &"MutedLabel"
 const WARN_LABEL := &"WarnLabel"
-## 名字後面附註的小字(撞名時的辨識代號,見 ManagerUi.tag_note):比一般字小、用次要文字色。
+## 名字後面附註的「(代號)」(撞名時的辨識代號,見 ManagerUi.tag_note):用次要文字色;2026-10-18 使用者要求不縮小,跟一般字同大。
 const TAG_NOTE_LABEL := &"TagNoteLabel"
 
 
@@ -374,6 +374,75 @@ static func set_bubble_clamp_to_action_area(enabled: bool) -> void:
 	config.save(SETTINGS_PATH)
 
 
+## 小遊戲棋盤的大小(2026-10-18 使用者要求:全局設定裡各遊戲分開調,10% 一格):百分比,存在 [games] 的 board_scale_<種類>。
+const BOARD_SCALE_KINDS: Array[String] = ["ttt", "blockade", "mastermind", "connect4"]
+const BOARD_SCALE_MIN := 50
+const BOARD_SCALE_MAX := 200
+const BOARD_SCALE_STEP := 10
+
+
+static func board_scale_percent(kind: String) -> int:
+	var config := ConfigFile.new()
+	if config.load(SETTINGS_PATH) == OK:
+		return clean_board_scale(config.get_value("games", "board_scale_" + kind, 100))
+	return 100
+
+
+static func board_scale(kind: String) -> float:
+	return board_scale_percent(kind) / 100.0
+
+
+static func clean_board_scale(value: Variant) -> int:
+	if not (value is int or value is float):
+		return 100
+	return clampi(roundi(float(value) / BOARD_SCALE_STEP) * BOARD_SCALE_STEP, BOARD_SCALE_MIN, BOARD_SCALE_MAX)
+
+
+## 棋盤縮小時字不跟著縮(2026-10-18 使用者要求:字要保持一定大小才看得清楚):棋盤裡的字級、放字的那幾列(標題列、
+## 按鈕、投降、訊息行)在「縮放前」的座標裡乘上這個倍數,抵消節點縮放,畫面上的字至少維持 100% 時的大小;
+## 棋盤格子照樣縮小。放大時字照常跟著放大(倍數 1)。
+static func board_text_scale(board_k: float) -> float:
+	return maxf(1.0, 1.0 / maxf(board_k, 0.01))
+
+
+## 標題列要放得下 text 需要的寬度(縮放前座標,含左邊距和右上角 ✕ 的位置):棋盤縮小、字維持原大小時,面板寬度至少要這麼寬。
+static func board_header_width(text: String, font_size: int, text_k: float) -> float:
+	var look := appearance()
+	var font := UiFonts.get_font(str(look["font"]))
+	var size := roundi(font_size * UiFonts.size_correction(str(look["font"])) * text_k)
+	return font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x + 40.0 * text_k
+
+
+static func set_board_scale_percent(kind: String, percent: int) -> void:
+	var config := ConfigFile.new()
+	config.load(SETTINGS_PATH)
+	config.set_value("games", "board_scale_" + kind, clean_board_scale(percent))
+	config.save(SETTINGS_PATH)
+
+
+## 棋子配色(2026-10-18 使用者要求):"system" = 系統配色(強調色 / 文字色,原本的樣子,預設);
+## "pet" = 桌寵配色(桌寵用自己的氣泡外框色,太像就換選項色、再換文字色;使用者用強調色,太像就換文字色,見 GamePieceColors)。
+const PIECE_COLOR_MODES: Array[String] = ["system", "pet"]
+
+
+static func piece_color_mode() -> String:
+	var config := ConfigFile.new()
+	if config.load(SETTINGS_PATH) == OK:
+		var mode := str(config.get_value("games", "piece_colors", "system"))
+		if PIECE_COLOR_MODES.has(mode):
+			return mode
+	return "system"
+
+
+static func set_piece_color_mode(mode: String) -> void:
+	if not PIECE_COLOR_MODES.has(mode):
+		return
+	var config := ConfigFile.new()
+	config.load(SETTINGS_PATH)
+	config.set_value("games", "piece_colors", mode)
+	config.save(SETTINGS_PATH)
+
+
 ## 聊天室/簡訊式視窗每則訊息底下要不要顯示時間戳(2026-10-02 使用者要求):none = 不顯示(預設)、
 ## 12h/24h = 12 或 24 小時制,寫的是裝置目前的系統時間(記錄當下,不是回放時重算)。存在 [dialogue] 的
 ## timestamp_mode。
@@ -696,7 +765,6 @@ static func build_theme() -> Theme:
 	theme.set_color("font_color", WARN_LABEL, warning_color(bg))
 	theme.set_type_variation(TAG_NOTE_LABEL, "Label")
 	theme.set_color("font_color", TAG_NOTE_LABEL, muted)
-	theme.set_font_size("font_size", TAG_NOTE_LABEL, maxi(9, roundi(theme.default_font_size * 0.78)))
 	_style_scrollbars(theme, Color(text, 1.0))
 	return theme
 

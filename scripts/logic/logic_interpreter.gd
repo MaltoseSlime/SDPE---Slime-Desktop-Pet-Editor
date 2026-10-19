@@ -1049,12 +1049,22 @@ func top_blocks() -> Array:
 ## 「性格已經幫你組好的反應」這個基礎上繼續加東西,不用從性格文本從零重打一次(2026-09-30 使用者要求)。
 ## _personality_blocks/_rule_blocks 本來就是跟使用者自己的積木同一套格式在跑(set_personality_layer()
 ## 呼叫的是同一個 _register_hat()),直接接在陣列後面就是合法的頂層積木清單。
+## 被使用者改過、同 id 蓋過去的性格/規則原版(見 _reregister_all())不匯出:它本來就沒在跑,而且網頁
+## 載入兩顆同 id 的積木時會幫第二顆換新 id,再匯回來它就變成一顆「新的」使用者積木——2026-10-19 使用者
+## 回報「多次編輯後匯出再匯入出現重複事件」就是這樣來的。
 func to_data() -> Dictionary:
+	var user_ids := {}
+	for block: Dictionary in _top_blocks:
+		user_ids[str(block.get("id", ""))] = true
+	var layers: Array = []
+	for block: Dictionary in _personality_blocks + _rule_blocks:
+		if not user_ids.has(str(block.get("id", ""))):
+			layers.append(block)
 	return {
 		"fileType": FILE_TYPE,
 		"recognitionTag": str(_pet.recognition_tag),
 		"dialogueTranslations": _translations.duplicate(true),
-		"workspaceState": {"blocks": {"languageVersion": 0, "blocks": _top_blocks + _personality_blocks + _rule_blocks}},
+		"workspaceState": {"blocks": {"languageVersion": 0, "blocks": _top_blocks + layers}},
 		"knownCharacters": _known_characters.values(),
 		"topicLines": _pet.topic_lines_own(),
 	}
@@ -1114,14 +1124,20 @@ func _reregister_all() -> void:
 ## 「匯入積木檔」)跳提示「已略過 N 個與目前性格內容重複的事件」用。id 相同但內容已改的不算這類(那是
 ## _reregister_all() 的 id 覆蓋機制負責,見那裡的說明);要在 PersonalityApplier.rebuild_layer()/
 ## set_interaction_rules() 都跑完、性格/規則層已經是匯入後的最終內容時才呼叫,不然比對到的是舊內容。
+## 比較時忽略不影響行為的欄位(積木 id、網頁上的位置 x/y、網頁的彩色標籤 data、收合狀態,見
+## _behavior_shape()):網頁存回來的檔案每顆頂層積木都會多 x/y,撞 id 的還會被換新 id,不忽略的話
+## 經過網頁一趟的原封不動內容永遠比對不到。
 func dedupe_top_blocks() -> int:
-	var reference_pool: Array = _personality_blocks + _rule_blocks
+	var reference_pool: Array = []
+	for existing: Dictionary in _personality_blocks + _rule_blocks:
+		reference_pool.append(_behavior_shape(existing))
 	var kept: Array = []
 	var removed := 0
 	for block: Dictionary in _top_blocks:
+		var shape: Variant = _behavior_shape(block)
 		var is_duplicate := false
-		for existing: Dictionary in reference_pool:
-			if block == existing:
+		for existing: Variant in reference_pool:
+			if shape == existing:
 				is_duplicate = true
 				break
 		if is_duplicate:
@@ -1132,6 +1148,28 @@ func dedupe_top_blocks() -> int:
 		_top_blocks = kept
 		_reregister_all()
 	return removed
+
+
+const _LAYOUT_ONLY_KEYS := ["id", "x", "y", "data", "collapsed"]
+
+
+## 積木的「行為內容」:深層複製,把每一顆積木(有 "type" 的 Dictionary)上的 _LAYOUT_ONLY_KEYS 拿掉。
+## 欄位值(fields)裡的東西不動,就算欄位剛好叫 x 也一樣。
+static func _behavior_shape(value: Variant) -> Variant:
+	if value is Dictionary:
+		var out := {}
+		var is_block: bool = (value as Dictionary).has("type")
+		for key: Variant in value:
+			if is_block and str(key) in _LAYOUT_ONLY_KEYS:
+				continue
+			out[key] = value[key] if str(key) == "fields" else _behavior_shape(value[key])
+		return out
+	if value is Array:
+		var items: Array = []
+		for item: Variant in value:
+			items.append(_behavior_shape(item))
+		return items
+	return value
 
 
 ## 只存使用者自己這層(_top_blocks,通常是 dedupe_top_blocks() 處理過的版本),不像 to_data()/
@@ -2393,7 +2431,7 @@ func _eval_block(block: Dictionary) -> Variant:
 		"cond_energy_compare":
 			return _pet.vitality != null and _compare(str(fields.get("OP", "LTE")), _pet.vitality.energy, _number(fields.get("NUM", 30.0)))
 		"cond_rest_state":
-			# WHICH = any 任何一種休息 / standing 站著休息 / resting 坐下休息 / sleeping 睡覺。
+			# WHICH = any 任何一種休息 / standing 站著休息 / resting 坐下休息 / laying 躺下休息 / sleeping 睡覺。
 			if _pet.vitality == null:
 				return false
 			var rest_mode: int = _pet.vitality.mode
@@ -2402,6 +2440,8 @@ func _eval_block(block: Dictionary) -> Variant:
 					return rest_mode == PetVitality.Mode.STANDING
 				"resting":
 					return rest_mode == PetVitality.Mode.RESTING
+				"laying":
+					return rest_mode == PetVitality.Mode.LAYING
 				"sleeping":
 					return rest_mode == PetVitality.Mode.SLEEPING
 			return rest_mode != PetVitality.Mode.ACTIVE
@@ -3063,7 +3103,7 @@ func _name_candidates(levels: Array) -> Array[Dictionary]:
 				continue
 			if _pet.pet_affinity(other) != 0 or _pet.no_mention_of(str(other.recognition_tag)) or _mention_blocked(other):
 				continue
-			result.append({"tag": str(other.recognition_tag), "name": str(other.get_label()), "level": 0, "present": other})
+			result.append({"tag": str(other.recognition_tag), "name": _pet.call_name(other), "level": 0, "present": other})
 	for entry: Variant in _pet.interaction_rules.get("pet_prefs", []):
 		if not entry is Dictionary:
 			continue
@@ -3077,7 +3117,7 @@ func _name_candidates(levels: Array) -> Array[Dictionary]:
 		var present: Node = _present_pet(target)
 		if present != null and _mention_blocked(present):
 			continue
-		result.append({"tag": target, "name": str(pref.get("name", target)), "level": level, "present": present})
+		result.append({"tag": target, "name": _pet.call_name_for(target, str(pref.get("name", target))), "level": level, "present": present})
 	return result
 
 
@@ -3117,6 +3157,14 @@ func _name_levels(inner: String) -> Array:
 func _name_choice(inner: String) -> String:
 	var candidates := _name_candidates(_name_levels(inner))
 	return str(candidates.pick_random()["name"]) if not candidates.is_empty() else ""
+
+
+## 不在場的角色的名字:好惡設定裡記的名字,沒有就是辨識代號本身。
+func _known_name(tag: String) -> String:
+	for entry: Variant in _pet.interaction_rules.get("pet_prefs", []):
+		if entry is Dictionary and str((entry as Dictionary).get("target", "")) == tag:
+			return str((entry as Dictionary).get("name", tag))
+	return tag
 
 
 ## 目前在場的桌寵節點(依辨識代號),沒有就是 null。
@@ -3247,6 +3295,26 @@ func _placeholder_text(inner: String, for_bbcode: bool) -> String:
 	# {user} 使用者的稱呼(交互行為分頁設定的稱呼清單,見 Pet.pick_user_nickname;每次用時隨機挑一個。還是預設值
 	# 「使用者」時,{user|預設} 可以自己指定要顯示什麼)。找不到對象時用「對方」。
 	var trimmed := inner.strip_edges()
+	# 2026-10-18 暱稱:上面這些名字標記(還有 {liked} 之類的名稱引用)遇到有設暱稱的角色會叫暱稱;要本名用 {realname:角色}
+	# (角色同上:self / other / opponent / winner / loser / inviter / invitee);{nick:辨識代號} = 怎麼稱呼那個角色(沒暱稱 = 名字)。
+	if trimmed.begins_with("realname:"):
+		var real_role := trimmed.substr(9).strip_edges()
+		var real_name := str(_pet.display_name) if real_role == "self" else ""
+		if real_role == "other":
+			var latest: Dictionary = _pet.counterpart(_pet._last_counterpart_role) if _pet._last_counterpart_role != "" else {}
+			real_name = str(latest.get("real", latest.get("name", "")))
+		elif real_role != "self":
+			var role_entry: Dictionary = _pet.counterpart(real_role)
+			real_name = str(role_entry.get("real", role_entry.get("name", "")))
+		if real_name == "":
+			real_name = "對方"
+		return PetText.escape_bbcode(real_name) if for_bbcode else real_name
+	if trimmed.begins_with("nick:"):
+		var nick_tag := trimmed.substr(5).strip_edges()
+		var present_pet: Node = _present_pet(nick_tag)
+		var fallback := str(present_pet.get_label()) if present_pet != null else _known_name(nick_tag)
+		var called: String = _pet.call_name_for(nick_tag, fallback)
+		return PetText.escape_bbcode(called) if for_bbcode else called
 	if trimmed in ["self", "other", "opponent", "winner", "loser", "inviter", "invitee"] or trimmed == "user" or trimmed.begins_with("user|"):
 		var person_name := ""
 		if trimmed == "self":

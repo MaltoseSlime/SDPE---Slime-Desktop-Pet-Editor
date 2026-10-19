@@ -258,8 +258,8 @@ static func _contest(initiator: Node, pets: Array, sides: int, count: int, modif
 			pet.clear_counterpart("loser")
 		pet.game_vars["contest:mine"] = str(totals.get(pet, 0))
 		pet.game_vars["contest:best"] = str(best_total)
-		pet.game_vars["contest:winner"] = champion_name
-		pet.game_vars["contest:opponent"] = str(others[0].get_label()) if not others.is_empty() else ""
+		pet.game_vars["contest:winner"] = pet.call_name(champions[0]) if champions.size() == 1 else champion_name   # 冠軍是別隻時用自己對牠的暱稱
+		pet.game_vars["contest:opponent"] = pet.call_name(others[0]) if not others.is_empty() else ""
 		pet.game_vars["contest:score"] = "%d:%d" % [wins[pet], best_other_wins]
 		pet.game_vars["contest:rounds"] = str(rounds)
 	await _wait(initiator, 0.8)

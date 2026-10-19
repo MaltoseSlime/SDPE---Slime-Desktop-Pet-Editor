@@ -31,12 +31,14 @@ const ENTRIES: Array[Dictionary] = [
 	{"category": "數值", "syntax": "{pet_favor:辨識代號}", "meaning": "這隻桌寵對指定桌寵的好感度(-500~1000,取整數;沒記錄 = 0)。積木「改變對桌寵的好感度」/「對桌寵的好感度比較」增減與判斷同一個數值"},
 	{"category": "數值", "syntax": "{icon:好感度}", "meaning": "只顯示小圖示"},
 	{"category": "名字與稱呼", "syntax": "{self}", "meaning": "自己的名字"},
-	{"category": "名字與稱呼", "syntax": "{other}", "meaning": "對象的名字(最近互動的那一位;沒有就是「對方」)"},
+	{"category": "名字與稱呼", "syntax": "{other}", "meaning": "對象的名字(最近互動的那一位;沒有就是「對方」)。對方在好惡設定裡有暱稱時改叫暱稱;{opponent}、{winner}、{liked} 這些名字標記也一樣"},
 	{"category": "名字與稱呼", "syntax": "{opponent}", "meaning": "對手的名字(猜拳/拚骰/邀請對戰時)"},
 	{"category": "名字與稱呼", "syntax": "{winner}", "meaning": "贏家的名字"},
 	{"category": "名字與稱呼", "syntax": "{loser}", "meaning": "輸家的名字"},
 	{"category": "名字與稱呼", "syntax": "{inviter}", "meaning": "發起挑戰的人(自己被邀請時)"},
 	{"category": "名字與稱呼", "syntax": "{invitee}", "meaning": "被自己邀請的人"},
+	{"category": "名字與稱呼", "syntax": "{realname:other}", "meaning": "對象的本名(不管有沒有設暱稱);other 可以換成 self / opponent / winner / loser / inviter / invitee"},
+	{"category": "名字與稱呼", "syntax": "{nick:辨識代號}", "meaning": "這隻桌寵怎麼稱呼某個角色(好惡關係 📝 設定的暱稱,好幾個時隨機挑一個;沒設就是名字)"},
 	{"category": "名字與稱呼", "syntax": "{user}", "meaning": "使用者的稱呼(「對話與關係」分頁設定,可以填好幾個逗號分隔、每次隨機挑一個;預設是「使用者」)"},
 	{"category": "名字與稱呼", "syntax": "{user|朋友}", "meaning": "使用者的稱呼,還沒自訂過(還是預設「使用者」)時顯示「朋友」"},
 	{"category": "隨機", "syntax": "{pick:甲|乙|丙}", "meaning": "單字池:夾在句子裡,每次隨機挑一個字(不能再放 { })"},
@@ -78,6 +80,7 @@ const ENTRIES: Array[Dictionary] = [
 	{"category": "戰績", "syntax": "{stats:rps:rate}", "meaning": "猜拳勝率(帶 % 號)"},
 	{"category": "戰績", "syntax": "{stats:rps:win}", "meaning": "猜拳勝場數(win / lose / tie / total / rate)"},
 	{"category": "戰績", "syntax": "{stats:dice:rate}", "meaning": "拚骰勝率"},
+	{"category": "戰績", "syntax": "{stats:connect4:rate}", "meaning": "四連環勝率"},
 	{"category": "戰績", "syntax": "{stats:all:total}", "meaning": "所有小遊戲的總場數(種類 rps / dice / all)"},
 ]
 

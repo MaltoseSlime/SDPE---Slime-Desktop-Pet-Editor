@@ -456,7 +456,7 @@ static func vitality_text(pet: Node) -> String:
 		return ""
 	if not v.fatigue_enabled():
 		return TranslationServer.translate("精力:疲勞機制目前關閉(套用有疲勞參數的性格才會累);社交意願 %s") % snappedf(pet.sociability, 0.01)
-	var mode_text: String = {PetVitality.Mode.ACTIVE: "活動中", PetVitality.Mode.STANDING: "站著休息", PetVitality.Mode.RESTING: "坐著休息", PetVitality.Mode.SLEEPING: "睡覺中"}.get(v.mode, "")
+	var mode_text: String = {PetVitality.Mode.ACTIVE: "活動中", PetVitality.Mode.STANDING: "站著休息", PetVitality.Mode.RESTING: "坐著休息", PetVitality.Mode.LAYING: "躺著休息", PetVitality.Mode.SLEEPING: "睡覺中"}.get(v.mode, "")
 	return TranslationServer.translate("精力 %d%%  ·  %s%s  ·  心情 %d(%s)  ·  社交意願 %s") % [int(v.energy), mode_text, "(累了)" if v.tired else "", int(v.mood), v.mood_text(), snappedf(pet.sociability, 0.01)]
 
 

@@ -583,7 +583,7 @@ func _auto_sleepy() -> void:
 	if not auto_enabled or not enabled or _running.has("sleepy") or _pet.entering:
 		return
 	var vitality: PetVitality = _pet.vitality
-	var drowsy: bool = _pet.is_lens_active("疲憊") or (vitality != null and vitality.mode in [PetVitality.Mode.STANDING, PetVitality.Mode.RESTING])
+	var drowsy: bool = _pet.is_lens_active("疲憊") or (vitality != null and vitality.mode in [PetVitality.Mode.STANDING, PetVitality.Mode.RESTING, PetVitality.Mode.LAYING])
 	if drowsy and _pet.current_activity() != &"sleep":
 		play("sleepy", 6.0)
 

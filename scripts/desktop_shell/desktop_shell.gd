@@ -148,6 +148,7 @@ func _ready() -> void:
 	hover_ball.setup(action_area, prop_manager)
 	hover_ball.action_requested.connect(_on_ball_action)
 	hover_ball.hide_outside_furniture = furniture_manager.hide_outside_area
+	hover_ball.frame_hidden = not action_area.frame_visible
 	if _tray != null:
 		_tray.hide_outside_furniture = furniture_manager.hide_outside_area   # 系統匣比家具管理早建立,勾選狀態到這裡才補
 	hover_ball.right_click_requested.connect(_start_passthrough)
@@ -1066,6 +1067,8 @@ func _on_ball_action(action: String) -> void:
 			_open_furniture_library()
 		"hide_outside_furniture":
 			_on_hide_outside_furniture_toggled(not furniture_manager.hide_outside_area)
+		"toggle_frame":
+			_on_tray_toggle_frame()
 		"library":
 			_open_library()
 		"manager":
@@ -1156,30 +1159,26 @@ func _on_export_schema(pet: Node) -> void:
 			0, "%s.schema.json" % pet.recognition_tag)
 
 
-## 導入積木檔:開系統開啟對話框,讀入 HTML 編輯器導出的邏輯 JSON 給該桌寵執行。
+## 導入積木檔:開系統開啟對話框,讀入 HTML 編輯器導出的邏輯 JSON 給該桌寵執行(流程見 LogicImport;
+## 有性格/規則層事件時先問要一起保留還是完全取代,完全取代直接存檔——這裡沒有「儲存」鈕可按)。
 func _on_import_logic(pet: Node) -> void:
 	FloatingWindow.native_file_dialog(tr("導入積木檔"), "", DisplayServer.FILE_DIALOG_MODE_OPEN_FILE, PackedStringArray(["*.json;JSON"]),
 			func(paths: PackedStringArray) -> void:
-				if is_instance_valid(pet):
-					# 導入成功就複製一份保存,之後這個角色每次生成都會自動載入(見 _apply_saved_logic)。
-					if pet.logic.load_file(paths[0]):
-						# load_file() 的 clear() 會把性格對話池/反應層、交互行為規則層一起清掉,這裡補回去(見 memory_tab.gd 同樣的補法)。
-						PersonalityApplier.rebuild_layer(pet)
-						pet.set_interaction_rules(pet.interaction_rules)
-						# 雙重重複第 1 類(見 LogicInterpreter.dedupe_top_blocks()),跟 memory_tab.gd 的
-						# import_logic_from() 同一套做法:等性格/規則層補完才能比對,dedupe 真的刪掉東西時要
-						# 把 PetRoster.store_logic() 剛存的原始檔覆蓋成去重後的版本,不然下次開機又長出重複。
-						var skipped: int = pet.logic.dedupe_top_blocks()
-						PetRoster.store_logic(pet.recognition_tag, paths[0], CharacterFiles.folder_of(pet))
-						if skipped > 0:
-							pet.logic.save_user_only_file(PetRoster.logic_path(pet.recognition_tag, CharacterFiles.folder_of(pet)))
-					_tray.refresh_pets())
+				if not is_instance_valid(pet):
+					return
+				var path := paths[0]
+				LogicImport.ask_mode(self, get_window(), pet, func(full_replace: bool) -> void:
+					if is_instance_valid(pet):
+						# 導入成功就複製一份保存,之後這個角色每次生成都會自動載入(見 _apply_saved_logic)。
+						LogicImport.import_file(pet, path, full_replace, true)
+						_tray.refresh_pets()))
 
 
 func _on_tray_toggle_frame() -> void:
 	action_area.set_frame_visible(not action_area.frame_visible)
 	action_area.save_frame_visible()
 	_tray.frame_hidden = not action_area.frame_visible
+	hover_ball.frame_hidden = _tray.frame_hidden
 	_tray.refresh_pets()
 
 

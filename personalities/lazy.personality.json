@@ -9,7 +9,6 @@
       "(慢吞吞爬進來)": "(Crawls in slowly)",
       "(打了個大哈欠)": "(Lets out a big yawn)",
       "(流口水)": "(Drooling)",
-      "{user}你都不用休息的嗎?": "Don't you ever need a break, {user}?",
       "……zzz……(睡得超沉)": "...zzz...(sleeping like a rock)",
       "……不想動。": "...Don't want to move.",
       "……再睡一下……": "...Just a bit more sleep...",
@@ -17,12 +16,10 @@
       "……嗯?天亮了?再睡五分鐘。": "...Mm? Morning already? Five more minutes.",
       "……好吧,只玩一場。": "...Fine, just one round.",
       "……我來了。可以直接躺下了嗎?": "...I'm here. Can I just lie down now?",
-      "……隨便你摸。": "...Pet me however you want.",
       "……隨便啦。": "...Whatever.",
       "不要,好麻煩。": "No, too much trouble.",
       "今天就這樣吧,明天再說。": "That's enough for today, I'll deal with it tomorrow.",
       "你們玩球呀……看著就覺得累。": "You're playing ball... makes me tired just watching.",
-      "你去做,我在這裡幫你加油。": "You go do it, I'll cheer you on from here.",
       "再五分鐘……不,再一小時。": "Five more minutes... no, one more hour.",
       "別叫我,我在充電。": "Don't call me, I'm recharging.",
       "加油喔……我幫你們用眼睛加油。": "Go for it... I'll cheer with my eyes.",
@@ -33,7 +30,6 @@
       "咦,有球……好吧,考慮一下。": "Oh, a ball... fine, let me think about it.",
       "哈啊……": "Haah...",
       "唔……差不多該休息一下了?": "Hmm... time for a break yet?",
-      "唔……我想睡覺,{user}你也昏昏欲睡了吧?": "Hmm... I want to sleep, you're getting drowsy too, aren't you, {user}?",
       "唔……我才剛想躺下就有種不安感。": "Hmm... I just wanted to lie down and now I feel uneasy.",
       "啊~~~天氣好、心情好,再睡一下。": "Ahh~~~ nice weather, good mood, one more nap.",
       "啊……被搬動了……好麻煩……": "Ah... being moved... what a hassle...",
@@ -53,7 +49,6 @@
       "好累……我不想動了……": "So tired... I don't want to move...",
       "平手……那不用再比了吧?": "A tie... so we don't have to go again, right?",
       "心情不好,只想窩著。": "Not in a good mood, just want to curl up.",
-      "我不想動,你自己玩吧。": "I don't want to move, you go play by yourself.",
       "我在旁邊躺著加油就好。": "I'll just lie here and cheer you on.",
       "接住…… 不、不接了。": "Catch it... n-nah, not catching it.",
       "有什麼事是睡一覺解決不了的嗎?": "Is there anything a good nap can't fix?",
@@ -72,7 +67,12 @@
       "輸了就輸了吧……不想再比了。": "Lost, whatever... don't want to compete again.",
       "這才是生活啊……躺著,什麼都不做。": "Now this is living... lying down, doing nothing.",
       "這次跳過……我要省點力氣。": "Skipping this time... saving my energy.",
-      "頂一下……哇,好累。": "One little bump... whew, tiring."
+      "頂一下……哇,好累。": "One little bump... whew, tiring.",
+      "{you}去做,我在這裡幫你加油。": "You go do it, I'll cheer you on from here.",
+      "我不想動,{you}自己玩吧。": "I don't want to move, you go play by yourself.",
+      "{user}都不用休息的嗎?": "Don't you ever need a break, {user}?",
+      "唔……我想睡覺,{user}也昏昏欲睡了吧?": "Hmm... I want to sleep, you're getting drowsy too, aren't you, {user}?",
+      "……隨便{you}摸。": "...Pet me however you want."
     },
     "zh-TW": {
       "(伸了個懶腰)": "(伸了個懶腰)",
@@ -81,7 +81,6 @@
       "(慢吞吞爬進來)": "(慢吞吞爬進來)",
       "(打了個大哈欠)": "(打了個大哈欠)",
       "(流口水)": "(流口水)",
-      "{user}你都不用休息的嗎?": "{user}你都不用休息的嗎?",
       "……zzz……(睡得超沉)": "……zzz……(睡得超沉)",
       "……不想動。": "……不想動。",
       "……再睡一下……": "……再睡一下……",
@@ -89,12 +88,10 @@
       "……嗯?天亮了?再睡五分鐘。": "……嗯?天亮了?再睡五分鐘。",
       "……好吧,只玩一場。": "……好吧,只玩一場。",
       "……我來了。可以直接躺下了嗎?": "……我來了。可以直接躺下了嗎?",
-      "……隨便你摸。": "……隨便你摸。",
       "……隨便啦。": "……隨便啦。",
       "不要,好麻煩。": "不要,好麻煩。",
       "今天就這樣吧,明天再說。": "今天就這樣吧,明天再說。",
       "你們玩球呀……看著就覺得累。": "你們玩球呀……看著就覺得累。",
-      "你去做,我在這裡幫你加油。": "你去做,我在這裡幫你加油。",
       "再五分鐘……不,再一小時。": "再五分鐘……不,再一小時。",
       "別叫我,我在充電。": "別叫我,我在充電。",
       "加油喔……我幫你們用眼睛加油。": "加油喔……我幫你們用眼睛加油。",
@@ -105,7 +102,6 @@
       "咦,有球……好吧,考慮一下。": "咦,有球……好吧,考慮一下。",
       "哈啊……": "哈啊……",
       "唔……差不多該休息一下了?": "唔……差不多該休息一下了?",
-      "唔……我想睡覺,{user}你也昏昏欲睡了吧?": "唔……我想睡覺,{user}你也昏昏欲睡了吧?",
       "唔……我才剛想躺下就有種不安感。": "唔……我才剛想躺下就有種不安感。",
       "啊~~~天氣好、心情好,再睡一下。": "啊~~~天氣好、心情好,再睡一下。",
       "啊……被搬動了……好麻煩……": "啊……被搬動了……好麻煩……",
@@ -125,7 +121,6 @@
       "好累……我不想動了……": "好累……我不想動了……",
       "平手……那不用再比了吧?": "平手……那不用再比了吧?",
       "心情不好,只想窩著。": "心情不好,只想窩著。",
-      "我不想動,你自己玩吧。": "我不想動,你自己玩吧。",
       "我在旁邊躺著加油就好。": "我在旁邊躺著加油就好。",
       "接住…… 不、不接了。": "接住…… 不、不接了。",
       "有什麼事是睡一覺解決不了的嗎?": "有什麼事是睡一覺解決不了的嗎?",
@@ -144,7 +139,12 @@
       "輸了就輸了吧……不想再比了。": "輸了就輸了吧……不想再比了。",
       "這才是生活啊……躺著,什麼都不做。": "這才是生活啊……躺著,什麼都不做。",
       "這次跳過……我要省點力氣。": "這次跳過……我要省點力氣。",
-      "頂一下……哇,好累。": "頂一下……哇,好累。"
+      "頂一下……哇,好累。": "頂一下……哇,好累。",
+      "{you}去做,我在這裡幫你加油。": "{you}去做,我在這裡幫你加油。",
+      "我不想動,{you}自己玩吧。": "我不想動,{you}自己玩吧。",
+      "{user}都不用休息的嗎?": "{user}都不用休息的嗎?",
+      "唔……我想睡覺,{user}也昏昏欲睡了吧?": "唔……我想睡覺,{user}也昏昏欲睡了吧?",
+      "……隨便{you}摸。": "……隨便{you}摸。"
     }
   },
   "fileType": "slime_pet_personality",
@@ -194,7 +194,7 @@
                             "FRESH": true,
                             "KEY": "learned",
                             "MAXLEN": 16.0,
-                            "PROMPT": "好……你想教我什麼?"
+                            "PROMPT": "好……{you}想教我什麼?"
                           },
                           "id": "lazy_teach_ask",
                           "next": {
@@ -309,7 +309,7 @@
                 "CLICK_WAIT": true,
                 "FONT": "__default__",
                 "SPEAKER": "",
-                "TEXT": "嗯……你最近對什麼有興趣?我想知道。",
+                "TEXT": "嗯……{you}最近對什麼有興趣?我想知道。",
                 "TYPEWRITER": true,
                 "WAIT": true
               },
@@ -385,7 +385,7 @@
                                       "BIND_ACTION": "",
                                       "FONT": "__default__",
                                       "SPEAKER": "",
-                                      "TEXT": "好啦,你想說再說。",
+                                      "TEXT": "好啦,{you}想說再說。",
                                       "TYPEWRITER": true,
                                       "WAIT": true
                                     },
@@ -466,11 +466,11 @@
         "tag": "chat"
       },
       {
-        "say": "你去做,我在這裡幫你加油。",
+        "say": "{you}去做,我在這裡幫你加油。",
         "tag": "chat"
       },
       {
-        "say": "我不想動,你自己玩吧。",
+        "say": "我不想動,{you}自己玩吧。",
         "tag": "chat"
       },
       {
@@ -482,7 +482,7 @@
         "tag": "chat"
       },
       {
-        "say": "{user}你都不用休息的嗎?",
+        "say": "{user}都不用休息的嗎?",
         "tag": "chat"
       },
       {
@@ -502,7 +502,7 @@
         "tag": "chat"
       },
       {
-        "say": "唔……我想睡覺,{user}你也昏昏欲睡了吧?",
+        "say": "唔……我想睡覺,{user}也昏昏欲睡了吧?",
         "tag": "chat"
       },
       {
@@ -722,7 +722,7 @@
         "on": "interact",
         "say": [
           "嗯……舒服。",
-          "……隨便你摸。",
+          "……隨便{you}摸。",
           "嗯……(呵欠)"
         ]
       },

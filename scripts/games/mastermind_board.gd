@@ -29,6 +29,11 @@ var code_length := 3   # 這一場的密碼長度(3 或 4),決定下面色塊的
 
 ## BoardPlacement 記位置用的鍵(一種面板一個)。
 const PLACEMENT_KIND := "mastermind"
+## 全局設定的棋盤大小(AppSettings.board_scale):整塊面板用節點縮放放大縮小;版面在「縮放前」的座標裡排,
+## 進出的座標(滑鼠、螢幕/行動區範圍、穿透形狀、擋滑鼠的判斷)在這裡換算。
+var _k := 1.0
+## 字和放字的那幾列的倍數(AppSettings.board_text_scale):棋盤縮小時字維持原本大小。
+var _t := 1.0
 
 var _area: Node
 var _fraction: Variant = null
@@ -46,6 +51,9 @@ var _font_k := 1.0
 
 func setup(area: Node, panel_title: String) -> void:
 	_area = area
+	_k = AppSettings.board_scale(PLACEMENT_KIND)
+	_t = AppSettings.board_text_scale(_k)
+	scale = Vector2(_k, _k)
 	title = panel_title
 	add_to_group("Cutout")
 	add_to_group("screen_clamped_boards")
@@ -73,6 +81,11 @@ func set_controls(active: bool) -> void:
 
 
 func _area_rect() -> Rect2:
+	var raw := _raw_area_rect()
+	return Rect2(raw.position / _k, raw.size / _k)
+
+
+func _raw_area_rect() -> Rect2:
 	if _area != null and "boundary_rect" in _area:
 		var rect: Rect2 = _area.boundary_rect
 		return Rect2(_area.to_global(rect.position), rect.size)
@@ -80,8 +93,13 @@ func _area_rect() -> Rect2:
 
 
 func _screen_rect() -> Rect2:
+	var raw := _raw_screen_rect()
+	return Rect2(raw.position / _k, raw.size / _k)
+
+
+func _raw_screen_rect() -> Rect2:
 	if DisplayServer.get_name() == "headless" or not is_inside_tree():
-		return _area_rect()
+		return _raw_area_rect()
 	var origin := Vector2(get_window().position)
 	var usable := DisplayServer.screen_get_usable_rect(DisplayServer.window_get_current_screen())
 	return Rect2(Vector2(usable.position) - origin, Vector2(usable.size))
@@ -94,10 +112,10 @@ func recall() -> void:
 
 
 func panel_size() -> Vector2:
-	var h := HEADER + STATUS_HEIGHT + PAD + LINE_HEIGHT * MAX_LINES + PAD
+	var h := (HEADER + STATUS_HEIGHT + LINE_HEIGHT * MAX_LINES) * _t + PAD * 2.0
 	if controls_active:
-		h += SLOT_SIZE + 6.0 + BUTTON_ROW_HEIGHT + PAD
-	return Vector2(WIDTH, h)
+		h += SLOT_SIZE + 6.0 + BUTTON_ROW_HEIGHT * _t + PAD
+	return Vector2(maxf(WIDTH * _t, PAD * 2.0 + code_length * (SLOT_SIZE + SLOT_GAP)), h)
 
 
 func _layout() -> void:
@@ -115,31 +133,31 @@ func _layout() -> void:
 	var panel := Rect2(pos, size)
 	_rects.clear()
 	_rects["panel"] = panel
-	_rects["header"] = Rect2(panel.position, Vector2(size.x - 28.0, HEADER))
-	_rects["close"] = Rect2(panel.end.x - 26.0, panel.position.y + 4.0, 22.0, 22.0)
-	var lines_top := panel.position.y + HEADER + STATUS_HEIGHT
+	_rects["header"] = Rect2(panel.position, Vector2(size.x - 28.0 * _t, HEADER * _t))
+	_rects["close"] = Rect2(panel.end.x - 26.0 * _t, panel.position.y + 4.0 * _t, 22.0 * _t, 22.0 * _t)
+	var lines_top := panel.position.y + (HEADER + STATUS_HEIGHT) * _t
 	if controls_active:
-		var slots_y := lines_top + PAD + LINE_HEIGHT * MAX_LINES + PAD
+		var slots_y := lines_top + PAD + LINE_HEIGHT * MAX_LINES * _t + PAD
 		for i in code_length:
 			_rects["slot:%d" % i] = Rect2(panel.position.x + PAD + i * (SLOT_SIZE + SLOT_GAP), slots_y, SLOT_SIZE, SLOT_SIZE)
 		var button_y := slots_y + SLOT_SIZE + 6.0
 		var button_w := (size.x - PAD * 2.0 - 8.0) * 0.5
-		_rects["submit"] = Rect2(panel.position.x + PAD, button_y, button_w, BUTTON_ROW_HEIGHT)
-		_rects["forfeit"] = Rect2(panel.position.x + PAD + button_w + 8.0, button_y, button_w, BUTTON_ROW_HEIGHT)
+		_rects["submit"] = Rect2(panel.position.x + PAD, button_y, button_w, BUTTON_ROW_HEIGHT * _t)
+		_rects["forfeit"] = Rect2(panel.position.x + PAD + button_w + 8.0, button_y, button_w, BUTTON_ROW_HEIGHT * _t)
 	_last_area_cache = area
 	queue_redraw()
 
 
 ## 滑鼠在面板範圍內(或正拖著標題列)時,後面的桌寵不該收到按壓/右鍵/摸摸,見 pet_interaction.gd 的 pointer_blocked()。
 func blocks_pointer(point: Vector2) -> bool:
-	return _dragging_header or (_rects.has("panel") and (_rects["panel"] as Rect2).has_point(point))
+	return _dragging_header or (_rects.has("panel") and (_rects["panel"] as Rect2).has_point(point / _k))
 
 
 func get_cutout_polygons() -> Array:
 	if not _rects.has("panel"):
 		return []
 	var rect: Rect2 = _rects["panel"]
-	return [DialogueBubble._rect_polygon(rect.grow(80.0 if _dragging_header else 4.0))]
+	return [DialogueBubble._rect_polygon(Rect2(rect.position * _k, rect.size * _k).grow(80.0 if _dragging_header else 4.0))]
 
 
 func _process(delta: float) -> void:
@@ -158,7 +176,7 @@ func note_activity() -> void:
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouse:
-		_mouse = get_viewport().get_canvas_transform().affine_inverse() * event.position
+		_mouse = get_viewport().get_canvas_transform().affine_inverse() * event.position / _k
 	if event is InputEventMouseMotion:
 		_on_motion()
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
@@ -238,15 +256,15 @@ func _draw() -> void:
 	draw_rect(local_panel, Color(bg, 0.95), true)
 	draw_rect(local_panel, Color(accent, 0.7), false, 2.0)
 	var header: Rect2 = _rects["header"]
-	draw_string(font, Vector2(header.position.x - global_position.x + 8.0, header.position.y - global_position.y + 18.0), title, HORIZONTAL_ALIGNMENT_LEFT, header.size.x - 16.0, roundi(14 * _font_k), Color(text_color, 0.95))
+	draw_string(font, Vector2(header.position.x - global_position.x + 8.0 * _t, header.position.y - global_position.y + 18.0 * _t), title, HORIZONTAL_ALIGNMENT_LEFT, header.size.x - 16.0 * _t, roundi(14 * _font_k * _t), Color(text_color, 0.95))
 	var close: Rect2 = _rects["close"]
-	draw_string(font, Vector2(close.position.x - global_position.x + 4.0, close.position.y - global_position.y + 16.0), "×", HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(16 * _font_k), Color(muted, 0.9))
-	var status_y := header.position.y - global_position.y + HEADER + 13.0
-	draw_string(font, Vector2(header.position.x - global_position.x + PAD - 2.0, status_y), status_text, HORIZONTAL_ALIGNMENT_LEFT, WIDTH - PAD * 2.0, roundi(12 * _font_k), Color(text_color, 0.85))
-	var y := status_y + STATUS_HEIGHT
+	draw_string(font, Vector2(close.position.x - global_position.x + 4.0 * _t, close.position.y - global_position.y + 16.0 * _t), "×", HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(16 * _font_k * _t), Color(muted, 0.9))
+	var status_y := header.position.y - global_position.y + (HEADER + 13.0) * _t
+	draw_string(font, Vector2(header.position.x - global_position.x + PAD - 2.0, status_y), status_text, HORIZONTAL_ALIGNMENT_LEFT, panel.size.x - PAD * 2.0, roundi(12 * _font_k * _t), Color(text_color, 0.85))
+	var y := status_y + STATUS_HEIGHT * _t
 	for line: String in _lines:
-		draw_string(font, Vector2(header.position.x - global_position.x + PAD - 2.0, y + 13.0), line, HORIZONTAL_ALIGNMENT_LEFT, WIDTH - PAD * 2.0, roundi(12 * _font_k), Color(text_color, 0.85))
-		y += LINE_HEIGHT
+		draw_string(font, Vector2(header.position.x - global_position.x + PAD - 2.0, y + 13.0 * _t), line, HORIZONTAL_ALIGNMENT_LEFT, panel.size.x - PAD * 2.0, roundi(12 * _font_k * _t), Color(text_color, 0.85))
+		y += LINE_HEIGHT * _t
 	if controls_active:
 		for i in code_length:
 			var slot: Rect2 = _rects["slot:%d" % i]
@@ -258,8 +276,8 @@ func _draw() -> void:
 		var submit: Rect2 = _rects["submit"]
 		var local_submit := Rect2(submit.position - global_position, submit.size)
 		draw_rect(local_submit, Color(accent, 0.25), true)
-		draw_string(font, local_submit.position + Vector2(local_submit.size.x * 0.5 - 20.0, 17.0), tr("猜測"), HORIZONTAL_ALIGNMENT_CENTER, local_submit.size.x, roundi(13 * _font_k), Color(text_color, 0.95))
+		draw_string(font, local_submit.position + Vector2(local_submit.size.x * 0.5 - 20.0 * _t, 17.0 * _t), tr("猜測"), HORIZONTAL_ALIGNMENT_CENTER, local_submit.size.x, roundi(13 * _font_k * _t), Color(text_color, 0.95))
 		var forfeit: Rect2 = _rects["forfeit"]
 		var local_forfeit := Rect2(forfeit.position - global_position, forfeit.size)
 		draw_rect(local_forfeit, Color(text_color, 0.05), true)
-		draw_string(font, local_forfeit.position + Vector2(local_forfeit.size.x * 0.5 - 20.0, 17.0), tr("棄權"), HORIZONTAL_ALIGNMENT_CENTER, local_forfeit.size.x, roundi(13 * _font_k), Color(1.0, 0.55, 0.55, 0.9))
+		draw_string(font, local_forfeit.position + Vector2(local_forfeit.size.x * 0.5 - 20.0 * _t, 17.0 * _t), tr("棄權"), HORIZONTAL_ALIGNMENT_CENTER, local_forfeit.size.x, roundi(13 * _font_k * _t), Color(1.0, 0.55, 0.55, 0.9))

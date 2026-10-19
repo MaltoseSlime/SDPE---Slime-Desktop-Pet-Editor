@@ -3,14 +3,8 @@
   "description": "愛黏著人。跟隨時貼得很近、常找你互動、愛被關心與陪伴;被冷落會撒嬌,輸了要抱抱。",
   "dialogueTranslations": {
     "en": {
-      "(一直看著你)": "(Keeps staring at you)",
-      "(抱住你的游標睡著了)": "(Hugs your cursor and falls asleep)",
       "(揉眼睛)謝謝你一直在這裡陪我,{user}。": "(Rubs eyes) Thanks for always being here with me, {user}.",
       "(靠過來窩在{user}旁邊)": "(Snuggles up next to {user})",
-      "[wave]{user}你陪我玩了!好開心!": "[wave]{user}, you played with me! I'm so happy!",
-      "[wave]找到你了!": "[wave]Found you!",
-      "[wave]耶!你來關心我了!再多一點嘛~": "[wave]Yay! You came to check on me! A little more~",
-      "{user}你也要記得休息喔……我在旁邊陪你。": "Remember to rest too, {user}... I'll be right here with you.",
       "{user}在做什麼?我陪你好不好?": "What are you doing, {user}? Can I keep you company?",
       "{user}好像總是很忙……沒關係,有我陪著你。": "{user} always seems so busy... it's okay, I'll be here with you.",
       "……不玩的話,可以陪我嗎?": "...If not playing, can you just stay with me?",
@@ -18,74 +12,74 @@
       "一樣耶~我們心有靈犀!": "Same as you~ we're totally in sync!",
       "不管,輸了要抱抱!": "Doesn't matter, losing means I need a hug!",
       "今天沒心情玩球,但我在旁邊陪你們。": "Not in the mood for ball today, but I'll be here with you.",
-      "你不要走……陪我一下下就好。": "Don't go... just stay with me a little while.",
-      "你丟球給我的話,我一定會接住的。": "If you throw the ball to me, I'll definitely catch it.",
       "你們在玩球?我在旁邊看,不會吵的。": "You're playing ball? I'll just watch, I won't bother you.",
       "你們玩得好開心……我也想被邀請。": "You two look like you're having fun... I want to be invited too.",
-      "你在我就不無聊了。": "As long as you're here, I'm never bored.",
       "你有看我嗎?我頂得很好對不對?": "Were you watching me? I bumped it well, right?",
       "你看你看!有球!我們一起玩好不好?": "Look, look! A ball! Let's play together, okay?",
-      "你還在嗎?太好了!": "Are you still here? Yay!",
       "再摸久一點也可以的喔?": "You can pet me a little longer, you know?",
-      "即便是螢幕變黑的時候,我也一直在想你。": "Even when the screen goes dark, I keep thinking of you.",
-      "和你待在一起,什麼都不用做就很幸福。": "Just being with you, doing nothing at all, makes me happy.",
-      "哼!你都不理我!": "Hmph! You keep ignoring me!",
       "唔……有點怕怕的,不要離開太遠喔。": "Hmm... I'm a little scared, don't go too far away.",
-      "唔……有點緊張,你在的話我會好一點。": "Hmm... I'm a little nervous, I feel better when you're around.",
       "嗚……不要離開我……": "Uwaah... don't leave me...",
-      "嗚……我想要你拍拍我。": "Uwaah... I want you to pat me.",
       "嗚……輸了……你要安慰我一下嘛。": "Uu... I lost... you have to comfort me.",
       "嗚……陪我一下下嘛……": "Uwaah... just stay with me a little longer...",
-      "嗚哇!你要帶我走?好!我跟你走!": "Uwah! Taking me somewhere? Okay! I'll go with you!",
       "嗯……我現在有更想做的事。": "Mm... there's something I'd rather do right now.",
-      "嘿嘿,我也最喜歡你了!": "Hehe, I like you the most too!",
       "嘿嘿~": "Hehe~",
       "太好了,我可以一起玩嗎?我可以!": "Yay, can I join? I can!",
       "好!我要跟你們一起玩!": "Yes! I want to play with you all!",
       "好~只要是和你一起玩!": "Okay~ as long as it's with you!",
       "好累喔,陪我一下嘛。": "So tired, stay with me a bit.",
-      "好累喔……可以靠著你休息嗎?": "So tired... can I lean on you and rest?",
       "平手!我們一樣棒!": "A tie! We're equally great!",
-      "待在你身邊我就不怕了……": "As long as I'm by your side, I'm not scared...",
       "忙完之後,{user}就會陪我玩了嗎?": "Once you're done being busy, {user}, will you play with me?",
       "我……我想先待在旁邊,不要忘記我喔。": "I... I'll stay on the side for now, don't forget about me.",
-      "我來找你啦!有沒有想我?": "I came to find you! Did you miss me?",
       "我們一起玩球好不好?大家一起才開心!": "Let's play ball together, okay? It's more fun together!",
-      "我可以一直待在你身邊嗎?": "Can I stay by your side forever?",
-      "我坐在這裡陪你。": "I'll sit here and keep you company.",
-      "我很怕寂寞,你可以一直陪著我嗎?": "I'm really afraid of being lonely, can you stay with me always?",
       "我想休息一下……": "I want to rest for a bit...",
-      "我想和你聊聊天,可以嗎?": "I want to chat with you, is that okay?",
-      "我想要你抱抱我……": "I want you to hug me...",
-      "我想要你摸摸我……": "I want you to pat me...",
-      "我想要你關心我……": "I want you to care about me...",
-      "我有點不安,你不要離開喔。": "I'm feeling a little uneasy, please don't leave.",
       "接住接住!不要漏掉了!": "Catch it, catch it! Don't miss it!",
-      "晚安,夢裡也要見到你喔~": "Good night, hope to see you in my dreams too~",
       "有人要一起玩球嗎?我想跟你們玩!": "Anyone want to play ball together? I want to join!",
-      "有你在的地方就是我的家。": "Wherever you are, that's my home.",
       "玩得好開心!你有開心嗎?": "Had so much fun! Were you happy too?",
       "球!你要不要陪我玩?": "A ball! Will you play with me?",
-      "當你有空時,可以摸摸我的頭嗎?": "When you have time, can you pat my head?",
-      "看著你,我就很安心。": "Just watching you makes me feel at ease.",
-      "等我等我!我要追上你!": "Wait for me, wait for me! I'll catch up!",
       "結束了嗎……再陪我一下嘛。": "Is it over... stay with me a little longer.",
       "耶!我做到了,快拍拍我!": "Yay! I did it, pat me quick!",
-      "被你抱起來了……好開心!": "You picked me up... so happy!",
       "要玩要玩!我最喜歡跟人玩了!": "Play, play! I love playing with people the most!",
       "贏了!誇誇我!": "I won! Praise me!",
-      "跟你待在一起,讓我好安心。": "Being with you makes me feel so safe.",
-      "靠近一點點……好,就這樣。": "Come a little closer... yes, just like that."
+      "靠近一點點……好,就這樣。": "Come a little closer... yes, just like that.",
+      "好累喔……可以靠著{you}休息嗎?": "So tired... can I lean on {you} and rest?",
+      "哼!{you}都不理我!": "Hmph! You keep ignoring me!",
+      "[wave]{user}陪我玩了!好開心!": "[wave]{user}, you played with me! I'm so happy!",
+      "即便是螢幕變黑的時候,我也一直在想{you}。": "Even when the screen goes dark, I keep thinking of {you}.",
+      "看著{you},我就很安心。": "Just watching {you} makes me feel at ease.",
+      "我很怕寂寞,{you}可以一直陪著我嗎?": "I'm really afraid of being lonely, can you stay with me always?",
+      "我想要{you}抱抱我……": "I want {you} to hug me...",
+      "我想要{you}摸摸我……": "I want {you} to pat me...",
+      "我想要{you}關心我……": "I want {you} to care about me...",
+      "我想和{you}聊聊天,可以嗎?": "I want to chat with {you}, is that okay?",
+      "唔……有點緊張,{you}在的話我會好一點。": "Hmm... I'm a little nervous, I feel better when you're around.",
+      "跟{you}待在一起,讓我好安心。": "Being with {you} makes me feel so safe.",
+      "當{you}有空時,可以摸摸我的頭嗎?": "When you have time, can you pat my head?",
+      "我可以一直待在{you}身邊嗎?": "Can I stay by your side forever?",
+      "有{you}在的地方就是我的家。": "Wherever you are, that's my home.",
+      "(一直看著{you})": "(Keeps staring at {you})",
+      "我坐在這裡陪{you}。": "I'll sit here and keep {you} company.",
+      "{you}在我就不無聊了。": "As long as you're here, I'm never bored.",
+      "(抱住{you}的游標睡著了)": "(Hugs your cursor and falls asleep)",
+      "{you}不要走……陪我一下下就好。": "Don't go... just stay with me a little while.",
+      "嗚……我想要{you}拍拍我。": "Uwaah... I want {you} to pat me.",
+      "待在{you}身邊我就不怕了……": "As long as I'm by your side, I'm not scared...",
+      "我有點不安,{you}不要離開喔。": "I'm feeling a little uneasy, please don't leave.",
+      "和{you}待在一起,什麼都不用做就很幸福。": "Just being with {you}, doing nothing at all, makes me happy.",
+      "等我等我!我要追上{you}!": "Wait for me, wait for me! I'll catch up!",
+      "{you}丟球給我的話,我一定會接住的。": "If you throw the ball to me, I'll definitely catch it.",
+      "{you}還在嗎?太好了!": "Are you still here? Yay!",
+      "[wave]耶!{you}來關心我了!再多一點嘛~": "[wave]Yay! You came to check on me! A little more~",
+      "嘿嘿,我也最喜歡{you}了!": "Hehe, I like {you} the most too!",
+      "嗚哇!{you}要帶我走?好!我跟你走!": "Uwah! Taking me somewhere? Okay! I'll go with {you}!",
+      "被{you}抱起來了……好開心!": "You picked me up... so happy!",
+      "我來找{you}啦!有沒有想我?": "I came to find you! Did you miss me?",
+      "[wave]找到{you}了!": "[wave]Found you!",
+      "{user}也要記得休息喔……我在旁邊陪你。": "Remember to rest too, {user}... I'll be right here with you.",
+      "晚安,夢裡也要見到{you}喔~": "Good night, hope to see {you} in my dreams too~"
     },
     "zh-TW": {
-      "(一直看著你)": "(一直看著你)",
-      "(抱住你的游標睡著了)": "(抱住你的游標睡著了)",
       "(揉眼睛)謝謝你一直在這裡陪我,{user}。": "(揉眼睛)謝謝你一直在這裡陪我,{user}。",
       "(靠過來窩在{user}旁邊)": "(靠過來窩在{user}旁邊)",
-      "[wave]{user}你陪我玩了!好開心!": "[wave]{user}你陪我玩了!好開心!",
-      "[wave]找到你了!": "[wave]找到你了!",
-      "[wave]耶!你來關心我了!再多一點嘛~": "[wave]耶!你來關心我了!再多一點嘛~",
-      "{user}你也要記得休息喔……我在旁邊陪你。": "{user}你也要記得休息喔……我在旁邊陪你。",
       "{user}在做什麼?我陪你好不好?": "{user}在做什麼?我陪你好不好?",
       "{user}好像總是很忙……沒關係,有我陪著你。": "{user}好像總是很忙……沒關係,有我陪著你。",
       "……不玩的話,可以陪我嗎?": "……不玩的話,可以陪我嗎?",
@@ -93,64 +87,70 @@
       "一樣耶~我們心有靈犀!": "一樣耶~我們心有靈犀!",
       "不管,輸了要抱抱!": "不管,輸了要抱抱!",
       "今天沒心情玩球,但我在旁邊陪你們。": "今天沒心情玩球,但我在旁邊陪你們。",
-      "你不要走……陪我一下下就好。": "你不要走……陪我一下下就好。",
-      "你丟球給我的話,我一定會接住的。": "你丟球給我的話,我一定會接住的。",
       "你們在玩球?我在旁邊看,不會吵的。": "你們在玩球?我在旁邊看,不會吵的。",
       "你們玩得好開心……我也想被邀請。": "你們玩得好開心……我也想被邀請。",
-      "你在我就不無聊了。": "你在我就不無聊了。",
       "你有看我嗎?我頂得很好對不對?": "你有看我嗎?我頂得很好對不對?",
       "你看你看!有球!我們一起玩好不好?": "你看你看!有球!我們一起玩好不好?",
-      "你還在嗎?太好了!": "你還在嗎?太好了!",
       "再摸久一點也可以的喔?": "再摸久一點也可以的喔?",
-      "即便是螢幕變黑的時候,我也一直在想你。": "即便是螢幕變黑的時候,我也一直在想你。",
-      "和你待在一起,什麼都不用做就很幸福。": "和你待在一起,什麼都不用做就很幸福。",
-      "哼!你都不理我!": "哼!你都不理我!",
       "唔……有點怕怕的,不要離開太遠喔。": "唔……有點怕怕的,不要離開太遠喔。",
-      "唔……有點緊張,你在的話我會好一點。": "唔……有點緊張,你在的話我會好一點。",
       "嗚……不要離開我……": "嗚……不要離開我……",
-      "嗚……我想要你拍拍我。": "嗚……我想要你拍拍我。",
       "嗚……輸了……你要安慰我一下嘛。": "嗚……輸了……你要安慰我一下嘛。",
       "嗚……陪我一下下嘛……": "嗚……陪我一下下嘛……",
-      "嗚哇!你要帶我走?好!我跟你走!": "嗚哇!你要帶我走?好!我跟你走!",
       "嗯……我現在有更想做的事。": "嗯……我現在有更想做的事。",
-      "嘿嘿,我也最喜歡你了!": "嘿嘿,我也最喜歡你了!",
       "嘿嘿~": "嘿嘿~",
       "太好了,我可以一起玩嗎?我可以!": "太好了,我可以一起玩嗎?我可以!",
       "好!我要跟你們一起玩!": "好!我要跟你們一起玩!",
       "好~只要是和你一起玩!": "好~只要是和你一起玩!",
       "好累喔,陪我一下嘛。": "好累喔,陪我一下嘛。",
-      "好累喔……可以靠著你休息嗎?": "好累喔……可以靠著你休息嗎?",
       "平手!我們一樣棒!": "平手!我們一樣棒!",
-      "待在你身邊我就不怕了……": "待在你身邊我就不怕了……",
       "忙完之後,{user}就會陪我玩了嗎?": "忙完之後,{user}就會陪我玩了嗎?",
       "我……我想先待在旁邊,不要忘記我喔。": "我……我想先待在旁邊,不要忘記我喔。",
-      "我來找你啦!有沒有想我?": "我來找你啦!有沒有想我?",
       "我們一起玩球好不好?大家一起才開心!": "我們一起玩球好不好?大家一起才開心!",
-      "我可以一直待在你身邊嗎?": "我可以一直待在你身邊嗎?",
-      "我坐在這裡陪你。": "我坐在這裡陪你。",
-      "我很怕寂寞,你可以一直陪著我嗎?": "我很怕寂寞,你可以一直陪著我嗎?",
       "我想休息一下……": "我想休息一下……",
-      "我想和你聊聊天,可以嗎?": "我想和你聊聊天,可以嗎?",
-      "我想要你抱抱我……": "我想要你抱抱我……",
-      "我想要你摸摸我……": "我想要你摸摸我……",
-      "我想要你關心我……": "我想要你關心我……",
-      "我有點不安,你不要離開喔。": "我有點不安,你不要離開喔。",
       "接住接住!不要漏掉了!": "接住接住!不要漏掉了!",
-      "晚安,夢裡也要見到你喔~": "晚安,夢裡也要見到你喔~",
       "有人要一起玩球嗎?我想跟你們玩!": "有人要一起玩球嗎?我想跟你們玩!",
-      "有你在的地方就是我的家。": "有你在的地方就是我的家。",
       "玩得好開心!你有開心嗎?": "玩得好開心!你有開心嗎?",
       "球!你要不要陪我玩?": "球!你要不要陪我玩?",
-      "當你有空時,可以摸摸我的頭嗎?": "當你有空時,可以摸摸我的頭嗎?",
-      "看著你,我就很安心。": "看著你,我就很安心。",
-      "等我等我!我要追上你!": "等我等我!我要追上你!",
       "結束了嗎……再陪我一下嘛。": "結束了嗎……再陪我一下嘛。",
       "耶!我做到了,快拍拍我!": "耶!我做到了,快拍拍我!",
-      "被你抱起來了……好開心!": "被你抱起來了……好開心!",
       "要玩要玩!我最喜歡跟人玩了!": "要玩要玩!我最喜歡跟人玩了!",
       "贏了!誇誇我!": "贏了!誇誇我!",
-      "跟你待在一起,讓我好安心。": "跟你待在一起,讓我好安心。",
-      "靠近一點點……好,就這樣。": "靠近一點點……好,就這樣。"
+      "靠近一點點……好,就這樣。": "靠近一點點……好,就這樣。",
+      "好累喔……可以靠著{you}休息嗎?": "好累喔……可以靠著{you}休息嗎?",
+      "哼!{you}都不理我!": "哼!{you}都不理我!",
+      "[wave]{user}陪我玩了!好開心!": "[wave]{user}陪我玩了!好開心!",
+      "即便是螢幕變黑的時候,我也一直在想{you}。": "即便是螢幕變黑的時候,我也一直在想{you}。",
+      "看著{you},我就很安心。": "看著{you},我就很安心。",
+      "我很怕寂寞,{you}可以一直陪著我嗎?": "我很怕寂寞,{you}可以一直陪著我嗎?",
+      "我想要{you}抱抱我……": "我想要{you}抱抱我……",
+      "我想要{you}摸摸我……": "我想要{you}摸摸我……",
+      "我想要{you}關心我……": "我想要{you}關心我……",
+      "我想和{you}聊聊天,可以嗎?": "我想和{you}聊聊天,可以嗎?",
+      "唔……有點緊張,{you}在的話我會好一點。": "唔……有點緊張,{you}在的話我會好一點。",
+      "跟{you}待在一起,讓我好安心。": "跟{you}待在一起,讓我好安心。",
+      "當{you}有空時,可以摸摸我的頭嗎?": "當{you}有空時,可以摸摸我的頭嗎?",
+      "我可以一直待在{you}身邊嗎?": "我可以一直待在{you}身邊嗎?",
+      "有{you}在的地方就是我的家。": "有{you}在的地方就是我的家。",
+      "(一直看著{you})": "(一直看著{you})",
+      "我坐在這裡陪{you}。": "我坐在這裡陪{you}。",
+      "{you}在我就不無聊了。": "{you}在我就不無聊了。",
+      "(抱住{you}的游標睡著了)": "(抱住{you}的游標睡著了)",
+      "{you}不要走……陪我一下下就好。": "{you}不要走……陪我一下下就好。",
+      "嗚……我想要{you}拍拍我。": "嗚……我想要{you}拍拍我。",
+      "待在{you}身邊我就不怕了……": "待在{you}身邊我就不怕了……",
+      "我有點不安,{you}不要離開喔。": "我有點不安,{you}不要離開喔。",
+      "和{you}待在一起,什麼都不用做就很幸福。": "和{you}待在一起,什麼都不用做就很幸福。",
+      "等我等我!我要追上{you}!": "等我等我!我要追上{you}!",
+      "{you}丟球給我的話,我一定會接住的。": "{you}丟球給我的話,我一定會接住的。",
+      "{you}還在嗎?太好了!": "{you}還在嗎?太好了!",
+      "[wave]耶!{you}來關心我了!再多一點嘛~": "[wave]耶!{you}來關心我了!再多一點嘛~",
+      "嘿嘿,我也最喜歡{you}了!": "嘿嘿,我也最喜歡{you}了!",
+      "嗚哇!{you}要帶我走?好!我跟你走!": "嗚哇!{you}要帶我走?好!我跟你走!",
+      "被{you}抱起來了……好開心!": "被{you}抱起來了……好開心!",
+      "我來找{you}啦!有沒有想我?": "我來找{you}啦!有沒有想我?",
+      "[wave]找到{you}了!": "[wave]找到{you}了!",
+      "{user}也要記得休息喔……我在旁邊陪你。": "{user}也要記得休息喔……我在旁邊陪你。",
+      "晚安,夢裡也要見到{you}喔~": "晚安,夢裡也要見到{you}喔~"
     }
   },
   "fileType": "slime_pet_personality",
@@ -176,7 +176,7 @@
                 "CLICK_WAIT": true,
                 "FONT": "__default__",
                 "SPEAKER": "",
-                "TEXT": "你可以教我一個新的詞嗎?我想多知道一點你懂的事……",
+                "TEXT": "{you}可以教我一個新的詞嗎?我想多知道一點你懂的事……",
                 "TYPEWRITER": true,
                 "WAIT": true
               },
@@ -200,7 +200,7 @@
                             "FRESH": true,
                             "KEY": "learned",
                             "MAXLEN": 16.0,
-                            "PROMPT": "教我嘛~你想教我什麼?"
+                            "PROMPT": "教我嘛~{you}想教我什麼?"
                           },
                           "id": "clingy_teach_ask",
                           "next": {
@@ -315,7 +315,7 @@
                 "CLICK_WAIT": true,
                 "FONT": "__default__",
                 "SPEAKER": "",
-                "TEXT": "我想更了解你……你最近對什麼有興趣呢?",
+                "TEXT": "我想更了解{you}……你最近對什麼有興趣呢?",
                 "TYPEWRITER": true,
                 "WAIT": true
               },
@@ -339,7 +339,7 @@
                             "FRESH": true,
                             "KEY": "interest",
                             "MAXLEN": 16.0,
-                            "PROMPT": "告訴我嘛,你喜歡什麼?"
+                            "PROMPT": "告訴我嘛,{you}喜歡什麼?"
                           },
                           "id": "clingy_know_ask",
                           "next": {
@@ -370,7 +370,7 @@
                                               "BIND_ACTION": "",
                                               "FONT": "__default__",
                                               "SPEAKER": "",
-                                              "TEXT": "原來你喜歡「{text:interest}」!我要牢牢記住,這樣就能陪你聊了!",
+                                              "TEXT": "原來{you}喜歡「{text:interest}」!我要牢牢記住,這樣就能陪你聊了!",
                                               "TYPEWRITER": true,
                                               "WAIT": true
                                             },
@@ -391,7 +391,7 @@
                                       "BIND_ACTION": "",
                                       "FONT": "__default__",
                                       "SPEAKER": "",
-                                      "TEXT": "不想說也沒關係,我會一直等你的。",
+                                      "TEXT": "不想說也沒關係,我會一直等{you}的。",
                                       "TYPEWRITER": true,
                                       "WAIT": true
                                     },
@@ -442,17 +442,17 @@
     "chat": [
       {
         "lens": "疲憊",
-        "say": "好累喔……可以靠著你休息嗎?",
+        "say": "好累喔……可以靠著{you}休息嗎?",
         "tag": "lens"
       },
       {
         "lens": "生氣",
-        "say": "哼!你都不理我!",
+        "say": "哼!{you}都不理我!",
         "tag": "lens"
       },
       {
         "lens": "開心",
-        "say": "[wave]{user}你陪我玩了!好開心!",
+        "say": "[wave]{user}陪我玩了!好開心!",
         "tag": "lens"
       },
       {
@@ -460,11 +460,11 @@
         "tag": "chat"
       },
       {
-        "say": "即便是螢幕變黑的時候,我也一直在想你。",
+        "say": "即便是螢幕變黑的時候,我也一直在想{you}。",
         "tag": "chat"
       },
       {
-        "say": "看著你,我就很安心。",
+        "say": "看著{you},我就很安心。",
         "tag": "chat"
       },
       {
@@ -472,19 +472,19 @@
         "tag": "chat"
       },
       {
-        "say": "我很怕寂寞,你可以一直陪著我嗎?",
+        "say": "我很怕寂寞,{you}可以一直陪著我嗎?",
         "tag": "chat"
       },
       {
-        "say": "我想要你抱抱我……",
+        "say": "我想要{you}抱抱我……",
         "tag": "chat"
       },
       {
-        "say": "我想要你摸摸我……",
+        "say": "我想要{you}摸摸我……",
         "tag": "chat"
       },
       {
-        "say": "我想要你關心我……",
+        "say": "我想要{you}關心我……",
         "tag": "chat"
       },
       {
@@ -492,7 +492,7 @@
         "tag": "chat"
       },
       {
-        "say": "我想和你聊聊天,可以嗎?",
+        "say": "我想和{you}聊聊天,可以嗎?",
         "tag": "chat"
       },
       {
@@ -516,33 +516,33 @@
       },
       {
         "lens": "緊張",
-        "say": "唔……有點緊張,你在的話我會好一點。",
+        "say": "唔……有點緊張,{you}在的話我會好一點。",
         "tag": "lens"
       },
       {
         "lens": "悠哉",
-        "say": "跟你待在一起,讓我好安心。",
+        "say": "跟{you}待在一起,讓我好安心。",
         "tag": "lens"
       },
       {
         "lens": "悠哉",
-        "say": "當你有空時,可以摸摸我的頭嗎?",
+        "say": "當{you}有空時,可以摸摸我的頭嗎?",
         "tag": "lens"
       },
       {
-        "say": "我可以一直待在你身邊嗎?",
+        "say": "我可以一直待在{you}身邊嗎?",
         "tag": "chat"
       },
       {
-        "say": "有你在的地方就是我的家。",
+        "say": "有{you}在的地方就是我的家。",
         "tag": "chat"
       },
       {
-        "say": "(一直看著你)",
+        "say": "(一直看著{you})",
         "tag": "chat"
       },
       {
-        "say": "我坐在這裡陪你。",
+        "say": "我坐在這裡陪{you}。",
         "tag": "rest"
       },
       {
@@ -550,11 +550,11 @@
         "tag": "rest"
       },
       {
-        "say": "你在我就不無聊了。",
+        "say": "{you}在我就不無聊了。",
         "tag": "rest"
       },
       {
-        "say": "(抱住你的游標睡著了)",
+        "say": "(抱住{you}的游標睡著了)",
         "tag": "sleep"
       },
       {
@@ -563,36 +563,36 @@
       },
       {
         "lens": "悲傷",
-        "say": "你不要走……陪我一下下就好。",
+        "say": "{you}不要走……陪我一下下就好。",
         "tag": "lens"
       },
       {
         "lens": "悲傷",
-        "say": "嗚……我想要你拍拍我。",
+        "say": "嗚……我想要{you}拍拍我。",
         "tag": "lens"
       },
       {
         "lens": "緊張",
-        "say": "待在你身邊我就不怕了……",
+        "say": "待在{you}身邊我就不怕了……",
         "tag": "lens"
       },
       {
         "lens": "緊張",
-        "say": "我有點不安,你不要離開喔。",
+        "say": "我有點不安,{you}不要離開喔。",
         "tag": "lens"
       },
       {
         "lens": "悠哉",
-        "say": "和你待在一起,什麼都不用做就很幸福。",
+        "say": "和{you}待在一起,什麼都不用做就很幸福。",
         "tag": "lens"
       },
       {
         "lens": "奔跑",
-        "say": "等我等我!我要追上你!",
+        "say": "等我等我!我要追上{you}!",
         "tag": "lens"
       },
       {
-        "say": "你丟球給我的話,我一定會接住的。",
+        "say": "{you}丟球給我的話,我一定會接住的。",
         "tag": "chat"
       }
     ],
@@ -735,7 +735,7 @@
       {
         "on": "wake",
         "say": [
-          "你還在嗎?太好了!",
+          "{you}還在嗎?太好了!",
           "(揉眼睛)謝謝你一直在這裡陪我,{user}。"
         ]
       },
@@ -743,31 +743,31 @@
         "hop": 1.0,
         "on": "interact",
         "say": [
-          "[wave]耶!你來關心我了!再多一點嘛~",
-          "嘿嘿,我也最喜歡你了!",
+          "[wave]耶!{you}來關心我了!再多一點嘛~",
+          "嘿嘿,我也最喜歡{you}了!",
           "再摸久一點也可以的喔?"
         ]
       },
       {
         "on": "drag",
         "say": [
-          "嗚哇!你要帶我走?好!我跟你走!",
-          "被你抱起來了……好開心!",
+          "嗚哇!{you}要帶我走?好!我跟你走!",
+          "被{you}抱起來了……好開心!",
           "嘿嘿~"
         ]
       },
       {
         "on": "enter",
         "say": [
-          "我來找你啦!有沒有想我?",
-          "[wave]找到你了!"
+          "我來找{you}啦!有沒有想我?",
+          "[wave]找到{you}了!"
         ]
       },
       {
         "on": "sleep",
         "say": [
-          "{user}你也要記得休息喔……我在旁邊陪你。",
-          "晚安,夢裡也要見到你喔~"
+          "{user}也要記得休息喔……我在旁邊陪你。",
+          "晚安,夢裡也要見到{you}喔~"
         ]
       },
       {
@@ -872,8 +872,8 @@
       },
       {
         "condition": "",
-        "text": "我偶爾會想，{tag:愛好}要是能跟你一起做就好了。",
-        "en": "Sometimes I wish I could do {tag:愛好} with you."
+        "text": "我偶爾會想，{tag:愛好}要是能跟{you}一起做就好了。",
+        "en": "Sometimes I wish I could do {tag:愛好} with {you}."
       },
       {
         "condition": "",

@@ -27,6 +27,10 @@ const THOUGHT_PREVIEW_TEXT := "嗯……這是思考泡泡的預覽\n[i]不知�
 var _pet: Node
 var _flow: HFlowContainer
 var _cards: Array[VBoxContainer] = []
+## 「將格式同步給其他場上桌寵」改動別隻桌寵之前發出(pets = 要改的那幾隻):桌寵管理視窗據此把還沒列進名單的桌寵補進來、
+## 先記快照,「儲存」才會一起存、「不儲存離開」才還原得回來。
+signal will_change_pets(pets: Array)
+
 ## 原文標題 → 卡片(PanelContainer);桌寵管理視窗用它把行為類的卡片搬到「行為」分頁(見 ManagerWindow._build)。
 var cards: Dictionary = {}
 var _loading := false
@@ -35,6 +39,12 @@ var _pickers: Dictionary = {}
 var _hex_edits: Dictionary = {}
 var _border_spin: SpinBox
 var _radius_spin: SpinBox
+var _thought_border_spin: SpinBox
+var _thought_radius_spin: SpinBox
+var _bubble_width_spin: SpinBox
+var _sync_button: Button
+## 「同步」小節的分隔線/標題/說明/按鈕;角色庫的單隻模式整組藏起來(見 hide_sync)。
+var _sync_controls: Array[Control] = []
 var _scale_option: OptionButton
 var _font_option: OptionButton
 var _font_size_spin: SpinBox
@@ -60,6 +70,7 @@ var _breath_check: CheckBox
 var _sharp_check: CheckBox
 var _hitbox_spins: Array[SpinBox] = []
 var _hitbox_auto_label: Label
+var _hitbox_look_info: InfoIcon
 var _unmute_check: CheckBox
 var _fx_option: OptionButton
 var _fx_mode_option: OptionButton
@@ -119,14 +130,29 @@ func _ready() -> void:
 	form.add_child(HSeparator.new())
 	form.add_child(ManagerUi.heading("思考泡泡配色"))
 	_add_color_rows(form, THOUGHT_COLOR_FIELDS)
-	form.add_child(ManagerUi.hint_row("說明", "對話積木的「泡泡」選「思考」時用這組顏色(和上面的對話框配色分開設定);樣子跟對話框很像,尾巴換成往角色頭部飄的幾顆小圓泡泡。框線粗細、縮放與字體沿用上面的設定,圓角至少 16。"))
+	form.add_child(ManagerUi.hint_row("說明", "對話積木的「泡泡」選「思考」時用這組顏色(和上面的對話框配色分開設定);樣子跟對話框很像,尾巴換成往角色頭部飄的幾顆小圓泡泡。縮放與字體沿用對話框的設定;邊框粗細與圓角在「外框與縮放」分開設定。"))
 	form = _new_card("外框與縮放")
+	# 2026-10-18 使用者要求:對話泡泡與思考泡泡的邊框粗細/圓角分開設定。
+	form.add_child(ManagerUi.heading("對話泡泡"))
 	_border_spin = ManagerUi.spin(1.0, 0.0, PetUiStyle.MAX_BORDER_WIDTH)
 	_border_spin.value_changed.connect(_on_field_changed)
 	form.add_child(ManagerUi.labeled("邊框粗細", _border_spin))
 	_radius_spin = ManagerUi.spin(1.0, 0.0, PetUiStyle.MAX_CORNER_RADIUS)
 	_radius_spin.value_changed.connect(_on_field_changed)
 	form.add_child(ManagerUi.labeled("圓角", _radius_spin))
+	form.add_child(ManagerUi.heading("思考泡泡"))
+	_thought_border_spin = ManagerUi.spin(1.0, 0.0, PetUiStyle.MAX_BORDER_WIDTH)
+	_thought_border_spin.value_changed.connect(_on_field_changed)
+	form.add_child(ManagerUi.labeled("邊框粗細", _thought_border_spin))
+	_thought_radius_spin = ManagerUi.spin(1.0, 0.0, PetUiStyle.MAX_CORNER_RADIUS)
+	_thought_radius_spin.value_changed.connect(_on_field_changed)
+	form.add_child(ManagerUi.labeled("圓角", _thought_radius_spin))
+	form.add_child(HSeparator.new())
+	_bubble_width_spin = ManagerUi.spin(10.0, PetUiStyle.MIN_BUBBLE_WIDTH, PetUiStyle.MAX_BUBBLE_WIDTH)
+	_bubble_width_spin.suffix = "px"
+	_bubble_width_spin.value_changed.connect(_on_field_changed)
+	form.add_child(ManagerUi.labeled("氣泡最大寬度", _bubble_width_spin))
+	form.add_child(ManagerUi.hint_row("說明", "桌面上的對話泡泡與思考泡泡(不是聊天室)文字超過這個寬度就換行;一行就說完的短句,泡泡只到最後一個字。會跟著介面縮放率放大縮小。"))
 	_scale_option = OptionButton.new()
 	for step in PetUiStyle.SCALE_STEPS:
 		_scale_option.add_item("%d%%" % step)
@@ -145,6 +171,15 @@ func _ready() -> void:
 	_status_mood_check.toggled.connect(_on_field_changed)
 	form.add_child(_status_mood_check)
 	form.add_child(ManagerUi.hint_row("說明", "狀態面板預設只顯示創作者勾選的數值(避免洩露彩蛋),這兩條也一樣預設不顯示。精力條要角色有疲勞機制(套用有疲勞參數的性格);心情條隨時都有,但要套用有「心情起伏」參數的性格,心情才會讓角色進入開心/生氣狀態。"))
+
+	_sync_button = ManagerUi.button("將格式同步給其他場上桌寵")
+	ManagerUi.wrap_long_button(_sync_button)
+	_sync_button.pressed.connect(_ask_sync_frame)
+	_sync_controls = [HSeparator.new(), ManagerUi.heading("同步"),
+			ManagerUi.hint_row("說明", "把這張卡片的設定(對話泡泡與思考泡泡的邊框粗細、圓角、氣泡最大寬度、介面縮放率、狀態面板顯示哪些條)複製給場上其他每一隻桌寵;配色、字體不會動。按「儲存」才會存檔,「不儲存離開」可以還原。"),
+			_sync_button]
+	for control in _sync_controls:
+		form.add_child(control)
 
 	form.add_child(HSeparator.new())
 	form.add_child(ManagerUi.heading("還原"))
@@ -242,8 +277,14 @@ func _ready() -> void:
 	form.add_child(HSeparator.new())
 	form.add_child(ManagerUi.heading("判定框(可點擊範圍)"))
 	form.add_child(ManagerUi.hint_row("說明", "只有判定框裡點得到、抓得起這隻桌寵;畫在框外的翅膀、武器、特效仍然會完整顯示,只是不能點。寬/高填 0 = 自動(用素材包設定或待機圖本體大小)。單位是縮放前的像素,錨點是腳底線的中心點(偏移:X 向右、Y 向下)。系統匣「顯示穿透範圍(除錯)」會用藍框畫出判定框。"))
+	# 2026-10-18 使用者要求:穿著外觀時的說明不印在卡片上,放進「目前生效」後面的圈圈 i(只有穿著外觀時才出現)。
+	var status_row := HBoxContainer.new()
+	status_row.add_theme_constant_override("separation", 6)
 	_hitbox_auto_label = Label.new()
-	form.add_child(_hitbox_auto_label)
+	status_row.add_child(_hitbox_auto_label)
+	_hitbox_look_info = ManagerUi.info_icon("")
+	status_row.add_child(_hitbox_look_info)
+	form.add_child(status_row)
 	for entry in [["判定框寬(0=自動)", 0.0, 4096.0], ["判定框高(0=自動)", 0.0, 4096.0], ["偏移 X", -4096.0, 4096.0], ["偏移 Y", -4096.0, 4096.0]]:
 		var spin := ManagerUi.spin(1.0, entry[1], entry[2])
 		spin.value_changed.connect(_on_field_changed)
@@ -510,19 +551,19 @@ func _fill_hitbox() -> void:
 	_hitbox_spins[1].value = (manual[0] as Vector2).y
 	_hitbox_spins[2].value = (manual[1] as Vector2).x
 	_hitbox_spins[3].value = (manual[1] as Vector2).y
-	_hitbox_auto_label.text = _hitbox_status()
+	_update_hitbox_status()
 
 
-func _hitbox_status() -> String:
-	var text := tr("目前生效:%d × %d(偏移 %d, %d)") % [_pet.effective_hitbox_size().x, _pet.effective_hitbox_size().y, _pet.effective_hitbox_offset().x, _pet.effective_hitbox_offset().y]
-	if str(_pet.appearance_id) == "":
-		return text
+func _update_hitbox_status() -> void:
+	_hitbox_auto_label.text = tr("目前生效:%d × %d(偏移 %d, %d)") % [_pet.effective_hitbox_size().x, _pet.effective_hitbox_size().y, _pet.effective_hitbox_offset().x, _pet.effective_hitbox_offset().y]
+	_hitbox_look_info.visible = str(_pet.appearance_id) != ""
+	if not _hitbox_look_info.visible:
+		return
 	var look := PetAppearances.name_of(_pet.pack_folder(), _pet.appearance_id)
 	if _pet.appearance_independent:
-		text += "\n" + tr("正在設定外觀「%s」自己的判定框(這套外觀的尺寸與判定框是獨立設定,預設外觀的不受影響)") % look
+		_hitbox_look_info.set_tip(tr("正在設定外觀「%s」自己的判定框(這套外觀的尺寸與判定框是獨立設定,預設外觀的不受影響)") % look)
 	else:
-		text += "\n" + tr("外觀「%s」跟著這裡的縮放與判定框走(要分開設定:角色庫 → 外觀清單打開這套的「獨立設定」)") % look
-	return text
+		_hitbox_look_info.set_tip(tr("外觀「%s」跟著這裡的縮放與判定框走(要分開設定:角色庫 → 外觀清單打開這套的「獨立設定」)") % look)
 
 
 func _load_form() -> void:
@@ -536,6 +577,9 @@ func _load_form() -> void:
 		_hex_edits[field].text = PetProfile.color_to_hex(color)
 	_border_spin.value = style.border_width
 	_radius_spin.value = style.corner_radius
+	_thought_border_spin.value = style.thought_border_width
+	_thought_radius_spin.value = style.thought_corner_radius
+	_bubble_width_spin.value = style.bubble_width
 	_scale_option.select(PetUiStyle.SCALE_STEPS.find(PetUiStyle.nearest_scale_step(style.ui_scale)))
 	_font_option.select(maxi(UiFonts.FONT_NAMES.find(style.default_font), 0))
 	_font_size_spin.value = style.font_size()
@@ -737,6 +781,9 @@ func _on_field_changed(_value: Variant = null) -> void:
 	var style: PetUiStyle = _pet.ui_style
 	style.border_width = int(_border_spin.value)
 	style.corner_radius = int(_radius_spin.value)
+	style.thought_border_width = int(_thought_border_spin.value)
+	style.thought_corner_radius = int(_thought_radius_spin.value)
+	style.bubble_width = int(_bubble_width_spin.value)
 	style.ui_scale = PetUiStyle.SCALE_STEPS[maxi(_scale_option.selected, 0)]
 	style.default_font = UiFonts.FONT_NAMES[maxi(_font_option.selected, 0)]
 	style.set_font_size(int(_font_size_spin.value))
@@ -778,7 +825,7 @@ func _on_field_changed(_value: Variant = null) -> void:
 	if _pet.sharp_pixels_enabled != _sharp_check.button_pressed:
 		_pet.set_sharp_pixels(_sharp_check.button_pressed)
 	_pet.set_manual_hitbox(Vector2(_hitbox_spins[0].value, _hitbox_spins[1].value), Vector2(_hitbox_spins[2].value, _hitbox_spins[3].value))
-	_hitbox_auto_label.text = _hitbox_status()
+	_update_hitbox_status()
 	_pet.auto_dance_follow_enabled = _dance_follow_check.button_pressed
 	_pet.auto_unmute_enabled = _unmute_check.button_pressed
 	for kind: String in PetEffects.LINK_KEYS:
@@ -901,6 +948,56 @@ func _preview_voice() -> void:
 		await get_tree().create_timer(0.1).timeout
 
 
+## 角色庫的單隻模式(編輯不在桌面上的臨時實例,見 ManagerWindow.setup_for_single_pet)沒有「其他場上桌寵」可言,整組藏起來。
+func hide_sync() -> void:
+	for control in _sync_controls:
+		control.visible = false
+
+
+## 場上除了目前這隻以外的桌寵(「將格式同步給其他場上桌寵」的對象)。
+func _sync_targets() -> Array:
+	if _pet == null or not is_inside_tree():
+		return []
+	return get_tree().get_nodes_in_group("pets").filter(func(other: Node) -> bool: return other != _pet and is_instance_valid(other))
+
+
+## 按「將格式同步給其他場上桌寵」:先跳確認視窗(只寫隻數,不列名字),按確定才同步。回傳確認視窗(沒有其他桌寵時是 null)。
+func _ask_sync_frame() -> ConfirmationDialog:
+	var count := _sync_targets().size()
+	if count == 0:
+		message.emit(tr("場上沒有其他桌寵可以同步。"))
+		return null
+	var dialog := ConfirmationDialog.new()
+	# 不設 always_on_top,見 manager_ui.gd 的 ask_name() 說明(跟置頂衝突,會把視窗卡死)。
+	dialog.title = tr("同步格式")
+	dialog.dialog_text = tr("確定要把「外框與縮放」的格式同步給場上其他 %d 隻桌寵嗎?\n牠們原本的邊框粗細、圓角、介面縮放率與狀態面板設定會被蓋掉。") % count
+	dialog.dialog_autowrap = true
+	dialog.ok_button_text = "確定同步"
+	dialog.cancel_button_text = "取消"
+	dialog.theme = ManagerUi.make_theme()
+	dialog.confirmed.connect(_sync_frame_to_others)
+	dialog.confirmed.connect(dialog.queue_free)
+	dialog.canceled.connect(dialog.queue_free)
+	add_child(dialog)
+	if DisplayServer.get_name() != "headless":
+		FloatingWindow.popup_child_dialog(self, get_window(), dialog, Vector2i(460, 180))
+	return dialog
+
+
+## 把目前這隻的「外框與縮放」格式複製給場上其他桌寵(見 PetUiStyle.copy_frame_from);跟改自己這隻一樣,下一個氣泡/狀態面板開始套用。
+func _sync_frame_to_others() -> void:
+	var targets := _sync_targets()
+	if targets.is_empty():
+		return
+	will_change_pets.emit(targets)
+	for other: Node in targets:
+		(other.ui_style as PetUiStyle).copy_frame_from(_pet.ui_style)
+		other.status_show_energy = _pet.status_show_energy
+		other.status_show_mood = _pet.status_show_mood
+	message.emit(tr("已同步給 %d 隻桌寵(記得按「儲存」)。") % targets.size())
+	changed.emit()
+
+
 func _reset() -> void:
 	if _pet == null:
 		return
@@ -977,13 +1074,7 @@ func _make_preview(parent: Control, thought: bool) -> Dictionary:
 	label.fit_content = true
 	label.scroll_active = false
 	label.custom_minimum_size.x = 230.0 * factor
-	label.add_theme_font_override("normal_font", font)
-	label.add_theme_font_override("bold_font", font)
-	label.add_theme_font_override("italics_font", font)
-	var text_factor := style.text_scale_factor()
-	label.add_theme_font_size_override("normal_font_size", int(UiStyleKit.BASE_FONT_SIZE * text_factor))
-	label.add_theme_font_size_override("bold_font_size", int(UiStyleKit.BASE_FONT_SIZE * text_factor))
-	label.add_theme_font_size_override("italics_font_size", int(UiStyleKit.BASE_FONT_SIZE * text_factor))
+	DialogueBubble.apply_rich_fonts(label, font, int(UiStyleKit.BASE_FONT_SIZE * style.text_scale_factor()))   # 跟實際氣泡同一套粗體/斜體
 	label.add_theme_color_override("default_color", colors["text"])
 	label.text = THOUGHT_PREVIEW_TEXT if thought else PREVIEW_TEXT
 	column.add_child(label)

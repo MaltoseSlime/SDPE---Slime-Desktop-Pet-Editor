@@ -173,7 +173,7 @@ func _make_energy_row() -> Control:
 	if vitality == null or not vitality.fatigue_enabled():
 		row.add_child(_make_label(tr("精力") + "：" + tr("不會累")))
 		return row
-	var stage: String = {PetVitality.Mode.ACTIVE: tr("活動中"), PetVitality.Mode.STANDING: tr("站著休息"), PetVitality.Mode.RESTING: tr("坐著休息"), PetVitality.Mode.SLEEPING: tr("睡覺中")}.get(vitality.mode, "")
+	var stage: String = {PetVitality.Mode.ACTIVE: tr("活動中"), PetVitality.Mode.STANDING: tr("站著休息"), PetVitality.Mode.RESTING: tr("坐著休息"), PetVitality.Mode.LAYING: tr("躺著休息"), PetVitality.Mode.SLEEPING: tr("睡覺中")}.get(vitality.mode, "")
 	row.add_child(_make_label("%s：%d%%　%s" % [tr("精力"), int(vitality.energy), stage]))
 	var bar := ThresholdBar.new()
 	bar.setup(0.0, PetVitality.MAX_ENERGY, vitality.energy, [vitality.exhausted_threshold, vitality.tired_threshold], _style.option, _style.text, _factor)

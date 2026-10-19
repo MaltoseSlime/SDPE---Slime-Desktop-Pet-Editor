@@ -1131,52 +1131,54 @@ func apply_fx(action: String, indices: Array, op: Dictionary, record := true) ->
 
 
 ## 自動裁掉透明邊(2026-10-15):選取的幀各自找出有畫東西(不透明)的範圍,裁掉四周的透明部分。
-## 角色在畫面上的位置不變——記下每一幀目前的軸心(包括自動算的),範圍一定包含軸心那一點(軸心不會被擠到圖外而移位),
-## 裁切後把軸心換算到裁切後的圖上寫回去。shared = true:選取的幀疊在一起取聯集,全部裁成同一個範圍(動畫裡晃動的角色不會被切到、幀的大小一致);
+## 角色在畫面上的位置不變——範圍一定包含軸心那一點(包括自動算的),軸心跟著換算(見 _write_crops)。
+## shared = true:選取的幀疊在一起取聯集,全部裁成同一個範圍(動畫裡晃動的角色不會被切到、幀的大小一致);
 ## false:每一幀各自裁到自己的範圍。全透明的幀、沒有東西可裁的幀略過。一個撤回步驟。
-## 回傳 {error: 錯誤文字(空 = 成功), count: 裁了幾幀, saved_percent: 像素少了百分之幾}。
-func auto_trim(action: String, indices: Array, shared: bool) -> Dictionary:
+## 2026-10-18:聯集在「翻轉前」的底圖座標上算(見 crop_base),左右翻轉過的幀不會跟沒翻的左右各撐一邊而裁不掉;
+## 跟手動裁切一樣是取代原本的裁切(不疊加)。recover = false:不會比原本的範圍大(已經裁掉的不會被拿回來);
+## recover = true(2026-10-19 使用者要求):在還沒裁的底圖上找有畫東西的範圍,之前裁切切到的部分一起拿回來(已經寫進檔案的裁切拿不回來)。
+## 回傳 {error: 錯誤文字(空 = 成功), count: 改了幾幀, saved_percent: 像素少了百分之幾(拿回來的比裁掉的多 = 負的)}。
+func auto_trim(action: String, indices: Array, shared: bool, recover := false) -> Dictionary:
 	var picked := _sorted_indices(action, indices)
 	if picked.is_empty():
 		return {"error": "沒有選取的幀", "count": 0, "saved_percent": 0}
 	var wanted := {}
-	var sizes := {}
+	var bases := {}
 	var union := Rect2i()
 	for i in picked:
 		var info := frame(action, i)
-		if info.is_empty():
+		var base := crop_base(action, i)
+		if info.is_empty() or base.is_empty():
 			return {"error": tr("第 %d 幀讀不出圖") % i, "count": 0, "saved_percent": 0}
-		var used: Rect2i = (info["image"] as Image).get_used_rect()
+		var current := _current_crop(base)
+		# 座標都換到底圖上:recover 就看整張底圖有畫東西的地方,不然只看裁過的圖
+		var used: Rect2i = (base["image"] as Image).get_used_rect() if recover else (info["image"] as Image).get_used_rect()
 		if used.size.x <= 0 or used.size.y <= 0:
 			continue
-		var keep := used.expand(Vector2i(pivot(action, i).round()))
-		wanted[i] = keep
-		sizes[i] = info["size"]
-		union = keep if union.size == Vector2i.ZERO else union.merge(keep)
+		if not recover:
+			used.position += current.position
+		var keep := used.expand(Vector2i((pivot(action, i) + Vector2(current.position)).round()))
+		var source := _mirror_rect(keep, base)
+		wanted[i] = source
+		bases[i] = base
+		union = source if union.size == Vector2i.ZERO else union.merge(source)
 	var plans := {}
 	var before := 0
 	var after := 0
 	for i: int in wanted:
-		var size: Vector2i = sizes[i]
-		var rect: Rect2i = (union if shared else wanted[i] as Rect2i).intersection(Rect2i(Vector2i.ZERO, size))
-		if rect.size.x <= 0 or rect.size.y <= 0 or rect == Rect2i(Vector2i.ZERO, size):
+		var base: Dictionary = bases[i]
+		var current := _current_crop(base)
+		var rect := _mirror_rect(union if shared else wanted[i] as Rect2i, base).intersection(Rect2i(Vector2i.ZERO, base["size"]) if recover else current)
+		if rect.size.x <= 0 or rect.size.y <= 0 or rect == current:
 			continue
 		plans[i] = rect
-		before += size.x * size.y
+		before += current.size.x * current.size.y
 		after += rect.size.x * rect.size.y
 	if plans.is_empty():
 		return {"error": "", "count": 0, "saved_percent": 0}
-	var pivots := {}
-	for i: int in plans:
-		pivots[i] = pivot(action, i)
-	checkpoint()
-	for i: int in plans:
-		var error := apply_fx(action, [i], {"op": "c", "rect": plans[i]}, false)
-		if error != "":
-			undo()
-			return {"error": error, "count": 0, "saved_percent": 0}
-		# 裁切後的自動軸心是新圖的底邊中央,跟原本不一樣:把原本那一點換算過來寫回去(剛好等於自動值時 _write 不會多存)
-		set_pivot(action, i, (pivots[i] as Vector2) - Vector2((plans[i] as Rect2i).position), false, false)
+	var error := _write_crops(action, plans)
+	if error != "":
+		return {"error": error, "count": 0, "saved_percent": 0}
 	return {"error": "", "count": plans.size(), "saved_percent": roundi(100.0 * float(before - after) / float(maxi(before, 1)))}
 
 
@@ -1200,6 +1202,147 @@ func clear_fx(action: String, indices: Array) -> int:
 			refs[i] = _normalize_ref(entry)
 	_set_refs(action, refs)
 	return targets.size()
+
+
+## 裁切的底圖(2026-10-18 使用者要求:裁過的幀還沒寫進檔案前,可以把裁切線往外拉回來恢復內容):這一幀最後連續幾步是裁切/翻轉的話,
+## 拿掉那幾步的裁切就是「還沒裁的圖」(翻轉留著,畫面跟裁過的圖同一個方向)。左右/上下翻轉過的幀(例如 "c…;h")裁切範圍也換算到翻轉後的底圖上,
+## 裁切框才畫得出來、拉得回去(2026-10-18 使用者回報翻轉的幀沒有裁切框)。
+## 回傳 {texture, image, size, crop(那幾步合起來在底圖上的範圍;沒有裁切 = 空的 Rect2i), ops(底圖的步驟), flip_h, flip_v(底圖比翻轉前的圖多翻了哪幾個方向)};讀不出圖回空字典。
+func crop_base(action: String, index: int) -> Dictionary:
+	var info := frame(action, index)
+	if info.is_empty():
+		return {}
+	var ops := fx_ops(action, index)
+	var cut := ops.size()
+	var cropped := false
+	while cut > 0 and ["c", "h", "v"].has(str((ops[cut - 1] as Dictionary)["op"])):
+		cropped = cropped or str((ops[cut - 1] as Dictionary)["op"]) == "c"
+		cut -= 1
+	var flip_h := false
+	var flip_v := false
+	if not cropped:
+		for step: Dictionary in ops.slice(cut):
+			flip_h = flip_h != (str(step["op"]) == "h")
+			flip_v = flip_v != (str(step["op"]) == "v")
+		return {"texture": info["texture"], "image": info["image"], "size": info["size"], "crop": Rect2i(), "ops": ops, "flip_h": flip_h, "flip_v": flip_v}
+	var before := ops.slice(0, cut)
+	var plain := _fx_frame(action, index, before)
+	if plain.is_empty():
+		return {}
+	var size: Vector2i = plain["size"]
+	# 依序走過最後那幾步:crop = 翻轉前的底圖上留下的範圍;裁切步驟的範圍是相對「當時已經翻過的圖」,先翻回來再疊上去
+	var crop := Rect2i(Vector2i.ZERO, size)
+	for step: Dictionary in ops.slice(cut):
+		match str(step["op"]):
+			"h":
+				flip_h = not flip_h
+			"v":
+				flip_v = not flip_v
+			"c":
+				var rect := _mirror_rect((step["rect"] as Rect2i).intersection(Rect2i(Vector2i.ZERO, crop.size)), {"size": crop.size, "flip_h": flip_h, "flip_v": flip_v})
+				crop = Rect2i(crop.position + rect.position, rect.size).intersection(crop)
+	var shown := before.duplicate()
+	if flip_h:
+		shown.append({"op": "h"})
+	if flip_v:
+		shown.append({"op": "v"})
+	var base_info := _fx_frame(action, index, shown)
+	if base_info.is_empty():
+		return {}
+	var result := {"size": size, "ops": shown, "flip_h": flip_h, "flip_v": flip_v}
+	result["crop"] = _mirror_rect(crop, result)
+	result["texture"] = base_info["texture"]
+	result["image"] = base_info["image"]
+	return result
+
+
+## 這一幀的原圖套上 ops 這幾步圖片處理(裁切底圖用,一樣快取在 _frames)。
+func _fx_frame(action: String, index: int, ops: Array) -> Dictionary:
+	var parsed := SpritePackLoader.parse_virtual(frame_path(action, index))
+	var path := SpritePackLoader.make_virtual(str(parsed["file"]), parsed["rect"], int(parsed["index"]), PackImageFx.serialize(ops))
+	if not _frames.has(path):
+		var info := SpritePackLoader.frame_info(path, action, manifest, ceiling_actions.has(action))
+		if not info.is_empty():
+			info["texture"] = ImageTexture.create_from_image(info["image"])
+		_frames[path] = info
+	return _frames[path]
+
+
+## 翻轉前的圖 ↔ 翻轉後的圖(base 的 size / flip_h / flip_v,見 crop_base)上同一塊範圍:左右/上下翻過去(來回都是同一個算法)。
+static func _mirror_rect(rect: Rect2i, base: Dictionary) -> Rect2i:
+	var size: Vector2i = base["size"]
+	var at := rect.position
+	if bool(base.get("flip_h", false)):
+		at.x = size.x - rect.end.x
+	if bool(base.get("flip_v", false)):
+		at.y = size.y - rect.end.y
+	return Rect2i(at, rect.size)
+
+
+## 底圖上目前留下的範圍(沒裁過 = 整張)。
+static func _current_crop(base: Dictionary) -> Rect2i:
+	var crop: Rect2i = base["crop"]
+	return crop if crop.size.x > 0 and crop.size.y > 0 else Rect2i(Vector2i.ZERO, base["size"])
+
+
+## 把選取的幀的裁切改成底圖(見 crop_base)上的 rect:取代原本最後那幾步裁切,不是再疊一層,所以框拉大就能把裁掉的部分拿回來;
+## 框跟整張底圖一樣大 = 拿掉裁切。reference = 畫裁切框的那一幀:rect 是在它的底圖上畫的,翻轉方向不同的幀換算成同一塊內容
+## (框住沒翻的角色,翻過的幀也框住翻過去的角色;-1 = 每一幀都直接用 rect)。
+## 角色在畫面上的位置不變(見 _write_crops)。全部檢查通過才改,一個撤回步驟,成功回空字串。
+func set_crop(action: String, indices: Array, rect: Rect2i, reference := -1) -> String:
+	var picked := _sorted_indices(action, indices)
+	if picked.is_empty():
+		return "沒有選取的幀"
+	var ref_base := crop_base(action, reference) if reference >= 0 and reference < frame_refs(action).size() else {}
+	var source := _mirror_rect(rect, ref_base) if not ref_base.is_empty() else rect
+	var rects := {}
+	for i in picked:
+		var base := crop_base(action, i)
+		if base.is_empty():
+			return tr("第 %d 幀讀不出圖") % i
+		rects[i] = _mirror_rect(source, base) if not ref_base.is_empty() else rect
+	return _write_crops(action, rects)
+
+
+## 寫入裁切(rects = 幀索引 → 那一幀底圖上要留下的範圍,見 crop_base):角色在畫面上的位置不變——軸心換算到新的範圍上寫回去
+## (圖層、光源不跟著動),軸心落在範圍外被夾住的差距用圖片偏移補回來。全部檢查通過才改,一個撤回步驟,成功回空字串。
+func _write_crops(action: String, rects: Dictionary) -> String:
+	var plans: Array = []
+	for i: int in rects:
+		var base := crop_base(action, i)
+		if base.is_empty():
+			return tr("第 %d 幀讀不出圖") % i
+		var full := Rect2i(Vector2i.ZERO, base["size"])
+		var clipped := (rects[i] as Rect2i).intersection(full)
+		if clipped.size.x < 1 or clipped.size.y < 1:
+			return tr("第 %d 幀:裁切範圍在圖片之外") % i
+		var ops: Array = (base["ops"] as Array).duplicate(true)
+		if clipped != full:
+			if ops.size() >= PackImageFx.MAX_OPS:
+				return tr("第 %d 幀:圖片處理的步驟太多了(上限 %d 步),請先「還原圖片處理」") % [i, PackImageFx.MAX_OPS]
+			ops.append({"op": "c", "rect": clipped})
+		var on_base := pivot(action, i) + Vector2(_current_crop(base).position)
+		var wanted := on_base - Vector2(clipped.position)
+		var kept := _clamp_pivot(wanted, clipped.size)
+		plans.append({"index": i, "fx": PackImageFx.serialize(ops), "pivot": kept, "offset": offset(action, i) + kept - wanted})
+	checkpoint()
+	materialize(action)
+	var refs := frame_refs(action)
+	for plan: Dictionary in plans:
+		var ref: Variant = refs[plan["index"]]
+		var entry: Dictionary = {"file": ref} if ref is String else (ref as Dictionary).duplicate(true)
+		if str(plan["fx"]) == "":
+			entry.erase("fx")
+		else:
+			entry["fx"] = plan["fx"]
+		entry.erase("pivot")
+		refs[plan["index"]] = _normalize_ref(entry)
+	_set_refs(action, refs)
+	for plan: Dictionary in plans:
+		set_pivot(action, plan["index"], plan["pivot"], false, false)
+		if not (plan["offset"] as Vector2).is_equal_approx(offset(action, plan["index"])):
+			set_offset(action, plan["index"], plan["offset"], false)
+	return ""
 
 
 # --- 動作槽:系統動作(idle、walk…)與素材包裡的動作怎麼對應 ---
@@ -1907,9 +2050,10 @@ func push_sync(source: String) -> Dictionary:
 ## 有圖片處理(裁切翻轉旋轉)的幀,把處理後的樣子存成素材包裡的一張新 PNG(.imports 資料夾),幀改成直接用那張圖、拿掉圖片處理;
 ## 精靈圖切片也一樣變成一張張的圖。畫面上看起來完全一樣:軸心、圖片偏移都寫成這一幀自己的設定(換了檔名,依檔名查的舊設定會對不上)。
 ## 同一張原圖 + 同一串處理只存一次,所以同步(見 PackFrameSync)的來源與目標還是對得上。原圖檔不刪,之後用「清理未使用檔案」收掉。
-## only_action 非空 = 只處理那個動作。呼叫端先 checkpoint;撤回只會改回 pack.json,新寫的圖會留著變成未使用檔案。
+## only_action 非空 = 只處理那個動作;indices 非空 = 只處理那個動作的這幾幀(匯入精靈圖後問要不要切成一張張的圖用)。
+## 呼叫端先 checkpoint;撤回只會改回 pack.json,新寫的圖會留著變成未使用檔案。
 ## 回傳 {frames: 改了幾幀, files: 新存了幾張, error: 錯誤文字}。
-func bake_fx(only_action := "") -> Dictionary:
+func bake_fx(only_action := "", indices: Array = []) -> Dictionary:
 	var written := {}
 	var frames_done := 0
 	for action in action_names():
@@ -1917,10 +2061,9 @@ func bake_fx(only_action := "") -> Dictionary:
 			continue
 		var plans := {}
 		for i in frame_count(action):
-			var fx := fx_text(action, i)
-			if fx == "":
+			if not _bakeable(action, i) or (only_action != "" and not indices.is_empty() and not indices.has(i)):
 				continue
-			var key := "%s|%s" % [PackFrameSync.base_key(self, frame_path(action, i)), fx]
+			var key := "%s|%s" % [PackFrameSync.base_key(self, frame_path(action, i)), fx_text(action, i)]
 			if not written.has(key):
 				var info := frame(action, i)
 				if info.is_empty():
@@ -1970,14 +2113,21 @@ func _save_baked(image: Image, stem: String) -> String:
 	return _relative(target)
 
 
-## 有幾幀有圖片處理(寫進檔案按鈕的提示用)。
+## 有圖片處理、或是精靈圖切片的幀(寫進檔案會改成一張自己的圖)。
+## 2026-10-19 補:以前只看圖片處理,沒處理過的切片不會被切成一張張的圖(按鈕說明卻說會)。
+func _bakeable(action: String, index: int) -> bool:
+	var path := frame_path(action, index)
+	return SpritePackLoader.has_fx(path) or SpritePackLoader.is_slice(path)
+
+
+## 有幾幀要寫進檔案(有圖片處理或是精靈圖切片;寫進檔案按鈕的提示用)。
 func fx_frame_count(only_action := "") -> int:
 	var count := 0
 	for action in action_names():
 		if only_action != "" and action != only_action:
 			continue
 		for i in frame_count(action):
-			if fx_text(action, i) != "":
+			if _bakeable(action, i):
 				count += 1
 	return count
 

@@ -21,9 +21,18 @@ var board: Array = [0, 0, 0, 0, 0, 0, 0, 0, 0]   # 0 空、1 = X、2 = O
 var interactive := false   # 現在是不是在等使用者點格子
 var show_surrender := false
 var status_text := ""
+## 棋子配色(見 GamePieceColors):[第一方, 第二方];空的 = 系統配色(強調色 / 文字色)。
+var piece_colors: Array = []
 
 ## BoardPlacement 記位置用的鍵(一種面板一個)。
 const PLACEMENT_KIND := "ttt"
+## 全局設定的棋盤大小(AppSettings.board_scale):整塊面板用節點縮放放大縮小;版面在「縮放前」的座標裡排,
+## 進出的座標(滑鼠、螢幕/行動區範圍、穿透形狀、擋滑鼠的判斷)在這裡換算。
+var _k := 1.0
+## 字和放字的那幾列的倍數(AppSettings.board_text_scale):棋盤縮小時字維持原本大小。
+var _t := 1.0
+## 標題列的字要放得下時面板至少要多寬(只會變寬,不會在對局中縮回去,免得面板忽寬忽窄)。
+var _min_width := 0.0
 
 var _area: Node
 var _fraction: Variant = null   # 拖過之後記住位置(比例);沒拖過就置中
@@ -39,6 +48,9 @@ var _font_k := 1.0
 
 func setup(area: Node) -> void:
 	_area = area
+	_k = AppSettings.board_scale(PLACEMENT_KIND)
+	_t = AppSettings.board_text_scale(_k)
+	scale = Vector2(_k, _k)
 	add_to_group("Cutout")
 	add_to_group("screen_clamped_boards")
 	add_to_group("pointer_blockers")
@@ -48,6 +60,11 @@ func setup(area: Node) -> void:
 
 
 func _area_rect() -> Rect2:
+	var raw := _raw_area_rect()
+	return Rect2(raw.position / _k, raw.size / _k)
+
+
+func _raw_area_rect() -> Rect2:
 	if _area != null and "boundary_rect" in _area:
 		var rect: Rect2 = _area.boundary_rect
 		return Rect2(_area.to_global(rect.position), rect.size)
@@ -56,8 +73,13 @@ func _area_rect() -> Rect2:
 
 ## 可以拖到的範圍(整個螢幕,不是行動區):無頭環境讀不到螢幕資訊時退回跟 _area_rect() 一樣的假範圍。
 func _screen_rect() -> Rect2:
+	var raw := _raw_screen_rect()
+	return Rect2(raw.position / _k, raw.size / _k)
+
+
+func _raw_screen_rect() -> Rect2:
 	if DisplayServer.get_name() == "headless" or not is_inside_tree():
-		return _area_rect()
+		return _raw_area_rect()
 	var origin := Vector2(get_window().position)
 	var usable := DisplayServer.screen_get_usable_rect(DisplayServer.window_get_current_screen())
 	return Rect2(Vector2(usable.position) - origin, Vector2(usable.size))
@@ -71,7 +93,8 @@ func recall() -> void:
 
 
 func panel_size() -> Vector2:
-	return Vector2(PAD * 2.0 + CELL * 3.0, HEADER + PAD * 2.0 + CELL * 3.0 + (SURRENDER_HEIGHT if show_surrender else 0.0))
+	_min_width = maxf(_min_width, AppSettings.board_header_width(status_text, 15, _t))
+	return Vector2(maxf(PAD * 2.0 + CELL * 3.0, _min_width), HEADER * _t + PAD * 2.0 + CELL * 3.0 + (SURRENDER_HEIGHT * _t if show_surrender else 0.0))
 
 
 func _layout() -> void:
@@ -89,29 +112,29 @@ func _layout() -> void:
 	var panel := Rect2(pos, size)
 	_rects.clear()
 	_rects["panel"] = panel
-	_rects["header"] = Rect2(panel.position, Vector2(size.x - 28.0, HEADER))
-	_rects["close"] = Rect2(panel.end.x - 26.0, panel.position.y + 4.0, 22.0, 22.0)
-	var grid_origin := panel.position + Vector2(PAD, HEADER + PAD)
+	_rects["header"] = Rect2(panel.position, Vector2(size.x - 28.0 * _t, HEADER * _t))
+	_rects["close"] = Rect2(panel.end.x - 26.0 * _t, panel.position.y + 4.0 * _t, 22.0 * _t, 22.0 * _t)
+	var grid_origin := panel.position + Vector2((size.x - CELL * 3.0) * 0.5, HEADER * _t + PAD)   # 面板被標題撐寬時格子置中
 	for i in 9:
 		var col := i % 3
 		var row := i / 3
 		_rects["cell:%d" % i] = Rect2(grid_origin + Vector2(col * CELL, row * CELL), Vector2(CELL, CELL))
 	if show_surrender:
-		_rects["surrender"] = Rect2(panel.position.x + PAD, panel.end.y - SURRENDER_HEIGHT + 4.0, size.x - PAD * 2.0, SURRENDER_HEIGHT - 6.0)
+		_rects["surrender"] = Rect2(panel.position.x + PAD, panel.end.y - (SURRENDER_HEIGHT - 4.0) * _t, size.x - PAD * 2.0, (SURRENDER_HEIGHT - 6.0) * _t)
 	_last_area_cache = area
 	queue_redraw()
 
 
 ## 滑鼠在面板範圍內(或正拖著標題列)時,後面的桌寵不該收到按壓/右鍵/摸摸,見 pet_interaction.gd 的 pointer_blocked()。
 func blocks_pointer(point: Vector2) -> bool:
-	return _dragging_header or (_rects.has("panel") and (_rects["panel"] as Rect2).has_point(point))
+	return _dragging_header or (_rects.has("panel") and (_rects["panel"] as Rect2).has_point(point / _k))
 
 
 func get_cutout_polygons() -> Array:
 	if not _rects.has("panel"):
 		return []
 	var rect: Rect2 = _rects["panel"]
-	return [DialogueBubble._rect_polygon(rect.grow(80.0 if _dragging_header else 4.0))]
+	return [DialogueBubble._rect_polygon(Rect2(rect.position * _k, rect.size * _k).grow(80.0 if _dragging_header else 4.0))]
 
 
 func _process(delta: float) -> void:
@@ -134,7 +157,7 @@ func refresh() -> void:
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouse:
-		_mouse = get_viewport().get_canvas_transform().affine_inverse() * event.position
+		_mouse = get_viewport().get_canvas_transform().affine_inverse() * event.position / _k
 	if event is InputEventMouseMotion:
 		_on_motion()
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
@@ -213,9 +236,9 @@ func _draw() -> void:
 	draw_rect(local_panel, Color(bg, 0.95), true)
 	draw_rect(local_panel, Color(accent, 0.7), false, 2.0)
 	var header: Rect2 = _rects["header"]
-	draw_string(font, Vector2(header.position.x - global_position.x + 6.0, header.position.y - global_position.y + 20.0), status_text, HORIZONTAL_ALIGNMENT_LEFT, header.size.x, roundi(15 * _font_k), Color(text_color, 0.95))
+	draw_string(font, Vector2(header.position.x - global_position.x + 6.0 * _t, header.position.y - global_position.y + 20.0 * _t), status_text, HORIZONTAL_ALIGNMENT_LEFT, header.size.x, roundi(15 * _font_k * _t), Color(text_color, 0.95))
 	var close: Rect2 = _rects["close"]
-	draw_string(font, Vector2(close.position.x - global_position.x + 4.0, close.position.y - global_position.y + 16.0), "×", HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(16 * _font_k), Color(muted, 0.9))
+	draw_string(font, Vector2(close.position.x - global_position.x + 4.0 * _t, close.position.y - global_position.y + 16.0 * _t), "×", HORIZONTAL_ALIGNMENT_LEFT, -1, roundi(16 * _font_k * _t), Color(muted, 0.9))
 	for i in 9:
 		var cell: Rect2 = _rects["cell:%d" % i]
 		var local_cell := Rect2(cell.position - global_position, cell.size)
@@ -227,14 +250,16 @@ func _draw() -> void:
 		# 底色上等於隱形。不能假設任何配色組的 accent/text 一定跟 bg 有足夠對比,所以先用跟 bg 對比夠大的
 		# 顏色(黑或白,依 bg 亮度挑)畫一條加寬的底線當輪廓,再疊上真正的顏色,不管什麼配色都看得清楚。
 		var outline := Color.BLACK if bg.get_luminance() > 0.5 else Color.WHITE
+		var color_x: Color = piece_colors[0] if piece_colors.size() == 2 else accent
+		var color_o: Color = piece_colors[1] if piece_colors.size() == 2 else Color(text_color, 0.85)
 		if mark == 1:
 			draw_line(c - Vector2(16, 16), c + Vector2(16, 16), Color(outline, 0.55), 7.0)
 			draw_line(c + Vector2(-16, 16), c + Vector2(16, -16), Color(outline, 0.55), 7.0)
-			draw_line(c - Vector2(16, 16), c + Vector2(16, 16), accent, 4.0)
-			draw_line(c + Vector2(-16, 16), c + Vector2(16, -16), accent, 4.0)
+			draw_line(c - Vector2(16, 16), c + Vector2(16, 16), color_x, 4.0)
+			draw_line(c + Vector2(-16, 16), c + Vector2(16, -16), color_x, 4.0)
 		elif mark == 2:
 			draw_arc(c, 18.0, 0.0, TAU, 24, Color(outline, 0.55), 7.0)
-			draw_arc(c, 18.0, 0.0, TAU, 24, Color(text_color, 0.85), 4.0)
+			draw_arc(c, 18.0, 0.0, TAU, 24, color_o, 4.0)
 	if show_surrender and _rects.has("surrender"):
 		var surrender: Rect2 = _rects["surrender"]
-		draw_string(font, Vector2(surrender.position.x - global_position.x, surrender.position.y - global_position.y + 15.0), tr("投降"), HORIZONTAL_ALIGNMENT_CENTER, surrender.size.x, roundi(14 * _font_k), Color(1.0, 0.55, 0.55, 0.9))
+		draw_string(font, Vector2(surrender.position.x - global_position.x, surrender.position.y - global_position.y + 15.0 * _t), tr("投降"), HORIZONTAL_ALIGNMENT_CENTER, surrender.size.x, roundi(14 * _font_k * _t), Color(1.0, 0.55, 0.55, 0.9))

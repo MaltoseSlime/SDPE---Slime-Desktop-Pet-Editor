@@ -69,6 +69,9 @@ var show_hitbox := true
 var show_lights := true
 ## 預覽要不要畫圖層(配件)的圖;關掉時「調整配件位置」模式照樣畫錨點十字可以拖。
 var show_layers := true
+## 腳底線(橫)、中心線(直)要不要畫;移動軸心模式一律畫(那時候就是在拖它們)。
+var show_foot_line := true
+var show_center_line := true
 ## 光源清單(PackLights 的格式)與目前選取、正在拖曳的是第幾盞。
 var _lights: Array[Dictionary] = []
 var _light_selected := -1
@@ -90,6 +93,8 @@ var _hit_drag: Dictionary = {}
 var _crop := Rect2i()
 var _crop_dragging := false
 var _crop_anchor := Vector2i.ZERO
+## 拖裁切線(2026-10-18):抓到框的邊/角就只移那幾條線(往外拉 = 把裁掉的拿回來);{left, right, top, bottom, start, mouse},空的 = 畫新框。
+var _crop_edge: Dictionary = {}
 
 var _texture: Texture2D
 var _image_size := Vector2i.ZERO
@@ -386,7 +391,7 @@ func _draw_lights() -> void:
 func _draw_crop(origin: Vector2) -> void:
 	var image_rect := Rect2(origin, Vector2(_image_size) * float(zoom))
 	if _crop.size == Vector2i.ZERO:
-		draw_string(get_theme_default_font(), image_rect.position + Vector2(6, 18), "拖曳畫出要保留的範圍", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 0.95, 0.5, 0.9))
+		draw_string(get_theme_default_font(), image_rect.position + Vector2(6, 18), tr("拖曳畫出要保留的範圍"), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 0.95, 0.5, 0.9))
 		return
 	var box := Rect2(origin + Vector2(_crop.position) * float(zoom), Vector2(_crop.size) * float(zoom))
 	var dim := Color(0, 0, 0, 0.55)
@@ -395,6 +400,14 @@ func _draw_crop(origin: Vector2) -> void:
 	draw_rect(Rect2(image_rect.position.x, box.position.y, box.position.x - image_rect.position.x, box.size.y), dim)
 	draw_rect(Rect2(box.end.x, box.position.y, image_rect.end.x - box.end.x, box.size.y), dim)
 	draw_rect(box, Color(1.0, 0.9, 0.2), false, 2.0)
+	# 裁切線延伸成貫穿整張圖的細虛線,邊界看得清楚;四邊中點畫小方塊表示可以拖
+	var line := Color(1.0, 0.9, 0.2, 0.55)
+	for x: float in [box.position.x, box.end.x]:
+		draw_dashed_line(Vector2(x, image_rect.position.y), Vector2(x, image_rect.end.y), line, 1.0, 4.0)
+	for y: float in [box.position.y, box.end.y]:
+		draw_dashed_line(Vector2(image_rect.position.x, y), Vector2(image_rect.end.x, y), line, 1.0, 4.0)
+	for handle: Vector2 in [Vector2(box.position.x, box.get_center().y), Vector2(box.end.x, box.get_center().y), Vector2(box.get_center().x, box.position.y), Vector2(box.get_center().x, box.end.y)]:
+		draw_rect(Rect2(handle - Vector2(3, 3), Vector2(6, 6)), Color(1.0, 0.9, 0.2))
 	draw_string(get_theme_default_font(), box.position + Vector2(4, -6 if box.position.y > 18.0 else 16.0), "%d×%d" % [_crop.size.x, _crop.size.y], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 0.95, 0.5))
 
 
@@ -405,8 +418,10 @@ func _hitbox_screen_rect() -> Rect2:
 
 ## 腳底線(橫,橘紅)+ 中心點線(直,青),各畫成貫穿整個畫布的細線。
 func _draw_lines(at: Vector2) -> void:
-	draw_line(Vector2(0, at.y), Vector2(size.x, at.y), COLOR_FOOT_LINE, 1.0)
-	draw_line(Vector2(at.x, 0), Vector2(at.x, size.y), COLOR_CENTER_LINE, 1.0)
+	if show_foot_line or mode == Mode.PIVOT:
+		draw_line(Vector2(0, at.y), Vector2(size.x, at.y), COLOR_FOOT_LINE, 1.0)
+	if show_center_line or mode == Mode.PIVOT:
+		draw_line(Vector2(at.x, 0), Vector2(at.x, size.y), COLOR_CENTER_LINE, 1.0)
 
 
 func _draw_cross(at: Vector2, color: Color, arm: float) -> void:
@@ -447,6 +462,7 @@ func _on_mouse_button(event: InputEventMouseButton) -> void:
 				_pivot_dragging = false
 				_image_dragging = false
 				_crop_dragging = false
+				_crop_edge = {}
 				_hit_drag = {}
 				_light_drag = -1
 				_acc_drag = -1
@@ -465,8 +481,10 @@ func _begin_drag(mouse: Vector2, only_y: bool, only_x: bool) -> void:
 		return
 	if mode == Mode.CROP:
 		_crop_dragging = true
-		_crop_anchor = _image_point(mouse)
-		_update_crop(_crop_anchor)
+		_crop_edge = _crop_edges_at(mouse)
+		if _crop_edge.is_empty():
+			_crop_anchor = _image_point(mouse)
+			_update_crop(_crop_anchor)
 		return
 	edit_started.emit("drag")
 	if mode == Mode.PIVOT:
@@ -483,6 +501,43 @@ func _begin_drag(mouse: Vector2, only_y: bool, only_x: bool) -> void:
 func _image_point(mouse: Vector2) -> Vector2i:
 	var point := ((mouse - _origin()) / float(zoom)).round()
 	return Vector2i(clampi(int(point.x), 0, _image_size.x), clampi(int(point.y), 0, _image_size.y))
+
+
+## 滑鼠按在裁切框的哪幾條線上(螢幕上 EDGE_GRAB 以內;角 = 兩條);沒按到回空字典。
+func _crop_edges_at(mouse: Vector2) -> Dictionary:
+	if _crop.size == Vector2i.ZERO:
+		return {}
+	var box := Rect2(_origin() + Vector2(_crop.position) * float(zoom), Vector2(_crop.size) * float(zoom))
+	var within_x := mouse.x >= box.position.x - EDGE_GRAB and mouse.x <= box.end.x + EDGE_GRAB
+	var within_y := mouse.y >= box.position.y - EDGE_GRAB and mouse.y <= box.end.y + EDGE_GRAB
+	var left := absf(mouse.x - box.position.x) <= EDGE_GRAB and within_y
+	var right := absf(mouse.x - box.end.x) <= EDGE_GRAB and within_y and not left
+	var top := absf(mouse.y - box.position.y) <= EDGE_GRAB and within_x
+	var bottom := absf(mouse.y - box.end.y) <= EDGE_GRAB and within_x and not top
+	if not (left or right or top or bottom):
+		return {}
+	return {"left": left, "right": right, "top": top, "bottom": bottom, "start": _crop, "mouse": mouse}
+
+
+## 拖裁切線:只移抓到的那幾條,夾在圖片範圍內、至少留 1 像素。
+func _update_crop_edges(mouse: Vector2) -> void:
+	var start: Rect2i = _crop_edge["start"]
+	var delta := Vector2i(((mouse - (_crop_edge["mouse"] as Vector2)) / float(zoom)).round())
+	var left := start.position.x
+	var right := start.end.x
+	var top := start.position.y
+	var bottom := start.end.y
+	if _crop_edge["left"]:
+		left = clampi(left + delta.x, 0, right - 1)
+	if _crop_edge["right"]:
+		right = clampi(right + delta.x, left + 1, _image_size.x)
+	if _crop_edge["top"]:
+		top = clampi(top + delta.y, 0, bottom - 1)
+	if _crop_edge["bottom"]:
+		bottom = clampi(bottom + delta.y, top + 1, _image_size.y)
+	_crop = Rect2i(left, top, right - left, bottom - top)
+	crop_changed.emit(_crop)
+	queue_redraw()
 
 
 ## 裁切框拖曳:從按下的點到目前的點(至少 1×1)。
@@ -574,8 +629,18 @@ func _on_mouse_motion(event: InputEventMouseMotion) -> void:
 	if _panning:
 		_pan += event.relative
 		queue_redraw()
+	elif _crop_dragging and not _crop_edge.is_empty():
+		_update_crop_edges(event.position)
 	elif _crop_dragging:
 		_update_crop(_image_point(event.position))
+	elif mode == Mode.CROP:
+		var edges := _crop_edges_at(event.position)
+		var horizontal: bool = edges.get("left", false) or edges.get("right", false)
+		var vertical: bool = edges.get("top", false) or edges.get("bottom", false)
+		if horizontal and vertical:
+			mouse_default_cursor_shape = Control.CURSOR_FDIAGSIZE if edges["left"] == edges["top"] else Control.CURSOR_BDIAGSIZE
+		else:
+			mouse_default_cursor_shape = Control.CURSOR_HSIZE if horizontal else (Control.CURSOR_VSIZE if vertical else Control.CURSOR_CROSS)
 	elif _light_drag >= 0:
 		_update_light_drag(event.position)
 	elif _acc_drag >= 0:

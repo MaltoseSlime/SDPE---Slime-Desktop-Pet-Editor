@@ -31,6 +31,9 @@ var _bubble_pin_check: CheckBox
 var _bubble_mode_option: OptionButton
 var _bubble_clamp_check: CheckBox
 var _timestamp_option: OptionButton
+## 小遊戲棋盤大小(種類 → OptionButton,選項的 metadata 是百分比)與棋子配色。
+var _board_scale_options: Dictionary = {}
+var _piece_color_option: OptionButton
 var _firefly_mode: OptionButton
 var _firefly_start_hour: SpinBox
 var _firefly_start_minute: SpinBox
@@ -73,6 +76,8 @@ func _ready() -> void:
 	_build_audio()
 	_begin_page("對話")
 	_build_dialogue()
+	_begin_page("遊戲")
+	_build_games()
 	_begin_page("螢火蟲")
 	_build_fireflies()
 	_begin_page("外觀")
@@ -314,6 +319,36 @@ func _build_dialogue() -> void:
 		get_tree().call_group("dialogue_display", "refresh_content")
 		message.emit(tr("聊天室時間戳已設成「%s」。") % str(timestamp_labels[mode])))
 	_box.add_child(ManagerUi.labeled("時間戳", _timestamp_option))
+
+
+## 小遊戲棋盤(2026-10-18 使用者要求):各遊戲棋盤的大小(10% 一格)、棋子配色。
+func _build_games() -> void:
+	_begin_card("遊戲棋盤", "井字棋、步步為營、珠璣妙算、四連環各自的棋盤大小(100% = 原本的大小),改了之後下一次開的棋盤才會用新的大小。棋子配色:「系統配色」= 原本的樣子(第一方用強調色、第二方用文字色);「桌寵配色」= 桌寵用自己對話氣泡的外框色,兩隻太像時第二隻改用牠的選項色,還是太像再改用文字色;你跟桌寵下棋時你用強調色,跟桌寵太像就改用文字色。")
+	var names := {"ttt": "井字棋", "blockade": "步步為營", "mastermind": "珠璣妙算", "connect4": "四連環"}
+	for kind: String in AppSettings.BOARD_SCALE_KINDS:
+		var option := OptionButton.new()
+		for percent in range(AppSettings.BOARD_SCALE_MIN, AppSettings.BOARD_SCALE_MAX + 1, AppSettings.BOARD_SCALE_STEP):
+			option.add_item("%d%%" % percent)
+			option.set_item_metadata(option.item_count - 1, percent)
+		option.item_selected.connect(func(index: int) -> void:
+			if _updating:
+				return
+			AppSettings.set_board_scale_percent(kind, int(option.get_item_metadata(index)))
+			message.emit(tr("%s的棋盤大小已設成 %s(下一次開的棋盤生效)。") % [tr(str(names[kind])), option.text]))
+		_board_scale_options[kind] = option
+		_box.add_child(ManagerUi.labeled(tr("%s棋盤大小") % tr(str(names[kind])), option))
+	_piece_color_option = OptionButton.new()
+	var color_labels := {"pet": "桌寵配色", "system": "系統配色"}
+	for mode: String in ["pet", "system"]:
+		_piece_color_option.add_item(str(color_labels[mode]))
+		_piece_color_option.set_item_metadata(_piece_color_option.item_count - 1, mode)
+	_piece_color_option.item_selected.connect(func(index: int) -> void:
+		if _updating:
+			return
+		var mode := str(_piece_color_option.get_item_metadata(index))
+		AppSettings.set_piece_color_mode(mode)
+		message.emit(tr("棋子配色已設成「%s」(下一次開的棋盤生效)。") % tr(str(color_labels[mode]))))
+	_box.add_child(ManagerUi.labeled("棋子配色", _piece_color_option))
 
 
 ## 多螢幕環境下,選行動框(整個桌寵疊加視窗)要出現在哪個螢幕(2026-09-30 使用者回報:自動判斷有時候會
@@ -617,6 +652,14 @@ func _load_into_widgets() -> void:
 		if str(_bubble_mode_option.get_item_metadata(i)) == current_mode:
 			_bubble_mode_option.select(i)
 	_bubble_clamp_check.button_pressed = AppSettings.bubble_clamp_to_action_area()
+	for kind: String in _board_scale_options:
+		var option: OptionButton = _board_scale_options[kind]
+		for i in option.item_count:
+			if int(option.get_item_metadata(i)) == AppSettings.board_scale_percent(kind):
+				option.select(i)
+	for i in _piece_color_option.item_count:
+		if str(_piece_color_option.get_item_metadata(i)) == AppSettings.piece_color_mode():
+			_piece_color_option.select(i)
 	var current_timestamp_mode := AppSettings.chatroom_timestamp_mode()
 	for i in _timestamp_option.item_count:
 		if str(_timestamp_option.get_item_metadata(i)) == current_timestamp_mode:

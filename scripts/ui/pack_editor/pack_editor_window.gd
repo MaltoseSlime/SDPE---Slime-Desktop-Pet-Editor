@@ -96,6 +96,7 @@ var _acc_fps: SpinBox
 var _acc_loop: CheckBox
 var _acc_images: Label
 var _trim_shared: CheckBox
+var _trim_recover: CheckBox
 var _layer_frames: LayerFramesPanel
 ## 圖層頁「裁切與對齊點」區段(預設收起;選「自訂」對齊點時自動展開)。
 var _layer_crop_fold: FoldSection
@@ -126,6 +127,8 @@ var _export_frames_button: Button
 var _clean_button: Button
 var _fps_spin: SpinBox
 var _ghost_check: CheckBox
+## 「預覽視圖設定」小視窗裡的勾選框:畫布屬性名 → CheckBox。
+var _view_checks: Dictionary = {}
 var _play_button: Button
 var _undo_button: Button
 var _redo_button: Button
@@ -894,34 +897,29 @@ func _build_right() -> Control:
 	for control in [zoom_out, zoom_label, zoom_in, recenter]:
 		zoom_row.add_child(control)
 	right.add_child(zoom_row)
-	_ghost_check = CheckBox.new()
-	_ghost_check.text = tr("顯示上一幀殘影(對齊用)")
-	_ghost_check.button_pressed = true
-	_ghost_check.toggled.connect(func(on: bool) -> void:
-		_canvas.show_ghost = on
-		_canvas.queue_redraw())
-	right.add_child(_ghost_check)
-	var lights_check := CheckBox.new()
-	lights_check.text = tr("顯示光源")
-	lights_check.button_pressed = true
-	lights_check.toggled.connect(func(on: bool) -> void:
-		_canvas.show_lights = on
-		_canvas.queue_redraw())
-	right.add_child(lights_check)
-	var layers_check := CheckBox.new()
-	layers_check.text = tr("顯示圖層")
-	layers_check.button_pressed = true
-	layers_check.toggled.connect(func(on: bool) -> void:
-		_canvas.show_layers = on
-		_canvas.queue_redraw())
-	right.add_child(layers_check)
-	var hitbox_check := CheckBox.new()
-	hitbox_check.text = tr("顯示判定框")
-	hitbox_check.button_pressed = true
-	hitbox_check.toggled.connect(func(on: bool) -> void:
-		_canvas.show_hitbox = on
-		_canvas.queue_redraw())
-	right.add_child(hitbox_check)
+	# 2026-10-18 使用者要求:顯示選項越來越多,收進「預覽視圖設定」按鈕的小視窗(殘影、光源、圖層、判定框、腳底線、中心線)。
+	var view_button := ManagerUi.button("預覽視圖設定…")
+	var view_popup := PopupPanel.new()
+	var view_box := VBoxContainer.new()
+	view_box.add_theme_constant_override("separation", 4)
+	view_popup.add_child(view_box)
+	view_button.add_child(view_popup)
+	_view_checks = {}
+	for entry: Array in [["show_ghost", "顯示上一幀殘影(對齊用)"], ["show_lights", "顯示光源"], ["show_layers", "顯示圖層"], ["show_hitbox", "顯示判定框"],
+			["show_foot_line", "顯示腳底線(移動軸心模式一律顯示)"], ["show_center_line", "顯示中心線(移動軸心模式一律顯示)"]]:
+		var property: String = entry[0]
+		var check := CheckBox.new()
+		check.text = tr(entry[1])
+		check.button_pressed = bool(_canvas.get(property))
+		check.toggled.connect(func(on: bool) -> void:
+			_canvas.set(property, on)
+			_canvas.queue_redraw())
+		view_box.add_child(check)
+		_view_checks[property] = check
+	_ghost_check = _view_checks["show_ghost"]
+	view_button.pressed.connect(func() -> void:
+		view_popup.popup(Rect2i(Vector2i(view_button.get_screen_position()) + Vector2i(0, int(view_button.size.y)), Vector2i(0, 0))))
+	right.add_child(view_button)
 	_play_button = ManagerUi.button("▶ 預覽動畫")
 	_play_button.toggle_mode = true
 	_play_button.toggled.connect(_on_play_toggled)
@@ -1001,7 +999,7 @@ func _build_fx_section(right: VBoxContainer) -> void:
 	rotate_row.add_child(_rotate_spin)
 	rotate_row.add_child(rotate_button)
 	right.add_child(rotate_row)
-	right.add_child(ManagerUi.hint_row("裁切範圍(圖片像素)", "切到「裁切圖片」模式在畫布上拖曳畫出要保留的範圍,或直接填下面的數字(左、上、寬、高),再按「套用裁切」(裁切模式下按 Enter 也可以)。"))
+	right.add_child(ManagerUi.hint_row("裁切範圍(圖片像素)", "切到「裁切圖片」模式在畫布上拖曳畫出要保留的範圍,或直接填下面的數字(左、上、寬、高),再按「套用裁切」(裁切模式下按 Enter 也可以)。裁切模式會顯示還沒裁的整張圖,黃線是目前的裁切範圍:抓住黃線的邊或角拖曳可以調整,往外拉就能把裁掉的部分拿回來(「把圖片處理寫進檔案」之前都可以),角色位置不會跑掉。座標是還沒裁的整張圖的像素。"))
 	var crop_grid := GridContainer.new()
 	crop_grid.columns = 4
 	for caption in ["左", "上", "寬", "高"]:
@@ -1018,8 +1016,10 @@ func _build_fx_section(right: VBoxContainer) -> void:
 	var crop_apply := ManagerUi.button("套用裁切")
 	crop_apply.tooltip_text = tr("把選取的幀都裁成這個範圍(超出圖片的部分截掉)。裁切模式下按 Enter 也可以。")
 	crop_apply.pressed.connect(_apply_crop)
-	var crop_clear := ManagerUi.button("清掉裁切框")
-	crop_clear.pressed.connect(func() -> void: _set_crop_ui(Rect2i()))
+	var crop_clear := ManagerUi.button("框選整張圖")
+	crop_clear.tooltip_text = tr("裁切框拉回整張圖(還沒裁的原樣);再按「套用裁切」= 拿掉這幾幀的裁切,位置不變。")
+	crop_clear.pressed.connect(func() -> void:
+		_set_crop_ui(Rect2i(0, 0, int((_crop_spins[2] as SpinBox).max_value), int((_crop_spins[3] as SpinBox).max_value))))
 	crop_row.add_child(crop_apply)
 	crop_row.add_child(crop_clear)
 	right.add_child(crop_row)
@@ -1033,6 +1033,10 @@ func _build_fx_section(right: VBoxContainer) -> void:
 	_trim_shared.tooltip_text = tr("勾選(建議):把選取的幀疊在一起,找出所有幀合起來有畫東西的範圍,全部裁成一樣大——角色在動畫裡晃來晃去也不會被切到,幀的大小也一致、好對齊。\n取消:每一幀各自裁到自己有畫東西的範圍(省下最多像素,位置一樣不會變)。")
 	trim_row.add_child(trim)
 	trim_row.add_child(_trim_shared)
+	_trim_recover = CheckBox.new()
+	_trim_recover.text = tr("拿回之前裁掉的部分")
+	_trim_recover.tooltip_text = tr("勾選:在還沒裁的原圖上重新找有畫東西的範圍,之前裁切不小心切到的部分會一起拿回來(範圍可能變大)。\n原圖上有不想要的東西(例如故意裁掉的特效)就不要勾。已經「寫進檔案」的裁切拿不回來。")
+	trim_row.add_child(_trim_recover)
 	right.add_child(trim_row)
 	_fx_label = Label.new()
 	_fx_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1052,6 +1056,8 @@ func _build_fx_section(right: VBoxContainer) -> void:
 func _on_mode_selected(index: int) -> void:
 	_canvas.mode = [PackFrameCanvas.Mode.VIEW, PackFrameCanvas.Mode.PIVOT, PackFrameCanvas.Mode.IMAGE, PackFrameCanvas.Mode.HITBOX, PackFrameCanvas.Mode.CROP, PackFrameCanvas.Mode.LIGHT, PackFrameCanvas.Mode.ACCESSORY][index]
 	_canvas.queue_redraw()
+	if _model.has_pack():
+		_refresh_frame()   # 進出裁切模式:換成還沒裁的底圖 / 換回裁過的圖
 	_show_tab_for_mode(index)
 
 
@@ -1268,9 +1274,50 @@ func open_import_sheet_dialog(path: String) -> PackImportDialog:
 	var dialog := PackImportDialog.new()
 	add_child(dialog)
 	dialog.setup_sheet(image, path.get_file(), _existing_actions(), _default_import_name(path.get_file().get_basename()))
-	dialog.import_confirmed.connect(func(params: Dictionary) -> void: _do_import(_model.import_sheet(path, params["grid"], params["action"], params["mode"]), params["action"]))
+	dialog.import_confirmed.connect(func(params: Dictionary) -> void:
+		var action := SpritePackLoader.clean_action_name(params["action"])
+		var before := _model.frame_count(action) if params["mode"] == "append" else 0
+		var error := _model.import_sheet(path, params["grid"], params["action"], params["mode"])
+		_do_import(error, params["action"])
+		if error == "":
+			_ask_split_sheet(action, range(before, _model.frame_count(action))))
 	_finish_dialog(dialog)
 	return dialog
+
+
+## 匯入精靈圖後(2026-10-19 使用者要求):問要不要把切出來的幀各存成一張圖(見 PackEditorModel.bake_fx)。
+## 不切 = 照舊引用整張精靈圖的區域,之後也能用「把圖片處理寫進檔案」再切。回傳確認視窗(給測試用)。
+func _ask_split_sheet(action: String, indices: Array) -> ConfirmationDialog:
+	if indices.is_empty():
+		return null
+	var dialog := ConfirmationDialog.new()
+	dialog.title = tr("切成一張張的圖?")
+	dialog.ok_button_text = "切成一張張的圖"
+	dialog.cancel_button_text = "先不要"
+	dialog.theme = ManagerUi.make_theme()
+	dialog.dialog_autowrap = true
+	dialog.dialog_text = tr("精靈圖切出了 %d 幀。要把每一幀各存成一張圖嗎?\n\n・切:素材資料夾、匯出的 .pet 只留用得到的部分(精靈圖上沒用到的空白、多餘的格子不會帶著走),存檔後可以用「清理未使用檔案」收掉整張精靈圖。\n・先不要:幀照舊引用整張精靈圖,之後也能用「把圖片處理寫進檔案」再切。\n畫面上看起來都一樣,可以撤回。") % indices.size()
+	dialog.confirmed.connect(func() -> void: _split_sheet(action, indices))
+	dialog.confirmed.connect(dialog.queue_free)
+	dialog.canceled.connect(dialog.queue_free)
+	add_child(dialog)
+	if DisplayServer.get_name() != "headless":
+		FloatingWindow.popup_child_dialog(self, get_window(), dialog, Vector2i(500, 300))
+	return dialog
+
+
+func _split_sheet(action: String, indices: Array) -> void:
+	_model.checkpoint()
+	var result := _model.bake_fx(action, indices)
+	if str(result["error"]) != "":
+		_model.undo()
+		_reload_lists()
+		_refresh_all()
+		_status.text = tr("沒有切開:%s") % str(result["error"])
+		return
+	_reload_lists()
+	_refresh_all()
+	_after_edit(tr("已把 %d 幀切成 %d 張圖(可以撤回)。存檔後可以用「清理未使用檔案」收掉用不到的精靈圖。") % [int(result["frames"]), int(result["files"])])
 
 
 func _finish_dialog(dialog: PackImportDialog) -> void:
@@ -2279,7 +2326,13 @@ func _refresh_frame() -> void:
 		return
 	var pivot := _model.pivot(_action, _index)
 	var offset := _model.offset(_action, _index)
-	_canvas.set_frame(frame_data["texture"], frame_data["size"], pivot, offset)
+	var crop_base := _model.crop_base(_action, _index) if _canvas.mode == PackFrameCanvas.Mode.CROP else {}
+	if not crop_base.is_empty():
+		# 裁切模式畫還沒裁的底圖、裁切線標出目前的範圍(位置跟裁過的圖一樣,見 PackEditorModel.crop_base)
+		var crop: Rect2i = crop_base["crop"]
+		_canvas.set_frame(crop_base["texture"], crop_base["size"], pivot + Vector2(crop.position), offset)
+	else:
+		_canvas.set_frame(frame_data["texture"], frame_data["size"], pivot, offset)
 	var count := _model.frame_count(_action)
 	if count > 1:
 		var previous := (_index - 1 + count) % count
@@ -2300,7 +2353,11 @@ func _refresh_frame() -> void:
 	var fx := _model.fx_text(_action, _index)
 	_fx_label.text = tr("這一幀的圖片處理:%s") % fx if fx != "" else tr("這一幀沒有圖片處理(原圖)")
 	_update_fx_buttons()
-	_update_crop_limits(size)
+	if not crop_base.is_empty():
+		_update_crop_limits(crop_base["size"])
+		_set_crop_ui(crop_base["crop"])
+	else:
+		_update_crop_limits(size)
 
 
 func _set_spins(pivot: Vector2, offset: Vector2) -> void:
@@ -3695,8 +3752,15 @@ func _apply_crop() -> void:
 	if rect.size.x < 1 or rect.size.y < 1:
 		_status.text = tr("還沒有裁切範圍:在「裁切圖片」模式的畫布上拖曳,或填數字")
 		return
-	_apply_fx_op({"op": "c", "rect": rect}, tr("已裁切成 %d×%d") % [rect.size.x, rect.size.y])
-	_set_crop_ui(Rect2i())
+	# 2026-10-18:取代原本的裁切(不是再疊一層),框拉大就能把裁掉的部分拿回來;位置不變(見 PackEditorModel.set_crop)
+	if not _model.has_pack() or _action == "":
+		return
+	var picked := _selected_frames()
+	var error := _model.set_crop(_action, picked, rect, _index)   # 框是畫在目前這一幀上的,翻轉方向不同的幀換算成同一塊內容
+	if error != "":
+		_status.text = tr("沒有套用:%s") % tr(error)
+		return
+	_after_frames_changed(picked, tr("已裁切成 %d×%d(%d 幀;位置不變,寫進檔案前都能把裁切線拉回去恢復;可以撤回)") % [rect.size.x, rect.size.y, picked.size()])
 
 
 ## 自動裁掉選取的幀四周的透明邊(見 PackEditorModel.auto_trim)。
@@ -3704,12 +3768,15 @@ func _auto_trim_frames() -> void:
 	if not _model.has_pack() or _action == "":
 		return
 	var picked := _selected_frames()
-	var result := _model.auto_trim(_action, picked, _trim_shared.button_pressed)
+	var result := _model.auto_trim(_action, picked, _trim_shared.button_pressed, _trim_recover.button_pressed)
 	if str(result["error"]) != "":
 		_status.text = tr("沒有套用:%s") % tr(str(result["error"]))
 		return
 	if int(result["count"]) == 0:
-		_status.text = tr("選取的幀四周已經沒有可以裁掉的透明邊了")
+		_status.text = tr("選取的幀四周已經沒有可以裁掉的透明邊了") if not _trim_recover.button_pressed else tr("選取的幀已經剛好裁到有畫東西的範圍了")
+		return
+	if int(result["saved_percent"]) < 0:
+		_after_frames_changed(picked, tr("已重新裁切透明邊(%d 幀,拿回了之前裁掉的部分,像素多了 %d%%;位置不變,可以撤回)") % [int(result["count"]), -int(result["saved_percent"])])
 		return
 	_after_frames_changed(picked, tr("已自動裁掉透明邊(%d 幀,像素少了 %d%%;位置不變,可以撤回)") % [int(result["count"]), int(result["saved_percent"])])
 
@@ -3719,14 +3786,14 @@ func _confirm_bake() -> void:
 		return
 	var count := _model.fx_frame_count()
 	if count == 0:
-		_status.text = tr("沒有任何幀有圖片處理,不用寫進檔案")
+		_status.text = tr("沒有任何幀有圖片處理或精靈圖切片,不用寫進檔案")
 		return
 	var dialog := ConfirmationDialog.new()
 	dialog.title = tr("把圖片處理寫進檔案")
 	dialog.ok_button_text = "寫進檔案"
 	dialog.cancel_button_text = "取消"
 	dialog.theme = ManagerUi.make_theme()
-	dialog.dialog_text = tr("整個素材包有 %d 幀有圖片處理(裁切翻轉旋轉)。要把處理後的樣子各存成一張新圖、幀改用新圖嗎?\n\n・畫面上完全不變,可以撤回(撤回只改回設定,新存的圖會留著變成未使用檔案)。\n・原圖不會被刪:確定沒問題、存檔後,再用「清理未使用檔案」把用不到的原圖搬到備份。\n・之後想重新裁切,就是從新圖開始裁(裁掉的部分已經不在新圖裡了)。") % count
+	dialog.dialog_text = tr("整個素材包有 %d 幀有圖片處理(裁切翻轉旋轉)或是精靈圖切片。要把處理後的樣子各存成一張新圖、幀改用新圖嗎?\n\n・畫面上完全不變,可以撤回(撤回只改回設定,新存的圖會留著變成未使用檔案)。\n・原圖不會被刪:確定沒問題、存檔後,再用「清理未使用檔案」把用不到的原圖搬到備份。\n・之後想重新裁切,就是從新圖開始裁(裁掉的部分已經不在新圖裡了)。") % count
 	dialog.confirmed.connect(func() -> void: bake_fx())
 	dialog.confirmed.connect(dialog.queue_free)
 	dialog.canceled.connect(dialog.queue_free)

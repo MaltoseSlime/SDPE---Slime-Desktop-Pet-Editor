@@ -134,10 +134,22 @@ func _say(event: StringName, force := false) -> bool:
 	return true
 
 
+## 休息中(沒睡著、沒疲憊、非放鬆模式,見 Pet.can_get_up_for_toy)而且本來就有興趣玩球:可以起身。
+## 休息中不會自己發現球就起身,只有被邀請、或球直接交到牠身上(放開時壓在牠身上、有框線標示)才會。
+func _can_get_up_for_ball() -> bool:
+	return _pet.can_get_up_for_toy() and interested(true)
+
+
 ## 使用者把球丟出來(或放開)時呼叫:有興趣的桌寵有機率立刻加入。回傳有沒有加入。
+## 休息中的桌寵只在球直接交到牠身上(item.delivered_to)時才會起身加入。
 func invite(item: PropItem) -> bool:
-	if state != "" or not _wants(item) or not interested() or randf() >= INVITE_CHANCE:
+	if state != "" or not _wants(item) or randf() >= INVITE_CHANCE:
 		return false
+	var get_up := not interested() and item.delivered_to == _pet and _can_get_up_for_ball()
+	if not interested() and not get_up:
+		return false
+	if get_up:
+		_pet.get_up_for_toy()
 	_begin(item)
 	_say(&"ball_join", true)
 	return true
@@ -155,7 +167,10 @@ func receive_invite(item: PropItem, inviter: Node = null) -> bool:
 		return false
 	if _pet.vitality != null:
 		_pet.vitality.note_invited(inviter)
-	if bool(_pet.game_force_accept.get("ball", false)) or (interested() and randf() < 0.35 + minf(_pet.ball_play_chance * 3.0, 0.6)):
+	var willing := interested() or _can_get_up_for_ball()   # 休息中被邀請:可以起身
+	if bool(_pet.game_force_accept.get("ball", false)) or (willing and randf() < 0.35 + minf(_pet.ball_play_chance * 3.0, 0.6)):
+		if not interested():
+			_pet.get_up_for_toy()
 		_begin(item)
 		_say(&"ball_join", true)
 		return true

@@ -26,11 +26,9 @@
       "嗯,傳給我吧。": "Mm, pass it to me.",
       "嗯,勢均力敵。": "Mm, evenly matched.",
       "嗯,很開心,謝謝你陪我玩。": "Mm, that was fun, thanks for playing with me.",
-      "嗯,謝謝你的關心。": "Mm, thanks for caring.",
       "嗯?要去別的地方嗎?": "Hm? Going somewhere else?",
       "嗯……泡杯茶、曬曬太陽,這樣就很好。": "Mm... a cup of tea and some sunshine, that's all I need.",
       "嗯……睡得很安穩。": "Mm... slept soundly.",
-      "在你忙碌的時候,我會在這裡陪你。": "While you're busy, I'll be right here with you.",
       "在旁邊看著就很愉快了。": "Just watching from the side makes me happy.",
       "好,來玩一局吧。": "Okay, let's play a round.",
       "好啊,陪你玩一會兒。": "Sure, I'll play with you for a while.",
@@ -44,14 +42,10 @@
       "我先不了,你們玩得開心。": "I'll pass for now, have fun you two.",
       "我喜歡這樣恬靜的時光。": "I love this kind of quiet time.",
       "我就輕輕一頂……嘿!": "Just a gentle tap... hey!",
-      "我會一直在這裡陪著你。": "I'll always be here with you.",
-      "我跟你走。": "I'll come with you.",
       "手心有點冒汗……。": "My palms are a little sweaty...",
       "早安,{user}。今天也是美好的一天。": "Good morning, {user}. Today's another lovely day.",
-      "早安、午安、晚安,你好。": "Good morning, afternoon, or evening — hello.",
       "是你比較強,恭喜。": "You were stronger, congratulations.",
       "時間到了,休息吧。晚安。": "Time's up, let's rest. Good night.",
-      "有你陪伴的每一天都是晴天。": "Every day with you feels like sunshine.",
       "有時候,慢慢來也不錯。": "Sometimes, taking it slow isn't so bad.",
       "無論發生什麼,世界都不會停止轉動。": "No matter what happens, the world keeps turning.",
       "玩夠了,謝謝你們陪我。": "Had enough playing, thanks for having me.",
@@ -64,11 +58,17 @@
       "累了。休息一下吧。": "Tired. Let's rest for a bit.",
       "累的時候就休息一下吧,{user}。": "Rest for a while when you're tired, {user}.",
       "要不要一起玩球?": "Want to play ball together?",
-      "謝謝你的摸摸。": "Thanks for the pat.",
       "贏了呢。運氣不錯。": "I won. Lucky, I guess.",
       "身體在提醒我該歇一歇了。": "My body's telling me it's time to rest.",
       "輸了也沒關係,下一場吧。": "Losing's fine, let's try again next time.",
-      "這次先不了,謝謝你邀我。": "Not this time, but thanks for asking."
+      "這次先不了,謝謝你邀我。": "Not this time, but thanks for asking.",
+      "在{you}忙碌的時候,我會在這裡陪你。": "While you're busy, I'll be right here with {you}.",
+      "我會一直在這裡陪著{you}。": "I'll always be here with {you}.",
+      "有{you}陪伴的每一天都是晴天。": "Every day with {you} feels like sunshine.",
+      "嗯,謝謝{you}的關心。": "Mm, thanks for caring.",
+      "謝謝{you}的摸摸。": "Thanks for the pat.",
+      "我跟{you}走。": "I'll come with {you}.",
+      "早安、午安、晚安,{you}好。": "Good morning, afternoon, or evening — hello."
     },
     "zh-TW": {
       "(呼吸平穩)": "(呼吸平穩)",
@@ -94,11 +94,9 @@
       "嗯,傳給我吧。": "嗯,傳給我吧。",
       "嗯,勢均力敵。": "嗯,勢均力敵。",
       "嗯,很開心,謝謝你陪我玩。": "嗯,很開心,謝謝你陪我玩。",
-      "嗯,謝謝你的關心。": "嗯,謝謝你的關心。",
       "嗯?要去別的地方嗎?": "嗯?要去別的地方嗎?",
       "嗯……泡杯茶、曬曬太陽,這樣就很好。": "嗯……泡杯茶、曬曬太陽,這樣就很好。",
       "嗯……睡得很安穩。": "嗯……睡得很安穩。",
-      "在你忙碌的時候,我會在這裡陪你。": "在你忙碌的時候,我會在這裡陪你。",
       "在旁邊看著就很愉快了。": "在旁邊看著就很愉快了。",
       "好,來玩一局吧。": "好,來玩一局吧。",
       "好啊,陪你玩一會兒。": "好啊,陪你玩一會兒。",
@@ -112,14 +110,10 @@
       "我先不了,你們玩得開心。": "我先不了,你們玩得開心。",
       "我喜歡這樣恬靜的時光。": "我喜歡這樣恬靜的時光。",
       "我就輕輕一頂……嘿!": "我就輕輕一頂……嘿!",
-      "我會一直在這裡陪著你。": "我會一直在這裡陪著你。",
-      "我跟你走。": "我跟你走。",
       "手心有點冒汗……。": "手心有點冒汗……。",
       "早安,{user}。今天也是美好的一天。": "早安,{user}。今天也是美好的一天。",
-      "早安、午安、晚安,你好。": "早安、午安、晚安,你好。",
       "是你比較強,恭喜。": "是你比較強,恭喜。",
       "時間到了,休息吧。晚安。": "時間到了,休息吧。晚安。",
-      "有你陪伴的每一天都是晴天。": "有你陪伴的每一天都是晴天。",
       "有時候,慢慢來也不錯。": "有時候,慢慢來也不錯。",
       "無論發生什麼,世界都不會停止轉動。": "無論發生什麼,世界都不會停止轉動。",
       "玩夠了,謝謝你們陪我。": "玩夠了,謝謝你們陪我。",
@@ -132,11 +126,17 @@
       "累了。休息一下吧。": "累了。休息一下吧。",
       "累的時候就休息一下吧,{user}。": "累的時候就休息一下吧,{user}。",
       "要不要一起玩球?": "要不要一起玩球?",
-      "謝謝你的摸摸。": "謝謝你的摸摸。",
       "贏了呢。運氣不錯。": "贏了呢。運氣不錯。",
       "身體在提醒我該歇一歇了。": "身體在提醒我該歇一歇了。",
       "輸了也沒關係,下一場吧。": "輸了也沒關係,下一場吧。",
-      "這次先不了,謝謝你邀我。": "這次先不了,謝謝你邀我。"
+      "這次先不了,謝謝你邀我。": "這次先不了,謝謝你邀我。",
+      "在{you}忙碌的時候,我會在這裡陪你。": "在{you}忙碌的時候,我會在這裡陪你。",
+      "我會一直在這裡陪著{you}。": "我會一直在這裡陪著{you}。",
+      "有{you}陪伴的每一天都是晴天。": "有{you}陪伴的每一天都是晴天。",
+      "嗯,謝謝{you}的關心。": "嗯,謝謝{you}的關心。",
+      "謝謝{you}的摸摸。": "謝謝{you}的摸摸。",
+      "我跟{you}走。": "我跟{you}走。",
+      "早安、午安、晚安,{you}好。": "早安、午安、晚安,{you}好。"
     }
   },
   "fileType": "slime_pet_personality",
@@ -162,7 +162,7 @@
                 "CLICK_WAIT": true,
                 "FONT": "__default__",
                 "SPEAKER": "",
-                "TEXT": "我在想……你可以教我一個新的詞嗎?",
+                "TEXT": "我在想……{you}可以教我一個新的詞嗎?",
                 "TYPEWRITER": true,
                 "WAIT": true
               },
@@ -186,7 +186,7 @@
                             "FRESH": true,
                             "KEY": "learned",
                             "MAXLEN": 16.0,
-                            "PROMPT": "你想教我什麼詞呢?"
+                            "PROMPT": "{you}想教我什麼詞呢?"
                           },
                           "id": "calm_teach_ask",
                           "next": {
@@ -301,7 +301,7 @@
                 "CLICK_WAIT": true,
                 "FONT": "__default__",
                 "SPEAKER": "",
-                "TEXT": "我想多了解你一點。你最近對什麼有興趣呢?",
+                "TEXT": "我想多了解{you}一點。你最近對什麼有興趣呢?",
                 "TYPEWRITER": true,
                 "WAIT": true
               },
@@ -325,7 +325,7 @@
                             "FRESH": true,
                             "KEY": "interest",
                             "MAXLEN": 16.0,
-                            "PROMPT": "你有興趣的事物是什麼?"
+                            "PROMPT": "{you}有興趣的事物是什麼?"
                           },
                           "id": "calm_know_ask",
                           "next": {
@@ -356,7 +356,7 @@
                                               "BIND_ACTION": "",
                                               "FONT": "__default__",
                                               "SPEAKER": "",
-                                              "TEXT": "原來你對「{text:interest}」有興趣。我會記得的。",
+                                              "TEXT": "原來{you}對「{text:interest}」有興趣。我會記得的。",
                                               "TYPEWRITER": true,
                                               "WAIT": true
                                             },
@@ -377,7 +377,7 @@
                                       "BIND_ACTION": "",
                                       "FONT": "__default__",
                                       "SPEAKER": "",
-                                      "TEXT": "好,你想說的時候再告訴我。",
+                                      "TEXT": "好,{you}想說的時候再告訴我。",
                                       "TYPEWRITER": true,
                                       "WAIT": true
                                     },
@@ -442,7 +442,7 @@
         "tag": "lens"
       },
       {
-        "say": "在你忙碌的時候,我會在這裡陪你。",
+        "say": "在{you}忙碌的時候,我會在這裡陪你。",
         "tag": "chat"
       },
       {
@@ -454,7 +454,7 @@
         "tag": "chat"
       },
       {
-        "say": "我會一直在這裡陪著你。",
+        "say": "我會一直在這裡陪著{you}。",
         "tag": "chat"
       },
       {
@@ -470,7 +470,7 @@
         "tag": "chat"
       },
       {
-        "say": "有你陪伴的每一天都是晴天。",
+        "say": "有{you}陪伴的每一天都是晴天。",
         "tag": "chat"
       },
       {
@@ -704,23 +704,23 @@
       {
         "on": "interact",
         "say": [
-          "嗯,謝謝你的關心。",
+          "嗯,謝謝{you}的關心。",
           "(微微一笑)謝謝,這樣就好。",
-          "謝謝你的摸摸。"
+          "謝謝{you}的摸摸。"
         ]
       },
       {
         "on": "drag",
         "say": [
           "嗯?要去別的地方嗎?",
-          "我跟你走。",
+          "我跟{you}走。",
           "唉呀。"
         ]
       },
       {
         "on": "enter",
         "say": [
-          "早安、午安、晚安,你好。",
+          "早安、午安、晚安,{you}好。",
           "我來了,請多指教。"
         ]
       },

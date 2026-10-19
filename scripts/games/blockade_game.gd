@@ -330,6 +330,7 @@ static func _play_pets(a: Node, b: Node, best_of := 1) -> Dictionary:
 	var wins_b := 0
 	var rounds := 0
 	var board := _spawn_board(shell)
+	board.piece_colors = GamePieceColors.for_pets(a, b)   # A = a、B = b
 	var first_role := "A" if randf() < 0.5 else "B"
 	var levels := [GameAiLevel.match_level(a, b, a.blockade_ai_level), GameAiLevel.match_level(b, a, b.blockade_ai_level)]   # 好惡影響,整場擲一次
 	while wins_a < need and wins_b < need and rounds < maxi(best_of, 1) + 2:
@@ -378,6 +379,7 @@ static func _play_user(pet: Node, best_of := 1) -> Dictionary:
 	var generation: int = pet.action_generation
 	var need := RpsGame.needed_wins(best_of)
 	var board := _spawn_board(shell)
+	board.piece_colors = GamePieceColors.for_user(pet)   # A = 桌寵、B = 使用者
 	board.show_surrender = true
 	var flags := {"cancelled": false, "surrendered": false}
 	board.cancel_pressed.connect(func() -> void: flags["cancelled"] = true)

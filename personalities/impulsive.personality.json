@@ -45,7 +45,6 @@
       "好啦好啦我睡就是了……": "Fine, fine, I'll sleep...",
       "好閒啊!我想做點什麼!": "So bored! I want to do something!",
       "平手?!再一局!這次一定分出勝負!": "A tie?! One more round! This time it's decided for sure!",
-      "幹嘛幹嘛!放開我!……好吧你要帶我去哪?": "Hey hey! Let go of me!... fine, where are you taking me?",
       "心臟要跳出來啦!": "My heart's about to jump out of my chest!",
       "想到就要馬上去做,不然會憋死!": "If I think of it, I gotta do it right now, or I'll burst!",
       "我先看你們玩,等一下我再衝進去!": "I'll watch you play first, then I'll charge in later!",
@@ -70,7 +69,8 @@
       "這樣不痛快!重來!": "Not satisfying! Redo!",
       "這次不玩!我要先做別的!……等一下再說!": "Not playing this time! Got other things to do!... maybe later!",
       "這種感覺還不錯!": "This feeling's not bad!",
-      "隨機應變不是很有挑戰性嗎?對吧!{user}!": "Winging it is way more exciting, right? Right, {user}!"
+      "隨機應變不是很有挑戰性嗎?對吧!{user}!": "Winging it is way more exciting, right? Right, {user}!",
+      "幹嘛幹嘛!放開我!……好吧{you}要帶我去哪?": "Hey hey! Let go of me!... fine, where are you taking me?"
     },
     "zh-TW": {
       "(坐不到三秒就開始抖腳)": "(坐不到三秒就開始抖腳)",
@@ -115,7 +115,6 @@
       "好啦好啦我睡就是了……": "好啦好啦我睡就是了……",
       "好閒啊!我想做點什麼!": "好閒啊!我想做點什麼!",
       "平手?!再一局!這次一定分出勝負!": "平手?!再一局!這次一定分出勝負!",
-      "幹嘛幹嘛!放開我!……好吧你要帶我去哪?": "幹嘛幹嘛!放開我!……好吧你要帶我去哪?",
       "心臟要跳出來啦!": "心臟要跳出來啦!",
       "想到就要馬上去做,不然會憋死!": "想到就要馬上去做,不然會憋死!",
       "我先看你們玩,等一下我再衝進去!": "我先看你們玩,等一下我再衝進去!",
@@ -140,7 +139,8 @@
       "這樣不痛快!重來!": "這樣不痛快!重來!",
       "這次不玩!我要先做別的!……等一下再說!": "這次不玩!我要先做別的!……等一下再說!",
       "這種感覺還不錯!": "這種感覺還不錯!",
-      "隨機應變不是很有挑戰性嗎?對吧!{user}!": "隨機應變不是很有挑戰性嗎?對吧!{user}!"
+      "隨機應變不是很有挑戰性嗎?對吧!{user}!": "隨機應變不是很有挑戰性嗎?對吧!{user}!",
+      "幹嘛幹嘛!放開我!……好吧{you}要帶我去哪?": "幹嘛幹嘛!放開我!……好吧{you}要帶我去哪?"
     }
   },
   "fileType": "slime_pet_personality",
@@ -305,7 +305,7 @@
                 "CLICK_WAIT": true,
                 "FONT": "__default__",
                 "SPEAKER": "",
-                "TEXT": "喂喂,你最近迷什麼?快告訴我!",
+                "TEXT": "喂喂,{you}最近迷什麼?快告訴我!",
                 "TYPEWRITER": true,
                 "WAIT": true
               },
@@ -329,7 +329,7 @@
                             "FRESH": true,
                             "KEY": "interest",
                             "MAXLEN": 16.0,
-                            "PROMPT": "說啊!你有興趣的是什麼?"
+                            "PROMPT": "說啊!{you}有興趣的是什麼?"
                           },
                           "id": "impulsive_know_ask",
                           "next": {
@@ -731,7 +731,7 @@
       {
         "on": "drag",
         "say": [
-          "幹嘛幹嘛!放開我!……好吧你要帶我去哪?",
+          "幹嘛幹嘛!放開我!……好吧{you}要帶我去哪?",
           "[shake]哇哇哇——刺激!",
           "嗚呼!"
         ]

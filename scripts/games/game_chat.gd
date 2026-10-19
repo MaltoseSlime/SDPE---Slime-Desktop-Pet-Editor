@@ -30,7 +30,7 @@ static func set_result_context(a: Node, b: Node, result_a: String) -> void:
 ## 這些桌寵開始 / 結束一場對戰(計數,同一隻同時參加幾場就加幾)。不管這場對戰是誰發起的(自己主動找、
 ## 被別隻桌寵邀請、還是被使用者叫去對戰),只要真的開打了就算「跟隨者想去做別的事情」,先離開路隊
 ## (見 Pet._tick_pet_follow_lifecycle 的說明;玩球的對應位置在 PetBallPlay._begin())。
-## kind(選填):dice/rps/ttt/blockade/mastermind,寫進 Pet.game_kind 給積木 KIND="game" 條件查詢用
+## kind(選填):dice/rps/ttt/blockade/mastermind/connect4,寫進 Pet.game_kind 給積木 KIND="game" 條件查詢用
 ## (2026-10-05 使用者要求「指定桌寵在做某行為」要把對戰/遊戲算進去,之前只能比對 current_activity()
 ## 這個會播放的動作名稱,棋類/骰子/猜拳對戰期間角色视覺上常常是待機,偵測不到)。沒給就不動 game_kind
 ## (舊呼叫點維持原狀,不會被清空)。
@@ -55,7 +55,7 @@ static func leave(pets: Array) -> void:
 ## 邀請被擋下時(對方正在對戰中)邀請者在心裡想的話。game_name = 猜拳 / 拚骰。
 static func think_blocked(inviter: Node, busy: Node, game_name: String) -> void:
 	if is_instance_valid(busy):
-		think(inviter, TranslationServer.translate("(雖然想邀請%s玩%s,但看起來對方正在忙……)") % [busy.get_label(), game_name], 3.6)
+		think(inviter, TranslationServer.translate("(雖然想邀請%s玩%s,但看起來對方正在忙……)") % [inviter.call_name(busy), game_name], 3.6)
 
 
 ## 思考泡泡(oO)裡的一句話,只有自己的心聲,不是對誰說。

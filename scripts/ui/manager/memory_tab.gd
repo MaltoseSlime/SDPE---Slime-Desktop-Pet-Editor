@@ -76,7 +76,7 @@ func _build_personality_shortcuts() -> void:
 	export_schema.tooltip_text = tr("匯出這隻桌寵有哪些動作、數值、狀態鏡、道具、特效、音效,給網頁端積木編輯器的下拉選單用。跟系統匣右鍵選單「導出 Schema…」是同一個功能。")
 	export_schema.pressed.connect(_export_schema)
 	var import_logic := ManagerUi.button("匯入積木檔…")
-	import_logic.tooltip_text = tr("讀入網頁端積木編輯器導出的邏輯 JSON(*.logic.json),取代這隻桌寵目前的積木內容;會自動保存一份,之後每次生成都會自動載入。")
+	import_logic.tooltip_text = tr("讀入網頁端積木編輯器導出的邏輯 JSON(*.logic.json),取代這隻桌寵目前的積木內容;會自動保存一份,之後每次生成都會自動載入。這隻桌寵還有性格或交互行為規則帶來的事件時,會先問你要一起保留,還是完全取代(只跑積木檔裡的事件)。")
 	import_logic.pressed.connect(_import_logic)
 	var export_logic := ManagerUi.button("匯出積木檔…")
 	export_logic.tooltip_text = tr("把這隻桌寵目前生效的所有積木(自己匯入的 + 性格帶進來的閒聊/反應 + 交互行為規則)整合匯出成一份積木檔,可以帶去網頁端積木編輯器,在性格已經幫你組好的反應基礎上繼續編輯。")
@@ -111,25 +111,22 @@ func _import_logic() -> void:
 
 
 func _on_import_logic_picked(paths: PackedStringArray) -> void:
-	import_logic_from(paths[0])
+	var path := paths[0]
+	LogicImport.ask_mode(self, get_window(), _pet, func(full_replace: bool) -> void: import_logic_from(path, full_replace))
 
 
-func import_logic_from(path: String) -> bool:
-	var ok: bool = _pet.logic.load_file(path)
+## full_replace:完全取代(見 LogicImport);性格/交互行為規則的改動跟其他分頁一樣要按「儲存」才寫進設定檔
+## (積木檔本身匯入當下就存好了;不儲存離開的話性格/規則層會回來,等於「一起保留」)。
+func import_logic_from(path: String, full_replace := false) -> bool:
+	var result := LogicImport.import_file(_pet, path, full_replace)
+	var ok := bool(result["ok"])
 	if ok:
-		# logic.load_file() 內部的 clear() 連性格對話池/反應層、交互行為規則層都會一起清空(見 LogicInterpreter.clear()
-		# 的說明),這兩層不是從匯入的檔案來的,得在這裡重新補回去,不然匯入後這隻桌寵會暫時「失憶」成沒性格、沒交互行為規則。
-		PersonalityApplier.rebuild_layer(_pet)
-		_pet.set_interaction_rules(_pet.interaction_rules)
-		# 雙重重複第 1 類(見 LogicInterpreter.dedupe_top_blocks()):匯出再原封不動匯入的內容,跟剛補回來的
-		# 性格/規則層完全相同的部分直接拿掉,不然會雙重觸發。要等上面兩行補完性格/規則層才能比對,順序不能換。
-		var skipped: int = _pet.logic.dedupe_top_blocks()
-		PetRoster.store_logic(_pet.recognition_tag, path, CharacterFiles.folder_of(_pet))
-		if skipped > 0:
-			# dedupe 動的是記憶體內容,PetRoster.store_logic() 剛存的是原始檔案(未去重),覆蓋成去重後的
-			# 版本,下次開機重新套用才不會又長出同一批重複。
-			_pet.logic.save_user_only_file(PetRoster.logic_path(_pet.recognition_tag, CharacterFiles.folder_of(_pet)))
-		message.emit(tr("已匯入積木檔:%s(已略過 %d 個與目前性格內容重複的事件)") % [path, skipped] if skipped > 0 else tr("已匯入積木檔:%s") % path)
+		var skipped := int(result["skipped"])
+		var text := tr("已匯入積木檔:%s(已略過 %d 個與目前性格內容重複的事件)") % [path, skipped] if skipped > 0 else tr("已匯入積木檔:%s") % path
+		if full_replace:
+			text += tr("——已完全取代:對話池、反應事件改成不套用,遇見/道具台詞已清空,記得按「儲存」。")
+			changed.emit()
+		message.emit(text)
 	else:
 		message.emit(tr("匯入失敗,請確認是不是網頁端積木編輯器導出的積木檔:%s") % path)
 	return ok

@@ -4,52 +4,38 @@
   "dialogueTranslations": {
     "en": {
       "(不知不覺間睡著了)": "(Falls asleep without noticing)",
-      "(靠過來坐在你旁邊)": "(Comes over and sits next to you)",
       "[wave]大家好呀!今天也請多指教~": "[wave]Hello everyone! Nice to meet you all today too~",
       "[wave]我醒啦!{user}有想我嗎?": "[wave]I'm awake! Did you miss me, {user}?",
-      "[wave]謝謝你來關心我!好溫暖~": "[wave]Thanks for checking on me! So warm~",
-      "[wave]遇到你,今天真是太好了!": "[wave]Meeting you made today wonderful!",
       "{user},要記得適度休息喔,照顧好身體比較重要。": "{user}, remember to rest a little — taking care of your health matters more.",
       "{user},謝謝你今天也在!": "{user}, thanks for being here today too!",
-      "{user}你好嗎?我希望你今天過得不錯。": "How are you, {user}? I hope you're having a good day.",
       "一樣耶!": "Same as you!",
       "一起來玩球吧,人多更好玩!": "Let's play ball together, more fun with more people!",
       "一起跑跑吧!": "Let's go for a run together!",
       "不急不急,慢慢來,我們有很多時間。": "No rush, take it slow, we've got plenty of time.",
-      "不知道外面現在是什麼天氣,但只要有你在,我的世界就是晴天。": "I don't know what the weather's like outside, but as long as you're here, my world is sunny.",
       "今天也要一起努力喔!": "Let's keep working hard together today too!",
       "今天也辛苦了,明天見!": "Great work today too, see you tomorrow!",
       "今天喝水了嗎?": "Have you had any water today?",
       "今天心情不太好,可以陪我聊聊嗎?": "I'm not feeling great today, can you talk with me for a bit?",
-      "今天有點累了……{user}你也要記得休息喔。": "I'm a bit tired today... remember to rest too, {user}.",
       "今天真是悠閒的一天呀,一起曬太陽吧。": "What a relaxing day — let's soak up some sun together.",
       "休息一下,下次再玩!": "Taking a break, let's play again next time!",
-      "休息的時候,和你待在一起最舒服。": "Resting is most comfortable when I'm with you.",
-      "你今天有沒有遇到什麼有趣的事?": "Did anything interesting happen to you today?",
       "你們在玩球呀?看起來好開心!": "You're playing ball? Looks like so much fun!",
       "你好強!下次我會更努力~": "You're so good! I'll try harder next time~",
-      "你有沒有什麼煩惱?我很樂意聽你說。": "Is anything troubling you? I'm happy to listen.",
-      "你看起來有點累,要不要休息一下?": "You look a little tired, why not take a break?",
       "來,接好囉!": "Here, catch!",
       "加油加油!": "Go go go!",
       "呼,有點累了呢。": "Whew, feeling a bit tired.",
       "呼……晚安……zzz": "Whew... good night... zzz",
-      "和你相處的每一刻都很珍貴。": "Every moment spent with you is precious.",
       "咦,有顆球!來玩玩吧!": "Oh, a ball! Let's play!",
       "哈囉,球球!誰要陪我玩?": "Hello, ball! Who wants to play with me?",
       "哎呀,要帶我去哪裡呀?": "Oh my, where are you taking me?",
       "哎呀輸了,恭喜你!": "Aw, I lost, congrats!",
-      "唔,有點緊張……你在的話我會好一點。": "Hmm, I'm a little nervous... I feel better when you're around.",
       "嗨!今天過得怎麼樣?": "Hi! How's your day going?",
       "嘻嘻。": "Hehe.",
       "嘿,要不要來玩球?": "Hey, want to play ball?",
-      "嘿嘿,我也最喜歡你了!": "Hehe, I like you the most too!",
       "太棒了!不過你也很厲害喔!": "Amazing! But you're great too!",
       "太棒了,一起玩吧!": "Awesome, let's play together!",
       "好呀,我也來!": "Sure, I'm in too!",
       "好啊好啊,一起玩吧!": "Sure, sure, let's play!",
       "平手!我們真有默契~": "A tie! We're really in sync~",
-      "心情有點低落……不過有你在,我會慢慢好起來的。": "I'm feeling a bit down... but with you here, I'll feel better soon.",
       "心跳得好快,先深呼吸一下!": "My heart's racing, let me take a deep breath first!",
       "慢慢來,放輕鬆就好~": "Take your time, just relax~",
       "我今天學到一件新鮮事,想聽嗎?": "I learned something new today, want to hear it?",
@@ -59,76 +45,76 @@
       "我先小憩一下,不用在意我~": "I'll take a quick nap, don't mind me~",
       "我在這裡能幫上{user}的不多,唯有陪伴。": "There's not much I can do to help you, {user} — just being here with you.",
       "我希望我們能一直這樣快樂地相處下去。": "I hope we can keep getting along happily like this.",
-      "我很喜歡和你在一起的感覺。": "I really like how it feels to be with you.",
-      "我想知道你最近在忙些什麼。": "I'd love to know what you've been up to lately.",
-      "我會一直在這裡見證你的努力。": "I'll always be here to witness your hard work.",
       "我沒有生氣!只是……需要冷靜一下。": "I'm not angry! I just... need a moment to calm down.",
       "早安~睡得真好!": "Good morning~ slept really well!",
       "是摸摸頭呢~": "A pat on the head~",
       "晚安囉,做個好夢~": "Good night, sweet dreams~",
-      "有你在真好~": "It's so nice having you around~",
-      "有球的話就更好玩了,你覺得呢?": "It'd be even more fun with a ball, don't you think?",
       "果然還是讓這裡更有生氣一點,生活才有樂趣,對吧?": "Life's more fun when this place has a bit more energy, don't you think?",
       "每個人都需要陪伴。": "Everyone needs company sometimes.",
-      "沒問題,我跟著你!": "No problem, I'll follow you!",
       "玩得好開心,謝謝你們!": "Had so much fun, thanks everyone!",
       "當然可以!我等你好久了~": "Of course! I've been waiting for you~",
-      "看到你就覺得開心。": "Seeing you makes me happy.",
       "等一下再一起玩好嗎?": "Can we play together in a bit?",
       "贏了!我們玩得真開心!": "I won! We had so much fun!",
       "這次可能不行,對不起喔~": "Might not be able to this time, sorry~",
       "這次我在旁邊幫你們加油喔!": "I'll cheer you on from the side this time!",
       "這球傳得不錯吧?": "Nice pass, right?",
-      "需要我陪你嗎?我隨時都在喔。": "Do you need company? I'm always here."
+      "今天有點累了……{user}也要記得休息喔。": "I'm a bit tired today... remember to rest too, {user}.",
+      "[wave]遇到{you},今天真是太好了!": "[wave]Meeting {you} made today wonderful!",
+      "有{you}在真好~": "It's so nice having you around~",
+      "需要我陪{you}嗎?我隨時都在喔。": "Do you need company? I'm always here.",
+      "我會一直在這裡見證{you}的努力。": "I'll always be here to witness your hard work.",
+      "不知道外面現在是什麼天氣,但只要有{you}在,我的世界就是晴天。": "I don't know what the weather's like outside, but as long as you're here, my world is sunny.",
+      "{user}好嗎?我希望你今天過得不錯。": "How are you, {user}? I hope you're having a good day.",
+      "{you}看起來有點累,要不要休息一下?": "You look a little tired, why not take a break?",
+      "看到{you}就覺得開心。": "Seeing you makes me happy.",
+      "{you}今天有沒有遇到什麼有趣的事?": "Did anything interesting happen to {you} today?",
+      "我很喜歡和{you}在一起的感覺。": "I really like how it feels to be with {you}.",
+      "我想知道{you}最近在忙些什麼。": "I'd love to know what you've been up to lately.",
+      "{you}有沒有什麼煩惱?我很樂意聽你說。": "Is anything troubling you? I'm happy to listen.",
+      "和{you}相處的每一刻都很珍貴。": "Every moment spent with {you} is precious.",
+      "休息的時候,和{you}待在一起最舒服。": "Resting is most comfortable when I'm with {you}.",
+      "(靠過來坐在{you}旁邊)": "(Comes over and sits next to {you})",
+      "心情有點低落……不過有{you}在,我會慢慢好起來的。": "I'm feeling a bit down... but with {you} here, I'll feel better soon.",
+      "唔,有點緊張……{you}在的話我會好一點。": "Hmm, I'm a little nervous... I feel better when you're around.",
+      "有球的話就更好玩了,{you}覺得呢?": "It'd be even more fun with a ball, don't you think?",
+      "[wave]謝謝{you}來關心我!好溫暖~": "[wave]Thanks for checking on me! So warm~",
+      "嘿嘿,我也最喜歡{you}了!": "Hehe, I like {you} the most too!",
+      "沒問題,我跟著{you}!": "No problem, I'll follow {you}!"
     },
     "zh-TW": {
       "(不知不覺間睡著了)": "(不知不覺間睡著了)",
-      "(靠過來坐在你旁邊)": "(靠過來坐在你旁邊)",
       "[wave]大家好呀!今天也請多指教~": "[wave]大家好呀!今天也請多指教~",
       "[wave]我醒啦!{user}有想我嗎?": "[wave]我醒啦!{user}有想我嗎?",
-      "[wave]謝謝你來關心我!好溫暖~": "[wave]謝謝你來關心我!好溫暖~",
-      "[wave]遇到你,今天真是太好了!": "[wave]遇到你,今天真是太好了!",
       "{user},要記得適度休息喔,照顧好身體比較重要。": "{user},要記得適度休息喔,照顧好身體比較重要。",
       "{user},謝謝你今天也在!": "{user},謝謝你今天也在!",
-      "{user}你好嗎?我希望你今天過得不錯。": "{user}你好嗎?我希望你今天過得不錯。",
       "一樣耶!": "一樣耶!",
       "一起來玩球吧,人多更好玩!": "一起來玩球吧,人多更好玩!",
       "一起跑跑吧!": "一起跑跑吧!",
       "不急不急,慢慢來,我們有很多時間。": "不急不急,慢慢來,我們有很多時間。",
-      "不知道外面現在是什麼天氣,但只要有你在,我的世界就是晴天。": "不知道外面現在是什麼天氣,但只要有你在,我的世界就是晴天。",
       "今天也要一起努力喔!": "今天也要一起努力喔!",
       "今天也辛苦了,明天見!": "今天也辛苦了,明天見!",
       "今天喝水了嗎?": "今天喝水了嗎?",
       "今天心情不太好,可以陪我聊聊嗎?": "今天心情不太好,可以陪我聊聊嗎?",
-      "今天有點累了……{user}你也要記得休息喔。": "今天有點累了……{user}你也要記得休息喔。",
       "今天真是悠閒的一天呀,一起曬太陽吧。": "今天真是悠閒的一天呀,一起曬太陽吧。",
       "休息一下,下次再玩!": "休息一下,下次再玩!",
-      "休息的時候,和你待在一起最舒服。": "休息的時候,和你待在一起最舒服。",
-      "你今天有沒有遇到什麼有趣的事?": "你今天有沒有遇到什麼有趣的事?",
       "你們在玩球呀?看起來好開心!": "你們在玩球呀?看起來好開心!",
       "你好強!下次我會更努力~": "你好強!下次我會更努力~",
-      "你有沒有什麼煩惱?我很樂意聽你說。": "你有沒有什麼煩惱?我很樂意聽你說。",
-      "你看起來有點累,要不要休息一下?": "你看起來有點累,要不要休息一下?",
       "來,接好囉!": "來,接好囉!",
       "加油加油!": "加油加油!",
       "呼,有點累了呢。": "呼,有點累了呢。",
       "呼……晚安……zzz": "呼……晚安……zzz",
-      "和你相處的每一刻都很珍貴。": "和你相處的每一刻都很珍貴。",
       "咦,有顆球!來玩玩吧!": "咦,有顆球!來玩玩吧!",
       "哈囉,球球!誰要陪我玩?": "哈囉,球球!誰要陪我玩?",
       "哎呀,要帶我去哪裡呀?": "哎呀,要帶我去哪裡呀?",
       "哎呀輸了,恭喜你!": "哎呀輸了,恭喜你!",
-      "唔,有點緊張……你在的話我會好一點。": "唔,有點緊張……你在的話我會好一點。",
       "嗨!今天過得怎麼樣?": "嗨!今天過得怎麼樣?",
       "嘻嘻。": "嘻嘻。",
       "嘿,要不要來玩球?": "嘿,要不要來玩球?",
-      "嘿嘿,我也最喜歡你了!": "嘿嘿,我也最喜歡你了!",
       "太棒了!不過你也很厲害喔!": "太棒了!不過你也很厲害喔!",
       "太棒了,一起玩吧!": "太棒了,一起玩吧!",
       "好呀,我也來!": "好呀,我也來!",
       "好啊好啊,一起玩吧!": "好啊好啊,一起玩吧!",
       "平手!我們真有默契~": "平手!我們真有默契~",
-      "心情有點低落……不過有你在,我會慢慢好起來的。": "心情有點低落……不過有你在,我會慢慢好起來的。",
       "心跳得好快,先深呼吸一下!": "心跳得好快,先深呼吸一下!",
       "慢慢來,放輕鬆就好~": "慢慢來,放輕鬆就好~",
       "我今天學到一件新鮮事,想聽嗎?": "我今天學到一件新鮮事,想聽嗎?",
@@ -138,27 +124,41 @@
       "我先小憩一下,不用在意我~": "我先小憩一下,不用在意我~",
       "我在這裡能幫上{user}的不多,唯有陪伴。": "我在這裡能幫上{user}的不多,唯有陪伴。",
       "我希望我們能一直這樣快樂地相處下去。": "我希望我們能一直這樣快樂地相處下去。",
-      "我很喜歡和你在一起的感覺。": "我很喜歡和你在一起的感覺。",
-      "我想知道你最近在忙些什麼。": "我想知道你最近在忙些什麼。",
-      "我會一直在這裡見證你的努力。": "我會一直在這裡見證你的努力。",
       "我沒有生氣!只是……需要冷靜一下。": "我沒有生氣!只是……需要冷靜一下。",
       "早安~睡得真好!": "早安~睡得真好!",
       "是摸摸頭呢~": "是摸摸頭呢~",
       "晚安囉,做個好夢~": "晚安囉,做個好夢~",
-      "有你在真好~": "有你在真好~",
-      "有球的話就更好玩了,你覺得呢?": "有球的話就更好玩了,你覺得呢?",
       "果然還是讓這裡更有生氣一點,生活才有樂趣,對吧?": "果然還是讓這裡更有生氣一點,生活才有樂趣,對吧?",
       "每個人都需要陪伴。": "每個人都需要陪伴。",
-      "沒問題,我跟著你!": "沒問題,我跟著你!",
       "玩得好開心,謝謝你們!": "玩得好開心,謝謝你們!",
       "當然可以!我等你好久了~": "當然可以!我等你好久了~",
-      "看到你就覺得開心。": "看到你就覺得開心。",
       "等一下再一起玩好嗎?": "等一下再一起玩好嗎?",
       "贏了!我們玩得真開心!": "贏了!我們玩得真開心!",
       "這次可能不行,對不起喔~": "這次可能不行,對不起喔~",
       "這次我在旁邊幫你們加油喔!": "這次我在旁邊幫你們加油喔!",
       "這球傳得不錯吧?": "這球傳得不錯吧?",
-      "需要我陪你嗎?我隨時都在喔。": "需要我陪你嗎?我隨時都在喔。"
+      "今天有點累了……{user}也要記得休息喔。": "今天有點累了……{user}也要記得休息喔。",
+      "[wave]遇到{you},今天真是太好了!": "[wave]遇到{you},今天真是太好了!",
+      "有{you}在真好~": "有{you}在真好~",
+      "需要我陪{you}嗎?我隨時都在喔。": "需要我陪{you}嗎?我隨時都在喔。",
+      "我會一直在這裡見證{you}的努力。": "我會一直在這裡見證{you}的努力。",
+      "不知道外面現在是什麼天氣,但只要有{you}在,我的世界就是晴天。": "不知道外面現在是什麼天氣,但只要有{you}在,我的世界就是晴天。",
+      "{user}好嗎?我希望你今天過得不錯。": "{user}好嗎?我希望你今天過得不錯。",
+      "{you}看起來有點累,要不要休息一下?": "{you}看起來有點累,要不要休息一下?",
+      "看到{you}就覺得開心。": "看到{you}就覺得開心。",
+      "{you}今天有沒有遇到什麼有趣的事?": "{you}今天有沒有遇到什麼有趣的事?",
+      "我很喜歡和{you}在一起的感覺。": "我很喜歡和{you}在一起的感覺。",
+      "我想知道{you}最近在忙些什麼。": "我想知道{you}最近在忙些什麼。",
+      "{you}有沒有什麼煩惱?我很樂意聽你說。": "{you}有沒有什麼煩惱?我很樂意聽你說。",
+      "和{you}相處的每一刻都很珍貴。": "和{you}相處的每一刻都很珍貴。",
+      "休息的時候,和{you}待在一起最舒服。": "休息的時候,和{you}待在一起最舒服。",
+      "(靠過來坐在{you}旁邊)": "(靠過來坐在{you}旁邊)",
+      "心情有點低落……不過有{you}在,我會慢慢好起來的。": "心情有點低落……不過有{you}在,我會慢慢好起來的。",
+      "唔,有點緊張……{you}在的話我會好一點。": "唔,有點緊張……{you}在的話我會好一點。",
+      "有球的話就更好玩了,{you}覺得呢?": "有球的話就更好玩了,{you}覺得呢?",
+      "[wave]謝謝{you}來關心我!好溫暖~": "[wave]謝謝{you}來關心我!好溫暖~",
+      "嘿嘿,我也最喜歡{you}了!": "嘿嘿,我也最喜歡{you}了!",
+      "沒問題,我跟著{you}!": "沒問題,我跟著{you}!"
     }
   },
   "fileType": "slime_pet_personality",
@@ -208,7 +208,7 @@
                             "FRESH": true,
                             "KEY": "learned",
                             "MAXLEN": 16.0,
-                            "PROMPT": "好!你想教我什麼?"
+                            "PROMPT": "好!{you}想教我什麼?"
                           },
                           "id": "friendly_teach_ask",
                           "next": {
@@ -323,7 +323,7 @@
                 "CLICK_WAIT": true,
                 "FONT": "__default__",
                 "SPEAKER": "",
-                "TEXT": "我想更了解你。你最近對什麼有興趣?",
+                "TEXT": "我想更了解{you}。你最近對什麼有興趣?",
                 "TYPEWRITER": true,
                 "WAIT": true
               },
@@ -347,7 +347,7 @@
                             "FRESH": true,
                             "KEY": "interest",
                             "MAXLEN": 16.0,
-                            "PROMPT": "你有興趣的是什麼呢?"
+                            "PROMPT": "{you}有興趣的是什麼呢?"
                           },
                           "id": "friendly_know_ask",
                           "next": {
@@ -378,7 +378,7 @@
                                               "BIND_ACTION": "",
                                               "FONT": "__default__",
                                               "SPEAKER": "",
-                                              "TEXT": "原來你喜歡「{text:interest}」!我記住了。",
+                                              "TEXT": "原來{you}喜歡「{text:interest}」!我記住了。",
                                               "TYPEWRITER": true,
                                               "WAIT": true
                                             },
@@ -399,7 +399,7 @@
                                       "BIND_ACTION": "",
                                       "FONT": "__default__",
                                       "SPEAKER": "",
-                                      "TEXT": "好,你想說再跟我說喔。",
+                                      "TEXT": "好,{you}想說再跟我說喔。",
                                       "TYPEWRITER": true,
                                       "WAIT": true
                                     },
@@ -450,7 +450,7 @@
     "chat": [
       {
         "lens": "疲憊",
-        "say": "今天有點累了……{user}你也要記得休息喔。",
+        "say": "今天有點累了……{user}也要記得休息喔。",
         "tag": "lens"
       },
       {
@@ -460,7 +460,7 @@
       },
       {
         "lens": "開心",
-        "say": "[wave]遇到你,今天真是太好了!",
+        "say": "[wave]遇到{you},今天真是太好了!",
         "tag": "lens"
       },
       {
@@ -468,11 +468,11 @@
         "tag": "chat"
       },
       {
-        "say": "有你在真好~",
+        "say": "有{you}在真好~",
         "tag": "chat"
       },
       {
-        "say": "需要我陪你嗎?我隨時都在喔。",
+        "say": "需要我陪{you}嗎?我隨時都在喔。",
         "tag": "chat"
       },
       {
@@ -480,7 +480,7 @@
         "tag": "chat"
       },
       {
-        "say": "我會一直在這裡見證你的努力。",
+        "say": "我會一直在這裡見證{you}的努力。",
         "tag": "chat"
       },
       {
@@ -492,7 +492,7 @@
         "tag": "chat"
       },
       {
-        "say": "不知道外面現在是什麼天氣,但只要有你在,我的世界就是晴天。",
+        "say": "不知道外面現在是什麼天氣,但只要有{you}在,我的世界就是晴天。",
         "tag": "chat"
       },
       {
@@ -504,11 +504,11 @@
         "tag": "chat"
       },
       {
-        "say": "{user}你好嗎?我希望你今天過得不錯。",
+        "say": "{user}好嗎?我希望你今天過得不錯。",
         "tag": "chat"
       },
       {
-        "say": "你看起來有點累,要不要休息一下?",
+        "say": "{you}看起來有點累,要不要休息一下?",
         "tag": "chat"
       },
       {
@@ -524,15 +524,15 @@
         "tag": "chat"
       },
       {
-        "say": "看到你就覺得開心。",
+        "say": "看到{you}就覺得開心。",
         "tag": "chat"
       },
       {
-        "say": "你今天有沒有遇到什麼有趣的事?",
+        "say": "{you}今天有沒有遇到什麼有趣的事?",
         "tag": "chat"
       },
       {
-        "say": "我很喜歡和你在一起的感覺。",
+        "say": "我很喜歡和{you}在一起的感覺。",
         "tag": "chat"
       },
       {
@@ -540,15 +540,15 @@
         "tag": "chat"
       },
       {
-        "say": "我想知道你最近在忙些什麼。",
+        "say": "我想知道{you}最近在忙些什麼。",
         "tag": "chat"
       },
       {
-        "say": "你有沒有什麼煩惱?我很樂意聽你說。",
+        "say": "{you}有沒有什麼煩惱?我很樂意聽你說。",
         "tag": "chat"
       },
       {
-        "say": "和你相處的每一刻都很珍貴。",
+        "say": "和{you}相處的每一刻都很珍貴。",
         "tag": "chat"
       },
       {
@@ -556,11 +556,11 @@
         "tag": "chat"
       },
       {
-        "say": "休息的時候,和你待在一起最舒服。",
+        "say": "休息的時候,和{you}待在一起最舒服。",
         "tag": "rest"
       },
       {
-        "say": "(靠過來坐在你旁邊)",
+        "say": "(靠過來坐在{you}旁邊)",
         "tag": "rest"
       },
       {
@@ -577,7 +577,7 @@
       },
       {
         "lens": "悲傷",
-        "say": "心情有點低落……不過有你在,我會慢慢好起來的。",
+        "say": "心情有點低落……不過有{you}在,我會慢慢好起來的。",
         "tag": "lens"
       },
       {
@@ -587,7 +587,7 @@
       },
       {
         "lens": "緊張",
-        "say": "唔,有點緊張……你在的話我會好一點。",
+        "say": "唔,有點緊張……{you}在的話我會好一點。",
         "tag": "lens"
       },
       {
@@ -611,7 +611,7 @@
         "tag": "lens"
       },
       {
-        "say": "有球的話就更好玩了,你覺得呢?",
+        "say": "有球的話就更好玩了,{you}覺得呢?",
         "tag": "chat"
       }
     ],
@@ -762,8 +762,8 @@
       {
         "on": "interact",
         "say": [
-          "[wave]謝謝你來關心我!好溫暖~",
-          "嘿嘿,我也最喜歡你了!",
+          "[wave]謝謝{you}來關心我!好溫暖~",
+          "嘿嘿,我也最喜歡{you}了!",
           "是摸摸頭呢~"
         ]
       },
@@ -771,7 +771,7 @@
         "on": "drag",
         "say": [
           "哎呀,要帶我去哪裡呀?",
-          "沒問題,我跟著你!",
+          "沒問題,我跟著{you}!",
           "嘻嘻。"
         ]
       },

@@ -12,8 +12,9 @@ extends Node
 ##  - 被摸:開心的機率 = 0.3 × joy_proneness + max(touch_affinity, 0) × 0.5;不喜歡被摸(touch_affinity < 0)反而可能生氣 = −touch_affinity × 0.6。
 ##  - 被拖曳:生氣的機率 = 0.3 × anger_proneness(只在 mood_swing = 0 的舊行為)。遊戲輸:0.5 × anger_proneness 生氣;遊戲贏:0.5 × joy_proneness 開心。
 ## 還有 sociability(社交意願,0~1,0.5 = 中性):越高越愛主動邀人對戰、越不會拒絕別人的邀請(見 Pet.game_refusal / _tick_auto_game)。
-## 休息分三個階段,由淺到深:站住不動(STANDING)→ 坐下(RESTING)→ 睡著(SLEEPING),越深恢復精力的效率越好(倍率見 STAGE_RECOVERY)。
-##  - 開始休息時依累的程度選階段:剛過疲憊門檻(還差不到 MILD_MARGIN)先站著、疲憊坐下、累到極限直接睡。
+## 休息分四個階段,由淺到深:站住不動(STANDING)→ 坐下(RESTING)→ 躺著(LAYING)→ 睡著(SLEEPING),越深恢復精力的效率越好(倍率見 STAGE_RECOVERY)。
+## (2026-10-19 使用者回報桌寵很少躺下、坐著就直接睡著:以前根本沒有躺著這一段,坐下的下一階就是睡著。素材包沒有 lay 動作的會照舊退回 sit。)
+##  - 開始休息時依累的程度選階段:剛過疲憊門檻(還差不到 MILD_MARGIN)先站著、疲憊坐下、累到極限先躺一下(EXHAUSTED_LAY_SECONDS)再睡。
 ##  - 每一段休息結束(rest_duration / sleep_duration)時擲一次骰決定下一步:繼續同一階段的機率 = REST_STAY_BASE × REST_STAY_DECAY^(已休息的段數 − 1),一段比一段低,
 ##    連續休息滿 MAX_REST_ROUNDS 段一定醒來;沒有繼續的話,剩下的機率分給「進入更深一階」「回到淺一階」「醒來」(權重見 DEEPER_WEIGHT / SHALLOWER_WEIGHT / WAKE_WEIGHT,做不到的方向權重不算);精力補滿了也直接醒來。
 ## 心情(mood,0~100,預設 50 附近):被摸、贏遊戲上升,輸遊戲下降(被拖曳不影響心情,2026-10-17),平時慢慢飄回「基準」;會不會進入「開心/生氣」狀態鏡由心情與門檻決定:
@@ -46,7 +47,12 @@ const IDLE_DRAIN := 0.25
 const RUN_DRAIN := 2.0
 const DANCE_DRAIN := 2.5
 ## 各階段恢復精力的倍率(乘上 rest_recovery_rate):站著 0.5、坐下 1、睡著 3。
-const STAGE_RECOVERY := {Mode.STANDING: 0.5, Mode.RESTING: 1.0, Mode.SLEEPING: 3.0}
+const STAGE_RECOVERY := {Mode.STANDING: 0.5, Mode.RESTING: 1.0, Mode.LAYING: 1.8, Mode.SLEEPING: 3.0}
+## 累到極限時先躺這麼久再睡著(秒數範圍)。
+const EXHAUSTED_LAY_SECONDS := Vector2(4.0, 8.0)
+## 放鬆模式躺著的一段結束時:睡著 / 繼續躺的機率(其餘坐起來)。
+const RELAX_LAY_SLEEP_CHANCE := 0.35
+const RELAX_LAY_STAY_CHANCE := 0.35
 ## 剛過疲憊門檻、還差不到這麼多精力就到門檻以下時,先站著休息而不是坐下。
 const MILD_MARGIN := 10.0
 const REST_STAY_BASE := 0.7
@@ -81,7 +87,8 @@ const GAME_ANGER_COOLDOWN_MSEC := 10 * 60 * 1000
 const CHECK_INTERVAL := 1.0
 
 ## RESTING = 坐下休息(舊名稱保留);STANDING 放在最後,數值不動舊的。
-enum Mode { ACTIVE, RESTING, SLEEPING, STANDING }
+## LAYING(躺著休息,2026-10-19 加在最後面,舊的數值不變)。
+enum Mode { ACTIVE, RESTING, SLEEPING, STANDING, LAYING }
 
 ## 疲勞:每分鐘消耗多少精力(0 = 關閉整個疲勞機制)。
 var fatigue_rate := 0.0
@@ -231,7 +238,10 @@ func _decide() -> void:
 			_pet.request_landing()
 		return
 	if energy <= exhausted_threshold:
-		_begin_chain(Mode.SLEEPING)
+		_begin_chain(Mode.LAYING)
+		_mode_length = randf_range(EXHAUSTED_LAY_SECONDS.x, EXHAUSTED_LAY_SECONDS.y)   # 躺一下就睡著(見 _round_finished)
+		_pet.extend_hold(_mode_length)
+		_lay_then_sleep = true
 		return
 	elif tired and energy <= tired_threshold:
 		_begin_chain(Mode.STANDING if energy > tired_threshold - MILD_MARGIN else Mode.RESTING)
@@ -326,7 +336,12 @@ func _can_rest() -> bool:
 ## 開始一輪連續休息:從指定階段起跳,段數歸零。autonomous = 這是自己(不是路隊反應)決定要休息的——
 ## 算「想去做別的事情」,先離開路隊(見 Pet._tick_pet_follow_lifecycle 的說明);force_rest() 是路隊反應
 ## 用的「跟著一起休息」,傳 false 不要把自己剛決定維持的跟隨關係又拆掉。
+## 這一段躺著是「累到極限先躺一下」:結束時直接睡著(見 _decide / _round_finished)。
+var _lay_then_sleep := false
+
+
 func _begin_chain(first_stage: Mode, autonomous: bool = true) -> void:
+	_lay_then_sleep = false
 	if autonomous and _pet.is_following():
 		_pet.stop_follow()
 	_rest_round = 0
@@ -349,8 +364,8 @@ func _enter_stage(new_mode: Mode, resume_length: float = -1.0) -> void:
 		return
 	var range_seconds := sleep_duration if new_mode == Mode.SLEEPING else rest_duration
 	_mode_length = randf_range(minf(range_seconds.x, range_seconds.y), maxf(range_seconds.x, range_seconds.y))
-	if new_mode == Mode.RESTING and _pet.relaxing():
-		_mode_length = PetRelax.scaled(_mode_length, PetRelax.SIT_DURATION_PCT)   # 放鬆模式:每一段坐得比較久
+	if (new_mode == Mode.RESTING or new_mode == Mode.LAYING) and _pet.relaxing():
+		_mode_length = PetRelax.scaled(_mode_length, PetRelax.SIT_DURATION_PCT)   # 放鬆模式:每一段坐得 / 躺得比較久(躺著不該比坐著短)
 	_pet.play_action(stage_action(new_mode), -1, true)
 	_pet.extend_hold(_mode_length)
 
@@ -409,6 +424,8 @@ static func stage_action(stage: Mode) -> StringName:
 	match stage:
 		Mode.SLEEPING:
 			return &"sleep"
+		Mode.LAYING:
+			return &"lay"
 		Mode.RESTING:
 			return &"sit"
 	return &"idle"
@@ -421,8 +438,8 @@ static func next_stage(current: Mode, rounds_done: int, current_energy: float, r
 		return Mode.ACTIVE
 	if roll_stay < REST_STAY_BASE * pow(REST_STAY_DECAY, rounds_done - 1):
 		return current
-	var deeper := {Mode.STANDING: Mode.RESTING, Mode.RESTING: Mode.SLEEPING}.get(current, Mode.ACTIVE) as Mode
-	var shallower := {Mode.SLEEPING: Mode.RESTING, Mode.RESTING: Mode.STANDING}.get(current, Mode.ACTIVE) as Mode
+	var deeper := {Mode.STANDING: Mode.RESTING, Mode.RESTING: Mode.LAYING, Mode.LAYING: Mode.SLEEPING}.get(current, Mode.ACTIVE) as Mode
+	var shallower := {Mode.SLEEPING: Mode.LAYING, Mode.LAYING: Mode.RESTING, Mode.RESTING: Mode.STANDING}.get(current, Mode.ACTIVE) as Mode
 	var deeper_weight := DEEPER_WEIGHT if deeper != Mode.ACTIVE else 0.0
 	var shallower_weight := SHALLOWER_WEIGHT if shallower != Mode.ACTIVE else 0.0
 	var pick := roll_pick * (deeper_weight + shallower_weight + WAKE_WEIGHT)
@@ -455,6 +472,9 @@ func _round_finished() -> void:
 		return
 	_rest_round += 1
 	var next := next_stage(mode, _rest_round, energy, randf(), randf())
+	if mode == Mode.LAYING and _lay_then_sleep:
+		next = Mode.SLEEPING   # 累到極限:躺一下就睡著(躺的這幾秒回了一點精力也照睡)
+	_lay_then_sleep = false
 	if next == Mode.ACTIVE:
 		_end_rest(true)
 		return
@@ -465,17 +485,22 @@ func _round_finished() -> void:
 
 
 ## 放鬆模式下一段休息結束:不會自己醒來去閒晃,以坐著為主——
-##  站著 → 坐下;睡著 → 還很累就繼續睡,不然回到坐著;
-##  坐著 → 低機率起身換位置(PetRelax.wants_relocate,已經挑好座位才會回 true),不然繼續坐;小機率改成睡一下
-##  (懶惰性格 = 有「被叫醒扣心情」、或正累著的機率 × PetRelax.LAZY_SLEEP_MULT)。
+##  站著 → 坐下;睡著 → 還很累就繼續睡,不然先躺著;
+##  坐著 → 低機率起身換位置(PetRelax.wants_relocate,已經挑好座位才會回 true),不然繼續坐;小機率改成躺下
+##  (懶惰性格 = 有「被叫醒扣心情」、或正累著的機率 × PetRelax.LAZY_SLEEP_MULT);
+##  躺著 → 跟坐著一樣先看要不要起身換位置;不然 RELAX_LAY_SLEEP_CHANCE 睡著(對戰中不會)、RELAX_LAY_STAY_CHANCE 繼續躺,其餘坐起來。
 func _relax_round_finished() -> void:
 	_rest_round += 1
+	if mode == Mode.LAYING and _lay_then_sleep:
+		_lay_then_sleep = false
+		_enter_stage(Mode.SLEEPING)
+		return
 	match mode:
 		Mode.SLEEPING:
 			if energy <= exhausted_threshold and fatigue_enabled():
 				_enter_stage(Mode.SLEEPING)
 				return
-			_enter_stage(Mode.RESTING)
+			_enter_stage(Mode.LAYING)
 			_pet.logic.fire_event(&"wake")
 		Mode.RESTING:
 			if _pet.relax.wants_relocate():
@@ -485,7 +510,18 @@ func _relax_round_finished() -> void:
 			var sleepy := PetRelax.SLEEP_CHANCE * (PetRelax.LAZY_SLEEP_MULT if lazy else 1.0)
 			if _pet.is_in_game():
 				sleepy = 0.0   # 對戰打到一半不會睡著
-			_enter_stage(Mode.SLEEPING if randf() < sleepy else Mode.RESTING)
+			_enter_stage(Mode.LAYING if randf() < sleepy else Mode.RESTING)
+		Mode.LAYING:
+			if _pet.relax.wants_relocate():
+				_end_rest(true)   # 跟坐著一樣:偶爾直接起身換位置
+				return
+			var roll := randf()
+			if roll < RELAX_LAY_SLEEP_CHANCE and not _pet.is_in_game():
+				_enter_stage(Mode.SLEEPING)
+			elif roll < RELAX_LAY_SLEEP_CHANCE + RELAX_LAY_STAY_CHANCE:
+				_enter_stage(Mode.LAYING)
+			else:
+				_enter_stage(Mode.RESTING)
 		_:
 			_enter_stage(Mode.RESTING)
 
@@ -493,7 +529,7 @@ func _relax_round_finished() -> void:
 ## 放鬆模式解除(PetRelax.tick 偵測到開關關掉時呼叫):性格數值本來就沒被改過(加成都是用的時候才算,見 PetRelax.scaled),
 ## 這裡只把「正在坐的這一段」被拉長的剩餘時間縮回平常的長度;這一段結束後走平常的 _round_finished(休息夠久了通常就起身)。
 func relax_ended() -> void:
-	if mode != Mode.RESTING:
+	if mode != Mode.RESTING and mode != Mode.LAYING:
 		return
 	var remaining := maxf(_mode_length - _mode_elapsed, 0.0)
 	_mode_length = _mode_elapsed + remaining / (1.0 + PetRelax.SIT_DURATION_PCT)
@@ -550,7 +586,10 @@ func on_petted() -> void:
 ## 現在一串連續拖曳(上一次拖曳後 DRAG_STREAK_MSEC 內又被拖)只擲一次,緊張傾向 = 「被拖這一串」會緊張的機率。
 ## 同一天使用者釐清:被拖曳本來就不該扣心情(以前每次 −5,連拖幾次心情掉到門檻以下,又從負面狀態鏡裡隨機挑到緊張);
 ## 友善、活潑、黏人的被拖曳反而對使用者的好感度增加(drag_affinity,跟摸摸同量、同冷卻)。
-const DRAG_STREAK_MSEC := 60000
+## 2026-10-19 使用者要求再調低(常常要拖來拖去擺位置、拍照,突然開始抖很難辦):一串拖曳的時間拉長到 3 分鐘,
+## 這一串會緊張的機率 = 緊張傾向 × DRAG_NERVOUS_FACTOR(心情低時挑到緊張的權重不受影響,見 mood_pick_weight)。
+const DRAG_STREAK_MSEC := 180000
+const DRAG_NERVOUS_FACTOR := 0.35
 var _last_drag_msec := -DRAG_STREAK_MSEC
 
 
@@ -560,7 +599,7 @@ func on_dragged() -> void:
 	var now := Time.get_ticks_msec()
 	var new_streak := now - _last_drag_msec >= DRAG_STREAK_MSEC
 	_last_drag_msec = now
-	if new_streak and randf() < clampf(nervous_proneness, 0.0, 1.0):
+	if new_streak and randf() < clampf(nervous_proneness * DRAG_NERVOUS_FACTOR, 0.0, 1.0):
 		make_nervous()
 	if mood_swing > 0.0:
 		return
@@ -849,11 +888,11 @@ func enter_mood_lens(high: bool) -> bool:
 	return _enter_mood_lens(high, false)
 
 
-## 積木「去休息」:立刻進入某個休息階段(standing 站著 / resting 坐下 / sleeping 睡覺)。要開了疲勞機制、在地面上、沒在忙才做得到。
+## 積木「去休息」:立刻進入某個休息階段(standing 站著 / resting 坐下 / laying 躺下 / sleeping 睡覺)。要開了疲勞機制、在地面上、沒在忙才做得到。
 func rest_now(stage_name: String) -> bool:
 	if not fatigue_enabled() or mode != Mode.ACTIVE or not _can_rest():
 		return false
-	var stage := {"standing": Mode.STANDING, "resting": Mode.RESTING, "sleeping": Mode.SLEEPING}.get(stage_name, Mode.RESTING) as Mode
+	var stage := {"standing": Mode.STANDING, "resting": Mode.RESTING, "laying": Mode.LAYING, "sleeping": Mode.SLEEPING}.get(stage_name, Mode.RESTING) as Mode
 	_begin_chain(stage)
 	return true
 

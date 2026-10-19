@@ -31,13 +31,13 @@ var _prop_list: VBoxContainer
 var _pref_list: VBoxContainer
 var _pet_pref_list: VBoxContainer
 var _pet_pref_popup: PopupPanel
-var _dup_names: Dictionary = {}   # 撞名的角色名稱(見 PetReferences.duplicate_names):清單列在名字後面附小字代號
+var _dup_names: Dictionary = {}   # 撞名的角色名稱(見 PetReferences.duplicate_names):清單列在名字後面附代號
 ## 長名單翻頁(2026-10-17,見 ListPager):新增一列後跳到最後一頁讓剛加的那列看得到。
 var _char_pager: ListPager
 var _prop_pager: ListPager
-const GAME_DISPLAY_NAMES := {"dice": "拚骰", "rps": "猜拳", "ball": "玩球", "ttt": "井字棋", "blockade": "步步為營", "mastermind": "珠璣妙算"}
-const GAME_AI_KEYS: Array[String] = ["ttt", "blockade", "mastermind"]
-var _game_kind_order: Array[String] = ["dice", "rps", "ball", "ttt", "blockade", "mastermind"]
+const GAME_DISPLAY_NAMES := {"dice": "拚骰", "rps": "猜拳", "ball": "玩球", "ttt": "井字棋", "blockade": "步步為營", "mastermind": "珠璣妙算", "connect4": "四連環"}
+const GAME_AI_KEYS: Array[String] = ["ttt", "blockade", "mastermind", "connect4"]
+var _game_kind_order: Array[String] = ["dice", "rps", "ball", "ttt", "blockade", "mastermind", "connect4"]
 var _game_auto_checks: Dictionary = {}
 var _game_accept_checks: Dictionary = {}
 var _game_decline_checks: Dictionary = {}
@@ -802,7 +802,7 @@ func _rebuild_lists() -> void:
 				_char_list.add_child(_missing_row(tr("遇見 %s(找不到這隻桌寵):「%s」") % [entry["name"], entry["lines"][i]],
 						func(anchor: Control) -> void: _open_pet_relink_menu(anchor, "characters", tag), func() -> void: remove_character_line(tag, index)))
 			elif _dup_names.has(str(_known_pets[tag])):
-				# 撞名:名字後面附小字代號,台詞接在後面
+				# 撞名:名字後面附代號,台詞接在後面
 				var row := _row(tr("「%s」") % entry["lines"][i], func() -> void: remove_character_line(tag, index))
 				var line_label := row.get_child(0) as Label
 				line_label.custom_minimum_size.x = maxf(line_label.custom_minimum_size.x - 140.0, 120.0)
@@ -1041,7 +1041,7 @@ func _add_pet_pref_row(target: String, display_name: String, rules: Dictionary) 
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	label.clip_text = true
 	if target != InteractionRules.ALL_PETS_TARGET and _dup_names.has(display_name):
-		# 撞名:名字後面附小字代號
+		# 撞名:名字後面附代號
 		var name_box := HBoxContainer.new()
 		name_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		name_box.add_theme_constant_override("separation", 2)
@@ -1101,6 +1101,9 @@ func _pet_pref_summary(target: String, rules: Dictionary) -> String:
 		on.append("%s %s" % [flag, names[flag]])
 	if target != InteractionRules.ALL_PETS_TARGET and InteractionRules.effective_no_interact(rules, target) and not InteractionRules.is_no_interact(rules, target):
 		on.append(tr("🚫 不交互(來自「全部角色」)"))
+	var nicknames := InteractionRules.pet_nicknames(rules, target)
+	if not nicknames.is_empty():
+		on.append(tr("暱稱「%s」") % "、".join(nicknames))
 	var state := tr("目前:%s") % "、".join(on) if not on.is_empty() else tr("目前:沒有開任何項目")
 	return tr("其他設定(不提及 / 最喜歡 / 不交互),點一下打開。") + "
 " + state
@@ -1150,6 +1153,24 @@ func _open_pet_pref_settings(anchor: Control, target: String, display_name: Stri
 			_rebuild_lists())
 		box.add_child(check)
 		checks[key] = check
+	# 2026-10-18 使用者要求:暱稱(跟使用者稱呼同一套:逗號分隔可以填好幾個,每次隨機挑一個;空白 = 直接叫名字)。
+	if not all_row:
+		var nick := ManagerUi.line_edit("沒填就直接叫名字")
+		nick.text = ", ".join(InteractionRules.pet_nicknames(_pet.interaction_rules, target))
+		nick.max_length = 120
+		nick.custom_minimum_size.x = 180.0
+		nick.tooltip_text = InfoIcon.wrap_text(tr("這隻桌寵稱呼牠的暱稱。用逗號分隔可以填好幾個,每次稱呼時隨機挑一個(跟使用者稱呼一樣)。不看好感度和好惡等級,討厭的對象也照樣叫暱稱。對話裡的 {other}、{opponent}、{winner}、{liked} 這些名字標記和內建台詞都會改叫暱稱;要本名用 {realname:other} 這類寫法。"), InfoIcon.TIP_WIDTH)
+		var commit := func() -> void:
+			var cleaned := InteractionRules.clean_nickname(nick.text)
+			if cleaned == str(", ".join(InteractionRules.pet_nicknames(_pet.interaction_rules, target))).replace(", ", ","):
+				return
+			_pet.set_pet_nickname(target, nick.text)
+			changed.emit()
+			_rebuild_lists()
+		nick.text_submitted.connect(func(_text: String) -> void: commit.call())
+		nick.focus_exited.connect(commit)
+		popup.popup_hide.connect(commit)
+		box.add_child(ManagerUi.labeled("暱稱", nick))
 	sync.call()
 	popup.popup_hide.connect(popup.queue_free)
 	add_child(popup)
@@ -1164,22 +1185,45 @@ func _rebuild_pet_prefs(rules: Dictionary) -> void:
 	var known := {}
 	known[InteractionRules.ALL_PETS_TARGET] = true
 	_add_pet_pref_row(InteractionRules.ALL_PETS_TARGET, tr("全部角色(預設)"), rules)
+	var entries: Array[Array] = []   # [代號, 名字]
 	for character: Dictionary in _characters:
 		var tag := str(character["tag"])
 		known[tag] = true
-		_add_pet_pref_row(tag, str(character["name"]), rules)
+		entries.append([tag, str(character["name"])])
 	# 角色庫裡沒有、但正在桌面上的桌寵(範例桌寵、庫外素材包):認得,只是不在上面那串清單裡。
 	var missing_total := 0
-	for entry: Dictionary in rules.get("pet_prefs", []):
-		if not known.has(str(entry.get("target", ""))) and not _known_pets.has(str(entry.get("target", ""))):
-			missing_total += 1
 	for entry: Dictionary in rules.get("pet_prefs", []):
 		var target := str(entry.get("target", ""))
 		if known.has(target):
 			continue
 		if _known_pets.has(target):
 			known[target] = true
-			_add_pet_pref_row(target, str(_known_pets[target]), rules)
+			entries.append([target, str(_known_pets[target])])
+		else:
+			missing_total += 1
+	# 2026-10-18 使用者要求:「全部角色」固定在最上面,接著 ⭐ 最喜歡,其他依好惡等級由高到低,🚫 不交互的放最後;同一級照原本順序。
+	var order := {}
+	for i in entries.size():
+		order[entries[i][0]] = i
+	var rank := func(tag: String) -> int:
+		if InteractionRules.is_favorite(rules, tag):
+			return 0
+		return 2 if InteractionRules.is_no_interact(rules, tag) else 1
+	entries.sort_custom(func(a: Array, b: Array) -> bool:
+		var ra: int = rank.call(a[0])
+		var rb: int = rank.call(b[0])
+		if ra != rb:
+			return ra < rb
+		var la := InteractionRules.direct_pet_pref_level(rules, a[0])
+		var lb := InteractionRules.direct_pet_pref_level(rules, b[0])
+		if la != lb:
+			return la > lb
+		return order[a[0]] < order[b[0]])
+	for entry: Array in entries:
+		_add_pet_pref_row(entry[0], entry[1], rules)
+	for entry: Dictionary in rules.get("pet_prefs", []):
+		var target := str(entry.get("target", ""))
+		if known.has(target):
 			continue
 		if not _show_missing:
 			continue

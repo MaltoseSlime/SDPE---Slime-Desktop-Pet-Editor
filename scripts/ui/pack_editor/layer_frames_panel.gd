@@ -433,6 +433,9 @@ class LayerImagePreview:
 	var _pending := Rect2i()
 	var _origin := Vector2.ZERO
 	var _drag_from := Vector2(-1, -1)
+	## 拖裁切線(2026-10-18):抓到框的邊/角就只移那幾條(往外拉 = 把裁掉的拿回來);空的 = 畫新框。
+	var _edge_drag: Dictionary = {}
+	const EDGE_GRAB := 7.0
 
 	func _ready() -> void:
 		clip_contents = true
@@ -483,6 +486,67 @@ class LayerImagePreview:
 		var top_left: Vector2 = layout["origin"]
 		var scale := float(layout["scale"])
 		var area := Rect2(top_left, layout["size"])
+		_draw_board(area)
+		draw_texture_rect(_texture, area, false)
+		var shown := _shown_crop()
+		if shown.size.x > 0:
+			var rect := Rect2(top_left + Vector2(shown.position) * scale, Vector2(shown.size) * scale)
+			var shade := Color(0, 0, 0, 0.45)
+			draw_rect(Rect2(area.position, Vector2(area.size.x, rect.position.y - area.position.y)), shade)
+			draw_rect(Rect2(Vector2(area.position.x, rect.end.y), Vector2(area.size.x, area.end.y - rect.end.y)), shade)
+			draw_rect(Rect2(Vector2(area.position.x, rect.position.y), Vector2(rect.position.x - area.position.x, rect.size.y)), shade)
+			draw_rect(Rect2(Vector2(rect.end.x, rect.position.y), Vector2(area.end.x - rect.end.x, rect.size.y)), shade)
+			var color := ManagerUi.accent_color(self) if _pending.size.x == 0 else Color(1.0, 0.75, 0.2)
+			draw_rect(rect, color, false, 2.0)
+			if mode == MODE_CROP:
+				for handle: Vector2 in [Vector2(rect.position.x, rect.get_center().y), Vector2(rect.end.x, rect.get_center().y), Vector2(rect.get_center().x, rect.position.y), Vector2(rect.get_center().x, rect.end.y)]:
+					draw_rect(Rect2(handle - Vector2(3, 3), Vector2(6, 6)), color)
+		draw_rect(area, Color(ink, 0.5), false, 1.0)
+		var cross := top_left + _origin * scale
+		var red := Color(1.0, 0.3, 0.3)
+		draw_line(cross + Vector2(-7, 0), cross + Vector2(7, 0), red, 2.0)
+		draw_line(cross + Vector2(0, -7), cross + Vector2(0, 7), red, 2.0)
+
+	func _shown_crop() -> Rect2i:
+		return _pending if _pending.size.x > 0 else _crop
+
+	## 滑鼠按在裁切框的哪幾條線上(螢幕上 EDGE_GRAB 以內);沒按到回空字典。
+	func _edges_at(mouse: Vector2) -> Dictionary:
+		var shown := _shown_crop()
+		var layout := _layout()
+		if shown.size.x <= 0 or layout.is_empty():
+			return {}
+		var scale := float(layout["scale"])
+		var box := Rect2((layout["origin"] as Vector2) + Vector2(shown.position) * scale, Vector2(shown.size) * scale)
+		var within_x := mouse.x >= box.position.x - EDGE_GRAB and mouse.x <= box.end.x + EDGE_GRAB
+		var within_y := mouse.y >= box.position.y - EDGE_GRAB and mouse.y <= box.end.y + EDGE_GRAB
+		var left := absf(mouse.x - box.position.x) <= EDGE_GRAB and within_y
+		var right := absf(mouse.x - box.end.x) <= EDGE_GRAB and within_y and not left
+		var top := absf(mouse.y - box.position.y) <= EDGE_GRAB and within_x
+		var bottom := absf(mouse.y - box.end.y) <= EDGE_GRAB and within_x and not top
+		if not (left or right or top or bottom):
+			return {}
+		return {"left": left, "right": right, "top": top, "bottom": bottom, "start": shown, "mouse": mouse, "scale": scale}
+
+	func _edge_rect(mouse: Vector2) -> Rect2i:
+		var start: Rect2i = _edge_drag["start"]
+		var delta := Vector2i(((mouse - (_edge_drag["mouse"] as Vector2)) / float(_edge_drag["scale"])).round())
+		var full := _texture.get_size()
+		var left := start.position.x
+		var right := start.end.x
+		var top := start.position.y
+		var bottom := start.end.y
+		if _edge_drag["left"]:
+			left = clampi(left + delta.x, 0, right - 1)
+		if _edge_drag["right"]:
+			right = clampi(right + delta.x, left + 1, int(full.x))
+		if _edge_drag["top"]:
+			top = clampi(top + delta.y, 0, bottom - 1)
+		if _edge_drag["bottom"]:
+			bottom = clampi(bottom + delta.y, top + 1, int(full.y))
+		return Rect2i(left, top, right - left, bottom - top)
+
+	func _draw_board(area: Rect2) -> void:
 		# 棋盤格只畫看得到的部分(放大後圖可能比預覽大很多)
 		var cell := 8.0
 		var visible_area := area.intersection(Rect2(Vector2.ZERO, size))
@@ -494,21 +558,6 @@ class LayerImagePreview:
 					draw_rect(Rect2(area.position + Vector2(x, y), Vector2(minf(cell, area.size.x - x), minf(cell, area.size.y - y))), Color(0.5, 0.5, 0.5, 0.18))
 				x += cell
 			y += cell
-		draw_texture_rect(_texture, area, false)
-		var shown := _pending if _pending.size.x > 0 else _crop
-		if shown.size.x > 0:
-			var rect := Rect2(top_left + Vector2(shown.position) * scale, Vector2(shown.size) * scale)
-			var shade := Color(0, 0, 0, 0.45)
-			draw_rect(Rect2(area.position, Vector2(area.size.x, rect.position.y - area.position.y)), shade)
-			draw_rect(Rect2(Vector2(area.position.x, rect.end.y), Vector2(area.size.x, area.end.y - rect.end.y)), shade)
-			draw_rect(Rect2(Vector2(area.position.x, rect.position.y), Vector2(rect.position.x - area.position.x, rect.size.y)), shade)
-			draw_rect(Rect2(Vector2(rect.end.x, rect.position.y), Vector2(area.end.x - rect.end.x, rect.size.y)), shade)
-			draw_rect(rect, ManagerUi.accent_color(self) if _pending.size.x == 0 else Color(1.0, 0.75, 0.2), false, 2.0)
-		draw_rect(area, Color(ink, 0.5), false, 1.0)
-		var cross := top_left + _origin * scale
-		var red := Color(1.0, 0.3, 0.3)
-		draw_line(cross + Vector2(-7, 0), cross + Vector2(7, 0), red, 2.0)
-		draw_line(cross + Vector2(0, -7), cross + Vector2(0, 7), red, 2.0)
 
 	func _zoom_at(mouse: Vector2, factor: float) -> void:
 		var before := _layout()
@@ -552,7 +601,15 @@ class LayerImagePreview:
 					origin_picked.emit(point)
 				accept_event()
 				return
-			if pressed:
+			if pressed and mode == MODE_CROP:
+				_edge_drag = _edges_at((event as InputEventMouseButton).position)
+			if pressed and not _edge_drag.is_empty():
+				pass
+			elif not pressed and not _edge_drag.is_empty():
+				var dragged := _edge_rect((event as InputEventMouseButton).position)
+				_edge_drag = {}
+				crop_drawn.emit(dragged)
+			elif pressed:
 				_drag_from = point
 			elif _drag_from.x >= 0.0:
 				var rect := Rect2(_drag_from, Vector2.ZERO).expand(point)
@@ -560,6 +617,15 @@ class LayerImagePreview:
 				if rect.size.x >= 1.0 and rect.size.y >= 1.0:
 					crop_drawn.emit(Rect2i(Vector2i(rect.position.floor()), Vector2i(rect.size.ceil())))
 			accept_event()
+		elif event is InputEventMouseMotion and not _edge_drag.is_empty():
+			_pending = _edge_rect((event as InputEventMouseMotion).position)
+			queue_redraw()
+			accept_event()
+		elif event is InputEventMouseMotion and mode == MODE_CROP and _drag_from.x < 0.0:
+			var edges := _edges_at((event as InputEventMouseMotion).position)
+			var horizontal: bool = edges.get("left", false) or edges.get("right", false)
+			var vertical: bool = edges.get("top", false) or edges.get("bottom", false)
+			mouse_default_cursor_shape = Control.CURSOR_FDIAGSIZE if horizontal and vertical else (Control.CURSOR_HSIZE if horizontal else (Control.CURSOR_VSIZE if vertical else Control.CURSOR_ARROW))
 		elif event is InputEventMouseMotion and _drag_from.x >= 0.0 and mode == MODE_CROP:
 			var rect := Rect2(_drag_from, Vector2.ZERO).expand(_to_image((event as InputEventMouseMotion).position))
 			_pending = Rect2i(Vector2i(rect.position.floor()), Vector2i(rect.size.ceil()))

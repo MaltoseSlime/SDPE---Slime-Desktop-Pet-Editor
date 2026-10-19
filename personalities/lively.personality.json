@@ -13,7 +13,6 @@
       "[wave]今天太棒了!我整個人都在發光!": "[wave]Today's amazing! I feel like I'm glowing!",
       "[wave]嗨嗨嗨~今天也要一起玩喔!": "[wave]Hiii~ let's play together today too!",
       "[wave]我來啦!大家好~": "[wave]I'm here! Hi everyone~",
-      "[wave]欸欸欸,你看我跳得多高!": "[wave]Hey hey hey, look how high I jumped!",
       "[wave]睡飽啦!再衝一波!": "[wave]Fully rested! Charging again!",
       "[wave]耶!我贏啦!再來再來!": "[wave]Yay! I won! Again, again!",
       "[wave]陪我玩~陪我玩嘛~!": "[wave]Play with me~ play with me~!",
@@ -25,9 +24,7 @@
       "今天沒力氣……下次我再陪你們玩!": "No energy today... I'll play with you next time!",
       "今天玩得好開心……晚安~": "Had so much fun today... good night~",
       "今天要做什麼,{user}?我們去玩吧!": "What should we do today, {user}? Let's go play!",
-      "你今天心情好嗎?我好極了!": "Are you in a good mood today? I'm doing great!",
       "你們玩球居然不叫我!等我!": "You played ball without calling me! Wait for me!",
-      "你有好好休息嗎?休息是為了走更遠的路!": "Did you get enough rest? Resting is how you go the extra mile!",
       "來了來了!我發抖是因為興奮啦!": "Here it comes, here it comes! I'm shaking because I'm excited!",
       "來吧來吧!": "Come on, come on!",
       "來比賽!誰先碰到螢幕邊邊誰贏!": "Let's race! Whoever touches the edge of the screen first wins!",
@@ -40,13 +37,11 @@
       "呼~玩得好過癮!明天再玩!": "Whew~ so much fun! Let's play again tomorrow!",
       "呼……呼……跑太多了,坐一下。": "Huff... huff... ran too much, gonna sit for a bit.",
       "咦……這次先不要,下次一定!": "Huh... not this time, next time for sure!",
-      "哇!你要陪我玩嗎!": "Whoa! You wanna play with me?!",
       "哇!球球!來比賽誰頂得高!": "Whoa! A ball! Let's race who can bump it higher!",
       "哇,一樣耶!好巧!": "Whoa, the same! What a coincidence!",
       "哇啊啊啊——我在飛!": "Whoaaaa—I'm flying!",
       "哈啊~滿血復活!": "Haah~ back to full power!",
       "哎呀,有點喘……休息一下下!": "Oof, a bit out of breath... quick rest!",
-      "哼!不跟你玩了……才怪,我等一下就好了。": "Hmph! I'm not playing with you anymore... just kidding, I'll be fine in a sec.",
       "哼哼,剛才是讓你的!": "Heh heh, I went easy on you that time!",
       "啊……電力快用完了。": "Ah... running low on energy.",
       "喘口氣……好,充電完成!": "Catch my breath... okay, fully charged!",
@@ -77,7 +72,12 @@
       "跑起來!風好舒服~": "Let's run! The wind feels great~",
       "躺下來看雲飄好像也不錯,等下再衝!": "Lying down watching the clouds drift by sounds nice too, I'll charge again later!",
       "這次我先休息,下一場我一定衝第一!": "Resting this round, next one I'm going first for sure!",
-      "飛高高~": "Flying so high~"
+      "飛高高~": "Flying so high~",
+      "哼!不跟{you}玩了……才怪,我等一下就好了。": "Hmph! I'm not playing with {you} anymore... just kidding, I'll be fine in a sec.",
+      "[wave]欸欸欸,{you}看我跳得多高!": "[wave]Hey hey hey, look how high I jumped!",
+      "{you}有好好休息嗎?休息是為了走更遠的路!": "Did you get enough rest? Resting is how you go the extra mile!",
+      "{you}今天心情好嗎?我好極了!": "Are you in a good mood today? I'm doing great!",
+      "哇!{you}要陪我玩嗎!": "Whoa! You wanna play with me?!"
     },
     "zh-TW": {
       "(吸鼻子)給我一點點時間,我會再蹦起來的!": "(吸鼻子)給我一點點時間,我會再蹦起來的!",
@@ -90,7 +90,6 @@
       "[wave]今天太棒了!我整個人都在發光!": "[wave]今天太棒了!我整個人都在發光!",
       "[wave]嗨嗨嗨~今天也要一起玩喔!": "[wave]嗨嗨嗨~今天也要一起玩喔!",
       "[wave]我來啦!大家好~": "[wave]我來啦!大家好~",
-      "[wave]欸欸欸,你看我跳得多高!": "[wave]欸欸欸,你看我跳得多高!",
       "[wave]睡飽啦!再衝一波!": "[wave]睡飽啦!再衝一波!",
       "[wave]耶!我贏啦!再來再來!": "[wave]耶!我贏啦!再來再來!",
       "[wave]陪我玩~陪我玩嘛~!": "[wave]陪我玩~陪我玩嘛~!",
@@ -102,9 +101,7 @@
       "今天沒力氣……下次我再陪你們玩!": "今天沒力氣……下次我再陪你們玩!",
       "今天玩得好開心……晚安~": "今天玩得好開心……晚安~",
       "今天要做什麼,{user}?我們去玩吧!": "今天要做什麼,{user}?我們去玩吧!",
-      "你今天心情好嗎?我好極了!": "你今天心情好嗎?我好極了!",
       "你們玩球居然不叫我!等我!": "你們玩球居然不叫我!等我!",
-      "你有好好休息嗎?休息是為了走更遠的路!": "你有好好休息嗎?休息是為了走更遠的路!",
       "來了來了!我發抖是因為興奮啦!": "來了來了!我發抖是因為興奮啦!",
       "來吧來吧!": "來吧來吧!",
       "來比賽!誰先碰到螢幕邊邊誰贏!": "來比賽!誰先碰到螢幕邊邊誰贏!",
@@ -117,13 +114,11 @@
       "呼~玩得好過癮!明天再玩!": "呼~玩得好過癮!明天再玩!",
       "呼……呼……跑太多了,坐一下。": "呼……呼……跑太多了,坐一下。",
       "咦……這次先不要,下次一定!": "咦……這次先不要,下次一定!",
-      "哇!你要陪我玩嗎!": "哇!你要陪我玩嗎!",
       "哇!球球!來比賽誰頂得高!": "哇!球球!來比賽誰頂得高!",
       "哇,一樣耶!好巧!": "哇,一樣耶!好巧!",
       "哇啊啊啊——我在飛!": "哇啊啊啊——我在飛!",
       "哈啊~滿血復活!": "哈啊~滿血復活!",
       "哎呀,有點喘……休息一下下!": "哎呀,有點喘……休息一下下!",
-      "哼!不跟你玩了……才怪,我等一下就好了。": "哼!不跟你玩了……才怪,我等一下就好了。",
       "哼哼,剛才是讓你的!": "哼哼,剛才是讓你的!",
       "啊……電力快用完了。": "啊……電力快用完了。",
       "喘口氣……好,充電完成!": "喘口氣……好,充電完成!",
@@ -154,7 +149,12 @@
       "跑起來!風好舒服~": "跑起來!風好舒服~",
       "躺下來看雲飄好像也不錯,等下再衝!": "躺下來看雲飄好像也不錯,等下再衝!",
       "這次我先休息,下一場我一定衝第一!": "這次我先休息,下一場我一定衝第一!",
-      "飛高高~": "飛高高~"
+      "飛高高~": "飛高高~",
+      "哼!不跟{you}玩了……才怪,我等一下就好了。": "哼!不跟{you}玩了……才怪,我等一下就好了。",
+      "[wave]欸欸欸,{you}看我跳得多高!": "[wave]欸欸欸,{you}看我跳得多高!",
+      "{you}有好好休息嗎?休息是為了走更遠的路!": "{you}有好好休息嗎?休息是為了走更遠的路!",
+      "{you}今天心情好嗎?我好極了!": "{you}今天心情好嗎?我好極了!",
+      "哇!{you}要陪我玩嗎!": "哇!{you}要陪我玩嗎!"
     }
   },
   "fileType": "slime_pet_personality",
@@ -204,7 +204,7 @@
                             "FRESH": true,
                             "KEY": "learned",
                             "MAXLEN": 16.0,
-                            "PROMPT": "快快快!你要教我什麼詞?"
+                            "PROMPT": "快快快!{you}要教我什麼詞?"
                           },
                           "id": "lively_teach_ask",
                           "next": {
@@ -319,7 +319,7 @@
                 "CLICK_WAIT": true,
                 "FONT": "__default__",
                 "SPEAKER": "",
-                "TEXT": "我想更了解你!你最近對什麼有興趣呀?",
+                "TEXT": "我想更了解{you}!你最近對什麼有興趣呀?",
                 "TYPEWRITER": true,
                 "WAIT": true
               },
@@ -343,7 +343,7 @@
                             "FRESH": true,
                             "KEY": "interest",
                             "MAXLEN": 16.0,
-                            "PROMPT": "快說快說!你喜歡什麼?"
+                            "PROMPT": "快說快說!{you}喜歡什麼?"
                           },
                           "id": "lively_know_ask",
                           "next": {
@@ -451,7 +451,7 @@
       },
       {
         "lens": "生氣",
-        "say": "哼!不跟你玩了……才怪,我等一下就好了。",
+        "say": "哼!不跟{you}玩了……才怪,我等一下就好了。",
         "tag": "lens"
       },
       {
@@ -465,7 +465,7 @@
       },
       {
         "hop": 2.0,
-        "say": "[wave]欸欸欸,你看我跳得多高!",
+        "say": "[wave]欸欸欸,{you}看我跳得多高!",
         "tag": "chat"
       },
       {
@@ -489,7 +489,7 @@
         "tag": "chat"
       },
       {
-        "say": "你有好好休息嗎?休息是為了走更遠的路!",
+        "say": "{you}有好好休息嗎?休息是為了走更遠的路!",
         "tag": "chat"
       },
       {
@@ -517,7 +517,7 @@
         "tag": "chat"
       },
       {
-        "say": "你今天心情好嗎?我好極了!",
+        "say": "{you}今天心情好嗎?我好極了!",
         "tag": "chat"
       },
       {
@@ -743,7 +743,7 @@
         "on": "interact",
         "say": [
           "嘿嘿,好好玩!再來~",
-          "哇!你要陪我玩嗎!",
+          "哇!{you}要陪我玩嗎!",
           "[shake]我最喜歡{user}了!",
           "再摸摸我!再摸摸我!"
         ]

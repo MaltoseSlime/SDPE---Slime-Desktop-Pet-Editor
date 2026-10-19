@@ -310,7 +310,7 @@ static func play_all(host: Node, ask_user := true) -> Dictionary:
 	if not others.is_empty():
 		var names: Array[String] = []
 		for other: Node in others:
-			names.append(str(other.get_label()))
+			names.append(host.call_name(other))
 		var address: String = "、".join(names) if names.size() <= 3 else TranslationServer.translate("大家")
 		GameChat.chain_say(host, "%s,%s" % [address, host.speak_tr(GROUP_LINES.pick_random())], 2.6)
 		await _wait(host, 1.9)

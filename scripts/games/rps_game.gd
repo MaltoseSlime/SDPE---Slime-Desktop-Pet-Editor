@@ -167,12 +167,12 @@ static func _play_pets(a: Node, b: Node, best_of := 1) -> Dictionary:
 		result_a = outcome_for(last["a"], last["b"])
 	a.game_vars["rps:mine"] = gesture(last["a"])
 	a.game_vars["rps:theirs"] = gesture(last["b"])
-	a.game_vars["rps:opponent"] = str(b.get_label())
+	a.game_vars["rps:opponent"] = a.call_name(b)
 	a.game_vars["rps:score"] = "%d:%d" % [wins_a, wins_b]
 	a.game_vars["rps:rounds"] = str(rounds)
 	b.game_vars["rps:mine"] = gesture(last["b"])
 	b.game_vars["rps:theirs"] = gesture(last["a"])
-	b.game_vars["rps:opponent"] = str(a.get_label())
+	b.game_vars["rps:opponent"] = b.call_name(a)
 	b.game_vars["rps:score"] = "%d:%d" % [wins_b, wins_a]
 	b.game_vars["rps:rounds"] = str(rounds)
 	GameChat.set_result_context(a, b, result_a)
@@ -291,7 +291,7 @@ static func play_battle_royale(host: Node) -> Dictionary:
 		var generation: int = host.action_generation
 		var names: Array[String] = []
 		for other: Node in others:
-			names.append(str(other.get_label()))
+			names.append(host.call_name(other))
 		var address: String = "、".join(names) if names.size() <= 3 else TranslationServer.translate("大家")
 		GameChat.chain_say(host, "%s,%s" % [address, host.speak_tr(GROUP_LINES.pick_random())], 2.6)
 		await _wait(host, 1.9)

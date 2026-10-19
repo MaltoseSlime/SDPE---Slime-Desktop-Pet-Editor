@@ -562,9 +562,10 @@ func set_counterpart(role: String, other: Node) -> void:
 		set_counterpart_named(role, str(other.recognition_tag), str(other.display_name))
 
 
-## 記下一個對象(tag 是辨識代號,使用者是 "user")。
+## 記下一個對象(tag 是辨識代號,使用者是 "user")。name = 這隻桌寵怎麼稱呼牠(有設暱稱就用暱稱,見 call_name_for),
+## real = 本名({realname:角色} 用)。
 func set_counterpart_named(role: String, tag: String, person_name: String) -> void:
-	counterparts[role] = {"tag": tag, "name": person_name, "stamp": Time.get_ticks_msec()}
+	counterparts[role] = {"tag": tag, "name": call_name_for(tag, person_name), "real": person_name, "stamp": Time.get_ticks_msec()}
 	_last_counterpart_role = role
 
 
@@ -578,6 +579,29 @@ func counterpart(role: String) -> Dictionary:
 	if entry is Dictionary and Time.get_ticks_msec() - int((entry as Dictionary).get("stamp", 0)) <= COUNTERPART_TTL_MSEC:
 		return entry
 	return {}
+
+
+## 這隻桌寵怎麼稱呼辨識代號 tag 的角色(2026-10-18 使用者要求):在好惡設定填了暱稱就從裡面隨機挑一個
+## (跟使用者稱呼 pick_user_nickname 同一套),沒填就用 fallback(名字)。自己、使用者("user")不適用。
+func call_name_for(tag: String, fallback: String) -> String:
+	if tag == "" or tag == "user" or tag == str(recognition_tag):
+		return fallback
+	var nicknames := InteractionRules.pet_nicknames(interaction_rules, tag)
+	return str(nicknames.pick_random()) if not nicknames.is_empty() else fallback
+
+
+## 稱呼場上的另一隻桌寵:有暱稱用暱稱,沒有用 get_label()(同角色多隻在場時帶編號)。
+func call_name(other: Node) -> String:
+	if not is_instance_valid(other):
+		return ""
+	return call_name_for(str(other.recognition_tag), str(other.get_label()))
+
+
+## 好惡列 📝 迷你設定窗的「暱稱」欄位:raw 是逗號分隔的原始輸入,空字串 = 拿掉暱稱(直接叫名字)。
+func set_pet_nickname(target: String, raw: String) -> void:
+	if target == "" or target == InteractionRules.ALL_PETS_TARGET:
+		return
+	_update_pet_pref(target, {"nickname": InteractionRules.clean_nickname(raw)})
 
 
 ## {other} 用:最近一次記下、還沒失效的對象名字(沒有回空字串)。
@@ -607,20 +631,21 @@ func uptime_hours() -> float:
 ## 疲勞消耗倍率:在場越久越累,最多加快 UPTIME_CAP_HOURS × UPTIME_FATIGUE_PER_HOUR(= 32%)。
 func uptime_factor() -> float:
 	return 1.0 + minf(uptime_hours(), UPTIME_CAP_HOURS) * UPTIME_FATIGUE_PER_HOUR
-const GAME_KIND_NAMES := {"rps": "猜拳", "dice": "拚骰", "ttt": "井字棋", "blockade": "步步為營", "mastermind": "珠璣妙算"}
+const GAME_KIND_NAMES := {"rps": "猜拳", "dice": "拚骰", "ttt": "井字棋", "blockade": "步步為營", "mastermind": "珠璣妙算", "connect4": "四連環"}
 ## AI 強度(井字棋/步步為營/珠璣妙算各自一個,1~4,右鍵選單「AI 強度」子選單或「遊戲與對戰」設定卡片都能調):
 ## 數字愈小愈容易犯錯/隨便選,愈大愈接近「一定選目前看起來最好的那個」。三個遊戲共用同一套等級換算
 ## (`GameAiLevel.mistake_chance`),不是各自設計一套;預設值見 `GameAiLevel.DEFAULT_LEVEL` 的說明。
 var ttt_ai_level := GameAiLevel.DEFAULT_LEVEL
 var blockade_ai_level := GameAiLevel.DEFAULT_LEVEL
 var mastermind_ai_level := GameAiLevel.DEFAULT_LEVEL
+var connect4_ai_level := GameAiLevel.DEFAULT_LEVEL   # 2026-10-18 四連環
 ## 珠璣妙算的題型(密碼長度,3 或 4 格;右鍵選單「題型」可調):跟其他遊戲的賽制一樣,由發起的那隻桌寵
 ## 自己的設定決定(見 MastermindGame.play_user/play_pets/play_all)。
 var mastermind_code_length := MastermindGame.DEFAULT_CODE_LENGTH
 ## 「遊戲與對戰」設定卡片用:各遊戲(含玩球)各自的「自動邀請」開關跟「一律接受/一律拒絕」覆寫。鍵是
 ## `GAME_PREF_KINDS` 其中一個;沒登記過的鍵視為預設值(auto_invite 預設 true、force_accept/force_decline
 ## 預設 false = 維持原本機率/邏輯決定),舊存檔沒有這些欄位完全相容,不用遷移。
-const GAME_PREF_KINDS: Array[String] = ["rps", "dice", "ttt", "blockade", "mastermind", "ball"]
+const GAME_PREF_KINDS: Array[String] = ["rps", "dice", "ttt", "blockade", "mastermind", "connect4", "ball"]
 var game_auto_invite: Dictionary = {}
 var game_force_accept: Dictionary = {}
 var game_force_decline: Dictionary = {}
@@ -722,7 +747,7 @@ func show_game_record() -> void:
 	var board := GroupScoreboard.new()
 	shell.top_layer().add_child(board)
 	board.setup(shell.action_area, tr("我的戰績"))
-	for kind: String in ["rps", "dice", "ttt", "blockade", "mastermind"]:
+	for kind: String in ["rps", "dice", "ttt", "blockade", "mastermind", "connect4"]:
 		board.add_line("", game_record_line(kind))
 	get_tree().create_timer(RECORD_BOARD_SECONDS).timeout.connect(func() -> void:
 		if is_instance_valid(board):
@@ -925,6 +950,14 @@ func start_ttt_with(other: Node, best_of := 0) -> void:
 	await TttGame.play_pets(self, other, best_of if BEST_OF_CHOICES.has(best_of) else game_best_of)
 
 
+func start_connect4_with_user() -> void:
+	Connect4Game.play_user(self, game_best_of)
+
+
+func start_connect4_with(other: Node, best_of := 0) -> void:
+	await Connect4Game.play_pets(self, other, best_of if BEST_OF_CHOICES.has(best_of) else game_best_of)
+
+
 func start_blockade_with_user() -> void:
 	BlockadeGame.play_user(self, game_best_of)
 
@@ -1036,6 +1069,20 @@ func _add_game_menus(root: RID) -> void:
 	_add_ai_level_menu(ttt_menu, "ai_level_ttt", ttt_ai_level)
 	_add_match_items(ttt_menu)
 	NativeMenu.add_submenu_item(battle_menu, tr("井字棋"), ttt_menu)
+	var connect4_menu := NativeMenu.create_menu()
+	_context_rids.append(connect4_menu)
+	NativeMenu.add_item(connect4_menu, tr("跟我玩四連環"), _on_context_item, Callable(), "connect4_user")
+	var connect4_pets_menu := NativeMenu.create_menu()
+	_context_rids.append(connect4_pets_menu)
+	if others.is_empty():
+		NativeMenu.set_item_disabled(connect4_pets_menu, NativeMenu.add_item(connect4_pets_menu, tr("(場上沒有其他桌寵)")), true)
+	else:
+		for other: Node in others:
+			NativeMenu.add_item(connect4_pets_menu, other.get_label(), _on_context_item, Callable(), "connect4_pet:%d" % other.spawn_serial)
+	NativeMenu.add_submenu_item(connect4_menu, tr("跟其他桌寵四連環"), connect4_pets_menu)
+	_add_ai_level_menu(connect4_menu, "ai_level_connect4", connect4_ai_level)
+	_add_match_items(connect4_menu)
+	NativeMenu.add_submenu_item(battle_menu, tr("四連環"), connect4_menu)
 	var blockade_menu := NativeMenu.create_menu()
 	_context_rids.append(blockade_menu)
 	NativeMenu.add_item(blockade_menu, tr("跟我玩步步為營"), _on_context_item, Callable(), "blockade_user")
@@ -1155,6 +1202,13 @@ func _on_game_menu_item(text: String) -> bool:
 			var ttt_rival := _pet_by_serial(int(argument))
 			if ttt_rival != null and not is_in_game() and not TttGame.has_active_board():
 				GameInvite.invite(self, ttt_rival, "ttt")
+		"connect4_user":
+			if not is_in_game() and not Connect4Game.has_active_board():
+				start_connect4_with_user()
+		"connect4_pet":
+			var connect4_rival := _pet_by_serial(int(argument))
+			if connect4_rival != null and not is_in_game() and not Connect4Game.has_active_board():
+				GameInvite.invite(self, connect4_rival, "connect4")
 		"blockade_user":
 			if not is_in_game() and not BlockadeGame.has_active_board():
 				start_blockade_with_user()
@@ -1174,6 +1228,9 @@ func _on_game_menu_item(text: String) -> bool:
 				GameInvite.invite(self, mastermind_rival, "mastermind")
 		"ai_level_ttt":
 			ttt_ai_level = GameAiLevel.clamp_level(int(argument))
+			PetProfile.save_pet(self)
+		"ai_level_connect4":
+			connect4_ai_level = GameAiLevel.clamp_level(int(argument))
 			PetProfile.save_pet(self)
 		"ai_level_blockade":
 			blockade_ai_level = GameAiLevel.clamp_level(int(argument))
@@ -1703,7 +1760,10 @@ func say_something() -> bool:
 func _tick_auto_chat(delta: float) -> void:
 	if _auto_chat_left < 0.0:
 		_reset_auto_chat_timer()
-	_auto_chat_left -= delta * lens_mod("chat")   # 悠哉比較常開口聊天、疲憊比較少
+	var pace := lens_mod("chat")   # 悠哉比較常開口聊天、疲憊比較少
+	if relaxing():
+		pace /= 1.0 + PetRelax.CHAT_INTERVAL_PCT   # 放鬆模式間隔拉長;用倒數速度做,切換模式當下就生效
+	_auto_chat_left -= delta * pace
 	if _auto_chat_left > 0.0:
 		return
 	if _can_auto_chat() and say_something():
@@ -1729,10 +1789,10 @@ func _can_auto_chat() -> bool:
 	return _interact_left <= 0.0 and (_hold_left <= 0.0 or relax_seated()) and Time.get_ticks_msec() - _last_user_msec > AUTO_CHAT_QUIET_MSEC
 
 
-## 放鬆模式下正坐著/站著休息(沒睡著):這種「佔用動作」只是待著,不算在忙——照常閒聊、找別隻玩、被邀請也不算忙碌
+## 放鬆模式下正坐著/站著/躺著休息(沒睡著):這種「佔用動作」只是待著,不算在忙——照常閒聊、找別隻玩、被邀請也不算忙碌
 ## (2026-10-11 使用者要求:自動閒聊與放鬆模式同時開著時,桌寵在放鬆模式的行為下照常閒聊與互相遊戲,玩球除外)。
 func relax_seated() -> bool:
-	return relaxing() and vitality != null and (vitality.mode == PetVitality.Mode.RESTING or vitality.mode == PetVitality.Mode.STANDING)
+	return relaxing() and vitality != null and vitality.mode in [PetVitality.Mode.RESTING, PetVitality.Mode.STANDING, PetVitality.Mode.LAYING]
 
 
 ## 目前的閒聊情境,決定哪些閒聊對話有資格被挑中:sleep 睡眠中、rest 休息中(坐下/躺下/飛行降落休息)、chat 其餘。
@@ -3016,6 +3076,7 @@ func start_follow(tag: String) -> bool:
 	_follow_leader_resting = false
 	_follow_land_with_leader = false
 	_follow_leader_seeking_mouse = false
+	_comfort_tag = ""
 	interaction.follow_count += 1
 	var leader := _find_pet_by_tag(tag)
 	if leader != null:
@@ -3031,6 +3092,7 @@ func follow_stamp() -> int:
 func stop_follow() -> void:
 	_follow_tag = ""
 	_follow_arrived = false
+	_comfort_tag = ""
 
 
 func is_following() -> bool:
@@ -3184,7 +3246,11 @@ func has_any_favorite() -> bool:
 
 ## 跟著 target 走時保持的距離:最喜歡的對象跟得跟黏人的一樣近。
 func _follow_spacing(target: Node) -> float:
-	return minf(follow_distance, FAVORITE_FOLLOW_DISTANCE) if is_favorite(target) else follow_distance
+	var spacing := minf(follow_distance, FAVORITE_FOLLOW_DISTANCE) if is_favorite(target) else follow_distance
+	if _comfort_tag != "" and str(target.recognition_tag) == _comfort_tag:
+		# 去安慰/找安慰:站到判定框疊得到的距離,才會觸發好惡接觸(見 _tick_comfort)
+		spacing = minf(spacing, (interaction_rect().size.x + (target.interaction_rect() as Rect2).size.x) * COMFORT_SPACING_RATIO)
+	return spacing
 
 
 ## 場上可以跟隨的桌寵裡,「距離 − 好惡加成」評分最低的那隻(排除自己、正在入場/被收起的、設了「不會被其他
@@ -3207,6 +3273,95 @@ func _nearest_followable_pet() -> Node:
 			best_score = score
 			best = other
 	return best
+
+
+# --- 安慰(2026-10-19 使用者要求):喜歡、超級喜歡或最喜歡(優先)的對象處於負面狀態鏡(疲憊除外)時,機率性走過去;
+# 自己處於負面狀態鏡時,也會走去找喜歡的對象。走過去 = 一段短的跟隨,站得比平常近(判定框疊得到),
+# 碰到就是既有的好惡接觸(心情、好感,見 _tick_pet_affinity_contact);接觸在冷卻中也照樣走過去,只是不加。
+# 碰到之後陪 COMFORT_STAY_SECONDS 秒就結束這次跟隨。開關跟「自己跟著其他桌寵走」共用(auto_pet_follow_enabled)。 ---
+const COMFORT_CHECK := Vector2(15.0, 35.0)
+const COMFORT_CHANCE := 0.3
+const COMFORT_FAVORITE_CHANCE := 0.5
+## 好惡等級至少「喜歡」(2)才會去;最喜歡的對象算 FAVORITE_LEVEL,最先挑。
+const COMFORT_MIN_LEVEL := 2
+## 走過去最多花這麼久(走不到就算了),碰到之後再陪這麼久。
+const COMFORT_MAX_SECONDS := 60.0
+const COMFORT_STAY_SECONDS := 10.0
+## 站的距離 = 兩隻判定框寬相加 × 這個比例(到達門檻再乘 FOLLOW_ARRIVE_RATIO 也還在判定框重疊的範圍內)。
+const COMFORT_SPACING_RATIO := 0.25
+var _comfort_left := -1.0
+## 這次跟隨是去安慰/找安慰的對象(空 = 不是);start_follow / stop_follow 會清掉。
+var _comfort_tag := ""
+var _comfort_touched := false
+
+
+## 處於負面狀態鏡(疲憊除外):喜歡自己的桌寵會來安慰,自己也會去找喜歡的對象。
+func needs_comfort() -> bool:
+	for lens: PetStateLens in state_lenses:
+		if lens.has_nature("負面") and lens.lens_name != PetVitality.TIRED_LENS and _active_lenses.has(lens.lens_name):
+			return true
+	return false
+
+
+func is_comforting() -> bool:
+	return _comfort_tag != ""
+
+
+func _tick_comfort(delta: float) -> void:
+	if not auto_pet_follow_enabled or is_following() or _seek_left > 0.0:
+		return
+	if _comfort_left < 0.0:
+		_comfort_left = randf_range(COMFORT_CHECK.x, COMFORT_CHECK.y)
+	_comfort_left -= delta
+	if _comfort_left > 0.0:
+		return
+	_comfort_left = randf_range(COMFORT_CHECK.x, COMFORT_CHECK.y)
+	if move_mode == MoveMode.FIXED or move_mode == MoveMode.STATIONARY or is_sleeping() or is_resting_now() \
+			or is_busy_for_game() or dragging or entering or bool(interaction_rules.get("no_follow_source", false)):
+		return
+	var target := _comfort_candidate()
+	if target == null or randf() >= (COMFORT_FAVORITE_CHANCE if is_favorite(target) else COMFORT_CHANCE):
+		return
+	start_comfort(target)
+
+
+## 走去安慰/找安慰 target(機率之外的條件見 _tick_comfort;測試也直接呼叫)。
+func start_comfort(target: Node) -> bool:
+	if not start_follow(target.recognition_tag):
+		return false
+	_comfort_tag = target.recognition_tag
+	_comfort_touched = false
+	_follow_duration_cap = COMFORT_MAX_SECONDS
+	return true
+
+
+## 要去找的對象:自己需要安慰就挑喜歡的對象,不然挑需要安慰的喜歡對象;好惡等級高的先(最喜歡最先),同級挑最近的。
+func _comfort_candidate() -> Node:
+	var sad := needs_comfort()
+	var best: Node = null
+	var best_level := 0
+	var best_distance := INF
+	for other: Node in get_tree().get_nodes_in_group("pets"):
+		if other == self or not is_instance_valid(other) or other.is_queued_for_deletion() or other.entering \
+				or bool(other.interaction_rules.get("no_follow_target", false)) or apart_from(other):
+			continue
+		var level := bond_level(other)
+		if level < COMFORT_MIN_LEVEL or not (sad or other.needs_comfort()):
+			continue
+		var distance := global_position.distance_to(other.global_position)
+		if level > best_level or (level == best_level and distance < best_distance):
+			best = other
+			best_level = level
+			best_distance = distance
+	return best
+
+
+## 跟隨中(去安慰)每影格:判定框碰到了就只再陪 COMFORT_STAY_SECONDS 秒。
+func _tick_comfort_follow(target: Node) -> void:
+	if _comfort_touched or not interaction_rect().intersects(target.interaction_rect()):
+		return
+	_comfort_touched = true
+	_follow_duration_cap = minf(_follow_duration_cap, (Time.get_ticks_usec() - _follow_started) / 1000000.0 + COMFORT_STAY_SECONDS)
 
 
 # --- 好惡判定框接觸(2026-10-05 使用者要求):兩隻桌寵的判定框(hitbox,見 interaction_rect())重疊時,
@@ -3276,6 +3431,28 @@ func _react_to_pet_contact(other: Node, level: int) -> void:
 		_avoid_pet_left = minf(float(-level) * PET_AFFINITY_AVOID_SECONDS_PER_LEVEL, PET_AFFINITY_AVOID_SECONDS_MAX)
 
 
+## 坐著/躺著(2026-10-19 使用者要求):正在「跟著我」(跟著滑鼠)或跟著別隻桌寵時,轉向滑鼠/領路人那一邊(人不起來,只轉向)。
+## 睡著不轉;用家具時不轉(坐躺的面向由家具決定)。水平差距小於 SEATED_FACE_DEADZONE 不轉,游標在正上方晃時才不會一直翻面。
+const SEATED_FACE_DEADZONE := 24.0
+
+
+func _tick_seated_facing() -> void:
+	if not (_requested_action == &"sit" or _requested_action == &"lay") or dragging or is_using_furniture() or heading_to_furniture():
+		return
+	var target_x := INF
+	if is_following_mouse():
+		target_x = (Vector2(DisplayServer.mouse_get_position()) - Vector2(get_window().position)).x
+	elif is_following():
+		var leader := _find_pet_by_tag(_follow_tag, false)
+		if leader != null:
+			target_x = leader.position.x
+	if target_x == INF or absf(target_x - position.x) < SEATED_FACE_DEADZONE:
+		return
+	var want := 1 if target_x > position.x else -1
+	if want != _facing:
+		_face(want)
+
+
 ## 路隊的生命週期,對這次跟隨是自己選的還是積木/選單叫的都一體適用:到了時間上限、太久碰不到人、
 ## 跟隨對象被收起來(找不到了)就自動解散;跟隨對象去休息/睡覺時考慮要不要一起休息,去使用家具時考慮
 ## 要不要一起用(都用/都不用,這次跟隨到此結束),去玩球時考慮要不要一起加入(一起玩就不用再跟著走了);
@@ -3291,10 +3468,14 @@ func _tick_pet_follow_lifecycle(delta: float) -> void:
 	if target == null or not is_instance_valid(target) or target.is_queued_for_deletion():
 		stop_follow()
 		return
+	if _comfort_tag != "":
+		_tick_comfort_follow(target)
 	if (Time.get_ticks_usec() - _follow_started) / 1000000.0 >= _follow_duration_cap:
 		stop_follow()
 		return
-	if global_position.distance_to(target.global_position) > FOLLOW_STUCK_DISTANCE:
+	if _comfort_tag != "":
+		_follow_stuck_left = 0.0   # 去安慰:對象可能在螢幕另一頭,走久一點也不算卡住(COMFORT_MAX_SECONDS 會收尾)
+	elif global_position.distance_to(target.global_position) > FOLLOW_STUCK_DISTANCE:
 		_follow_stuck_left += delta
 		if _follow_stuck_left >= FOLLOW_STUCK_SECONDS:
 			stop_follow()
@@ -3719,16 +3900,18 @@ func _update_pet_pref(target: String, changes: Dictionary, display_name := "") -
 		return
 	var rules: Dictionary = interaction_rules.duplicate(true)
 	var list: Array = rules.get("pet_prefs", [])
-	var entry := {"level": 0, "no_mention": false, "favorite": false, "no_interact": false}
+	var entry := {"level": 0, "no_mention": false, "favorite": false, "no_interact": false, "nickname": ""}
 	var old_name := ""
 	for i in range(list.size() - 1, -1, -1):
 		if str((list[i] as Dictionary).get("target", "")) == target:
 			var old := list[i] as Dictionary
-			entry = {"level": int(old.get("level", 0)), "no_mention": bool(old.get("no_mention", false)), "favorite": bool(old.get("favorite", false)), "no_interact": bool(old.get("no_interact", false))}
+			entry = {"level": int(old.get("level", 0)), "no_mention": bool(old.get("no_mention", false)), "favorite": bool(old.get("favorite", false)), "no_interact": bool(old.get("no_interact", false)), "nickname": str(old.get("nickname", ""))}
 			old_name = str(old.get("name", ""))
 			list.remove_at(i)
 	entry.merge(changes, true)
-	if int(entry["level"]) != 0 or bool(entry["no_mention"]) or bool(entry["favorite"]) or bool(entry["no_interact"]):
+	if str(entry["nickname"]) == "":
+		entry.erase("nickname")
+	if int(entry["level"]) != 0 or bool(entry["no_mention"]) or bool(entry["favorite"]) or bool(entry["no_interact"]) or entry.has("nickname"):
 		var name := display_name if display_name != "" else old_name
 		if name == "" and target != InteractionRules.ALL_PETS_TARGET:
 			var other := _find_pet_by_tag(target, false)
@@ -3849,31 +4032,78 @@ func _secondary_goal() -> Variant:
 
 func _liked_prop_goal() -> Variant:
 	# is_busy_for_game():對戰中(井字棋等)的桌寵不會自己跑去撿喜歡的道具,見 TttGame 的說明。
-	if (interaction_rules["prefs"] as Array).is_empty() or move_mode == MoveMode.FIXED or move_mode == MoveMode.STATIONARY or is_sleeping() or has_negative_lens() or is_busy_for_game():
+	if not _can_seek_liked_props() or is_busy_for_game():
 		return null
 	_liked_scan_left -= get_physics_process_delta_time()
 	if _liked_scan_left <= 0.0:
 		_liked_scan_left = LIKED_SCAN_INTERVAL
-		_liked_target = null
-		var best := INF
-		for node: Node in get_tree().get_nodes_in_group("props"):
-			var item := node as PropItem
-			if item == null or item.def == null or not item.def.toss or item.consuming or item.dragging or item.collected or not item.landed:
-				continue
-			if prop_preference(item.def) != "like":
-				continue
-			# 拾取冷卻中(剛拿過道具/剛拿過同一種,見 PropManager.pickup_ready)撿不起來的不去追,免得走過去站在道具上乾等。
-			var manager := item.get_parent() as PropManager
-			if manager != null and item.delivered_to != self and not manager.pickup_ready(self, item.def):
-				continue
-			var distance := global_position.distance_to(item.global_position)
-			if distance < best:
-				best = distance
-				_liked_target = item
+		_liked_target = _nearest_liked_prop()
 	if _liked_target == null or not is_instance_valid(_liked_target) or _liked_target.consuming or _liked_target.collected or _liked_target.dragging:
 		_liked_target = null
 		return null
 	return get_parent().to_local(_liked_target.global_position) if get_parent() is Node2D else _liked_target.global_position
+
+
+func _can_seek_liked_props() -> bool:
+	return not (interaction_rules["prefs"] as Array).is_empty() and move_mode != MoveMode.FIXED and move_mode != MoveMode.STATIONARY and not is_sleeping() and not has_negative_lens()
+
+
+## 地上最近、喜歡、而且現在撿得起來的道具;沒有回 null。
+func _nearest_liked_prop() -> PropItem:
+	var best := INF
+	var chosen: PropItem = null
+	for node: Node in get_tree().get_nodes_in_group("props"):
+		var item := node as PropItem
+		if item == null or item.def == null or not item.def.toss or item.consuming or item.dragging or item.collected or not item.landed:
+			continue
+		if prop_preference(item.def) != "like":
+			continue
+		# 拾取冷卻中(剛拿過道具/剛拿過同一種,見 PropManager.pickup_ready)撿不起來的不去追,免得走過去站在道具上乾等。
+		var manager := item.get_parent() as PropManager
+		if manager != null and item.delivered_to != self and not manager.pickup_ready(self, item.def):
+			continue
+		var distance := global_position.distance_to(item.global_position)
+		if distance < best:
+			best = distance
+			chosen = item
+	return chosen
+
+
+## 2026-10-19 使用者要求:非放鬆模式下,站著/坐著/躺著休息(不含睡著)、沒有「疲憊」狀態鏡的桌寵,看到喜歡的道具
+## 或被邀請玩球、球直接交到牠身上時,會起身去追。休息本身以外還在忙(對戰、對話、被摸、跳舞、入場、被拖、攀爬、
+## 用家具)的不算。球的條件另外在 PetBallPlay(休息中不會自己發現球就起身)。
+func can_get_up_for_toy() -> bool:
+	if vitality == null or relaxing() or is_lens_active(PetVitality.TIRED_LENS) or is_using_furniture():
+		return false
+	if not vitality.mode in [PetVitality.Mode.STANDING, PetVitality.Mode.RESTING, PetVitality.Mode.LAYING]:
+		return false
+	return not (game_depth > 0 or dragging or entering or _dance_left > 0.0 or _interact_left > 0.0 or _converse_left > 0.0 \
+			or _dialogue_open or _speaking or _climb != ClimbState.NONE)
+
+
+## 起身:結束這段休息(不算睡醒,不觸發 wake),放掉休息的動作佔用,下一個影格就照一般的移動目標走。
+func get_up_for_toy() -> void:
+	if vitality != null and vitality.mode != PetVitality.Mode.ACTIVE:
+		vitality._end_rest(true)
+	release_hold()
+
+
+var _rest_prop_scan_left := 0.0
+
+
+func _tick_rest_get_up_for_prop(delta: float) -> void:
+	_rest_prop_scan_left -= delta
+	if _rest_prop_scan_left > 0.0:
+		return
+	_rest_prop_scan_left = LIKED_SCAN_INTERVAL
+	if not can_get_up_for_toy() or not _can_seek_liked_props():
+		return
+	var item := _nearest_liked_prop()
+	if item == null:
+		return
+	get_up_for_toy()
+	_liked_target = item
+	_liked_scan_left = LIKED_SCAN_INTERVAL
 
 
 ## 容器家具(見 FurnitureItem.container_*):喜歡的道具已經掉在地上時優先撿那個(_liked_prop_goal 排在前面),
@@ -4693,8 +4923,11 @@ func _physics_process(delta: float) -> void:
 	var relaxed := relaxing()
 	if not relaxed:
 		_tick_auto_mouse_follow(delta)
+		_tick_comfort(delta)
+		_tick_rest_get_up_for_prop(delta)
 		_tick_auto_pet_follow(delta)
 	_tick_pet_follow_lifecycle(delta)
+	_tick_seated_facing()
 	# 好惡接觸判定不必每個影格都掃一次全場桌寵:平常每 CONTACT_INTERVAL 秒一次,放鬆模式再慢一點(累積的時間一次算進去)。
 	_relax_contact_wait += delta
 	if _relax_contact_wait >= (RELAX_CONTACT_INTERVAL if relaxed else CONTACT_INTERVAL):

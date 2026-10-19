@@ -18,7 +18,7 @@ var _count_label: Label
 var _status: Label
 var _folders: Array[String] = []
 var _summaries: Dictionary = {}
-var _dup_names: Dictionary = {}   # 角色庫裡撞名的名字:卡片名字下面附小字代號
+var _dup_names: Dictionary = {}   # 角色庫裡撞名的名字:卡片名字下面附代號
 var _build_serial := 0
 var _ready_once := false
 ## 勾選要一起放上桌面的角色(資料夾路徑 → true),重新整理後還記得。
@@ -198,7 +198,7 @@ func _add_card(summary: Dictionary) -> Dictionary:
 	name_label.custom_minimum_size.x = CARD_WIDTH - 16.0
 	box.add_child(name_label)
 	if _dup_names.has(str(summary["name"])):
-		# 2026-10-18:有別的角色同名時,名字下面附小字代號
+		# 2026-10-18:有別的角色同名時,名字下面附代號
 		var note := ManagerUi.tag_note(tag)
 		note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		note.clip_text = true

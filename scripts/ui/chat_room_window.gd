@@ -624,8 +624,7 @@ func _make_line_label(pet: Node, text: String, color: Color, is_thought: bool) -
 	label.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
 	label.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	if style != null:
-		label.add_theme_font_override("normal_font", UiFonts.get_font(str(style.default_font)))
-		label.add_theme_font_size_override("normal_font_size", int(UiStyleKit.BASE_FONT_SIZE * style.text_scale_factor()))
+		DialogueBubble.apply_rich_fonts(label, UiFonts.get_font(str(style.default_font)), int(UiStyleKit.BASE_FONT_SIZE * style.text_scale_factor()))
 		label.add_theme_constant_override("line_separation", UiFonts.line_spacing(str(style.default_font), int(UiStyleKit.BASE_FONT_SIZE * style.text_scale_factor())))
 	label.text = _format_line(pet.get_label(), text, color, is_thought)
 	return label
@@ -728,8 +727,9 @@ func _make_sms_bubble(pet: Node, text: String, color: Color, is_thought: bool, s
 	# 使用者要求:簡訊式氣泡本來跟著字級一起縮放,不想要這樣),改讀「聊天室設定」卡片自己的
 	# sms_bubble_scale,不呼叫 style.text_scale_factor()。
 	var factor: float = float(_sms_bubble_scale_of(pet)) / 100.0
-	# 文字另外乘字體的視覺大小校正(Silver 會放大;2026-10-17 使用者回報聊天室裡 Silver 沒放大),框體、圓角、內距不乘。
-	var font_k := UiFonts.size_correction(str(style.default_font)) if style != null else 1.0
+	# 文字另外乘字體的視覺大小校正(Silver 會放大;2026-10-17 使用者回報聊天室裡 Silver 沒放大)和「字體與對話」的字級
+	# (2026-10-18 使用者回報簡訊式的字跟預覽不一致:字級要跟著,「簡訊氣泡尺寸」對應預覽的外觀縮放),框體、圓角、內距不乘。
+	var font_k := UiFonts.size_correction(str(style.default_font)) * style.font_scale_factor() if style != null else 1.0
 	var direction := _sms_direction_of(pet)
 
 	var outer := VBoxContainer.new()

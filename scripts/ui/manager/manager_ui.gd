@@ -275,7 +275,7 @@ static func _install_syntax_menu_item(edit: Control, menu: PopupMenu) -> void:
 			open_syntax_dictionary(edit.get_window(), true, edit))
 
 
-## 名字後面的小字附註「(代號)」(撞名時區分用,比一般字小、顏色淡,見 AppSettings.TAG_NOTE_LABEL)。
+## 名字後面的附註「(代號)」(撞名時區分用,顏色淡、字級跟一般字一樣,見 AppSettings.TAG_NOTE_LABEL)。
 static func tag_note(tag: String) -> Label:
 	var note := Label.new()
 	note.text = "(%s)" % tag
