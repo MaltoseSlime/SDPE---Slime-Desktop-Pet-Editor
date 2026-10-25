@@ -55,6 +55,9 @@ var _chat_min_spin: SpinBox
 var _chat_max_spin: SpinBox
 var _dance_check: CheckBox
 var _land_check: CheckBox
+var _float_fly_check: CheckBox
+var _float_walk_check: CheckBox
+var _float_lay_check: CheckBox
 var _fly_option: OptionButton
 var _no_fatigue_check: CheckBox
 var _dance_spin: SpinBox
@@ -335,16 +338,36 @@ func _ready() -> void:
 	_fly_option.tooltip_text = tr("總是飛行:做什麼都不落地,休息、睡覺也在空中。\n會落地:累了、道具交互等某些時候才落地,其餘時候在飛。\n行走與飛行兼具:以地面行為為主;大跳躍、從平臺下來、偶爾(心情好機率高)會改成飛行一小段,再降落。")
 	_fly_option.item_selected.connect(_on_field_changed)
 	form.add_child(ManagerUi.labeled("飛行模式的行為", _fly_option))
+	form.add_child(HSeparator.new())   # 飛行 / 漂浮 / 固定模式的選項之間分隔(2026-10-22 使用者要求)
+	_float_fly_check = CheckBox.new()
+	_float_fly_check.text = tr("漂浮模式:使用飛行動作(平常的 idle 改播 fly;沒有 fly 素材時跟飛行模式一樣改用 rise / fall)")
+	_float_fly_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_float_fly_check.toggled.connect(_on_field_changed)
+	form.add_child(_float_fly_check)
+	_float_walk_check = CheckBox.new()
+	_float_walk_check.text = tr("漂浮模式:移動時播放行走動畫(移動中播 walk,停住時播 idle,勾了上一項就播 fly)")
+	_float_walk_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_float_walk_check.toggled.connect(_on_field_changed)
+	form.add_child(_float_walk_check)
+	_float_lay_check = CheckBox.new()
+	_float_lay_check.text = tr("漂浮模式:休息時會躺下、睡覺(關掉的話休息最多只坐著)")
+	_float_lay_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_float_lay_check.toggled.connect(_on_field_changed)
+	form.add_child(_float_lay_check)
+	form.add_child(HSeparator.new())
 	_drag_fixed_check = CheckBox.new()
 	_drag_fixed_check.text = tr("固定模式下也能隨時拖曳(貼底的半身立繪只能沿底邊左右拖)")
 	_drag_fixed_check.toggled.connect(_on_field_changed)
 	form.add_child(_drag_fixed_check)
+	# 「允許攀爬」「桌寵不計算疲勞值」:桌寵管理視窗裡會被搬到「整體交互開關」卡片(見 overall_toggle_controls),
+	# 讀寫照舊在這個分頁;單獨用這個分頁時留在這裡。
 	_climb_check = CheckBox.new()
 	_climb_check.text = tr("允許攀爬")
 	_climb_check.toggled.connect(_on_field_changed)
 	form.add_child(_climb_check)
 	_no_fatigue_check = CheckBox.new()
-	_no_fatigue_check.text = tr("桌寵不計算疲勞值(不會累、不會自己休息或睡覺,也不會因疲勞陷入負面狀態;奔跑最多持續 15 秒)")
+	_no_fatigue_check.text = tr("桌寵不計算疲勞值")
+	_no_fatigue_check.tooltip_text = tr("不會累、不會自己休息或睡覺,也不會因疲勞陷入負面狀態;奔跑最多持續 15 秒。")
 	_no_fatigue_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_no_fatigue_check.toggled.connect(_on_field_changed)
 	form.add_child(_no_fatigue_check)
@@ -601,6 +624,9 @@ func _load_form() -> void:
 	_chat_max_spin.value = _pet.auto_chat_interval.y
 	_dance_check.button_pressed = _pet.auto_dance_enabled
 	_land_check.button_pressed = _pet.land_for_props
+	_float_fly_check.button_pressed = _pet.float_fly_anim
+	_float_walk_check.button_pressed = _pet.float_walk_anim
+	_float_lay_check.button_pressed = _pet.float_lay_sleep
 	_fly_option.select([1, 0, 2][_pet.fly_behavior])
 	_no_fatigue_check.button_pressed = _pet.fatigue_disabled
 	_dance_spin.value = roundf(_pet.auto_dance_chance * 100.0)
@@ -775,6 +801,11 @@ func _apply_color(field: String, color: Color) -> void:
 	changed.emit()
 
 
+## 要搬到「整體交互開關」卡片的勾選框(桌寵管理視窗用,見 ManagerWindow._collect_behavior_cards)。
+func overall_toggle_controls() -> Array[Control]:
+	return [_climb_check, _no_fatigue_check]
+
+
 func _on_field_changed(_value: Variant = null) -> void:
 	if _loading or _pet == null:
 		return
@@ -803,6 +834,9 @@ func _on_field_changed(_value: Variant = null) -> void:
 	_pet.auto_chat_interval = Vector2(low, maxf(_chat_max_spin.value, low))
 	_pet.auto_dance_enabled = _dance_check.button_pressed
 	_pet.land_for_props = _land_check.button_pressed
+	_pet.float_fly_anim = _float_fly_check.button_pressed
+	_pet.float_walk_anim = _float_walk_check.button_pressed
+	_pet.float_lay_sleep = _float_lay_check.button_pressed
 	var new_behavior := [Pet.FlyBehavior.ALWAYS, Pet.FlyBehavior.LANDS, Pet.FlyBehavior.HYBRID][_fly_option.selected] as Pet.FlyBehavior
 	if new_behavior != _pet.fly_behavior:
 		_pet.fly_behavior = new_behavior

@@ -34,6 +34,14 @@ var _timestamp_option: OptionButton
 ## 小遊戲棋盤大小(種類 → OptionButton,選項的 metadata 是百分比)與棋子配色。
 var _board_scale_options: Dictionary = {}
 var _piece_color_option: OptionButton
+var _dnd_enabled_check: CheckBox
+var _dnd_start_hour: SpinBox
+var _dnd_start_minute: SpinBox
+var _dnd_end_hour: SpinBox
+var _dnd_end_minute: SpinBox
+var _dnd_silent_check: CheckBox
+var _dnd_mute_check: CheckBox
+var _dnd_status: Label
 var _firefly_mode: OptionButton
 var _firefly_start_hour: SpinBox
 var _firefly_start_minute: SpinBox
@@ -76,6 +84,7 @@ func _ready() -> void:
 	_build_audio()
 	_begin_page("對話")
 	_build_dialogue()
+	_build_dnd_schedule()
 	_begin_page("遊戲")
 	_build_games()
 	_begin_page("螢火蟲")
@@ -319,6 +328,97 @@ func _build_dialogue() -> void:
 		get_tree().call_group("dialogue_display", "refresh_content")
 		message.emit(tr("聊天室時間戳已設成「%s」。") % str(timestamp_labels[mode])))
 	_box.add_child(ManagerUi.labeled("時間戳", _timestamp_option))
+
+
+## 勿擾時段(2026-10-22 使用者要求):每天這段時間桌寵自動進入勿擾模式,可以順便全部靜默、關閉說話音效。
+## 只是疊加在你自己的設定上(見 AppSettings.dnd_schedule),時段結束就回到原本的勿擾/靜默/說話音效設定。
+func _build_dnd_schedule() -> void:
+	_begin_card("設定勿擾時段", "每天到了這段時間(24 小時制,以這台裝置的時間為準),全部桌寵自動進入勿擾模式:照常閒聊,但不會主動問你問題。可以另外勾選時段內全部桌寵靜默(不說任何對話)、關閉說話音效。時段可以跨過午夜(例如 23:00 到 07:00);起訖時間一樣代表整天。時段結束後會回到你原本的設定——你自己開著的勿擾、個別桌寵的靜默、說話音效都不會被改掉。")
+	_dnd_enabled_check = CheckBox.new()
+	_dnd_enabled_check.text = tr("啟用勿擾時段")
+	_dnd_enabled_check.toggled.connect(func(_on: bool) -> void: _save_dnd_schedule())
+	_box.add_child(_dnd_enabled_check)
+	var window_row := VBoxContainer.new()
+	_dnd_start_hour = _dnd_time_spin(23.0)
+	_dnd_start_minute = _dnd_time_spin(59.0)
+	_dnd_end_hour = _dnd_time_spin(23.0)
+	_dnd_end_minute = _dnd_time_spin(59.0)
+	for pair: Array in [["從", _dnd_start_hour, _dnd_start_minute], ["到", _dnd_end_hour, _dnd_end_minute]]:
+		var pair_row := HBoxContainer.new()
+		var word := Label.new()
+		word.text = tr(str(pair[0]))
+		pair_row.add_child(word)
+		pair_row.add_child(pair[1])
+		var colon := Label.new()
+		colon.text = ":"
+		pair_row.add_child(colon)
+		pair_row.add_child(pair[2])
+		window_row.add_child(pair_row)
+	_box.add_child(ManagerUi.labeled("時段", window_row))
+	_dnd_silent_check = CheckBox.new()
+	_dnd_silent_check.text = tr("時段內全部桌寵靜默")
+	_dnd_silent_check.tooltip_text = tr("時段內全部桌寵都不說任何對話,跟「整體交互開關」的「桌寵靜默」一樣;右鍵選單的占卜、抽籤、計時照常回應。")
+	_dnd_silent_check.toggled.connect(func(_on: bool) -> void: _save_dnd_schedule())
+	_box.add_child(_dnd_silent_check)
+	_dnd_mute_check = CheckBox.new()
+	_dnd_mute_check.text = tr("時段內靜音(關閉說話音效)")
+	_dnd_mute_check.tooltip_text = tr("時段內對話氣泡打字時不出聲;計時提醒等其他音效照常。")
+	_dnd_mute_check.toggled.connect(func(_on: bool) -> void: _save_dnd_schedule())
+	_box.add_child(_dnd_mute_check)
+	_dnd_status = Label.new()
+	_dnd_status.theme_type_variation = AppSettings.MUTED_LABEL
+	_dnd_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_dnd_status.custom_minimum_size.x = 220.0
+	_box.add_child(_dnd_status)
+
+
+func _dnd_time_spin(maximum: float) -> SpinBox:
+	var spin := ManagerUi.spin(1.0, 0.0, maximum)
+	spin.custom_minimum_size.x = 64.0
+	spin.value_changed.connect(func(_v: float) -> void: _save_dnd_schedule())
+	return spin
+
+
+func _save_dnd_schedule() -> void:
+	if _updating:
+		return
+	AppSettings.set_dnd_schedule({
+		"enabled": _dnd_enabled_check.button_pressed, "silent": _dnd_silent_check.button_pressed, "mute": _dnd_mute_check.button_pressed,
+		"start": int(_dnd_start_hour.value) * 60 + int(_dnd_start_minute.value), "end": int(_dnd_end_hour.value) * 60 + int(_dnd_end_minute.value),
+	})
+	get_tree().call_group("dnd_schedule", "refresh_dnd_schedule")
+	_sync_dnd_widgets()
+	message.emit("勿擾時段設定已更新。")
+
+
+func _load_dnd_schedule() -> void:
+	var was_updating := _updating
+	_updating = true
+	var config := AppSettings.dnd_schedule()
+	_dnd_enabled_check.button_pressed = bool(config["enabled"])
+	_dnd_start_hour.value = int(config["start"]) / 60
+	_dnd_start_minute.value = int(config["start"]) % 60
+	_dnd_end_hour.value = int(config["end"]) / 60
+	_dnd_end_minute.value = int(config["end"]) % 60
+	_dnd_silent_check.button_pressed = bool(config["silent"])
+	_dnd_mute_check.button_pressed = bool(config["mute"])
+	_updating = was_updating
+	_sync_dnd_widgets()
+
+
+## 沒啟用時時段與兩個勾選項不能改;順便顯示現在在不在時段裡。
+func _sync_dnd_widgets() -> void:
+	var config := AppSettings.dnd_schedule()
+	var on := bool(config["enabled"])
+	for spin: SpinBox in [_dnd_start_hour, _dnd_start_minute, _dnd_end_hour, _dnd_end_minute]:
+		spin.editable = on
+	_dnd_silent_check.disabled = not on
+	_dnd_mute_check.disabled = not on
+	var minute := AppSettings.minute_of_day_now()
+	if not on:
+		_dnd_status.text = tr("勿擾時段未啟用。")
+	else:
+		_dnd_status.text = tr("現在是 %02d:%02d,%s。") % [minute / 60, minute % 60, tr("在勿擾時段裡") if AppSettings.dnd_schedule_active(config, minute) else tr("不在勿擾時段裡")]
 
 
 ## 小遊戲棋盤(2026-10-18 使用者要求):各遊戲棋盤的大小(10% 一格)、棋子配色。
@@ -644,6 +744,7 @@ func _load_into_widgets() -> void:
 	_autostart_check.button_pressed = AutoStart.is_enabled()
 	_lights_check.button_pressed = AppSettings.lights_enabled()
 	_load_fireflies()
+	_load_dnd_schedule()
 	_on_top_check.button_pressed = AppSettings.floating_on_top()
 	var current_mode := AppSettings.bubble_display_mode()
 	_bubble_pin_check.button_pressed = current_mode != "follow"

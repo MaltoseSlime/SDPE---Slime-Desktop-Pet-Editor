@@ -499,6 +499,10 @@ func is_interactive() -> bool:
 	return _has_options or _wait_click
 
 
+func has_options() -> bool:
+	return _has_options
+
+
 ## 完整內容(不含 BBCode 標記),聊天室視窗把它寫進聊天記錄用。
 func chat_text() -> String:
 	return _label.get_parsed_text()

@@ -10,6 +10,9 @@ extends Node
 ## 場上有很多顆球時,進入玩球狀態的桌寵會一直去頂離自己最近的球(碰到任何一顆都算),不會只顧一顆;
 ## 但發現球、邀請別隻的對話不會因為球多而重複:發現球的話有 FOUND_COOLDOWN 冷卻、全場的邀請共用 GROUP_INVITE_COOLDOWN 冷卻,而且被邀請時婉拒過的桌寵有 DECLINE_PROTECT 秒不會再被問。
 ## 玩球期間球不計自動消失(見 PropItem.mark_played);玩的時候桌寵的移動目標就是球(Pet._secondary_goal)。
+## 移動模式(2026-10-21 使用者要求):地面、飛行、漂浮都會玩(固定、靜止不玩)。碰到球時有機率「帶球」(carry):
+## 球頂在頭上帶著走,在空中的(漂浮、飛行中)帶到高處再放掉/輕拋下來;地面的帶到別層平臺(沒有就同一層遠一點)再往上拋。
+## 走不到(CARRY_MAX_SECONDS)就原地丟。
 
 const SCAN_SECONDS := 0.7
 const REACH_X := 34.0
@@ -41,6 +44,15 @@ static var _last_group_invite_msec := -1000000
 const FOUND_GROUP_COOLDOWN := 6.0
 static var _last_found_group_msec := -1000000
 const WATCH_COOLDOWN := 45.0
+## 帶球:碰到球時的機率(空中 / 地面)、最多帶多久、到了的判定距離、高處的高度(行動區高度的比例,從頂端算)、
+## 地面同一層至少要帶多遠(平面太窄時改成平面寬度的 35%)、高低差多少算別層。
+const CARRY_CHANCE_AIR := 0.3
+const CARRY_CHANCE_GROUND := 0.2
+const CARRY_MAX_SECONDS := 12.0
+const CARRY_ARRIVE := 24.0
+const CARRY_HIGH_RANGE := Vector2(0.12, 0.35)
+const CARRY_MIN_DISTANCE := 160.0
+const CARRY_SAME_LEVEL_Y := 40.0
 const PLAYING_SAY_COOLDOWN := 22.0
 
 var ball: PropItem
@@ -62,6 +74,9 @@ var _playing_say_left := 0.0
 var _retarget_left := 0.0
 var _decline_protect_left := 0.0
 var _found_left := 0.0
+## 帶球要去的地方(行動區座標,桌寵腳底)與剩下的時間。
+var _carry_goal := Vector2.ZERO
+var _carry_left := 0.0
 
 
 func setup(pet: Node) -> void:
@@ -71,7 +86,12 @@ func setup(pet: Node) -> void:
 ## 現在想不想玩:ongoing = 已經在玩了(踢球後動作短暫佔用不算忙)。
 func interested(ongoing := false) -> bool:
 	return _pet.ball_play_chance > 0.0 and not _pet.relaxing() and not _pet.lens_blocks("ball") and not _pet.is_sleeping() and not _pet.entering and not _pet.dragging \
-			and _pet.is_ground_mode() and (ongoing or not _pet.is_busy_for_game())
+			and _pet.move_mode != Pet.MoveMode.FIXED and _pet.move_mode != Pet.MoveMode.STATIONARY and (ongoing or not _pet.is_busy_for_game())
+
+
+## 在空中玩(漂浮、飛行中);兼具模式落在地上時算地面。
+func _airborne() -> bool:
+	return _pet.move_mode == Pet.MoveMode.FLOATING or (_pet.move_mode == Pet.MoveMode.FLYING and not _pet.is_ground_mode())
 
 
 func active() -> bool:
@@ -108,6 +128,8 @@ func _nearest_ball(limit := 1200.0) -> PropItem:
 ## 追球時的目標球即使正被使用者拖著也還算數(桌寵會一路跟到手邊,這是使用者想跟桌寵搶球玩的正常情境,
 ## 不是「球不見了」);真的不要拖著玩的地方(挑新目標、發起邀請)另外呼叫 _wants() 不給 allow_dragging。
 func goal() -> Variant:
+	if state == "carry":
+		return _carry_goal
 	if state != "chase" or not is_instance_valid(ball):
 		return null
 	return _pet.get_parent().to_local(ball.global_position) if _pet.get_parent() is Node2D else ball.global_position
@@ -264,9 +286,11 @@ func _physics_process(delta: float) -> void:
 		stop()
 		return
 	elif ball.dragging:
-		# 球頂在頭上時被使用者拿走:先退回追球狀態(頭上已經沒有球可以頂了),不直接結束整場玩球。
+		# 球頂在頭上(頂球、帶球)時被使用者拿走:先退回追球狀態(頭上已經沒有球可以頂了),不直接結束整場玩球。
+		# 也要放掉 carried_by,不然使用者放開後球還以為被頂著、不受重力。
 		state = "chase"
 		_balance_left = 0.0
+		ball.carried_by = null
 	var balls := _wanted_balls()
 	for item: PropItem in balls:
 		item.mark_played()
@@ -276,6 +300,8 @@ func _physics_process(delta: float) -> void:
 		return
 	if state == "balance":
 		_tick_balance(delta)
+	elif state == "carry":
+		_tick_carry(delta)
 	elif _contact_cooldown <= 0.0:
 		for item: PropItem in balls:
 			if not item.dragging and _in_reach(item):
@@ -336,6 +362,8 @@ func _contact() -> void:
 	_retarget_left = 0.0   # 踢出去之後馬上重新找最近的球
 	if _touches >= 3 and _playing_say_left <= 0.0 and _say(&"ball_playing"):
 		_playing_say_left = PLAYING_SAY_COOLDOWN
+	if ball.velocity.length() < 260.0 and randf() < (CARRY_CHANCE_AIR if _airborne() else CARRY_CHANCE_GROUND) and _start_carry():
+		return
 	if randf() < BALANCE_CHANCE and ball.velocity.length() < 260.0:
 		state = "balance"
 		_balance_left = randf_range(BALANCE_SECONDS.x, BALANCE_SECONDS.y)
@@ -352,18 +380,88 @@ func _contact() -> void:
 
 func _tick_balance(delta: float) -> void:
 	_balance_left -= delta
-	_wobble += delta
 	_pet.hold_still_for(0.3)
-	var rect: Rect2 = _pet.interaction_rect()
-	var head := Vector2(rect.get_center().x, rect.position.y)   # 判定框頭頂
-	ball.global_position = head + Vector2(sin(_wobble * 3.0) * 2.0, -absf(sin(_wobble * 5.0)) * 4.0)
-	ball.velocity = Vector2.ZERO
+	_hold_on_head(delta)
 	if _balance_left <= 0.0:
 		var direction := 1.0 if randf() < 0.5 else -1.0
 		ball.kick(Vector2(direction * randf_range(60.0, 200.0), -randf_range(520.0, 700.0)))   # 頂完往上拋
 		state = "chase"
 		_touches += 1
 		_contact_cooldown = 1.2
+
+
+## 球頂在判定框頭頂(頂球、帶球共用)。
+func _hold_on_head(delta: float) -> void:
+	_wobble += delta
+	var rect: Rect2 = _pet.interaction_rect()
+	var head := Vector2(rect.get_center().x, rect.position.y)   # 判定框頭頂
+	ball.global_position = head + Vector2(sin(_wobble * 3.0) * 2.0, -absf(sin(_wobble * 5.0)) * 4.0)
+	ball.velocity = Vector2.ZERO
+
+
+## 開始帶球:挑到要去的地方才算數(挑不到回 false,照舊頂球或踢球)。
+func _start_carry() -> bool:
+	var target: Variant = _pick_carry_goal()
+	if not target is Vector2:
+		return false
+	state = "carry"
+	_carry_goal = target
+	_carry_left = CARRY_MAX_SECONDS
+	_wobble = 0.0
+	ball.carried_by = _pet
+	return true
+
+
+## 帶球的目的地(行動區座標,腳底):空中的挑上半部的高處;地面的優先挑別層平臺(Pet.relax_surfaces,
+## 都是跳得上去或在下面的),沒有就同一層離自己夠遠的地方。
+func _pick_carry_goal() -> Variant:
+	var area: Rect2 = _pet._bounds()
+	var half: float = Pet.BODY_SIZE.x * _pet.params.scale_multiplier * 0.5
+	var height: float = Pet.BODY_SIZE.y * _pet.params.scale_multiplier
+	var here: Vector2 = _pet.position
+	if _airborne():
+		var y := maxf(area.position.y + area.size.y * randf_range(CARRY_HIGH_RANGE.x, CARRY_HIGH_RANGE.y), area.position.y + height + 50.0)   # 頭上還要放得下球
+		var x := clampf(here.x + randf_range(-260.0, 260.0), area.position.x + half, area.end.x - half)
+		return Vector2(x, minf(y, here.y))
+	var other_levels: Array[Vector3] = []
+	var same_level: Array[Vector3] = []
+	for surface: Vector3 in _pet.relax_surfaces():
+		if surface.z - surface.y < half:
+			continue
+		if absf(surface.x - here.y) < CARRY_SAME_LEVEL_Y:
+			same_level.append(surface)
+		else:
+			other_levels.append(surface)
+	if not other_levels.is_empty():
+		var chosen: Vector3 = other_levels.pick_random()
+		return Vector2(randf_range(chosen.y, chosen.z), chosen.x)
+	for surface: Vector3 in same_level:
+		var spots: Array[float] = []
+		var min_distance := minf(CARRY_MIN_DISTANCE, (surface.z - surface.y) * 0.35)   # 行動區很窄時不要求走那麼遠
+		for x: float in [surface.y, surface.z]:
+			if absf(x - here.x) >= min_distance:
+				spots.append(lerpf(x, here.x, randf_range(0.0, 0.4)))
+		if not spots.is_empty():
+			return Vector2(spots.pick_random(), surface.x)
+	return null
+
+
+## 帶球中:球在頭上,走/飛去目的地;到了(或帶太久)就丟出去,回到追球。
+func _tick_carry(delta: float) -> void:
+	_carry_left -= delta
+	_hold_on_head(delta)
+	var arrived: bool = _pet.position.distance_to(_carry_goal) < CARRY_ARRIVE and (_airborne() or _pet.is_on_floor())
+	if not arrived and _carry_left > 0.0:
+		return
+	var direction := 1.0 if randf() < 0.5 else -1.0
+	if _airborne():
+		ball.kick(Vector2(direction * randf_range(40.0, 180.0), randf_range(-160.0, 40.0)))   # 從高處放掉/輕拋
+	else:
+		ball.kick(Vector2(direction * randf_range(60.0, 200.0), -randf_range(520.0, 700.0)))   # 帶到了往上拋
+	_pet.play_action_silently(&"interact", -1, true)
+	state = "chase"
+	_touches += 1
+	_contact_cooldown = 1.2
 
 
 ## 使用者最近碰過這顆球:好感度 +1、心情變好、冒小愛心(每 REWARD_INTERVAL 秒最多一次)。

@@ -152,8 +152,21 @@ static func set_relax_low_fps(enabled: bool) -> void:
 	refresh_fps()
 
 
-## 現在該用的最高影格率(純函式,方便測試)。
-static func effective_max_fps(base: int, relax_mode: bool, low_when_relaxed: bool) -> int:
+## 繪圖視窗開著的期間最高影格率至少這麼多(筆刷游標跟得上筆,2026-10-23 使用者回報作畫慢半拍;平常預設是 30)。
+const PAINT_FPS := 60
+## 筆按著畫的期間最高影格率至少這麼多:Windows 每一格只送一個滑鼠 / 筆的位置,格數越高,快速畫線收到的點越密、曲線越準
+## (2026-10-24 使用者要能畫得更快)。收筆就回到 PAINT_FPS。
+const STROKE_FPS := 240
+## 繪圖畫布現在是不是正在下筆(PaintCanvas 設定)。
+static var stroking := false
+
+
+## 現在該用的最高影格率(純函式,方便測試)。繪圖中優先(放鬆模式降影格率也不壓)。
+static func effective_max_fps(base: int, relax_mode: bool, low_when_relaxed: bool, painting := false, stroke := false) -> int:
+	if stroke:
+		return maxi(base, STROKE_FPS)
+	if painting:
+		return maxi(base, PAINT_FPS)
 	return mini(base, RELAX_FPS) if relax_mode and low_when_relaxed else base
 
 
@@ -162,7 +175,8 @@ static func refresh_fps() -> void:
 	var tree := Engine.get_main_loop() as SceneTree
 	var state: Node = tree.root.get_node_or_null("/root/DesktopShellState") if tree != null else null
 	var relaxed: bool = state != null and bool(state.relax_mode)
-	Engine.max_fps = effective_max_fps(max_fps(), relaxed, relax_low_fps())
+	var painting: bool = state != null and bool(state.get("painting"))
+	Engine.max_fps = effective_max_fps(max_fps(), relaxed, relax_low_fps(), painting, stroking and painting)
 
 
 ## 光源(發光效果)總開關:預設開;關掉就完全不畫、不佔穿透形狀(和效能有關)。存在 [performance] 的 lights。
@@ -245,11 +259,59 @@ static func firefly_active(config: Dictionary, minute_of_day: int) -> bool:
 			return false
 	var start := FIREFLY_AUTO_START if str(config.get("mode", "auto")) == "auto" else int(config.get("start", FIREFLY_AUTO_START))
 	var end := FIREFLY_AUTO_END if str(config.get("mode", "auto")) == "auto" else int(config.get("end", FIREFLY_AUTO_END))
+	return minute_in_window(start, end, minute_of_day)
+
+
+## minute_of_day 在不在 start ~ end(一天的第幾分鐘)之間:可以跨午夜(23:00~07:00);起訖相同 = 整天。
+static func minute_in_window(start: int, end: int, minute_of_day: int) -> bool:
 	if start == end:
 		return true
 	if start < end:
 		return minute_of_day >= start and minute_of_day < end
 	return minute_of_day >= start or minute_of_day < end
+
+
+# --- 勿擾時段(2026-10-22 使用者要求;全局設定 > 對話,見 DesktopShell._refresh_dnd_schedule)---
+
+## 存在 settings.cfg 的 [dnd_schedule]:enabled 開關、start / end 是一天的第幾分鐘(24 小時制,以裝置時間為準)、
+## silent 時段內全部桌寵靜默、mute 時段內關閉說話音效。時段內是「疊加」在使用者自己的設定上(DesktopShellState.schedule_*),
+## 不改動使用者設定的勿擾/靜默/說話音效,所以離開時段就自動回到原本的樣子。
+const DND_SCHEDULE_DEFAULTS := {"enabled": false, "start": 1380, "end": 420, "silent": false, "mute": false}
+
+
+static func dnd_schedule() -> Dictionary:
+	var config := ConfigFile.new()
+	var result := DND_SCHEDULE_DEFAULTS.duplicate()
+	if config.load(SETTINGS_PATH) != OK:
+		return result
+	for key: String in DND_SCHEDULE_DEFAULTS:
+		if config.has_section_key("dnd_schedule", key):
+			result[key] = config.get_value("dnd_schedule", key)
+	return clean_dnd_schedule(result)
+
+
+static func clean_dnd_schedule(raw: Dictionary) -> Dictionary:
+	var result := DND_SCHEDULE_DEFAULTS.duplicate()
+	for key: String in ["start", "end"]:
+		var value: Variant = raw.get(key, DND_SCHEDULE_DEFAULTS[key])
+		result[key] = clampi(int(value), 0, 24 * 60 - 1) if (value is int or value is float) else DND_SCHEDULE_DEFAULTS[key]
+	for key: String in ["enabled", "silent", "mute"]:
+		result[key] = raw.get(key) if raw.get(key) is bool else DND_SCHEDULE_DEFAULTS[key]
+	return result
+
+
+static func set_dnd_schedule(values: Dictionary) -> void:
+	var cleaned := clean_dnd_schedule(values)
+	var config := ConfigFile.new()
+	config.load(SETTINGS_PATH)
+	for key: String in cleaned:
+		config.set_value("dnd_schedule", key, cleaned[key])
+	config.save(SETTINGS_PATH)
+
+
+## 這個時間(一天的第幾分鐘)在不在勿擾時段裡(純函式,方便測試)。沒開就永遠不在。
+static func dnd_schedule_active(config: Dictionary, minute_of_day: int) -> bool:
+	return bool(config.get("enabled", false)) and minute_in_window(int(config.get("start", 0)), int(config.get("end", 0)), minute_of_day)
 
 
 ## 本機時間現在是一天的第幾分鐘。
@@ -264,6 +326,7 @@ static func apply_startup() -> void:
 	if config.load(SETTINGS_PATH) == OK and config.has_section_key("performance", "max_fps"):
 		Engine.max_fps = max_fps()
 	register_user_translations()
+	PaintSettings.apply_tablet_driver()   # 繪圖功能選過的繪圖板驅動程式(Windows Ink / Wintab)
 	# 一律照設定的語系(沒設過就是繁體中文),不跟著作業系統的語言跑;介面用詞的修正也走這條(見 translations/ui_strings.csv)。
 	TranslationServer.set_locale(language())
 
@@ -833,24 +896,39 @@ static func _outline(color: Color, radius: int, margin_x: int, margin_y: int) ->
 	return box
 
 
-## 捲軸:沒有底色、沒有上下箭頭(三角形),只留一條半透明的細滾輪(顏色跟著文字色)。
+## 捲軸:沒有底色、沒有上下箭頭(三角形),只留一條半透明的滾輪(顏色跟著文字色)。
+## 2026-10-23 使用者回報原本 8px 太細、又貼著內容,不好拖:整條捲軸(能按的範圍)寬 SCROLLBAR_WIDTH,
+## 看得到的滾輪 10px,靠內容那一側留透明的空隙(用透明邊框做,空隙也按得到)。
+const SCROLLBAR_WIDTH := 16
+const SCROLLBAR_GAP := 5
+
 static func _style_scrollbars(theme: Theme, thumb_color: Color) -> void:
-	var blank := StyleBoxEmpty.new()
 	var arrow_free := ImageTexture.create_from_image(Image.create(1, 1, false, Image.FORMAT_RGBA8))
+	var outer := SCROLLBAR_WIDTH - SCROLLBAR_GAP - 10
 	for bar_type in ["VScrollBar", "HScrollBar"]:
 		var vertical: bool = bar_type == "VScrollBar"
-		theme.set_stylebox("scroll", bar_type, blank)
-		theme.set_stylebox("scroll_focus", bar_type, blank)
+		var track := StyleBoxEmpty.new()
+		if vertical:
+			track.content_margin_left = SCROLLBAR_WIDTH / 2.0
+			track.content_margin_right = SCROLLBAR_WIDTH / 2.0
+		else:
+			track.content_margin_top = SCROLLBAR_WIDTH / 2.0
+			track.content_margin_bottom = SCROLLBAR_WIDTH / 2.0
+		theme.set_stylebox("scroll", bar_type, track)
+		theme.set_stylebox("scroll_focus", bar_type, track)
 		for state in ["grabber", "grabber_highlight", "grabber_pressed"]:
 			var thumb := StyleBoxFlat.new()
-			thumb.bg_color = Color(thumb_color, {"grabber": 0.28, "grabber_highlight": 0.45, "grabber_pressed": 0.6}[state])
-			thumb.set_corner_radius_all(4)
+			thumb.bg_color = Color(thumb_color, {"grabber": 0.32, "grabber_highlight": 0.5, "grabber_pressed": 0.65}[state])
+			thumb.border_color = Color(0, 0, 0, 0)
+			# 圓角算在含透明邊框的外框上,內側看得到的那條圓角 = 這個減掉邊框寬,所以要加上空隙。
+			thumb.set_corner_radius_all(SCROLLBAR_GAP + 5)
+			# 透明邊框:直的捲軸內容在左邊、橫的在上面,空隙留在那一側。
 			if vertical:
-				thumb.content_margin_left = 4.0
-				thumb.content_margin_right = 4.0
+				thumb.border_width_left = SCROLLBAR_GAP
+				thumb.border_width_right = outer
 			else:
-				thumb.content_margin_top = 4.0
-				thumb.content_margin_bottom = 4.0
+				thumb.border_width_top = SCROLLBAR_GAP
+				thumb.border_width_bottom = outer
 			theme.set_stylebox(state, bar_type, thumb)
 		for icon_name in ["increment", "increment_highlight", "increment_pressed", "decrement", "decrement_highlight", "decrement_pressed"]:
 			theme.set_icon(icon_name, bar_type, arrow_free)

@@ -156,6 +156,13 @@ func _ready() -> void:
 	add_child(ui_manager)
 	ui_manager.setup(action_area, hover_ball)
 	add_child(preload("res://scripts/audio/sound_manager.gd").new())
+	add_to_group("dnd_schedule")   # 全局設定改了勿擾時段就叫 refresh_dnd_schedule
+	var dnd_timer := Timer.new()
+	dnd_timer.wait_time = DND_SCHEDULE_CHECK_SECONDS
+	dnd_timer.autostart = true
+	dnd_timer.timeout.connect(refresh_dnd_schedule)
+	add_child(dnd_timer)
+	refresh_dnd_schedule()
 	save_scheduler = SaveScheduler.new()
 	save_scheduler.name = "SaveScheduler"
 	add_child(save_scheduler)
@@ -919,6 +926,8 @@ func _on_auto_chat_toggled(enabled: bool) -> void:
 	config.load(SETTINGS_PATH)
 	config.set_value("chat", "auto_chat_enabled", enabled)
 	config.save(SETTINGS_PATH)
+	if not enabled:
+		ui_manager.withdraw_autonomous_asks()
 	_tray.refresh_pets()
 
 
@@ -929,7 +938,41 @@ func _on_do_not_disturb_toggled(enabled: bool) -> void:
 	config.load(SETTINGS_PATH)
 	config.set_value("chat", "do_not_disturb", enabled)
 	config.save(SETTINGS_PATH)
+	if enabled:
+		ui_manager.withdraw_autonomous_asks()
 	_tray.refresh_pets()
+
+
+## 勿擾時段(2026-10-22 使用者要求,全局設定 > 對話,見 AppSettings.dnd_schedule):每 DND_SCHEDULE_CHECK_SECONDS 秒看一次
+## 裝置時間在不在時段裡,進出時段只改 DesktopShellState.schedule_*(疊加),不動使用者自己設定的勿擾、靜默、說話音效——
+## 離開時段就自動回到使用者原本的全局行為,不是單純把勿擾關掉。minute_of_day 給測試指定時間用(-1 = 現在)。
+const DND_SCHEDULE_CHECK_SECONDS := 15.0
+
+
+func refresh_dnd_schedule(minute_of_day := -1) -> void:
+	var config := AppSettings.dnd_schedule()
+	var active := AppSettings.dnd_schedule_active(config, minute_of_day if minute_of_day >= 0 else AppSettings.minute_of_day_now())
+	var silent := active and bool(config["silent"])
+	var mute := active and bool(config["mute"])
+	if active == _shell_state.schedule_dnd and silent == _shell_state.schedule_silent and mute == _shell_state.schedule_mute:
+		return
+	var entering: bool = (active and not _shell_state.schedule_dnd) or (silent and not _shell_state.schedule_silent)
+	_shell_state.schedule_dnd = active
+	_shell_state.schedule_silent = silent
+	_shell_state.schedule_mute = mute
+	if entering and ui_manager != null:
+		ui_manager.withdraw_autonomous_asks()   # 同手動開勿擾:桌寵自己發起、還掛著的提問收回
+	if _tray != null:
+		_tray.refresh_pets()
+
+
+## 繪圖視窗開了 / 最後一個關了(SpritePaintWindow._sync_painting 經 "desktop_shell" 群組呼叫;狀態已經設好):
+## 開始時同開勿擾,收回桌寵自己發起、還掛著的提問;系統匣更新勿擾的勾選。
+func on_painting_changed(active: bool) -> void:
+	if active and ui_manager != null:
+		ui_manager.withdraw_autonomous_asks()
+	if _tray != null:
+		_tray.refresh_pets()
 
 
 const LAYERING_EVERY_FRAMES := 4
@@ -957,6 +1000,8 @@ func _on_relax_mode_toggled(enabled: bool) -> void:
 	config.set_value("chat", "relax_mode", enabled)
 	config.save(SETTINGS_PATH)
 	AppSettings.refresh_fps()   # 全局設定「放鬆模式時降低影格率」
+	if enabled:
+		ui_manager.withdraw_autonomous_asks()
 	_tray.refresh_pets()
 
 

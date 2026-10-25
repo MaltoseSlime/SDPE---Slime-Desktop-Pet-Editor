@@ -50,6 +50,8 @@ var _no_follow_source_check: CheckBox
 var _no_topic_mention_check: CheckBox
 var _hide_from_ignored_check: CheckBox
 var _silent_check: CheckBox
+var _toggle_box: VBoxContainer
+var _follow_note: Label
 var _reaction_list: VBoxContainer
 var _reaction_window: ReactionDialogueWindow
 var _reaction_boxes: Dictionary = {}   # reactions 陣列索引 → TextEdit
@@ -153,34 +155,41 @@ func _commit_nickname() -> void:
 
 ## 整隻桌寵層級的總開關(跟下面「對某個道具的反應/喜好」「家具」那種一項一項設定不一樣,這裡是全部生效)。
 func _build_toggle_card() -> void:
+	# 開關的括號說明收進滑鼠停留提示(2026-10-22 使用者要求),卡片只列短名稱。
 	var box := _new_card("整體交互開關", "整隻桌寵層級的總開關。「不主動」只是不會自己發起——使用者手動拖曳互動(拖道具給它、拖它去用家具),或積木明確指定的使用,都不受影響。")
 	_ignore_props_check = CheckBox.new()
-	_ignore_props_check.text = tr("不與道具交互(完全無視:不撿、不被摩擦、不成為候選、不被吸引)")
+	_ignore_props_check.text = tr("不與道具交互")
+	_ignore_props_check.tooltip_text = tr("完全無視:不撿、不被摩擦、不成為候選、不被吸引。")
 	_ignore_props_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_ignore_props_check.toggled.connect(func(_pressed: bool) -> void: _commit_toggles())
 	box.add_child(_ignore_props_check)
 	_ignore_furniture_check = CheckBox.new()
-	_ignore_furniture_check.text = tr("不主動使用家具(目前只有容器類的自主拿取行為;坐/躺類本來就沒有自主機制)")
+	_ignore_furniture_check.text = tr("不主動使用家具")
+	_ignore_furniture_check.tooltip_text = tr("目前只有容器類的自主拿取行為;坐/躺類本來就沒有自主機制。")
 	_ignore_furniture_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_ignore_furniture_check.toggled.connect(func(_pressed: bool) -> void: _commit_toggles())
 	box.add_child(_ignore_furniture_check)
 	_no_follow_target_check = CheckBox.new()
-	_no_follow_target_check.text = tr("不會被其他桌寵跟隨(別隻桌寵自己決定要跟著誰走時不會選到這隻)")
+	_no_follow_target_check.text = tr("不會被其他桌寵跟隨")
+	_no_follow_target_check.tooltip_text = tr("別隻桌寵自己決定要跟著誰走時不會選到這隻。")
 	_no_follow_target_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_no_follow_target_check.toggled.connect(func(_pressed: bool) -> void: _commit_toggles())
 	box.add_child(_no_follow_target_check)
 	_no_follow_source_check = CheckBox.new()
-	_no_follow_source_check.text = tr("不跟隨其他桌寵(自己不會主動決定跟著誰走)")
+	_no_follow_source_check.text = tr("不跟隨其他桌寵")
+	_no_follow_source_check.tooltip_text = tr("自己不會主動決定跟著誰走。")
 	_no_follow_source_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_no_follow_source_check.toggled.connect(func(_pressed: bool) -> void: _commit_toggles())
 	box.add_child(_no_follow_source_check)
 	_no_topic_mention_check = CheckBox.new()
-	_no_topic_mention_check.text = tr("不被其他桌寵的話題文本提及(其他桌寵閒聊時不會提到這隻;只對在場的桌寵生效)")
+	_no_topic_mention_check.text = tr("不被其他桌寵的話題文本提及")
+	_no_topic_mention_check.tooltip_text = tr("其他桌寵閒聊時不會提到這隻;只對在場的桌寵生效。")
 	_no_topic_mention_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_no_topic_mention_check.toggled.connect(func(_pressed: bool) -> void: _commit_toggles())
 	box.add_child(_no_topic_mention_check)
 	_silent_check = CheckBox.new()
-	_silent_check.text = tr("靜默(不說任何對話:閒聊、反應、話題、玩球與對戰的台詞全部不說,性格帶來的台詞也一樣;被其他桌寵邀請對戰時不回話但照常接受或拒絕,自己不主動邀請。右鍵選單的占卜、抽籤、計時照常回應)")
+	_silent_check.text = tr("桌寵靜默")
+	_silent_check.tooltip_text = tr("不說任何對話:閒聊、反應、話題、玩球與對戰的台詞全部不說,性格帶來的台詞也一樣;被其他桌寵邀請對戰時不回話但照常接受或拒絕,自己不主動邀請。右鍵選單的占卜、抽籤、計時照常回應。")
 	_silent_check.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_silent_check.toggled.connect(func(_pressed: bool) -> void: _commit_toggles())
 	box.add_child(_silent_check)
@@ -190,6 +199,15 @@ func _build_toggle_card() -> void:
 	follow_note.custom_minimum_size.x = CARD_WIDTH
 	follow_note.theme_type_variation = AppSettings.MUTED_LABEL
 	box.add_child(follow_note)
+	_toggle_box = box
+	_follow_note = follow_note
+
+
+## 把別的分頁的勾選框搬進這張卡片(放在說明文字前面);讀寫邏輯仍屬於原本的分頁(見 StyleEditorTab.overall_toggle_controls)。
+func adopt_toggles(controls: Array[Control]) -> void:
+	for control in controls:
+		control.reparent(_toggle_box, false)
+		_toggle_box.move_child(control, _follow_note.get_index())
 
 
 func _commit_toggles() -> void:

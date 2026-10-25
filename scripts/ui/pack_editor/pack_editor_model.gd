@@ -14,6 +14,7 @@ const MAX_IMPORT_FRAMES := 256
 ## 點開頭的資料夾會被載入器略過(否則裡面的圖會被當成一個叫 imports 的動作),幀靠 pack.json 的 frames 清單指過來。
 const IMPORT_FOLDER := ".imports"
 const SHEET_FOLDER := ".sheets"
+const PAINT_FOLDER := ".paint"
 ## 撤回/重做各保留的步數上限。
 const UNDO_LIMIT := 25
 ## 同一個標籤的連續編輯在這麼短的間隔內合併成一步(連續按方向鍵、連續改同一個數值框)。
@@ -1491,7 +1492,8 @@ func export_frames(destination: String) -> Dictionary:
 	return {"ok": true, "error": "", "count": count, "folder": target}
 
 
-## 素材包隱藏資料夾(.imports、.sheets)裡沒有被任何動作、精靈圖切片或配件用到的檔案(素材包內的相對路徑)。
+## 素材包隱藏資料夾(.imports、.sheets)裡沒有被任何動作、精靈圖切片或配件用到的檔案(素材包內的相對路徑),
+## 加上合併圖已經沒在用的繪圖圖層側檔(.paint)。
 ## 判斷方式:這個檔案的相對路徑沒有出現在目前的 pack.json 內容(含幀清單、配件)或任何動作的幀路徑裡。
 func unused_files() -> Array[String]:
 	var result: Array[String] = []
@@ -1507,6 +1509,12 @@ func unused_files() -> Array[String]:
 			var full := folder + "/" + relative
 			if not haystack.contains(full) and not haystack.contains(root.path_join(full)):
 				result.append(full)
+	# 繪圖圖層的側檔跟著它的合併圖:合併圖沒在用(或不見了)側檔也算沒在用
+	for relative in PetPackage._list_files(root.path_join(PAINT_FOLDER), ""):
+		var stem := relative.get_file().get_basename().get_slice("__L", 0)
+		var flat := IMPORT_FOLDER + "/" + stem + ".png"
+		if result.has(flat) or not FileAccess.file_exists(root.path_join(flat)):
+			result.append(PAINT_FOLDER + "/" + relative)
 	return result
 
 
@@ -2100,17 +2108,248 @@ func bake_fx(only_action := "", indices: Array = []) -> Dictionary:
 
 
 func _save_baked(image: Image, stem: String) -> String:
+	return save_new_image(image, stem + "_baked")
+
+
+## 把一張圖存成素材包裡的新 PNG(.imports 資料夾,檔名衝突就加序號)。回傳相對路徑,失敗回空字串。
+## 繪圖、空白幀、空白圖層都用這個:舊檔不覆蓋,撤回只改回 pack.json,新寫的圖會留著變成未使用檔案(「清理未使用檔案」收掉)。
+func save_new_image(image: Image, stem: String) -> String:
 	var folder := root.path_join(IMPORT_FOLDER)
 	if DirAccess.make_dir_recursive_absolute(folder) != OK and not DirAccess.dir_exists_absolute(folder):
 		return ""
-	var target := folder.path_join("%s_baked.png" % stem)
+	var clean_stem := stem.replace(" ", "_").validate_filename()
+	var target := folder.path_join("%s.png" % clean_stem)
 	var counter := 2
 	while FileAccess.file_exists(target):
-		target = folder.path_join("%s_baked_%d.png" % [stem, counter])
+		target = folder.path_join("%s_%d.png" % [clean_stem, counter])
 		counter += 1
 	if image.save_png(target) != OK:
 		return ""
 	return _relative(target)
+
+
+# --- 繪圖(見 SpritePaintWindow)與空白幀(2026-10-22) ---
+
+## 把畫好的幀寫回:edits = [{index: 第幾幀, image: 畫好的圖}]。每張存成新的 PNG,幀改成直接用那張圖、拿掉圖片處理
+## (畫的就是處理後看到的樣子,跟「把圖片處理寫進檔案」一樣),軸心與圖片偏移照原本實際生效的值寫成這一幀自己的設定。
+## 這個動作打開了同步(見 PackFrameSync)的話,其他動作裡「同一張原圖、同一串圖片處理」(畫面上一模一樣)的幀也換成新圖。
+## 呼叫端先 checkpoint。回傳 {count: 換了幾幀(含其他動作), paths: 這個動作被換的幀的新路徑 {index: 路徑}, error}。
+func apply_painted_frames(action: String, edits: Array) -> Dictionary:
+	if not has_pack() or not actions.has(action):
+		return {"count": 0, "paths": {}, "error": "還沒有選動作"}
+	var plans := {action: {}}
+	var by_look := {}
+	# 繪圖視窗改過畫布尺寸:內容往右下移了 shift 格,軸心跟著移,角色在畫面上的位置不變(同步到別的動作的同一張圖也一樣)
+	var shift_of := {}
+	for edit: Dictionary in edits:
+		var at := int(edit.get("index", -1))
+		var image: Image = edit.get("image")
+		if at < 0 or at >= frame_count(action) or image == null or image.is_empty():
+			continue
+		var look := "%s|%s" % [PackFrameSync.base_key(self, frame_path(action, at)), fx_text(action, at)]
+		var stem := "%s_%d_paint" % [action, at]
+		var relative := save_new_image(image, stem)
+		if relative == "":
+			return {"count": 0, "paths": {}, "error": tr("無法寫入圖片(動作「%s」第 %d 幀)") % [action, at]}
+		plans[action][at] = relative
+		shift_of[relative] = Vector2(edit.get("shift", Vector2i.ZERO))
+		if not by_look.has(look):
+			by_look[look] = relative
+	if (plans[action] as Dictionary).is_empty():
+		return {"count": 0, "paths": {}, "error": "沒有要套用的幀"}
+	if is_sync_source(action):
+		for other in action_names():
+			if other == action:
+				continue
+			for j in frame_count(other):
+				var look := "%s|%s" % [PackFrameSync.base_key(self, frame_path(other, j)), fx_text(other, j)]
+				if by_look.has(look):
+					if not plans.has(other):
+						plans[other] = {}
+					plans[other][j] = by_look[look]
+	var count := 0
+	for target: String in plans:
+		var targets: Dictionary = plans[target]
+		if targets.is_empty():
+			continue
+		var kept := {}
+		for j: int in targets:
+			kept[j] = [pivot(target, j), offset(target, j)]
+		materialize(target)
+		var refs := frame_refs(target)
+		for j: int in targets:
+			var ref: Variant = refs[j]
+			var entry: Dictionary = {"file": ref} if ref is String else (ref as Dictionary).duplicate(true)
+			for key: String in ["fx", "sheet", "rect"]:
+				entry.erase(key)
+			entry["file"] = targets[j]
+			var at: Vector2 = kept[j][0] + (shift_of.get(targets[j], Vector2.ZERO) as Vector2)
+			entry["pivot"] = [int(at.x), int(at.y)]
+			var shift: Vector2 = kept[j][1]
+			if shift == Vector2.ZERO:
+				entry.erase("offset")
+			else:
+				entry["offset"] = [int(shift.x), int(shift.y)]
+			refs[j] = entry
+			count += 1
+		_set_refs(target, refs)
+	reset_sync_baselines()
+	var paths := {}
+	for j: int in plans[action]:
+		paths[j] = frame_path(action, j)
+	return {"count": count, "paths": paths, "error": ""}
+
+
+## 繪圖視窗新增的幀(2026-10-24):specs = [{at: 插在第幾幀(照順序一個一個插,at 是插的當下的位置), from: 複製自第幾幀
+## (插入前的位置;-1 = 空白), image: 畫好的圖, shift: 畫布尺寸的位移, size_before: 新增那時的大小}]。每張存成新的 PNG;
+## 複製的沿用那一幀實際生效的軸心、圖片偏移與幀的其他設定(圖層與光源在那一幀的設定也跟著複製),拿掉圖片處理(畫的就是處理後的樣子);
+## 空白的軸心在底部中央。不帶到同步的其他動作(新的幀別的動作沒有)。呼叫端先 checkpoint。回傳 {paths: [每個 spec 的新路徑], error}。
+func insert_painted_frames(action: String, specs: Array) -> Dictionary:
+	if not has_pack() or not actions.has(action):
+		return {"paths": [], "error": "還沒有選動作"}
+	var count := frame_count(action)
+	var entries: Array = []
+	for spec: Dictionary in specs:
+		var from := int(spec.get("from", -1))
+		var image: Image = spec.get("image")
+		if image == null or image.is_empty():
+			return {"paths": [], "error": "沒有要套用的幀"}
+		var relative := save_new_image(image, "%s_paint" % action)
+		if relative == "":
+			return {"paths": [], "error": tr("無法寫入圖片(動作「%s」新增的幀)") % action}
+		var shift := Vector2(spec.get("shift", Vector2i.ZERO))
+		var entry := {}
+		if from >= 0 and from < count:
+			var ref: Variant = frame_refs(action)[from]
+			entry = {"file": ref} if ref is String else (ref as Dictionary).duplicate(true)
+			for key: String in ["fx", "sheet", "rect"]:
+				entry.erase(key)
+			var at: Vector2 = pivot(action, from) + shift
+			entry["pivot"] = [int(at.x), int(at.y)]
+			var moved: Vector2 = offset(action, from)
+			if moved == Vector2.ZERO:
+				entry.erase("offset")
+			else:
+				entry["offset"] = [int(moved.x), int(moved.y)]
+		else:
+			from = -1
+			var base: Vector2i = spec.get("size_before", image.get_size())
+			entry["pivot"] = [base.x / 2 + int(shift.x), base.y + int(shift.y)]
+		entry["file"] = relative
+		entries.append([int(spec.get("at", -1)), from, entry])
+	materialize(action)
+	var refs := frame_refs(action)
+	var mapping := range(refs.size())
+	var placed: Array[int] = []
+	for item: Array in entries:
+		var at := clampi(int(item[0]), 0, refs.size()) if int(item[0]) >= 0 else refs.size()
+		refs.insert(at, item[2])
+		mapping.insert(at, item[1])   # 複製的沿用那一幀的圖層 / 光源設定;空白的 = -1
+		for k in placed.size():
+			if placed[k] >= at:
+				placed[k] += 1
+		placed.append(at)
+	_set_refs(action, refs)
+	_remap_frame_objects(action, mapping)
+	var paths: Array = []
+	for at in placed:
+		paths.append(frame_path(action, at))
+	return {"paths": paths, "error": ""}
+
+
+## 新增 count 張全透明的空白幀(每張一個新的 PNG,才能各自畫),插在 after_index 後面(-1 或超過 = 接在最後)。
+## 軸心放在底部中央(跟匯入的圖一樣站在腳底線上)。動作還不存在就用這個名字建立(空的動作槽、道具/家具的狀態槽)。
+## 呼叫端不用先 checkpoint(這裡存)。回傳新幀的位置;名字不合法或寫不了檔回空陣列。
+func add_blank_frames(action_name: String, after_index: int, count: int, frame_size: Vector2i) -> Array[int]:
+	var created: Array[int] = []
+	var clean := SpritePackLoader.clean_action_name(action_name)
+	if not has_pack() or clean == "" or count < 1:
+		return created
+	var width := clampi(frame_size.x, 1, SpritePackLoader.MAX_SIDE)
+	var height := clampi(frame_size.y, 1, SpritePackLoader.MAX_SIDE)
+	var new_refs: Array = []
+	for k in mini(count, MAX_IMPORT_FRAMES):
+		var image := Image.create(width, height, false, Image.FORMAT_RGBA8)
+		var relative := save_new_image(image, "%s_blank" % clean)
+		if relative == "":
+			return created
+		new_refs.append({"file": relative, "pivot": [width / 2, height]})
+	checkpoint()
+	var refs: Array = []
+	var mapping: Array = []
+	if actions.has(clean):
+		materialize(clean)
+		refs = frame_refs(clean)
+		mapping = range(refs.size())
+	var insert_at := refs.size() if after_index < 0 or after_index >= refs.size() else after_index + 1
+	for k in new_refs.size():
+		refs.insert(insert_at + k, new_refs[k])
+		mapping.insert(insert_at + k, -1)
+		created.append(insert_at + k)
+	var existed := actions.has(clean)
+	_set_refs(clean, refs)
+	if existed:
+		_remap_frame_objects(clean, mapping)
+	return created
+
+
+## 繪圖圖層的側檔(繪圖第二期):合併後的圖照常是幀 / 圖層用的那張 PNG,各層另外存在 .paint 資料夾,
+## 用合併圖的檔名當名字:<名字>.json(圖層清單 + 合併圖的雜湊)與 <名字>__L<第幾層>.png。遊戲不讀這些。
+## 合併圖在別的地方被換掉或改過(雜湊對不上)就不拆回來,當成只有一層。
+func save_paint_layers(flat_relative: String, layers: Array, flattened: Image) -> bool:
+	if layers.is_empty() or flat_relative == "" or flattened == null:
+		return false
+	var folder := root.path_join(PAINT_FOLDER)
+	if DirAccess.make_dir_recursive_absolute(folder) != OK and not DirAccess.dir_exists_absolute(folder):
+		return false
+	var stem := _raw_file_of(flat_relative).get_file().get_basename()
+	var entries: Array = []
+	for l in layers.size():
+		var layer: Dictionary = layers[l]
+		var file_name := "%s__L%d.png" % [stem, l]
+		if not (layer.get("image") is Image) or (layer["image"] as Image).save_png(folder.path_join(file_name)) != OK:
+			return false
+		entries.append({"name": str(layer.get("name", "")), "visible": bool(layer.get("visible", true)), "opacity": float(layer.get("opacity", 1.0)),
+				"alpha_lock": bool(layer.get("alpha_lock", false)), "clip": bool(layer.get("clip", false)), "file": file_name})
+	var file := FileAccess.open(folder.path_join(stem + ".json"), FileAccess.WRITE)
+	if file == null:
+		return false
+	file.store_string(JSON.stringify({"flat_hash": _image_hash(flattened), "layers": entries}, "\t"))
+	file.close()
+	return true
+
+
+## 讀回繪圖圖層:flat_relative 可以是幀路徑(含圖片處理的虛擬路徑也行);displayed 是現在這張合併圖(雜湊要跟存的時候一樣)。沒有側檔或對不上回空陣列。
+func load_paint_layers(flat_relative: String, displayed: Image) -> Array:
+	var result: Array = []
+	if flat_relative == "" or displayed == null or not has_pack():
+		return result
+	var folder := root.path_join(PAINT_FOLDER)
+	var sidecar := folder.path_join(_raw_file_of(flat_relative).get_file().get_basename() + ".json")
+	if not FileAccess.file_exists(sidecar):
+		return result
+	var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(sidecar))
+	if not (data is Dictionary) or not (data.get("layers") is Array):
+		return result
+	if int(data.get("flat_hash", 0)) != _image_hash(displayed):
+		return result
+	for entry: Variant in data["layers"]:
+		if not (entry is Dictionary):
+			return []
+		var image := Image.load_from_file(folder.path_join(str(entry.get("file", "")).get_file()))
+		if image == null or image.is_empty() or image.get_size() != displayed.get_size():
+			return []
+		result.append({"name": str(entry.get("name", "")), "visible": bool(entry.get("visible", true)), "opacity": float(entry.get("opacity", 1.0)),
+				"alpha_lock": bool(entry.get("alpha_lock", false)), "clip": bool(entry.get("clip", false)), "image": image})
+	return result
+
+
+static func _image_hash(image: Image) -> int:
+	var copy := image.duplicate() as Image
+	if copy.is_compressed():
+		copy.decompress()
+	copy.convert(Image.FORMAT_RGBA8)
+	return hash(copy.get_data())
 
 
 ## 有圖片處理、或是精靈圖切片的幀(寫進檔案會改成一張自己的圖)。

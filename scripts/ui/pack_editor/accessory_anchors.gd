@@ -44,6 +44,29 @@ static func _fallback(part: Dictionary, action: String) -> Vector2:
 	return base if base is Vector2 else Vector2.ZERO
 
 
+## 三層的錨點全部平移 delta(繪圖視窗改了圖層圖片的畫布尺寸,讓圖層在畫面上的位置不變)。
+static func shift_all(part: Dictionary, delta: Vector2) -> void:
+	var base: Variant = _point(part.get("anchor"))
+	if base is Vector2:
+		part["anchor"] = _to_array((base as Vector2) + delta)
+	var by_action: Variant = part.get("anchors")
+	if by_action is Dictionary:
+		for action: Variant in (by_action as Dictionary).keys():
+			var point: Variant = _point(by_action[action])
+			if point is Vector2:
+				by_action[action] = _to_array((point as Vector2) + delta)
+	var by_frame: Variant = part.get("frame_anchors")
+	if by_frame is Dictionary:
+		for action: Variant in (by_frame as Dictionary).keys():
+			var list: Variant = by_frame[action]
+			if not list is Array:
+				continue
+			for k in (list as Array).size():
+				var point: Variant = _point(list[k])
+				if point is Vector2:
+					list[k] = _to_array((point as Vector2) + delta)
+
+
 ## 現在生效的是哪一層(SCOPE_*)。
 static func source_of(part: Dictionary, action: String) -> int:
 	var by_frame: Variant = part.get("frame_anchors")

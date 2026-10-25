@@ -10,6 +10,8 @@ const PREVIEW_SIZE := Vector2(480, 300)
 
 var _existing: Array[String] = []
 var _is_sheet := false
+## 切精靈圖放進圖層(不用動作名稱,見 setup_layer_sheet)。
+var _layer_only := false
 var _sheet_image: Image
 var _sheet_size := Vector2i.ZERO
 var _name_edit: LineEdit
@@ -46,6 +48,18 @@ func setup_sheet(image: Image, file_name: String, existing: Array[String], sugge
 	_sheet_size = Vector2i(image.get_width(), image.get_height())
 	title = "匯入精靈圖"
 	_build(tr("精靈圖:%s(%d × %d)\n設好格線,下方預覽會標出每個切片;切片只是引用精靈圖的區域,不會另外產生圖檔。") % [file_name, _sheet_size.x, _sheet_size.y], suggested_name)
+	_refresh_grid()
+
+
+## 切精靈圖放進圖層:不問動作名稱,確定後 params 只有 grid(action 是空字串)。
+func setup_layer_sheet(image: Image, file_name: String) -> void:
+	_layer_only = true
+	_is_sheet = true
+	_sheet_image = image
+	_sheet_size = Vector2i(image.get_width(), image.get_height())
+	title = "匯入精靈圖"
+	_build(tr("精靈圖:%s(%d × %d)\n設好格線,下方預覽會標出每個切片;每一格各存成一張圖,換掉這個圖層的圖。") % [file_name, _sheet_size.x, _sheet_size.y], "")
+	_name_edit.get_parent().visible = false
 	_refresh_grid()
 
 
@@ -149,9 +163,9 @@ func _refresh_grid() -> void:
 
 func _refresh() -> void:
 	var clean_name := SpritePackLoader.clean_action_name(_name_edit.text)
-	_mode_row.visible = _existing.has(clean_name) and clean_name != ""
+	_mode_row.visible = not _layer_only and _existing.has(clean_name) and clean_name != ""
 	var sheet_ok := not _is_sheet or not _rects.is_empty()
-	get_ok_button().disabled = clean_name == "" or not sheet_ok
+	get_ok_button().disabled = (clean_name == "" and not _layer_only) or not sheet_ok
 
 
 func _on_confirmed() -> void:

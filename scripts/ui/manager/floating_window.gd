@@ -27,6 +27,13 @@ var _title_min_button: Button
 var _title_close_button: Button
 var _title_frame: Panel
 var _title_version: Label
+## 拖到螢幕外再拉回來的自癒(見 _watch_offscreen):上一次量到的位置與大小、移動中有沒有超出螢幕、停住幾次了。
+var _watch_rect := Rect2i()
+var _offscreen_seen := false
+var _still_ticks := 0
+## 最小化到工作列時暫時換成系統邊框(見 minimize_to_tray):還原時要換回無邊框、擺回這個位置與大小。
+var _taskbar_minimized := false
+var _minimized_rect := Rect2i()
 
 
 func setup_floating(window_title: String, window_size: Vector2i, window_min_size: Vector2i) -> void:
@@ -41,7 +48,13 @@ func setup_floating(window_title: String, window_size: Vector2i, window_min_size
 	add_to_group("floating_windows")
 	add_to_group("pet_occluders")   # 桌寵與行動區介面不會出現在浮動視窗上面(見 DesktopShell._occluder_polygons)
 	_add_backdrop.call_deferred()
+	_add_offscreen_watch.call_deferred()
 	close_requested.connect(_request_close)
+	visibility_changed.connect(_notify_minimized_changed)
+	tree_exited.connect(_notify_minimized_changed)
+	# 從工作列點回來:視窗會拿到焦點、大小也會變(最小化時的大小是 0),都檢查一次;0.2 秒的位置檢查是保險。
+	focus_entered.connect(_check_taskbar_restore)
+	size_changed.connect(_check_taskbar_restore.call_deferred)
 	if AppSettings.themed_title_bar():
 		_install_title_bar.call_deferred()
 	place_on_screen.call_deferred()
@@ -102,6 +115,53 @@ func _add_backdrop() -> void:
 	add_child(backdrop)
 
 
+## 2026-10-23 使用者實機回報:把繪圖視窗拖到螢幕外面再拉回來,超出螢幕的那一塊變成黑的、修不回來(之後跳出來的提示視窗也是全黑)。
+## 原生視窗的畫面緩衝在螢幕外那段沒有重畫;hide()+show() 重建原生視窗(_heal_top_window,跟對話框關閉後的自癒同一招)就會整個重新畫。
+## 所以每 0.2 秒看一次位置:移動中有一部分跑出所有螢幕外,等它停住、而且整個回到螢幕內時自動重建一次。只停在螢幕外不處理(使用者可能故意放在那裡)。
+func _add_offscreen_watch() -> void:
+	if not is_inside_tree() or get_node_or_null("OffscreenWatch") != null:
+		return
+	var timer := Timer.new()
+	timer.name = "OffscreenWatch"
+	timer.wait_time = 0.2
+	timer.autostart = true
+	timer.timeout.connect(_watch_offscreen)
+	# 內部子節點:不佔 get_child() 的順序(自訂標題列把 Control 都搬進內容區後,一般子節點的 Timer 會變成第 0 個)。
+	add_child(timer, false, Node.INTERNAL_MODE_BACK)
+	_watch_rect = Rect2i(position, size)
+
+
+func _watch_offscreen() -> void:
+	_check_taskbar_restore()
+	if not visible or mode == Window.MODE_MINIMIZED or _taskbar_minimized:
+		return
+	var rect := Rect2i(position, size)
+	var screens: Array[Rect2i] = []
+	for screen in DisplayServer.get_screen_count():
+		screens.append(Rect2i(DisplayServer.screen_get_position(screen), DisplayServer.screen_get_size(screen)))
+	if rect != _watch_rect:
+		_watch_rect = rect
+		_still_ticks = 0
+		if not FloatingWindow.covered_by_screens(rect, screens):
+			_offscreen_seen = true
+		return
+	_still_ticks += 1
+	if _still_ticks == 2 and _offscreen_seen and FloatingWindow.covered_by_screens(rect, screens):
+		_offscreen_seen = false
+		FloatingWindow._heal_top_window(self)
+		_watch_rect = Rect2i(position, size)
+
+
+## 純計算:rect 是不是整塊都在螢幕上(可以跨好幾個螢幕;螢幕之間不重疊)。
+static func covered_by_screens(rect: Rect2i, screens: Array[Rect2i]) -> bool:
+	var covered := 0
+	for screen_rect in screens:
+		var overlap := screen_rect.intersection(rect)
+		if overlap.has_area():
+			covered += overlap.size.x * overlap.size.y
+	return covered >= rect.size.x * rect.size.y
+
+
 ## 自訂標題列(跟著配色):作業系統的標題列顏色 Godot 改不了(Windows 10 只跟系統強調色),所以改成無邊框視窗,自己畫一條標題列
 ## (標題文字、最小化、關閉),四邊與四角有縮放用的感應條;顏色來自 AppSettings.title_bar_colors(),配色改了 refresh_theme() 會立刻跟著變。
 ## 子類別建好的內容整個放進標題列下面的內容區(不會被蓋住);視窗總高度加上標題列高度,內容能用的大小不變。forced_height > 0 是測試用。
@@ -153,7 +213,7 @@ func _install_title_bar(forced_height := 0) -> void:
 	version_gap.custom_minimum_size.x = 8.0
 	version_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(version_gap)
-	_title_min_button = _make_title_button("—", "最小化(從系統匣選單再開一次就會回來)", minimize_to_tray)
+	_title_min_button = _make_title_button("—", "最小化(點工作列上的圖示就會回來)", minimize_to_tray)
 	row.add_child(_title_min_button)
 	_title_close_button = _make_title_button("✕", "關閉", _request_close)
 	row.add_child(_title_close_button)
@@ -304,16 +364,47 @@ func refresh_theme() -> void:
 	_wrap_long_buttons.call_deferred()   # 字體、字級變了,文字寬度跟著變:重新判斷哪些要換行
 
 
-## 最小化:無邊框視窗在工作列沒有圖示,作業系統的最小化會讓它整個消失、叫不回來,所以改成「藏起來」;
-## 從系統匣選單再開同一個視窗(bring_to_front)就會顯示出來,內容與位置都還在。
+## 最小化到工作列(2026-10-23 使用者回報:原本按「—」是藏起來,從角色庫開的精靈圖編輯器這種在系統匣沒有「開啟…」的視窗
+## 就叫不回來,像被關掉了)。無邊框視窗直接交給作業系統最小化,Windows 會連 WS_VISIBLE 一起拿掉、工作列上的圖示也跟著
+## 消失(用 Win32 查證過);有系統邊框的視窗最小化時圖示還在。所以最小化前先暫時換回系統邊框(最小化的視窗看不到邊框),
+## 從工作列點回來時(_check_taskbar_restore)再換回無邊框、照原本的位置與大小擺回去。系統匣「叫回最小化的視窗」也列得到。
 func minimize_to_tray() -> void:
-	hide()
+	if borderless:
+		_minimized_rect = Rect2i(position, size)
+		_taskbar_minimized = true
+		borderless = false
+	mode = Window.MODE_MINIMIZED
+	_notify_minimized_changed()
+
+
+## 從工作列(或 bring_to_front)還原了:換回無邊框,擺回最小化前的位置與大小。
+func _check_taskbar_restore() -> void:
+	if not _taskbar_minimized or mode == Window.MODE_MINIMIZED or not is_inside_tree():
+		return
+	_taskbar_minimized = false
+	borderless = true
+	size = _minimized_rect.size
+	position = _minimized_rect.position
+	_watch_rect = Rect2i(position, size)
+	_notify_minimized_changed()
+
+
+func is_minimized() -> bool:
+	return not visible or mode == Window.MODE_MINIMIZED
+
+
+## 視窗藏起來 / 顯示 / 關掉時通知系統匣重建「叫回最小化的視窗」清單(見 TrayController.refresh_windows)。
+func _notify_minimized_changed() -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree != null:
+		tree.call_group("tray_menu", "refresh_windows")
 
 
 ## 把視窗叫到前景:藏起來(最小化)的先顯示、系統最小化的先還原,再取得焦點。系統匣選單「開啟…」對已經開著的視窗都走這裡。
 func bring_to_front() -> void:
 	if mode == Window.MODE_MINIMIZED:
 		mode = Window.MODE_WINDOWED
+	_check_taskbar_restore()
 	if not visible:
 		show()
 	grab_focus()
@@ -349,6 +440,7 @@ func _recycle_on_top(wanted: bool) -> void:
 func reset_window() -> void:
 	if mode == Window.MODE_MINIMIZED:
 		mode = Window.MODE_WINDOWED
+	_check_taskbar_restore()
 	if not visible:
 		show()
 	always_on_top = false   # 先放掉再設回去,Windows 才會重新排到最上層

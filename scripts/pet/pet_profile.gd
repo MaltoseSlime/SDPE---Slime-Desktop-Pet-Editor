@@ -140,7 +140,7 @@ static func snapshot_pet(pet: Node) -> Dictionary:
 		"mute": {"auto_unmute": pet.auto_unmute_enabled},
 		"status": {"energy": pet.status_show_energy, "mood": pet.status_show_mood},
 		"effects": {"sleep_z": pet.sleep_z.enabled, "all": pet.effects.enabled, "auto": pet.effects.auto_enabled, "styles": pet.effects.styles_to_dict(), "links": pet.effects.links_to_dict(), "trail": pet.effects.trail_mode, "favor": pet.effects.favor_to_dict()},
-		"body": {"scale": pet.params.scale_multiplier / pet.appearance_scale_ratio, "art_flipped": pet.art_flipped, "pack_flipped": pet.base_pack_flipped, "drag_fixed": pet.drag_when_fixed, "climb": pet.climb_enabled, "breath": pet.breathing_enabled, "sharp_pixels": pet.sharp_pixels_enabled, "land_for_props": pet.land_for_props, "fly_behavior": pet.FLY_BEHAVIOR_NAMES[pet.fly_behavior], "no_fatigue": pet.fatigue_disabled, "bottom": pet.bottom_anchored, "hitbox": [pet.hitbox_size.x, pet.hitbox_size.y, pet.hitbox_offset.x, pet.hitbox_offset.y], "appearance_hitboxes": pet.appearance_hitboxes.duplicate(true)},
+		"body": {"scale": pet.params.scale_multiplier / pet.appearance_scale_ratio, "art_flipped": pet.art_flipped, "pack_flipped": pet.base_pack_flipped, "drag_fixed": pet.drag_when_fixed, "climb": pet.climb_enabled, "breath": pet.breathing_enabled, "sharp_pixels": pet.sharp_pixels_enabled, "land_for_props": pet.land_for_props, "float_fly": pet.float_fly_anim, "float_walk": pet.float_walk_anim, "float_lay": pet.float_lay_sleep, "fly_behavior": pet.FLY_BEHAVIOR_NAMES[pet.fly_behavior], "no_fatigue": pet.fatigue_disabled, "bottom": pet.bottom_anchored, "hitbox": [pet.hitbox_size.x, pet.hitbox_size.y, pet.hitbox_offset.x, pet.hitbox_offset.y], "appearance_hitboxes": pet.appearance_hitboxes.duplicate(true)},
 		"voice": PetVoice.to_dict(pet),
 		"dice": {"sides": pet.dice_sides, "mod": pet.dice_mod, "dc": pet.dice_dc_percent, "best_of": pet.game_best_of, "auto_invite": pet.auto_game_enabled, "always_refuse": pet.game_always_refuse},
 		"game_prefs": {
@@ -241,6 +241,9 @@ static func _apply_pet_data(pet: Node, data: Dictionary) -> void:
 		pet.set_breathing(bool(body.get("breath", pet.breathing_enabled)))
 		pet.set_sharp_pixels(bool(body.get("sharp_pixels", pet.sharp_pixels_enabled)))
 		pet.land_for_props = bool(body.get("land_for_props", pet.land_for_props))
+		pet.float_fly_anim = bool(body.get("float_fly", pet.float_fly_anim))
+		pet.float_walk_anim = bool(body.get("float_walk", pet.float_walk_anim))
+		pet.float_lay_sleep = bool(body.get("float_lay", pet.float_lay_sleep))
 		var fly_index: int = pet.FLY_BEHAVIOR_NAMES.find(str(body.get("fly_behavior", pet.FLY_BEHAVIOR_NAMES[pet.fly_behavior])))
 		pet.fly_behavior = maxi(fly_index, 0) as Pet.FlyBehavior
 		pet.fatigue_disabled = bool(body.get("no_fatigue", pet.fatigue_disabled))

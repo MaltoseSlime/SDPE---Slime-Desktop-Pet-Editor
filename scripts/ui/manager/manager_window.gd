@@ -159,6 +159,8 @@ func _collect_behavior_cards() -> void:
 			push_warning("行為分頁找不到卡片:" + title)
 			continue
 		card.reparent(_behavior_flow, false)
+	# 「允許攀爬」「桌寵不計算疲勞值」放到整體交互開關(2026-10-22 使用者要求)。
+	_interaction_tab.adopt_toggles(_style_tab.overall_toggle_controls())
 
 
 ## 儲存 / 儲存並關閉 / 不儲存並關閉 + 狀態文字:釘在視窗底部的浮動面板(視窗不夠高、分頁內容很長時,按鈕還是看得到)。

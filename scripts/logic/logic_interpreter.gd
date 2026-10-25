@@ -1033,6 +1033,11 @@ func _normalize_chat_tag(tag: String) -> String:
 	return normalized
 
 
+## 閒聊鏈正在跑(自動閒聊、說點什麼、夢話),見 Pet.is_asking_autonomously()。
+func is_chat_running() -> bool:
+	return _chat_running
+
+
 func _run_chat(hat: Dictionary) -> void:
 	_chat_running = true
 	await _run_hat(hat)
@@ -1523,6 +1528,8 @@ func _on_memory_reset() -> void:
 func _ask_user_text(prompt: String, bubble_text: String, default_text: String, max_length: int, tag_picker := false) -> Array:
 	if _state.text_input_requested.get_connections().is_empty():
 		return ["", false, ""]
+	if _chat_running and _state.asks_blocked():
+		return ["", false, ""]   # 同 _show_line:閒聊途中才開勿擾/放鬆模式,不再問使用者
 	_progress_stamp += 1
 	var ticket := InputTicket.new()
 	var on_cut := func() -> void:
@@ -2104,6 +2111,8 @@ func _show_line(speaker: Node, line: Dictionary, auto_seconds: float) -> int:
 	if _state.dialogue_line_requested.get_connections().is_empty():
 		await _wait(auto_seconds if auto_seconds > 0.0 else DEFAULT_DIALOGUE_SECONDS, speaker == _pet)
 		return -1
+	if _chat_running and _state.asks_blocked() and not (line.get("options", []) as Array).is_empty():
+		return -1   # 閒聊跑到一半才開勿擾/放鬆模式(抽籤時還沒擋到):要使用者選的這句跳過,當作沒有選擇
 	var ticket := DialogueTicket.new()
 	_state.dialogue_line_requested.emit(speaker, line, ticket)
 	if ticket.closed:

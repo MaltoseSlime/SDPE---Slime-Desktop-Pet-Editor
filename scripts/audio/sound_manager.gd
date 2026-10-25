@@ -65,7 +65,7 @@ func _on_sound_requested(pet: Node, sound_name: String) -> void:
 
 
 func _on_speech_tick(pet: Node) -> void:
-	if _state.audio_muted or not _state.speak_sound_enabled or (is_instance_valid(pet) and pet.muted):
+	if _state.audio_muted or not _state.speak_sound_enabled or _state.schedule_mute or (is_instance_valid(pet) and pet.muted):   # schedule_mute:勿擾時段的「靜音」
 		return
 	if not is_instance_valid(pet):
 		return

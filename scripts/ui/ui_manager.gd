@@ -38,6 +38,10 @@ var _history: Dictionary = {}
 ## 桌寵 → 排隊等著顯示的句子(每項 {line, ticket})。桌寵已經有一個氣泡時,別的積木鏈(計時事件、閒聊、狀態事件…)送來的句子
 ## 不會把它擠掉——使用者可能還在讀、或正在猶豫要不要回答——而是排在後面,前一個氣泡收掉才輪到。
 var _queued: Dictionary = {}
+## 正在被新的一句取代舊氣泡的桌寵(見 _show_bubble):這段期間舊氣泡收起時不能順手叫出佇列的下一句,
+## 不然佇列那句會被緊接著顯示的新句子蓋掉登記、變成永遠不發 dialogue_finished 的孤兒氣泡,
+## 全域「有人在說話」的計數卡住,所有桌寵從此不再自動閒聊/邀請遊戲(2026-10-21 使用者回報:玩完球後就不聊了)。
+var _replacing_pet: Node
 var _connected_pets: Dictionary = {}
 var _repeat_connected: Dictionary = {}
 ## 每個介面(氣泡/面板)目前橫向被推開多少(相對「置中/貼齊在桌寵旁邊」的基準位置的偏移量,像素;
@@ -171,7 +175,9 @@ func _connect_repeat(pet: Node) -> void:
 
 
 func _show_bubble(pet: Node, line: Dictionary, ticket: RefCounted) -> void:
+	_replacing_pet = pet
 	_close_bubble(pet)
+	_replacing_pet = null
 	# 「聊天室式」/「簡訊式」模式下,不用等使用者互動的句子(沒有選項、也不是等點擊的重要提問)改走聊天室
 	# 視窗;需要互動的句子(問題、選項)還是照舊用浮動氣泡——不然使用者沒辦法在聊天室視窗裡點選項。這兩個
 	# 模式只差在視窗裡每一句怎麼畫(見 ChatRoomWindow.append_line()),路由規則相同。
@@ -263,16 +269,41 @@ func _on_bubble_pin_toggle(pet: Node) -> void:
 func _on_bubble_advanced(_choice: int, pet: Node, bubble: DialogueBubble) -> void:
 	if _bubbles.get(pet) == bubble:
 		_bubbles.erase(pet)
-		_state.dialogue_finished.emit(pet)
 		if is_instance_valid(pet):
 			pet.has_open_bubble = false
+	# 每個氣泡建立時都發過一次 dialogue_started,收起時就一定要配一次 finished(不論它還是不是目前登記的那顆),計數才不會漏。
+	_state.dialogue_finished.emit(pet)
 	_order.erase(bubble)
 	_last_offsets.erase(bubble)
 	if pet.interrupted.is_connected(bubble.close_silently):
 		pet.interrupted.disconnect(bubble.close_silently)
 	bubble.queue_free()
 	set_process(not _order.is_empty())
-	_show_next_queued(pet)
+	if pet != _replacing_pet:
+		_show_next_queued(pet)
+
+
+## 開勿擾/放鬆模式、關自動閒聊的當下(見 DesktopShell):桌寵自己發起、還掛著等使用者選的提問收回
+## (當作沒人理;排隊中的也作廢),免得切換後還要使用者回答(2026-10-21 使用者要求:途中切換全體行為要有防呆)。
+## 使用者自己叫出來的(右鍵選單、點擊反應)、已經按「回答」打開的輸入視窗、只等點擊的重要通知都不動。
+func withdraw_autonomous_asks() -> void:
+	for pet: Node in _queued.keys():
+		if not is_instance_valid(pet) or not pet.is_asking_autonomously():
+			continue
+		var kept: Array = []
+		for entry: Dictionary in _queued[pet]:
+			if (entry["line"].get("options", []) as Array).is_empty():
+				kept.append(entry)
+			elif entry["ticket"] != null:
+				entry["ticket"].finish(-1)
+		if kept.is_empty():
+			_queued.erase(pet)
+		else:
+			_queued[pet] = kept
+	for pet: Node in _bubbles.keys():
+		var bubble: DialogueBubble = _bubbles[pet]
+		if is_instance_valid(pet) and is_instance_valid(bubble) and bubble.has_options() and pet.is_asking_autonomously():
+			bubble.close_silently()
 
 
 func _close_bubble(pet: Node) -> void:

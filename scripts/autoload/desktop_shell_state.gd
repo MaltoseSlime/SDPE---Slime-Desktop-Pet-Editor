@@ -81,9 +81,25 @@ var do_not_disturb := false
 var relax_mode := false
 
 
-## 桌寵現在不該自己發起需要使用者回應的事(勿擾模式或放鬆模式)。
+## 勿擾時段(全局設定 > 對話,見 AppSettings.dnd_schedule、DesktopShell._refresh_dnd_schedule):時段內疊加的勿擾/全部靜默/關閉說話音效。
+## 只疊加、不改使用者自己的 do_not_disturb、各桌寵的靜默、speak_sound_enabled,離開時段這三個清掉就回到使用者原本的設定。
+var schedule_dnd := false
+var schedule_silent := false
+var schedule_mute := false
+
+## 有繪圖視窗開著(SpritePaintWindow,2026-10-23 使用者要求):期間疊加勿擾,同 schedule_dnd 只疊加、不改使用者自己的勿擾開關;
+## 也會拉高影格率、不合併滑鼠移動(見 AppSettings.refresh_fps、SpritePaintWindow._sync_painting)。
+var painting := false
+
+
+## 現在實際上是不是勿擾(使用者自己開的、在勿擾時段內,或正在用繪圖視窗)。
+func do_not_disturb_now() -> bool:
+	return do_not_disturb or schedule_dnd or painting
+
+
+## 桌寵現在不該自己發起需要使用者回應的事(勿擾模式、勿擾時段或放鬆模式)。
 func asks_blocked() -> bool:
-	return do_not_disturb or relax_mode
+	return do_not_disturb_now() or relax_mode
 
 ## 全域數值的定義(PetValueDef 陣列):預設值、上下限、Status 白名單等;全域數值沒有宣告時仍可使用,只是不夾限也不顯示。
 var global_value_defs: Array = []

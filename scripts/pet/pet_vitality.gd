@@ -132,8 +132,9 @@ var favor_streak_threshold := 3.0
 var energy := MAX_ENERGY
 var mode: Mode = Mode.ACTIVE
 var tired := false
-## 目前的休息是不是「強制休息」(右鍵選單)叫起來的,不是真的疲憊觸發——疲勞機制關掉時 _process 要不要自動取消休息
-## 就看這個(見 force_rest())。
+## 目前的休息是不是「刻意叫起來的」(強制休息、放鬆模式、沒事自己坐下),不是疲憊觸發——疲勞機制關掉時 _process 要不要自動取消休息
+## 就看這個(見 force_rest())。2026-10-22 使用者回報飛行、漂浮的桌寵從不躺下睡覺:「沒事自己坐下」以前沒設這個,疲勞關掉時
+## 下一幀就被當成殘留取消(只剩 sit 動作佔著),休息鏈走不到躺下、睡著;地面的放鬆模式走 force_rest 才沒事。
 var _manual_rest := false
 ## 目前心情(0~100)。第一次 _process 時放到基準。
 var mood := MOOD_NEUTRAL
@@ -251,8 +252,7 @@ func _decide() -> void:
 
 ## 不疲憊時也可能自己坐下休息一下(尤其坐下——不是只有疲憊時才會做這些動作):跟疲憊觸發的休息共用同一套
 ## 休息鏈與冷卻,但只從坐下開始,不會自己躺著睡著(睡著該是真的累了才對);性格沒開 idle_sit_chance(0)就不會。
-## 只有從 _decide() 呼叫得到(疲勞機制關掉時 _process() 一律提早 return,不會走到這裡),所以不用額外處理
-## 「疲勞關掉卻在休息中」的情形(那是 force_rest 的 _manual_rest 在管)。
+## 疲勞機制關掉時也會走到這裡(見 _process),所以要設 _manual_rest,休息鏈才不會下一幀就被當成殘留取消。
 func _maybe_idle_sit() -> void:
 	var chance := idle_sit_chance
 	if _pet.relaxing():
@@ -268,6 +268,7 @@ func _maybe_idle_sit() -> void:
 		# 平時也會先挑座位(2026-10-13 使用者要求):挑到別處就走過去才坐,原地最好就照舊直接坐。
 		if _pet.relax != null and _pet.relax.seek_seat_casual():
 			return
+		_manual_rest = true
 		_begin_chain(Mode.RESTING)
 
 
@@ -275,6 +276,7 @@ func _maybe_idle_sit() -> void:
 func idle_sit_now() -> bool:
 	if mode != Mode.ACTIVE or not _can_rest():
 		return false
+	_manual_rest = true
 	_begin_chain(Mode.RESTING)
 	return true
 
@@ -355,6 +357,8 @@ func _begin_chain(first_stage: Mode, autonomous: bool = true) -> void:
 func _enter_stage(new_mode: Mode, resume_length: float = -1.0) -> void:
 	if new_mode == Mode.SLEEPING and _pet.pet_timer != null and _pet.pet_timer.active():
 		new_mode = Mode.RESTING
+	if (new_mode == Mode.SLEEPING or new_mode == Mode.LAYING) and _pet.move_mode == Pet.MoveMode.FLOATING and not _pet.float_lay_sleep:
+		new_mode = Mode.RESTING   # 漂浮模式關了「休息時躺下、睡覺」:最多坐著
 	mode = new_mode
 	_mode_elapsed = 0.0
 	if resume_length >= 0.0:

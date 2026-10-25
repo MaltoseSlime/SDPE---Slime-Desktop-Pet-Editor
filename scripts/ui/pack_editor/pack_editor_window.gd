@@ -116,6 +116,11 @@ var _hold_x: SpinBox
 var _hold_y: SpinBox
 var _frame_buttons: Array[Button] = []
 var _paste_button: Button
+var _blank_frames_button: Button
+## 繪圖視窗(見 SpritePaintWindow)與它在畫什麼:{kind: "frames", action, paths(頁的編號 PaintDocument.page_ids → 對應的幀路徑)} 或 {kind: "layer", name, images}。
+var _paint_window: SpritePaintWindow
+var _paint_context: Dictionary = {}
+var _layer_paint_button: Button
 var _replace_sheet_button: Button
 var _save_as_button: Button
 var _light_scope_label: Label
@@ -679,12 +684,17 @@ func _build_frame_buttons() -> Control:
 		["◀", "前移(Alt+←):選取的幀往前移一格", _move_selected.bind(-1)],
 		["▶", "後移(Alt+→):選取的幀往後移一格", _move_selected.bind(1)],
 		["🔄", "更換圖片:把選取的幀換成別的圖檔(選幾張就依序換幾張),圖片處理(裁切翻轉旋轉)、軸心、圖片偏移都保留——用同一套模板做不同角色、或重畫某幾張時,不用重新裁切對軸。\n這個動作打開了「同步到其他動作」的話,其他動作裡用同一張原圖的幀也會一起換。", _ask_replace_frames],
+		["🖌", "繪圖(P):開繪圖視窗畫這個動作的幀(從目前這一幀開始,可以前後換幀)。畫完按「套用」交回這裡,可以撤回,存檔才會寫進素材包。", open_paint_frames],
+		["⬜", "新增空白幀:插入全透明的空白幀(插在選取的幀後面;空的動作槽會直接建立這個動作),再按 🖌 開始畫。", _ask_blank_frames],
 	]
 	for spec: Array in specs:
 		var button := ManagerUi.button(spec[0])
 		button.tooltip_text = tr(spec[1])
 		button.pressed.connect(spec[2])
 		grid.add_child(button)
+		if spec[2] == _ask_blank_frames:
+			_blank_frames_button = button
+			continue
 		_frame_buttons.append(button)
 		if spec[2] == _paste:
 			_paste_button = button
@@ -1110,6 +1120,7 @@ func import_folder_copy(source: String, display_name := "") -> String:
 
 
 func _after_pack_loaded(message: String) -> void:
+	_close_paint_window()   # 畫的是上一個素材包的圖(換素材包之前已經走過 guard_unsaved)
 	_action = ""
 	_slot = ""
 	_extra_slots.clear()
@@ -1118,6 +1129,8 @@ func _after_pack_loaded(message: String) -> void:
 	# 原圖被直接換成大小不同的新圖、剛自動重新對位過:提醒檢查後存檔(見 PackSourceSizes)
 	_status.text = _model.realign_notice if _model.realign_notice != "" else tr(message)
 	_refresh_all()
+	if _model.action_names().is_empty():
+		_offer_start_for_empty_pack.call_deferred()   # 晚一步:開道具 / 家具的貼圖時,這時候還沒記下是道具 / 家具
 
 
 func _on_open_pressed() -> void:
@@ -1194,6 +1207,15 @@ func _ask_name(title_text: String, message: String, default_name: String, ok_tex
 ## 離開目前的素材包(或做會丟掉編輯內容的事)之前一律先過這一關:沒有未存的變更就直接做;有的話跳出「存檔後繼續 / 放棄變更 / 取消」。
 ## action_text 是繼續要做的事(「關閉」「匯入」…),顯示在按鈕上。之後加「模式切換」(導入角色動作圖 / 導入配件…)也要走這裡。
 func guard_unsaved(proceed: Callable, action_text := "繼續") -> void:
+	# 繪圖視窗開著:先連問兩次(2026-10-23 使用者要求,強調繪圖視窗會一併關閉、沒套用的不會存),
+	# 都按確定才關掉繪圖視窗(放棄沒套用的內容),接著照常問這裡存不存檔
+	if is_instance_valid(_paint_window):
+		_confirm_close_paint(func() -> void:
+			_paint_window.document().cancel_floating()
+			_paint_window.document().mark_applied()
+			_close_paint_window()
+			guard_unsaved(proceed, action_text), action_text)
+		return
 	if not _model.dirty:
 		proceed.call()
 		return
@@ -1220,6 +1242,51 @@ func guard_unsaved(proceed: Callable, action_text := "繼續") -> void:
 	add_child(_guard_dialog)
 	if is_inside_tree() and DisplayServer.get_name() != "headless":
 		FloatingWindow.popup_child_dialog(self, get_window(), _guard_dialog, Vector2i(480, 180))
+
+
+## 繪圖視窗開著時要離開:第一次說明繪圖視窗會一併關閉,第二次再確認一次沒套用的改動不會被儲存;兩次都按確定才 proceed。
+## 第一次的「回到繪圖視窗」= 取消並把繪圖視窗叫到前面(可以先去套用)。
+var _paint_close_dialog: ConfirmationDialog
+
+
+func _confirm_close_paint(proceed: Callable, action_text: String, step := 1) -> void:
+	if is_instance_valid(_paint_close_dialog):
+		return
+	var unapplied := _paint_window.has_unapplied_changes()
+	var dialog := ConfirmationDialog.new()
+	if step == 1:
+		dialog.title = tr("繪圖視窗還開著")
+		dialog.dialog_text = tr("繪圖視窗還開著。如果繼續「%s」,繪圖視窗會一併關閉。") % tr(action_text)
+		if unapplied:
+			dialog.dialog_text += "\n" + tr("繪圖視窗裡還有沒套用的改動,關掉就不會被儲存(要留著請先回繪圖視窗按「套用」)。")
+		dialog.ok_button_text = tr("繼續")
+		dialog.add_button(tr("回到繪圖視窗"), true, "back")
+	else:
+		dialog.title = tr("再確認一次")
+		dialog.dialog_text = tr("確定要%s嗎?繪圖視窗會一併關閉%s。") % [tr(action_text), tr(",沒套用的改動不會被儲存") if unapplied else ""]
+		dialog.ok_button_text = tr("確定%s") % tr(action_text)
+	dialog.cancel_button_text = tr("取消")
+	dialog.confirmed.connect(func() -> void:
+		dialog.queue_free()
+		_paint_close_dialog = null
+		if step == 1:
+			_confirm_close_paint.call_deferred(proceed, action_text, 2)
+		elif is_instance_valid(_paint_window):
+			proceed.call())
+	dialog.custom_action.connect(func(action: StringName) -> void:
+		if action == &"back":
+			dialog.hide()
+			dialog.queue_free()
+			_paint_close_dialog = null
+			if is_instance_valid(_paint_window):
+				_paint_window.bring_to_front())
+	dialog.canceled.connect(func() -> void:
+		dialog.queue_free()
+		_paint_close_dialog = null)
+	_paint_close_dialog = dialog
+	add_child(dialog)
+	if is_inside_tree() and DisplayServer.get_name() != "headless":
+		FloatingWindow.popup_child_dialog(self, get_window(), dialog, Vector2i(480, 180))
 
 
 ## 開系統的檔案對話框(對這個視窗模態);使用者選好後才呼叫 on_picked(paths)。start_dir 非空就從那個資料夾開始。
@@ -2309,6 +2376,7 @@ func _refresh_all() -> void:
 
 ## 把目前這一幀的資料(圖、軸心、圖片偏移、殘影、判定框)送到畫布與數值框。
 func _refresh_frame() -> void:
+	_refresh_paint_reference()
 	_refresh_hitbox()
 	_refresh_anchor_widgets()
 	if _furniture_id != "":
@@ -3236,6 +3304,14 @@ func _build_layers_section(right: VBoxContainer) -> void:
 		if error != "":
 			_status.text = tr(error))
 	add_row.add_child(duplicate)
+	var blank := ManagerUi.button("⬜")
+	blank.tooltip_text = tr("新增空白圖層:建立一張全透明的圖做成新圖層(預設跟目前這一幀一樣大、疊在本體正上方),再按 🖌 在上面畫。")
+	blank.pressed.connect(_ask_blank_layer)
+	add_row.add_child(blank)
+	_layer_paint_button = ManagerUi.button("🖌")
+	_layer_paint_button.tooltip_text = tr("繪圖:開繪圖視窗畫選取圖層的圖片(圖層有好幾張圖就可以前後換張);選的是本體就畫動作的幀。")
+	_layer_paint_button.pressed.connect(open_paint_layer)
+	add_row.add_child(_layer_paint_button)
 	_layer_delete = ManagerUi.button("🗑")
 	_layer_delete.tooltip_text = tr("刪除這個圖層(可以撤回)。")
 	_layer_delete.pressed.connect(delete_accessory)
@@ -3291,6 +3367,7 @@ func _refresh_layers() -> void:
 	_layer_down.disabled = not has_part or not bool(PackLayers.move(_accs, _acc_index, -1)["changed"])
 	_layer_eye.disabled = not has_part and not _layer_body_focus
 	_layer_delete.disabled = not has_part
+	_layer_paint_button.disabled = not has_part and not _layer_body_focus
 	var hidden_now := _body_hidden if _layer_body_focus else (has_part and bool(_layer_hidden.get(str(_accs[_acc_index].get("name", "")), false)))
 	_layer_eye.text = "🙈" if hidden_now else "👁"
 	_layer_note.text = tr("本體是動作的幀(在「動作」「幀」清單選),不能移動或停用。") if _layer_body_focus else ""
@@ -3917,6 +3994,8 @@ func _update_frame_buttons() -> void:
 	if _paste_button != null:
 		# 貼上可以直接貼進還沒有素材的動作槽(會用槽的名字建立這個動作)
 		_paste_button.disabled = not _model.has_pack() or _paste_target() == "" or _model.clipboard.is_empty()
+	if _blank_frames_button != null:
+		_blank_frames_button.disabled = not _model.has_pack() or _paste_target() == ""
 	_update_history_buttons()
 	_update_fx_buttons()
 
@@ -4424,6 +4503,8 @@ func _input(event: InputEvent) -> void:
 				return
 	elif event.alt_pressed and (event.keycode == KEY_LEFT or event.keycode == KEY_RIGHT):
 		_move_selected(-1 if event.keycode == KEY_LEFT else 1)
+	elif event.keycode == KEY_P and not typing and not event.alt_pressed:
+		open_paint_frames()
 	elif event.keycode == KEY_DELETE and not typing and gui_get_focus_owner() != null and not (gui_get_focus_owner() is SpinBox):
 		_delete_selected()
 	else:
@@ -4431,6 +4512,626 @@ func _input(event: InputEvent) -> void:
 	get_viewport().set_input_as_handled()
 
 
+# --- 繪圖(2026-10-22,見 SpritePaintWindow)與空白幀 / 空白圖層 ---
+
+## 開繪圖視窗畫目前這個動作的幀(從目前這一幀開始)。回傳視窗(給測試用);沒有可以畫的幀回 null。
+func open_paint_frames() -> SpritePaintWindow:
+	if not _model.has_pack() or _action == "" or _model.frame_count(_action) == 0:
+		_status.text = tr("先選一個有幀的動作再繪圖(空的動作先按 ⬜ 新增空白幀)")
+		return null
+	var images: Array = []
+	var labels: Array = []
+	var markers: Array = []
+	var paths := {}
+	var page_layers: Array = []
+	for i in _model.frame_count(_action):
+		var info := _model.frame(_action, i)
+		if info.is_empty():
+			_status.text = tr("動作「%s」第 %d 幀讀不出圖,沒辦法繪圖") % [_action, i]
+			return null
+		images.append(info["image"])
+		labels.append(tr("%s 第 %d 幀") % [_action, i])
+		markers.append(_model.pivot(_action, i))
+		paths[i] = _model.frame_path(_action, i)
+		page_layers.append(_model.load_paint_layers(_model.frame_path(_action, i), info["image"]))
+	var window := _show_paint_window(tr("繪圖 — %s") % _action, images, labels, _index, markers, [], {"kind": "frames", "action": _action, "paths": paths}, page_layers)
+	if window != null and str(_paint_context.get("kind", "")) == "frames":
+		window.can_add_pages = true
+		window.frame_label_action = _action
+		window._on_doc_changed()
+	return window
+
+
+## 開繪圖視窗畫選取圖層的圖片(畫的是原圖,圖層的裁切、對齊點照舊);選的是本體就改畫動作的幀。
+func open_paint_layer() -> SpritePaintWindow:
+	if _layer_body_focus:
+		return open_paint_frames()
+	if _acc_index < 0 or _acc_index >= _accs.size():
+		_status.text = tr("先在圖層清單選一個圖層")
+		return null
+	if _acc_locked():
+		return null
+	var part: Dictionary = _accs[_acc_index]
+	var files: Array = part.get("images", []) if part.get("images") is Array else []
+	if files.is_empty():
+		_status.text = tr("這個圖層沒有圖片")
+		return null
+	var images: Array = []
+	var labels: Array = []
+	var page_layers: Array = []
+	var sizes: Array = []
+	for k in files.size():
+		var report: Array[String] = []
+		var image := SpritePackLoader.load_frame_image(_model.root.path_join(str(files[k])), report)
+		if image == null:
+			_status.text = tr("讀不出圖層圖片:%s") % str(files[k]).get_file()
+			return null
+		images.append(image)
+		labels.append(tr("圖層「%s」第 %d 張") % [str(part.get("name", "?")), k + 1])
+		page_layers.append(_model.load_paint_layers(str(files[k]), image))
+		sizes.append(image.get_size())
+	# 圖層的位置只看剛打開的這一幀(2026-10-24 使用者要求);之後在編輯器換選別的幀,只換墊在底下的本體(見 _refresh_paint_reference)
+	var anchor: Variant = AccessoryAnchors.effective(part, _action, _index) if _action != "" else null
+	var context := {"kind": "layer", "name": str(part.get("name", "")), "images": files.duplicate(), "sizes": sizes,
+			"anchor": anchor, "mirrored": part.get("mirror_for") is Array and (part["mirror_for"] as Array).has(_action)}
+	var references := _layer_references(part, context)
+	return _show_paint_window(tr("繪圖 — 圖層「%s」") % str(part.get("name", "?")), images, labels, 0, [], references, context, page_layers)
+
+
+## 畫圖層時每一頁墊在底下的本體(精靈圖編輯器目前這一幀):{texture, offset, scale}(見 layer_reference);沒有可以墊的就是 null。
+func _layer_references(part: Dictionary, context: Dictionary) -> Array:
+	var references: Array = []
+	var info := _model.frame(_action, _index) if _action != "" and _model.frame_count(_action) > 0 else {}
+	for image_size: Vector2i in context.get("sizes", []):
+		if info.is_empty() or not context.get("anchor") is Vector2:
+			references.append(null)
+		else:
+			references.append(layer_reference(part, info["texture"], _model.offset(_action, _index) - _model.pivot(_action, _index),
+					context["anchor"], bool(context.get("mirrored", false)), image_size))
+	return references
+
+
+## 本體墊在圖層畫布上的樣子:圖層的圖在遊戲裡是「錨點 + 縮放 ×(對齊點起算的位置,左右鏡像 / 圖上翻轉)」,這裡反過來把本體放進圖層的圖的座標。
+## frame_top_left = 本體這一幀的左上角(相對腳底軸心);anchor = 圖層的錨點;mirrored = 這個動作要左右鏡像(mirror_for)。
+## 回傳 {texture, offset(本體左上角在圖層畫布上的位置), scale(每 1 像素本體在畫布上幾格,負的 = 翻過來)}。
+static func layer_reference(part: Dictionary, texture: Texture2D, frame_top_left: Vector2, anchor: Vector2, mirrored: bool, image_size: Vector2i) -> Dictionary:
+	var part_scale := clampf(float(part.get("scale", 1.0)), 0.05, 8.0) if (part.get("scale") is float or part.get("scale") is int) else 1.0
+	var game_scale := Vector2(part_scale * (-1.0 if mirrored else 1.0), part_scale)
+	var size := Vector2(image_size)
+	var image_offset := -PetOverlays._origin_pixels(part.get("origin", "center"), size)
+	var start := (frame_top_left - anchor) / game_scale - image_offset
+	var flip_h := bool(part.get("flip_h", false))
+	var flip_v := bool(part.get("flip_v", false))
+	return {"texture": texture,
+			"offset": Vector2(size.x - start.x if flip_h else start.x, size.y - start.y if flip_v else start.y),
+			"scale": Vector2((-1.0 if flip_h else 1.0) / game_scale.x, (-1.0 if flip_v else 1.0) / game_scale.y)}
+
+
+## 編輯器換了幀(或改了圖層設定):畫圖層的繪圖視窗墊的本體跟著換成目前這一幀,圖層本身的位置不動。
+func _refresh_paint_reference() -> void:
+	if not is_instance_valid(_paint_window) or str(_paint_context.get("kind", "")) != "layer":
+		return
+	var layer_name := str(_paint_context.get("name", ""))
+	for part: Dictionary in _accs:
+		if str(part.get("name", "")) == layer_name:
+			if not _paint_context.get("anchor") is Vector2 and _action != "":
+				# 打開時沒選動作(沒有可以對的位置):第一次選到動作時才記下圖層的位置
+				_paint_context["anchor"] = AccessoryAnchors.effective(part, _action, _index)
+				_paint_context["mirrored"] = part.get("mirror_for") is Array and (part["mirror_for"] as Array).has(_action)
+			_paint_window.set_references(_layer_references(part, _paint_context))
+			return
+
+
+## page_layers:每一頁上次存的繪圖圖層(PackEditorModel.load_paint_layers)。
+func _show_paint_window(title_text: String, images: Array, labels: Array, start: int, markers: Array, references: Array, context: Dictionary, page_layers: Array = []) -> SpritePaintWindow:
+	if is_instance_valid(_paint_window):
+		if _paint_window.has_unapplied_changes():
+			_paint_window.bring_to_front()
+			_status.text = tr("繪圖視窗還有沒套用的內容:先在那邊套用或關掉,再開別的。")
+			return _paint_window
+		_close_paint_window()
+	var window := SpritePaintWindow.new()
+	add_child(window)
+	window.setup(title_text, images, labels, start, markers, references, page_layers)
+	window.export_name = str(context.get("action", context.get("name", "paint")))
+	window.apply_requested.connect(_on_paint_apply.bind(window))
+	_paint_window = window
+	_paint_context = context
+	return window
+
+
+func _close_paint_window() -> void:
+	if is_instance_valid(_paint_window):
+		_paint_window.queue_free()
+	_paint_window = null
+	_paint_context = {}
+
+
+func paint_window() -> SpritePaintWindow:
+	return _paint_window if is_instance_valid(_paint_window) else null
+
+
+## 繪圖視窗按了套用:把畫好的頁寫成新圖檔、換掉幀(或圖層的圖)。一次套用 = 一步撤回。
+func _on_paint_apply(edits: Array, window: SpritePaintWindow) -> void:
+	if window != _paint_window or not _model.has_pack():
+		window.applied(false, tr("精靈圖編輯器已經換了素材包,沒辦法套用"))
+		return
+	if str(_paint_context.get("kind", "")) == "layer":
+		_apply_paint_to_layer(edits, window)
+	else:
+		_apply_paint_to_frames(edits, window)
+
+
+func _apply_paint_to_frames(edits: Array, window: SpritePaintWindow) -> void:
+	var action := str(_paint_context.get("action", ""))
+	if not _model.action_names().has(action):
+		window.applied(false, tr("動作「%s」已經不在了,沒辦法套用") % action)
+		return
+	var paths: Dictionary = _paint_context["paths"]
+	var doc := window.document()
+	var count := _model.frame_count(action)
+	# 每一頁現在對到第幾幀(新增、還沒套用的頁 = -1;繪圖期間在這裡移動過幀,就照原本那一幀的檔案找它現在在哪)
+	var used := {}
+	var position: Array[int] = []
+	for p in doc.page_count():
+		var id := doc.page_ids[p]
+		var at := -1
+		if not doc.is_new_page(p) and paths.has(id):
+			var expected := str(paths[id])
+			if p < count and not used.has(p) and _model.frame_path(action, p) == expected:
+				at = p
+			else:
+				for j in count:
+					if not used.has(j) and _model.frame_path(action, j) == expected:
+						at = j
+						break
+		if at >= 0:
+			used[at] = true
+		position.append(at)
+	var original := position.duplicate()
+	var by_page := {}
+	for edit: Dictionary in edits:
+		by_page[int(edit["page"])] = edit
+	# 新增的頁:插在前一頁(對得到的)後面;前面都對不到就插在後一頁前面,全部都對不到就接在最後
+	var specs: Array = []
+	var new_pages: Array[int] = []
+	for p in doc.page_count():
+		if not doc.is_new_page(p) or not by_page.has(p):
+			continue
+		var at := -1
+		for q in range(p - 1, -1, -1):
+			if position[q] >= 0:
+				at = position[q] + 1
+				break
+		if at < 0:
+			at = count + new_pages.size()
+			for q in range(p + 1, doc.page_count()):
+				if position[q] >= 0:
+					at = position[q]
+					break
+		for q in position.size():
+			if position[q] >= at:
+				position[q] += 1
+		position[p] = at
+		var from_page := doc.page_ids.find(doc.page_source(p))
+		var edit: Dictionary = by_page[p]
+		specs.append({"at": at, "from": original[from_page] if from_page >= 0 else -1, "image": edit["image"],
+				"shift": edit.get("shift", Vector2i.ZERO), "size_before": edit.get("size_before", (edit["image"] as Image).get_size())})
+		new_pages.append(p)
+	var mapped: Array = []
+	var missing := 0
+	for edit: Dictionary in edits:
+		var page := int(edit["page"])
+		if doc.is_new_page(page):
+			continue
+		if position[page] < 0:
+			missing += 1
+			continue
+		mapped.append({"index": position[page], "image": edit["image"], "page": page, "layers": edit.get("layers", []), "shift": edit.get("shift", Vector2i.ZERO)})
+	if mapped.is_empty() and specs.is_empty():
+		window.applied(false, tr("畫的那幾幀已經被刪掉或換掉了,沒辦法套用"))
+		return
+	_model.checkpoint()
+	var changed := 0
+	if not specs.is_empty():
+		var inserted := _model.insert_painted_frames(action, specs)
+		if str(inserted["error"]) != "":
+			window.applied(false, tr(str(inserted["error"])))
+			return
+		for k in new_pages.size():
+			var page := new_pages[k]
+			paths[doc.page_ids[page]] = inserted["paths"][k]
+			_model.save_paint_layers(str(inserted["paths"][k]), by_page[page].get("layers", []), by_page[page]["image"])
+		changed += specs.size()
+	if not mapped.is_empty():
+		var result := _model.apply_painted_frames(action, mapped)
+		if str(result["error"]) != "":
+			window.applied(false, tr(str(result["error"])))
+			return
+		var new_paths: Dictionary = result["paths"]
+		for entry: Dictionary in mapped:
+			var id := doc.page_ids[int(entry["page"])]
+			paths[id] = new_paths.get(int(entry["index"]), paths[id])
+			_model.save_paint_layers(str(paths[id]), entry["layers"], entry["image"])
+		changed += int(result["count"])
+	# 幀的路徑帶著它在動作裡的位置,插了新幀之後後面的幀路徑會變:每一頁都重新記一次,下次套用才對得到
+	for p in doc.page_count():
+		if position[p] >= 0:
+			paths[doc.page_ids[p]] = _model.frame_path(action, position[p])
+	var selection: Array[int] = []
+	for entry: Dictionary in mapped:
+		selection.append(int(entry["index"]))
+	for spec_page in new_pages:
+		selection.append(position[spec_page])
+	if _action == action:
+		_reload_lists(_selected if not _selected.is_empty() and specs.is_empty() else selection)
+	else:
+		_reload_lists()
+	var message := tr("已套用繪圖:%d 幀換成新的圖(可以撤回;存檔才會寫進素材包)") % changed
+	if not specs.is_empty():
+		message = tr("已套用繪圖:%d 幀換成新的圖,其中新增了 %d 幀(可以撤回;存檔才會寫進素材包)") % [changed, specs.size()]
+	if missing > 0:
+		message += tr("。有 %d 幀已經被刪掉或換掉,沒套用") % missing
+	_refresh_all()
+	_after_edit(message)
+	window.applied(true, message)
+
+
+func _apply_paint_to_layer(edits: Array, window: SpritePaintWindow) -> void:
+	var layer_name := str(_paint_context.get("name", ""))
+	var at := -1
+	for i in _accs.size():
+		if str(_accs[i].get("name", "")) == layer_name:
+			at = i
+			break
+	if at < 0:
+		window.applied(false, tr("圖層「%s」已經不在了,沒辦法套用") % layer_name)
+		return
+	if PackLayers.is_locked(_accs[at]):
+		window.applied(false, PackLayers.lock_hint())
+		return
+	var original: Array = _paint_context["images"]
+	var images: Array = (_accs[at].get("images", []) as Array).duplicate()
+	var written := 0
+	var anchor_delta: Variant = _layer_resize_delta(_accs[at], edits, images.size())
+	for edit: Dictionary in edits:
+		var page := int(edit["page"])
+		var expected := str(original[page]) if page < original.size() else ""
+		var slot := page if page < images.size() and str(images[page]) == expected else images.find(expected)
+		if slot < 0:
+			continue
+		var relative := _model.save_new_image(edit["image"], "%s_paint" % layer_name)
+		if relative == "":
+			window.applied(false, tr("無法寫入圖片"))
+			return
+		images[slot] = relative
+		original[page] = relative
+		_model.save_paint_layers(relative, edit.get("layers", []), edit["image"])
+		written += 1
+	if written == 0:
+		window.applied(false, tr("這個圖層的圖已經被換掉了,沒辦法套用"))
+		return
+	_model.checkpoint()
+	_accs[at]["images"] = images
+	var anchor_note := ""
+	if anchor_delta is Vector2 and anchor_delta != Vector2.ZERO:
+		AccessoryAnchors.shift_all(_accs[at], anchor_delta)
+	elif anchor_delta == null:
+		anchor_note = tr("。這個圖層的圖改成不一樣的畫布尺寸(或圖層有縮放、翻轉),對齊點沒辦法自動調整,請在圖層設定裡確認位置")
+	_model.set_accessories(_accs)
+	_acc_index = at
+	_layer_body_focus = false
+	_refresh_accessories()
+	var message := tr("已套用繪圖:圖層「%s」換了 %d 張圖(可以撤回;存檔才會寫進素材包)") % [layer_name, written] + anchor_note
+	var sizes: Array = _paint_context.get("sizes", [])
+	for edit: Dictionary in edits:
+		var page := int(edit["page"])
+		if page < sizes.size():
+			sizes[page] = (edit["image"] as Image).get_size()
+	if anchor_delta is Vector2 and _paint_context.get("anchor") is Vector2:
+		_paint_context["anchor"] = (_paint_context["anchor"] as Vector2) + (anchor_delta as Vector2)
+	_after_edit(message)
+	window.applied(true, message)
+	_refresh_paint_reference()
+
+
+## 畫圖層時改了畫布尺寸:錨點要平移多少,圖層在畫面上的位置才不變(對齊點 origin 照新尺寸算)。
+## 沒改尺寸回 Vector2.ZERO;圖層的每張圖改得不一樣(錨點是共用的)、或圖層有縮放 / 翻轉 / 鏡像時回 null(沒辦法自動調)。
+func _layer_resize_delta(part: Dictionary, edits: Array, image_count: int) -> Variant:
+	var resized := edits.filter(func(edit: Dictionary) -> bool:
+		return edit.get("shift", Vector2i.ZERO) != Vector2i.ZERO or (edit["image"] as Image).get_size() != edit.get("size_before", (edit["image"] as Image).get_size()))
+	if resized.is_empty():
+		return Vector2.ZERO
+	if resized.size() != image_count or absf(float(part.get("scale", 1.0)) - 1.0) > 0.001 or bool(part.get("flip_h", false)) or bool(part.get("flip_v", false)) \
+			or (part.get("mirror_for") is Array and not (part["mirror_for"] as Array).is_empty()):
+		return null
+	var delta: Variant = null
+	for edit: Dictionary in resized:
+		var new_size := Vector2((edit["image"] as Image).get_size())
+		var old_size := Vector2(edit.get("size_before", new_size))
+		var origin: Variant = part.get("origin", "center")
+		var this_delta: Vector2 = PetOverlays._origin_pixels(origin, new_size) - PetOverlays._origin_pixels(origin, old_size) - Vector2(edit.get("shift", Vector2i.ZERO))
+		if delta != null and not (delta as Vector2).is_equal_approx(this_delta):
+			return null
+		delta = this_delta
+	return delta
+
+
+## 新增空白幀 / 空白圖層的預設尺寸:目前這一幀的大小,沒有就用素材包裡第一個動作的第一幀,再沒有就 64×64。
+func _default_blank_size() -> Vector2i:
+	if _action != "" and _model.frame_count(_action) > 0:
+		var info := _model.frame(_action, _index)
+		if not info.is_empty():
+			return info["size"]
+	for action_name in _model.action_names():
+		if _model.frame_count(action_name) > 0:
+			var first := _model.frame(action_name, 0)
+			if not first.is_empty():
+				return first["size"]
+	return Vector2i(64, 64)
+
+
+## 問尺寸(與張數)的小視窗。on_chosen(count, size)。
+func _ask_blank_size(title_text: String, message: String, with_count: bool, on_chosen: Callable) -> ConfirmationDialog:
+	var dialog := ConfirmationDialog.new()
+	# 不設 always_on_top,見 _ask_name() 的說明(跟置頂衝突,會把視窗卡死)。
+	dialog.title = tr(title_text)
+	dialog.ok_button_text = tr("新增")
+	dialog.cancel_button_text = tr("取消")
+	var box := VBoxContainer.new()
+	var label := Label.new()
+	label.text = tr(message)
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.custom_minimum_size.x = 380.0
+	box.add_child(label)
+	var default_size := _default_blank_size()
+	var count_spin := ManagerUi.spin(1.0, 1.0, 64.0)
+	count_spin.allow_greater = false
+	count_spin.value = 1
+	if with_count:
+		box.add_child(ManagerUi.labeled("張數", count_spin))
+	var width := ManagerUi.spin(1.0, 1.0, float(SpritePackLoader.MAX_SIDE))
+	width.allow_greater = false
+	width.value = default_size.x
+	box.add_child(ManagerUi.labeled("寬(像素)", width))
+	var height := ManagerUi.spin(1.0, 1.0, float(SpritePackLoader.MAX_SIDE))
+	height.allow_greater = false
+	height.value = default_size.y
+	box.add_child(ManagerUi.labeled("高(像素)", height))
+	dialog.add_child(box)
+	dialog.confirmed.connect(func() -> void: on_chosen.call(int(count_spin.value), Vector2i(int(width.value), int(height.value))))
+	dialog.confirmed.connect(dialog.queue_free)
+	dialog.canceled.connect(dialog.queue_free)
+	add_child(dialog)
+	if is_inside_tree() and DisplayServer.get_name() != "headless":
+		FloatingWindow.popup_child_dialog(self, get_window(), dialog, Vector2i(440, 260))
+	return dialog
+
+
+func _ask_blank_frames() -> void:
+	if not _model.has_pack() or _paste_target() == "":
+		_status.text = tr("先選一個動作(或動作槽)")
+		return
+	_ask_blank_size("新增空白幀", "插入全透明的空白幀,插在選取的幀後面(空的動作槽會直接建立這個動作)。軸心放在底部中央。", true,
+			func(count: int, frame_size: Vector2i) -> void:
+				var error := add_blank_frames(count, frame_size)
+				if error != "":
+					_status.text = tr(error))
+
+
+## 在目前的動作(或空的動作槽)插入空白幀,選取新的幀。成功回空字串。給按鈕與測試用。
+func add_blank_frames(count: int, frame_size: Vector2i) -> String:
+	var target := _paste_target()
+	if not _model.has_pack() or target == "":
+		return "先選一個動作(或動作槽)"
+	var picked := _selected_frames() if _action != "" else ([] as Array[int])
+	var after := picked[picked.size() - 1] if not picked.is_empty() else -1
+	var created := _model.add_blank_frames(target, after, count, frame_size)
+	if created.is_empty():
+		return "無法新增空白幀"
+	if _action == "":
+		_slot = target
+	_action = target
+	_reload_lists(created)
+	_refresh_all()
+	_after_edit(tr("已新增 %d 張空白幀(%d×%d;按 🖌 開始畫,可以撤回)") % [created.size(), frame_size.x, frame_size.y])
+	return ""
+
+
+func _ask_blank_layer() -> void:
+	if not _model.has_pack():
+		return
+	_ask_blank_size("新增空白圖層", "建立一張全透明的圖做成新圖層,疊在目前這一幀的本體正上方(位置跟本體對齊),再按 🖌 在上面畫。", false,
+			func(_count: int, layer_size: Vector2i) -> void:
+				var error := add_blank_layer(layer_size)
+				if error != "":
+					_status.text = tr(error)
+				else:
+					ask_start_choice("layer"))
+
+
+## 新增一個空白圖層(全透明的圖),左上角對齊目前這一幀本體的左上角,選中它。成功回空字串。給按鈕與測試用。
+func add_blank_layer(layer_size: Vector2i) -> String:
+	if not _model.has_pack():
+		return "還沒有開啟素材包"
+	if _accs.size() >= PetOverlays.MAX_PARTS:
+		return "配件太多了"
+	var width := clampi(layer_size.x, 1, SpritePackLoader.MAX_SIDE)
+	var height := clampi(layer_size.y, 1, SpritePackLoader.MAX_SIDE)
+	var relative := _model.save_new_image(Image.create(width, height, false, Image.FORMAT_RGBA8), "layer_blank")
+	if relative == "":
+		return "無法建立圖片"
+	var top_left := Vector2(-width * 0.5, -height)
+	if _action != "" and _model.frame_count(_action) > 0:
+		top_left = _model.offset(_action, _index) - _model.pivot(_action, _index)
+	var unique := "layer"
+	var counter := 2
+	while _accs.any(func(p: Dictionary) -> bool: return p.get("name") == unique):
+		unique = "layer_%d" % counter
+		counter += 1
+	_model.checkpoint()
+	_accs.append({"name": unique, "role": "part", "images": [relative], "anchor": [top_left.x, top_left.y], "layer": "front", "scale": 1.0, "origin": "top_left", "actions": ["*"], "fps": PetOverlays.DEFAULT_FPS, "loop": true})
+	_model.set_accessories(_accs)
+	_acc_index = _accs.size() - 1
+	_layer_body_focus = false
+	_refresh_accessories()
+	_after_edit(tr("已新增空白圖層「%s」(%d×%d;按 🖌 在上面畫)") % [unique, width, height])
+	return ""
+
+
 ## 叉叉(系統的):有未存的變更就跳出「存檔後關閉 / 放棄變更並關閉 / 取消」,沒有就直接關。
 func _request_close() -> void:
 	guard_unsaved(queue_free, "關閉")
+
+
+# --- 接下來要怎麼放圖(2026-10-24 使用者要求)---
+
+## 最近一次跳出的「接下來要怎麼放圖」視窗(給測試用)。
+var start_dialog: AcceptDialog = null
+
+
+## 新角色(素材包還沒有任何動作)或剛新增空白圖層之後:問要匯入圖片、匯入精靈圖、開繪圖視窗,還是先不用。
+## target = "frames"(放進目前選的動作槽)/ "layer"(放進選取的圖層,換掉那張空白圖)。回傳視窗。
+func ask_start_choice(target: String) -> AcceptDialog:
+	if is_instance_valid(start_dialog):
+		start_dialog.queue_free()
+	var dialog := AcceptDialog.new()
+	# 不設 always_on_top,見 _ask_name() 的說明(跟置頂衝突,會把視窗卡死)。
+	dialog.theme = ManagerUi.make_theme()
+	var is_layer := target == "layer"
+	dialog.title = tr("要怎麼放進圖片?")
+	dialog.ok_button_text = "先不用"
+	# add_button(right = false) 每次都插在最前面:倒過來加,畫面上才是「匯入圖片 / 匯入精靈圖 / 開啟繪圖視窗 / 先不用」
+	dialog.add_button("開啟繪圖視窗", false, "paint")
+	dialog.add_button("匯入精靈圖…", false, "sheet")
+	dialog.add_button("匯入圖片…", false, "images")
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	var label := Label.new()
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.custom_minimum_size.x = 460.0
+	if is_layer:
+		label.text = tr("已新增空白圖層「%s」。要用哪種方式放進這個圖層的圖?\n・匯入圖片:選一張或多張圖換掉這張空白圖(多張會循環播放)\n・匯入精靈圖:把一張精靈圖切開,每一格是一張\n・開啟繪圖視窗:直接在這張空白圖上畫") % str(_accs[_acc_index].get("name", "")) if _acc_index >= 0 and _acc_index < _accs.size() else ""
+	else:
+		label.text = tr("「%s」這個動作還沒有圖。要用哪種方式開始?\n・匯入圖片:選一張或多張圖,每張是一幀\n・匯入精靈圖:把一張精靈圖切成幀\n・開啟繪圖視窗:先建立空白幀,再直接畫") % _slot
+	box.add_child(label)
+	var hint := Label.new()
+	hint.theme_type_variation = AppSettings.MUTED_LABEL
+	hint.add_theme_font_size_override("font_size", 12)
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.custom_minimum_size.x = 460.0
+	hint.text = tr("這些功能之後都能在精靈圖編輯器裡找到:圖層頁的 ➕(新增圖層)、小窗的「更換圖片…」、⬜(空白圖層)與 🖌(繪圖)。") if is_layer \
+			else tr("這些功能之後都能在精靈圖編輯器裡找到:上方的「匯入圖片…」「匯入精靈圖…」,幀清單的 ⬜(空白幀)與 🖌(繪圖)。")
+	box.add_child(hint)
+	dialog.add_child(box)
+	dialog.custom_action.connect(func(choice: StringName) -> void:
+		dialog.hide()
+		dialog.queue_free()
+		start_choice(target, str(choice)))
+	dialog.confirmed.connect(dialog.queue_free)
+	dialog.canceled.connect(dialog.queue_free)
+	add_child(dialog)
+	start_dialog = dialog
+	if is_inside_tree() and DisplayServer.get_name() != "headless":
+		FloatingWindow.popup_child_dialog(self, get_window(), dialog, Vector2i(620, 280))
+	return dialog
+
+
+## 照選的方式繼續(choice = "images" / "sheet" / "paint")。給視窗按鈕與測試用。
+func start_choice(target: String, choice: String) -> void:
+	if target == "layer":
+		match choice:
+			"images":
+				FloatingWindow.native_file_dialog("選擇圖層圖片(可多選)", "", DisplayServer.FILE_DIALOG_MODE_OPEN_FILES, PackedStringArray([IMAGE_FILTER]),
+						func(paths: PackedStringArray) -> void: _status.text = fill_layer_images(Array(paths)), get_window_id())
+			"sheet":
+				FloatingWindow.native_file_dialog("選擇要切開的精靈圖", "", DisplayServer.FILE_DIALOG_MODE_OPEN_FILE, PackedStringArray([IMAGE_FILTER]),
+						func(paths: PackedStringArray) -> void: open_layer_sheet_dialog(str(paths[0])), get_window_id())
+			"paint":
+				open_paint_layer()
+		return
+	match choice:
+		"images":
+			_on_import_images_pressed()
+		"sheet":
+			_on_import_sheet_pressed()
+		"paint":
+			_ask_blank_size("用繪圖開始", "先建立全透明的空白幀(軸心放在底部中央),建立後直接打開繪圖視窗。", true,
+					func(count: int, frame_size: Vector2i) -> void:
+						var error := add_blank_frames(count, frame_size)
+						if error != "":
+							_status.text = tr(error)
+						else:
+							open_paint_frames())
+
+
+## 選取圖層的圖整個換成這些圖片(換掉剛建立的空白圖;位置、對齊點照舊)。回傳狀態文字。
+func fill_layer_images(paths: Array) -> String:
+	if _acc_index < 0 or _acc_index >= _accs.size():
+		return tr("還沒有選圖層")
+	if _acc_locked():
+		return PackLayers.lock_hint()
+	var relatives := _model.import_accessory_images(paths)
+	if relatives.is_empty():
+		return tr("無法匯入這些圖片")
+	_edit_accessory("images", relatives.slice(0, PetOverlays.MAX_FRAMES), "acc_images")
+	_refresh_accessories()
+	return tr("已把圖層「%s」換成 %d 張圖(可以撤回)") % [str(_accs[_acc_index].get("name", "")), mini(relatives.size(), PetOverlays.MAX_FRAMES)]
+
+
+## 開切精靈圖的視窗,切好的每一格變成選取圖層的一張圖。回傳視窗(給測試用)。
+func open_layer_sheet_dialog(path: String) -> PackImportDialog:
+	var report: Array[String] = []
+	var image := SpritePackLoader.load_frame_image(path, report)
+	if image == null:
+		_status.text = tr("讀不出這張精靈圖:%s") % path.get_file()
+		return null
+	var dialog := PackImportDialog.new()
+	add_child(dialog)
+	dialog.setup_layer_sheet(image, path.get_file())
+	dialog.import_confirmed.connect(func(params: Dictionary) -> void: _status.text = fill_layer_from_sheet(image, params["grid"]))
+	_finish_dialog(dialog)
+	return dialog
+
+
+## 照格線把精靈圖切開,每一格存成一張圖,選取圖層的圖整個換成這些圖。回傳狀態文字。
+func fill_layer_from_sheet(image: Image, grid: Dictionary) -> String:
+	if _acc_index < 0 or _acc_index >= _accs.size():
+		return tr("還沒有選圖層")
+	if _acc_locked():
+		return PackLayers.lock_hint()
+	var rects := PackEditorModel.sheet_rects(image.get_size(), grid, image)
+	if rects.is_empty():
+		return tr("用這組格線切不出任何切片(檢查欄列數、邊距與間距)")
+	var stem := "%s_sheet" % str(_accs[_acc_index].get("name", "layer"))
+	var relatives: Array = []
+	for rect in rects.slice(0, PetOverlays.MAX_FRAMES):
+		var relative := _model.save_new_image(image.get_region(rect), stem)
+		if relative == "":
+			return tr("無法寫入圖片")
+		relatives.append(relative)
+	_edit_accessory("images", relatives, "acc_images")
+	_refresh_accessories()
+	return tr("已把圖層「%s」換成精靈圖切出的 %d 張圖(可以撤回)") % [str(_accs[_acc_index].get("name", "")), relatives.size()]
+
+
+## 剛開啟 / 新建的角色素材包還沒有任何動作:選行走的動作槽,問要怎麼放圖(道具、家具的貼圖不問)。
+func _offer_start_for_empty_pack() -> void:
+	if not _model.has_pack() or not _model.action_names().is_empty() or _prop_id != "" or _furniture_id != "":
+		return
+	if _action != "" or _slot != "":
+		return   # 開啟後已經選了別的槽(或已經在匯入),不打擾
+	var slot := ""
+	for row: Dictionary in _action_rows:
+		if bool(row.get("header", false)):
+			continue
+		if str(row["slot"]) == "walk":
+			slot = "walk"
+			break
+		if slot == "":
+			slot = str(row["slot"])
+	if slot == "":
+		return
+	_select_empty_slot(slot)
+	_select_current_row()
+	ask_start_choice("frames")

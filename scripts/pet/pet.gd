@@ -96,7 +96,13 @@ const PETTING_TAIL := 1.0
 const DANCE_DURATION := Vector2(4.0, 15.0)
 const DANCE_EXTEND := Vector2(3.0, 6.0)
 const DANCE_COOLDOWN := Vector2(180.0, 300.0)
-const DANCE_FOLLOW_CHANCE := 0.5
+## 2026-10-22 使用者:想多看幾隻一起跳。原本只在「看到的那一刻剛好站著」才擲 50%,走路中、跳躍落地前都直接錯過;
+## 改成走路中也會停下來加入,當下忙(在空中、說話…)就在 DANCE_JOIN_WINDOW 秒內再等等,對方還在跳才加入。
+const DANCE_FOLLOW_CHANCE := 0.8
+const DANCE_JOIN_WINDOW := 6.0
+## 2026-10-22 飛行、漂浮也會跳舞(見 _tick_air_dance):空中沒有「待機結束」這個時間點,改成每隔這麼久擲一次 auto_dance_chance,
+## 頻率跟地面一輪「走一段+停一下」差不多。
+const AIR_DANCE_CHECK_SECONDS := 5.0
 const AUTO_CHAT_RETRY_SECONDS := Vector2(8.0, 20.0)
 const AUTO_CHAT_QUIET_MSEC := 10000
 const MIN_HOLD_TIME := 0.5
@@ -199,8 +205,9 @@ func topic_generic_start() -> int:
 ## (性格帶來的也一樣;跳、發抖這些動作照做),被其他桌寵邀請對戰時不回話但照常接受/拒絕,自己不主動邀請
 ## 桌寵或使用者。右鍵選單的占卜、抽籤、計時照常回應(那幾條走 UiManager 直接顯示 / force_bubble,不經過
 ## 下面這幾個關卡:GameChat.say/think、LogicInterpreter._show_line/_send_line/say_something)。
+## 勿擾時段勾了「靜默」(DesktopShellState.schedule_silent)時,時段內全部桌寵也算靜默,不動這隻自己的設定。
 func is_silent() -> bool:
-	return bool(interaction_rules.get("silent", false))
+	return bool(interaction_rules.get("silent", false)) or (_shell_state != null and _shell_state.schedule_silent)
 
 
 func set_topic_custom(lines: Array) -> void:
@@ -497,6 +504,9 @@ var muted := false
 @export var auto_dance_follow_enabled := true
 var _mute_stamp := 0
 var _dance_cue_left := -1.0
+var _dance_cue_window := 0.0
+var _dance_cue_source: Node = null
+var _air_dance_check_left := AIR_DANCE_CHECK_SECONDS
 var _dance_cooldown_left := 0.0
 var _was_dancing := false
 
@@ -843,6 +853,12 @@ func _tick_ask_user_game(delta: float) -> void:
 		return
 	_shell_state.note_auto_chat_started()
 	_ask_user_game()
+
+
+## 正掛著桌寵自己發起、等使用者回答的提問(問要不要玩、問稱呼、閒聊裡的選項/詢問),
+## 開勿擾/放鬆模式、關自動閒聊時要收回,見 UIManager.withdraw_autonomous_asks()。
+func is_asking_autonomously() -> bool:
+	return _asking_user_game or _asking_user_nickname or (logic != null and logic.is_chat_running())
 
 
 func _ask_user_game() -> void:
@@ -2853,6 +2869,15 @@ func _tick_prop_action(delta: float) -> void:
 
 ## 飛行模式:道具交互(被拿來洗澡、使用道具、道具壓在身上)時先降落,交互完再起飛;關掉就原地懸停。桌寵設定可調。
 var land_for_props := true
+## 漂浮模式的動畫(2026-10-21 使用者要求,桌寵管理 > 行為 > 移動與飛行):float_fly_anim = 平常的 idle 改播 fly
+## (沒有 fly 素材照 fly 的降級走 rise/fall/walk);float_walk_anim = 移動中播 walk,停住(休息、道具交互、到定位)
+## 才播 idle 或 fly。見 _float_locomotion()。
+var float_fly_anim := false
+var float_walk_anim := false
+## 漂浮模式休息時會不會躺下、睡著(2026-10-22 使用者要求做成開關,預設開;關掉的話休息最多坐著,見 PetVitality._enter_stage)。
+var float_lay_sleep := true
+## 漂浮時速度超過這個值算「移動中」(float_walk_anim 用)。
+const FLOAT_WALK_SPEED := 6.0
 ## 道具交互中原地不動的倒數(秒),見 hold_still_for。
 var _prop_still_left := 0.0
 
@@ -3639,8 +3664,10 @@ func _start_furniture_fallback(item: FurnitureItem, wanted_type: String) -> bool
 	if base_world == Vector2.INF:
 		return false
 	var base: Vector2 = get_parent().to_local(base_world) if get_parent() is Node2D else base_world
+	# 飛行、漂浮(不在地上走的)落腳處的高度跟錨點一樣(在家具旁邊),地面的照舊沿著自己站的這一層找(2026-10-22)。
+	var spot_y := position.y if is_ground_mode() else base.y
 	for offset: float in [0.0, 60.0, -60.0, 120.0, -120.0, 180.0, -180.0]:
-		var candidate := Vector2(base.x + offset, position.y)
+		var candidate := Vector2(base.x + offset, spot_y)
 		if not _spot_crowded(candidate, null):
 			_furniture_spot = candidate
 			_furniture_spot_kind = wanted_type
@@ -3657,15 +3684,20 @@ func _furniture_spot_goal() -> Variant:
 	var dt := get_physics_process_delta_time()
 	if _furniture_spot_hold > 0.0:
 		_furniture_spot_hold -= dt
-		if _furniture_spot_hold <= 0.0:
+		if _furniture_spot_hold <= 0.0 or _hold_left <= 0.0:
 			_furniture_spot = null
+			_furniture_spot_hold = 0.0
+			release_hold()
 			return null
 		return position
 	var spot := _furniture_spot as Vector2
 	_furniture_spot_left -= dt
-	if absf(position.x - spot.x) <= FOLLOW_DEADZONE or _furniture_spot_left <= 0.0:
+	var arrived := absf(position.x - spot.x) <= FOLLOW_DEADZONE if is_ground_mode() else position.distance_to(spot) <= FURNITURE_ARRIVE_DISTANCE
+	if arrived or _furniture_spot_left <= 0.0:
 		_furniture_spot_hold = FURNITURE_FALLBACK_SECONDS
-		_play_locomotion(StringName(_furniture_spot_kind))
+		# 用積木同一級的佔用擺姿勢:飛行/漂浮每個影格都會播自己的移動動畫,自主優先級的 sit/lay 一下就被蓋掉。
+		play_action(StringName(_furniture_spot_kind), -1, true)
+		extend_hold(FURNITURE_FALLBACK_SECONDS)
 		return position
 	return spot
 
@@ -5371,7 +5403,8 @@ func _process_climb(delta: float) -> void:
 
 ## 自主跳舞(新的系統動作 dance):待機時間結束時,沒有負面狀態鏡、開關開著、素材有 dance 動作,
 ## 就有 auto_dance_chance 的機率改成原地跳一段舞(DANCE_DURATION 秒,跳完冷卻 DANCE_COOLDOWN 秒)再繼續原本的行程。
-## 沒有 dance 素材就不跳(不退回 idle,免得桌寵站著不動卻被當成在跳舞)。地面/靜止模式限定,跟隨中不會跳。
+## 沒有 dance 素材就不跳(不退回 idle,免得桌寵站著不動卻被當成在跳舞)。跟隨中不會跳。
+## 地面/靜止在待機結束時擲;飛行(巡航中)、漂浮在空中跳,見 _tick_air_dance。
 func _try_start_dance() -> bool:
 	if relaxing():
 		return false
@@ -5424,18 +5457,67 @@ func _on_dance_cue(source: Node) -> void:
 		_dance_left = minf(maxf(_dance_left + randf_range(DANCE_EXTEND.x, DANCE_EXTEND.y), joined), maxf(_dance_left, DANCE_DURATION.y))
 		_state_timer = maxf(_state_timer, _dance_left)
 		return
-	if not auto_dance_follow_enabled or not auto_dance_enabled or _dance_cooldown_left > 0.0:
+	if not auto_dance_follow_enabled or not auto_dance_enabled or _dance_cooldown_left > 0.0 or _dance_cue_left >= 0.0:
 		return
 	_dance_cue_left = randf_range(0.5, 2.0)
+	_dance_cue_window = DANCE_JOIN_WINDOW
+	_dance_cue_source = source
 
 
 func _tick_dance_cue(delta: float) -> void:
 	_dance_cue_left -= delta
+	_dance_cue_window -= delta
 	if _dance_cue_left > 0.0:
 		return
+	var source := _dance_cue_source
+	if not is_instance_valid(source) or not source.has_method("dance_time_left") or source.dance_time_left() <= 0.0 or _dance_cue_window <= 0.0:
+		_dance_cue_left = -1.0   # 對方跳完了(或等太久):不加入,免得變成自己一個人跳
+		return
+	var grounded_ready: bool = (is_on_floor() and _airborne_grace <= 0.0) if _dances_on_ground() else true
+	if not grounded_ready or _dialogue_open or _interact_left > 0.0 or _hold_left > 0.0 or _converse_left > 0.0 or _prop_still_left > 0.0:
+		_dance_cue_left = 0.5   # 正在忙:等一下再看
+		return
 	_dance_cue_left = -1.0
-	if _ground_state == GroundState.IDLE and is_on_floor() and randf() < DANCE_FOLLOW_CHANCE:
-		_start_dance()
+	if randf() < DANCE_FOLLOW_CHANCE:
+		_start_dance()   # 走路中也會停下來跳(_start_dance 會切回 IDLE)
+
+
+## 這一刻是照地面規則跳舞(要站在地上),還是在空中跳(飛行巡航中、漂浮)。兼具模式落地走路時算地面。
+func _dances_on_ground() -> bool:
+	if move_mode == MoveMode.FLOATING:
+		return false
+	if move_mode == MoveMode.FLYING:
+		return fly_behavior == FlyBehavior.HYBRID and not _hybrid_airborne
+	return true
+
+
+## 飛行(巡航中)、漂浮在空中跳舞:停在原地輕輕上下飄著跳,時間到再繼續飛;自己每 AIR_DANCE_CHECK_SECONDS 擲一次要不要跳,
+## 看到別隻在跳一樣會跟(_tick_dance_cue)。回傳 true = 這一幀正在跳,呼叫端不要再跑自己的移動。休息、道具交互由呼叫端先擋掉。
+func _tick_air_dance(delta: float) -> bool:
+	if _dance_cue_left >= 0.0:
+		_tick_dance_cue(delta)
+	if _dance_left > 0.0 and (_interact_left > 0.0 or _hold_left > 0.0 or entering or not auto_dance_enabled or lens_blocks("dance") or is_resting_now()):
+		_dance_left = 0.0   # 同地面:被互動、被積木佔用、開關關掉、負面狀態鏡、開始休息就收舞
+	if _dance_left <= 0.0:
+		_air_dance_check_left -= delta
+		if _air_dance_check_left > 0.0 or _prop_still_left > 0.0 or _dialogue_open or _converse_left > 0.0:
+			return false
+		_air_dance_check_left = AIR_DANCE_CHECK_SECONDS
+		if not _try_start_dance():
+			return false
+	_dance_left = maxf(_dance_left - delta, 0.0)
+	_fly_time += delta
+	var bob := cos(_fly_time * params.fly_bob_frequency) * params.fly_bob_amplitude * params.fly_bob_frequency * 0.5
+	velocity = Vector2(velocity.x * maxf(1.0 - 6.0 * delta, 0.0), bob)
+	if move_mode == MoveMode.FLOATING:
+		move_and_collide(velocity * delta)
+		position = clamp_to_bounds(position)
+	else:
+		move_and_slide()
+	_play_locomotion(&"dance")
+	if _dance_left <= 0.0 and move_mode == MoveMode.FLOATING:
+		velocity = Vector2.from_angle(randf() * TAU) * params.float_min_speed   # 跳完繼續漂
+	return true
 
 
 ## 有沒有生效中、標記為「負面」而且不在 LensBehavior 效果表裡的狀態鏡(使用者自己建的)。
@@ -5619,8 +5701,8 @@ func _process_flying(delta: float) -> void:
 		velocity = (to_goal * 3.0).limit_length(params.move_speed * 1.5) if to_goal.length() > FOLLOW_DEADZONE else Vector2.ZERO
 		# 跟平常巡航一樣帶著上下飄動(2026-10-11 使用者回報:飛行桌寵跟隨地面桌寵時動畫停在 fall)。沒有專屬 fly 動作的
 		# 素材是依垂直速度在 rise / fall 之間切換的(見 _start_animation 的降級),跟到定位後速度是 0 就會一直停在 fall。
-		# 正要去坐家具時不飄(要對準錨點)。
-		if _furniture_target == null and not is_on_floor():
+		# 正要去坐家具時不飄(要對準錨點);滿座時在家具旁邊擺姿勢也不飄。
+		if _furniture_target == null and _furniture_spot_hold <= 0.0 and not is_on_floor():
 			_fly_time += delta
 			velocity.y += cos(_fly_time * params.fly_bob_frequency) * params.fly_bob_amplitude * params.fly_bob_frequency
 		move_and_slide()
@@ -5634,6 +5716,11 @@ func _process_flying(delta: float) -> void:
 		if absf(velocity.x) > 1.0:
 			_face(1 if velocity.x > 0.0 else -1)
 		_play_locomotion(&"fly")
+		return
+	if is_using_furniture():
+		velocity = Vector2.ZERO   # 坐/躺在家具上:位置與動作由 _tick_furniture_seek 對齊錨點,不要再走降落流程把牠拉開
+		return
+	if _fly_state == FlyState.CRUISE and _fly_launch_left <= 0.0 and _tick_air_dance(delta):
 		return
 	if _prop_still_left > 0.0:
 		if land_for_props and fly_behavior == FlyBehavior.LANDS:
@@ -5955,15 +6042,17 @@ func _process_floating(delta: float) -> void:
 		# 漂浮的桌寵休息、睡覺時慢慢停下來,原地不動。
 		velocity = velocity.lerp(Vector2.ZERO, minf(4.0 * delta, 1.0))
 		move_and_collide(velocity * delta)
-		_play_locomotion(&"idle")
+		_play_locomotion(_float_locomotion(false))
 		return
 	if _prop_still_left > 0.0:
 		velocity = velocity.lerp(Vector2.ZERO, minf(5.0 * delta, 1.0))
 		move_and_collide(velocity * delta)
-		_play_locomotion(&"idle")
+		_play_locomotion(_float_locomotion(false))
 		return
 	var goal: Variant = _movement_goal()
 	var seeking := goal is Vector2
+	if not seeking and _tick_air_dance(delta):
+		return   # 跳舞時 is_holding_still() 會讓 _movement_goal 回 null(同地面),跳完才去追目標
 	if seeking:
 		var to_goal: Vector2 = goal - position
 		var desired := Vector2.ZERO if to_goal.length() < FOLLOW_DEADZONE else to_goal.normalized() * params.move_speed * 1.5
@@ -5978,7 +6067,14 @@ func _process_floating(delta: float) -> void:
 	position = clamp_to_bounds(position)
 	if absf(velocity.x) > 1.0:
 		_face(signi(int(velocity.x)))
-	_play_locomotion(&"idle")
+	_play_locomotion(_float_locomotion(velocity.length() > FLOAT_WALK_SPEED))
+
+
+## 漂浮模式這一刻該播的移動動畫(見 float_fly_anim / float_walk_anim)。
+func _float_locomotion(moving: bool) -> StringName:
+	if moving and float_walk_anim:
+		return &"walk"
+	return &"fly" if float_fly_anim else &"idle"
 
 
 func _enter_idle() -> void:

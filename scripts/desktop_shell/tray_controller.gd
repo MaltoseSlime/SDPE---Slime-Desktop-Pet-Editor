@@ -68,6 +68,8 @@ const ID_DO_NOT_DISTURB := 24
 const ID_RELAX_MODE := 25
 ## 最近用過的素材包資料夾,選單項目 id = ID_RECENT_PACK_BASE + 索引。
 const ID_RECENT_PACK_BASE := 400
+## 「叫回最小化的視窗」清單,id = ID_MINIMIZED_BASE + 索引(見 FloatingWindow.minimize_to_tray)。
+const ID_MINIMIZED_BASE := 600
 const MAX_SUMMON_LIBRARY := 16
 const ID_DEBUG_POLYGON := 7
 const ID_REMOVE_PET := 104
@@ -101,11 +103,14 @@ var _important_update_available := false
 var _menu: PopupMenu
 var _submenus: Array[PopupMenu] = []
 var _pets: Array[Node] = []
+## 「叫回最小化的視窗」目前列出的視窗(選單項目的 id 對應這個陣列)。
+var _minimized: Array[FloatingWindow] = []
 
 
 func _ready() -> void:
 	if not DisplayServer.has_feature(DisplayServer.FEATURE_STATUS_INDICATOR):
 		return
+	add_to_group("tray_menu")
 	_menu = PopupMenu.new()
 	_menu.id_pressed.connect(_on_menu_id_pressed)
 	add_child(_menu)
@@ -146,6 +151,23 @@ func refresh_pets() -> void:
 
 func _on_pet_label_changed() -> void:
 	_rebuild_menu.call_deferred()
+
+
+## 浮動視窗藏起來 / 顯示 / 關掉時呼叫(FloatingWindow 用 call_group("tray_menu", ...) 通知),重建「叫回最小化的視窗」。
+func refresh_windows() -> void:
+	if _menu != null and is_inside_tree():
+		_rebuild_menu.call_deferred()
+
+
+## 最小化(按了「—」)或藏起來的浮動視窗,照標題排。
+func minimized_windows() -> Array[FloatingWindow]:
+	var result: Array[FloatingWindow] = []
+	for node in get_tree().get_nodes_in_group("floating_windows"):
+		var window := node as FloatingWindow
+		if window != null and not window.is_queued_for_deletion() and window.is_inside_tree() and window.is_minimized():
+			result.append(window)
+	result.sort_custom(func(a: FloatingWindow, b: FloatingWindow) -> bool: return a.title < b.title)
+	return result
 
 
 func _rebuild_menu() -> void:
@@ -206,6 +228,7 @@ func _rebuild_menu() -> void:
 ## 最上面的除錯區:行動區重設、浮動視窗重設、行動區邊框、重排立繪、穿透範圍線、錯誤紀錄資料夾。
 func _add_debug_block() -> void:
 	_add_behavior_submenu()
+	_add_minimized_submenu()
 	_menu.add_item(tr("行動區重設"), ID_RECALL)
 	_menu.add_item(tr("浮動視窗重設"), ID_WINDOWS_RESET)
 	_menu.add_check_item(tr("隱藏行動區邊框"), ID_TOGGLE_FRAME)
@@ -238,9 +261,22 @@ func _add_behavior_submenu() -> void:
 	submenu.name = "BehaviorMenu"
 	submenu.add_check_item(tr("自動閒聊(全部桌寵)"), ID_AUTO_CHAT)
 	submenu.set_item_checked(submenu.get_item_index(ID_AUTO_CHAT), state.auto_chat_enabled)
-	submenu.add_check_item(tr("勿擾模式"), ID_DO_NOT_DISTURB)
-	submenu.set_item_checked(submenu.get_item_index(ID_DO_NOT_DISTURB), state.do_not_disturb)
-	submenu.set_item_tooltip(submenu.get_item_index(ID_DO_NOT_DISTURB), tr("桌寵照常閒聊,但不會主動問你問題:帶選項的事件、問稱呼、問關鍵詞、問要不要一起玩。"))
+	var dnd_label := tr("勿擾模式")
+	if state.schedule_dnd:
+		dnd_label = tr("勿擾模式(勿擾時段中)")
+	elif state.painting:
+		dnd_label = tr("勿擾模式(繪圖中)")
+	submenu.add_check_item(dnd_label, ID_DO_NOT_DISTURB)
+	var dnd_index := submenu.get_item_index(ID_DO_NOT_DISTURB)
+	submenu.set_item_checked(dnd_index, state.do_not_disturb_now())
+	submenu.set_item_tooltip(dnd_index, tr("桌寵照常閒聊,但不會主動問你問題:帶選項的事件、問稱呼、問關鍵詞、問要不要一起玩。"))
+	if state.schedule_dnd:
+		# 勿擾時段(全局設定 > 對話)內一定是勿擾,這裡先不能切;離開時段就回到你自己設定的勿擾開關。
+		submenu.set_item_disabled(dnd_index, true)
+		submenu.set_item_tooltip(dnd_index, tr("現在在勿擾時段裡(全局設定 > 對話 > 設定勿擾時段),時段結束後會回到你原本的設定。"))
+	elif state.painting:
+		submenu.set_item_disabled(dnd_index, true)
+		submenu.set_item_tooltip(dnd_index, tr("繪圖視窗開著的期間自動勿擾,關掉繪圖視窗就回到你原本的設定。"))
 	submenu.add_check_item(tr("放鬆模式"), ID_RELAX_MODE)
 	submenu.set_item_checked(submenu.get_item_index(ID_RELAX_MODE), state.relax_mode)
 	submenu.set_item_tooltip(submenu.get_item_index(ID_RELAX_MODE), tr("桌寵大多坐著休息、偶爾換個位置坐到別的桌寵旁邊;少閒聊、少玩遊戲、不追球與道具、不互相跟隨、不問你問題,也比較省效能。仍然可以餵食、叫牠跟著滑鼠。"))
@@ -248,6 +284,21 @@ func _add_behavior_submenu() -> void:
 	_menu.add_child(submenu)
 	_submenus.append(submenu)
 	_menu.add_submenu_node_item(tr("全體行為"), submenu)
+
+
+## 二階選單「叫回最小化的視窗」:只有在有視窗藏起來時才出現。
+func _add_minimized_submenu() -> void:
+	_minimized = minimized_windows()
+	if _minimized.is_empty():
+		return
+	var submenu := PopupMenu.new()
+	submenu.name = "MinimizedMenu"
+	for i in _minimized.size():
+		submenu.add_item(_minimized[i].title, ID_MINIMIZED_BASE + i)
+	submenu.id_pressed.connect(_on_menu_id_pressed)
+	_menu.add_child(submenu)
+	_submenus.append(submenu)
+	_menu.add_submenu_node_item(tr("叫回最小化的視窗(%d)") % _minimized.size(), submenu)
 
 
 ## 二階選單「召喚 / 測試用」:從素材包召喚、開發時測試多角色用的桌寵(角色庫上線後這些會慢慢退役)。
@@ -299,6 +350,12 @@ func _on_pet_menu_pressed(id: int, pet: Node) -> void:
 func _on_menu_id_pressed(id: int) -> void:
 	if id >= ID_RECENT_PACK_BASE and id < ID_RECENT_PACK_BASE + _summon_paths.size():
 		add_pack_path_requested.emit(_summon_paths[id - ID_RECENT_PACK_BASE])
+		return
+	if id >= ID_MINIMIZED_BASE and id < ID_MINIMIZED_BASE + _minimized.size():
+		var window := _minimized[id - ID_MINIMIZED_BASE]
+		if is_instance_valid(window) and not window.is_queued_for_deletion():
+			window.bring_to_front()
+			window.ensure_on_screen()
 		return
 	match id:
 		ID_TOGGLE_FRAME:
