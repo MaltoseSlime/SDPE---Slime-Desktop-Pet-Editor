@@ -26,6 +26,16 @@ The goal of this project is to be usable offline and with as much customizable c
 
 #################
 
+# 插件 Plugins
+
+v0.4.0 起可以安裝官方插件擴充功能(聊天、MIDI 播放、小遊戲擴充包…)。插件不在這個倉庫,請到 **[SDPE-Plugins](https://github.com/MaltoseSlime/SDPE-Plugins)** 下載 `.sdpeplugin` 檔,在程式的「全局設定 → 插件」安裝。只接受官方簽章的插件;插件預設不啟用,不裝也不影響原本的功能。插件附帶的第三方資料與授權寫在各插件的安裝檔與 SDPE-Plugins 的說明裡。
+
+—
+
+Since v0.4.0 the app can be extended with official plugins (Chat, MIDI Player, Mini-game Pack…). Plugins are not in this repository: download the `.sdpeplugin` files from **[SDPE-Plugins](https://github.com/MaltoseSlime/SDPE-Plugins)** and install them in the app under Global Settings → Plugins. Only officially signed plugins are accepted; plugins are off by default and the app works the same without them. Third-party data bundled with a plugin and its licenses are listed in that plugin's package and in the SDPE-Plugins readme.
+
+#################
+
 # Credits 
 - 引擎與工具: Godot Engine(MIT)
 
@@ -35,7 +45,7 @@ The goal of this project is to be usable offline and with as much customizable c
 
 - 程式碼由 AI(Claude, Anthropic)協助撰寫;未使用 AI 生成的圖像素材。
 
-完整授權全文見隨遊戲發行的 `THIRD_PARTY_LICENSES.txt`。
+完整授權全文見隨遊戲發行的 `THIRD_PARTY_LICENSES.txt`。插件的署名見 [SDPE-Plugins](https://github.com/MaltoseSlime/SDPE-Plugins)。
 
 —
 
@@ -47,6 +57,6 @@ The goal of this project is to be usable offline and with as much customizable c
 
 - Code written with AI assistance (Claude, Anthropic); no AI-generated art assets.
 
-Full license texts: `THIRD_PARTY_LICENSES.txt` (shipped with the game).
+Full license texts: `THIRD_PARTY_LICENSES.txt` (shipped with the game). Plugin credits: see [SDPE-Plugins](https://github.com/MaltoseSlime/SDPE-Plugins).
 
 #################
